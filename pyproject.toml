@@ -39,9 +39,9 @@ awa = "awa.cli.main:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = [
-    "backend/src/awa",
+    "backend/awa",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "backend/tests"]
-pythonpath = ["backend/src", "."]
+pythonpath = ["backend", "."]

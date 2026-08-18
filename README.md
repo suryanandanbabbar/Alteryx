@@ -66,8 +66,7 @@ React / TypeScript / Vite Dashboard (Interactive DAG, Code Viewer, Downloads)
 ```text
 backend/
 ├── app/       # FastAPI application and REST endpoints
-└── src/
-    └── awa/   # AWA analysis engine (parser, graph, translators, generators)
+└── awa/       # AWA analysis engine (parser, graph, translators, generators)
 frontend/      # React / TypeScript user interface
 tests/         # End-to-end and vertical slice tests
 fixtures/      # Sample Alteryx workflow files
