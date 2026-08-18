@@ -1,7 +1,7 @@
 import React from 'react';
 import { api } from '../api/client';
 import { DownloadCard } from '../components/DownloadCard';
-import { FileText, FileCode2, Terminal, Network, Archive } from 'lucide-react';
+import { FileText, FileCode2, Terminal, GitFork, Archive } from 'lucide-react';
 
 interface DownloadPageProps {
   analysisId: string;
@@ -13,76 +13,78 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: '900px' }}>
-      {/* Section Header */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '850px' }}>
+      {/* Section Subtitle */}
       <div>
         <div style={{
           fontSize: '11px',
           fontWeight: '700',
-          letterSpacing: '1.5px',
-          color: '#38bdf8',
+          letterSpacing: '1px',
+          color: 'var(--color-primary)',
           textTransform: 'uppercase',
           marginBottom: '4px',
         }}>
-          05 Download All Files
+          05 Download
         </div>
-        <h1 style={{ fontSize: '26px', fontWeight: '800', color: '#f8fafc', letterSpacing: '-0.5px', marginBottom: '8px' }}>
-          Download individual files or grab everything as a single ZIP
-        </h1>
-        <p style={{ fontSize: '13px', color: '#94a3b8' }}>
-          Export deterministic analysis artifacts, executable pandas scripts, vector diagrams, and complete Word documentation.
-        </p>
+        <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', margin: 0 }}>
+          Export Generated Analysis Artifacts
+        </h2>
       </div>
 
-      {/* 4 Download Cards matching Screenshot 6 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <DownloadCard
-          icon={FileText}
-          title="Word Document (.docx)"
-          subtitle="Diagram + node details + metadata + lineage report"
-          buttonText="Download"
-          buttonGradient="linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)"
-          onDownload={() => triggerDownload('docx')}
-        />
+      {/* Primary Master Bundle Card (Section 17) */}
+      <DownloadCard
+        icon={Archive}
+        title="Complete bundle"
+        subtitle="All generated artifacts (JSON, Python, SVG, Word Doc, Diagnostics) in a single ZIP"
+        formatBadge=".zip"
+        isPrimary={true}
+        onDownload={() => triggerDownload('zip')}
+      />
 
+      {/* Individual Artifacts List */}
+      <div style={{
+        fontSize: '11px',
+        fontWeight: '700',
+        letterSpacing: '0.8px',
+        color: 'var(--color-text-muted)',
+        textTransform: 'uppercase',
+        marginTop: '8px',
+      }}>
+        Individual Artifacts
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <DownloadCard
           icon={FileCode2}
-          title="JSON Data (.json)"
-          subtitle="Full DAG structure, snake_case metadata, tools & diagnostics"
-          buttonText="Download"
-          buttonGradient="linear-gradient(135deg, #0284c7 0%, #0369a1 100%)"
+          title="Workflow JSON"
+          subtitle="Machine-readable workflow representation with metadata and graph topology"
+          formatBadge=".json"
           onDownload={() => triggerDownload('json')}
         />
 
         <DownloadCard
           icon={Terminal}
-          title="Python Pipeline (.py)"
-          subtitle="Executable pandas script with lineage and traceability headers"
-          buttonText="Download"
-          buttonGradient="linear-gradient(135deg, #10b981 0%, #059669 100%)"
+          title="Python pipeline"
+          subtitle="Generated pandas workflow script with line-level traceability headers"
+          formatBadge=".py"
           onDownload={() => triggerDownload('python')}
         />
 
         <DownloadCard
-          icon={Network}
-          title="SVG Diagram (.svg)"
-          subtitle="Standalone, scalable vector DAG visualization"
-          buttonText="Download"
-          buttonGradient="linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
-          onDownload={() => triggerDownload('svg')}
+          icon={FileText}
+          title="Word document"
+          subtitle="Comprehensive workflow documentation report with embedded visual DAG"
+          formatBadge=".docx"
+          onDownload={() => triggerDownload('docx')}
         />
 
-        {/* Master ZIP Bundle Card */}
-        <div style={{ marginTop: '12px' }}>
-          <DownloadCard
-            icon={Archive}
-            title="Complete Bundle Archive (.zip)"
-            subtitle="Contains all 5 artifacts (workflow.json, workflow.py, workflow.svg, workflow.docx, diagnostics.json)"
-            buttonText="Download ZIP"
-            buttonGradient="linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)"
-            onDownload={() => triggerDownload('zip')}
-          />
-        </div>
+        <DownloadCard
+          icon={GitFork}
+          title="SVG diagram"
+          subtitle="Standalone, scalable vector DAG visualization"
+          formatBadge=".svg"
+          onDownload={() => triggerDownload('svg')}
+        />
       </div>
     </div>
   );

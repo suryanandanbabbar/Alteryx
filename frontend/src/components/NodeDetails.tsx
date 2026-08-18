@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NodeDTO } from '../types/workflow';
 import { getCategoryColor } from '../theme/palette';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 
 interface NodeDetailsProps {
   nodes: NodeDTO[];
@@ -9,20 +9,79 @@ interface NodeDetailsProps {
 }
 
 export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId }) => {
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(
-    new Set(selectedToolId ? [selectedToolId] : [nodes[0]?.tool_id])
-  );
-
-  const toggleExpand = (toolId: number) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(toolId)) {
-        next.delete(toolId);
-      } else {
-        next.add(toolId);
-      }
-      return next;
+  const [expandedNodes, setExpandedNodes] = useState<Record<number, boolean>>(() => {
+    const initial: Record<number, boolean> = {};
+    nodes.forEach((n) => {
+      // Default to expanded if selected or for first few nodes
+      initial[n.tool_id] = selectedToolId ? n.tool_id === selectedToolId : true;
     });
+    return initial;
+  });
+
+  const toggleNode = (toolId: number) => {
+    setExpandedNodes((prev) => ({
+      ...prev,
+      [toolId]: !prev[toolId],
+    }));
+  };
+
+  const getSupportBadge = (level: string) => {
+    switch (level.toLowerCase()) {
+      case 'supported':
+        return (
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '11px',
+            fontWeight: '600',
+            color: 'var(--color-success)',
+            background: 'var(--color-success-subtle)',
+            padding: '2px 8px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid rgba(34, 197, 94, 0.3)',
+          }}>
+            <CheckCircle2 size={11} />
+            SUPPORTED
+          </span>
+        );
+      case 'partial':
+        return (
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '11px',
+            fontWeight: '600',
+            color: 'var(--color-warning)',
+            background: 'var(--color-warning-subtle)',
+            padding: '2px 8px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+          }}>
+            <AlertTriangle size={11} />
+            PARTIAL
+          </span>
+        );
+      default:
+        return (
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '11px',
+            fontWeight: '600',
+            color: 'var(--color-error)',
+            background: 'var(--color-error-subtle)',
+            padding: '2px 8px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+          }}>
+            <XCircle size={11} />
+            {level.toUpperCase()}
+          </span>
+        );
+    }
   };
 
   return (
@@ -30,151 +89,185 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
       <div style={{
         fontSize: '11px',
         fontWeight: '700',
-        letterSpacing: '1px',
-        color: '#64748b',
+        letterSpacing: '0.8px',
+        color: 'var(--color-text-muted)',
         textTransform: 'uppercase',
-        marginBottom: '4px',
+        marginBottom: '2px',
       }}>
-        Node Details — Click any row to expand
+        Node Configurations & Metadata ({nodes.length} tools)
       </div>
 
       {nodes.map((node) => {
-        const isExpanded = expandedIds.has(node.tool_id);
+        const isExpanded = !!expandedNodes[node.tool_id];
+        const isSelected = selectedToolId === node.tool_id;
         const catColor = getCategoryColor(node.visual_category);
-        const hasConfig = Object.keys(node.configuration).length > 0;
 
         return (
           <div
             key={node.tool_id}
-            className="glass-card"
+            id={`tool-detail-${node.tool_id}`}
+            className="app-card"
             style={{
               overflow: 'hidden',
-              border: isExpanded ? `1px solid ${catColor.stroke}` : '1px solid rgba(51, 65, 85, 0.5)',
-              transition: 'all 0.2s ease',
+              borderColor: isSelected ? 'var(--color-primary)' : 'var(--color-border)',
+              transition: 'border-color 0.15s ease',
             }}
           >
-            {/* Header Row */}
+            {/* Header / Accordion Bar */}
             <div
-              onClick={() => toggleExpand(node.tool_id)}
+              onClick={() => toggleNode(node.tool_id)}
               style={{
+                padding: '12px 16px',
+                background: isExpanded ? 'var(--color-surface-secondary)' : 'var(--color-surface)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '14px 18px',
                 cursor: 'pointer',
-                background: isExpanded ? 'rgba(30, 41, 59, 0.4)' : 'transparent',
+                userSelect: 'none',
+                borderBottom: isExpanded ? '1px solid var(--color-border)' : 'none',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {/* Numbered circle */}
-                <div style={{
-                  width: '24px',
-                  height: '24px',
-                  borderRadius: '50%',
-                  background: catColor.stroke,
-                  color: '#090d1a',
-                  fontSize: '11px',
-                  fontWeight: '800',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                  {node.tool_id}
-                </div>
+                <span style={{ color: 'var(--color-text-muted)' }}>
+                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </span>
 
-                {/* Type badge */}
+                {/* Tool ID Badge */}
                 <span style={{
-                  padding: '4px 10px',
-                  borderRadius: '4px',
-                  background: catColor.badgeBg,
-                  border: `1px solid ${catColor.stroke}60`,
-                  color: catColor.text,
+                  fontFamily: 'var(--font-mono)',
                   fontSize: '11px',
                   fontWeight: '700',
-                  letterSpacing: '0.5px',
-                  textTransform: 'uppercase',
+                  color: 'var(--color-text-muted)',
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  padding: '2px 6px',
+                  borderRadius: 'var(--radius-sm)',
+                }}>
+                  #{node.tool_id}
+                </span>
+
+                {/* Category & Type */}
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  color: catColor.text,
+                  background: catColor.badgeBg,
+                  border: `1px solid ${catColor.stroke}`,
+                  padding: '2px 8px',
+                  borderRadius: 'var(--radius-sm)',
                 }}>
                   {node.tool_type}
                 </span>
 
-                {/* Tool Name / Annotation */}
-                <span style={{ fontSize: '13px', fontWeight: '600', color: '#f8fafc' }}>
-                  {node.name || node.annotation || node.tool_type}
+                {/* Name */}
+                <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--color-text)' }}>
+                  {node.name || node.tool_type}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{
-                  fontSize: '11px',
-                  color: node.support_level === 'supported' ? '#4ade80' : '#fbbf24',
-                  fontWeight: '600',
-                  textTransform: 'uppercase',
-                }}>
-                  {node.support_level}
-                </span>
-                {isExpanded ? <ChevronDown size={16} color="#94a3b8" /> : <ChevronRight size={16} color="#94a3b8" />}
+              {/* Support Level Badge */}
+              <div>
+                {getSupportBadge(node.support_level)}
               </div>
             </div>
 
-            {/* Expanded Config Body */}
+            {/* Expanded Content */}
             {isExpanded && (
-              <div style={{
-                padding: '16px 20px',
-                background: 'rgba(7, 11, 25, 0.8)',
-                borderTop: '1px solid rgba(51, 65, 85, 0.4)',
-              }}>
-                {hasConfig ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {Object.entries(node.configuration).map(([k, v]) => {
-                      const displayVal = typeof v === 'object' ? JSON.stringify(v) : String(v);
-                      return (
-                        <div
-                          key={k}
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '180px 1fr',
-                            gap: '12px',
-                            fontSize: '12px',
-                            fontFamily: 'monospace',
-                            padding: '4px 0',
-                            borderBottom: '1px solid rgba(51, 65, 85, 0.2)',
-                          }}
-                        >
-                          <span style={{ color: '#94a3b8', fontWeight: '500' }}>{k}</span>
-                          <span style={{ color: '#38bdf8', wordBreak: 'break-all' }}>{displayVal}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic' }}>
-                    No custom configuration properties parsed for this tool.
+              <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Meta Table */}
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                      <td style={{ padding: '6px 0', width: '140px', color: 'var(--color-text-muted)', fontWeight: '500' }}>Plugin</td>
+                      <td style={{ padding: '6px 0', color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>{node.plugin}</td>
+                    </tr>
+                    {node.position && (
+                      <tr style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                        <td style={{ padding: '6px 0', color: 'var(--color-text-muted)', fontWeight: '500' }}>Canvas Position</td>
+                        <td style={{ padding: '6px 0', color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>
+                          x={node.position.x}, y={node.position.y}
+                        </td>
+                      </tr>
+                    )}
+                    {node.annotation && (
+                      <tr style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                        <td style={{ padding: '6px 0', color: 'var(--color-text-muted)', fontWeight: '500' }}>Annotation</td>
+                        <td style={{ padding: '6px 0', color: 'var(--color-text)' }}>{node.annotation}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Configuration Table */}
+                {Object.keys(node.configuration).length > 0 && (
+                  <div>
+                    <div style={{
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      letterSpacing: '0.5px',
+                      color: 'var(--color-text-muted)',
+                      textTransform: 'uppercase',
+                      marginBottom: '8px',
+                    }}>
+                      Parsed Configuration
+                    </div>
+                    <div style={{
+                      background: 'var(--color-surface-secondary)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-sm)',
+                      overflow: 'hidden',
+                    }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                        <tbody>
+                          {Object.entries(node.configuration).map(([k, v], idx) => (
+                            <tr key={k} style={{ borderBottom: idx < Object.keys(node.configuration).length - 1 ? '1px solid var(--color-border)' : 'none' }}>
+                              <td style={{ padding: '8px 12px', width: '180px', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                                {k}
+                              </td>
+                              <td style={{ padding: '8px 12px', color: 'var(--color-text)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
+                                {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
 
-                {/* Output Schema Fields */}
-                {node.output_fields.length > 0 && (
-                  <div style={{ marginTop: '16px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase' }}>
-                      Output Fields ({node.output_fields.length})
+                {/* Engine Settings (if available) */}
+                {node.engine_settings && Object.keys(node.engine_settings).length > 0 && (
+                  <div>
+                    <div style={{
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      letterSpacing: '0.5px',
+                      color: 'var(--color-text-muted)',
+                      textTransform: 'uppercase',
+                      marginBottom: '8px',
+                    }}>
+                      Engine Settings
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                      {node.output_fields.map((f, i) => (
-                        <span
-                          key={i}
-                          style={{
-                            padding: '3px 8px',
-                            background: 'rgba(30, 41, 59, 0.7)',
-                            border: '1px solid rgba(51, 65, 85, 0.5)',
-                            borderRadius: '4px',
-                            fontSize: '11px',
-                            fontFamily: 'monospace',
-                            color: '#cbd5e1',
-                          }}
-                        >
-                          {f.name} <span style={{ color: '#64748b' }}>({f.type})</span>
-                        </span>
-                      ))}
+                    <div style={{
+                      background: 'var(--color-surface-secondary)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-sm)',
+                      overflow: 'hidden',
+                    }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                        <tbody>
+                          {Object.entries(node.engine_settings).map(([k, v], idx) => (
+                            <tr key={k} style={{ borderBottom: idx < Object.keys(node.engine_settings!).length - 1 ? '1px solid var(--color-border)' : 'none' }}>
+                              <td style={{ padding: '6px 12px', width: '180px', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                                {k}
+                              </td>
+                              <td style={{ padding: '6px 12px', color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>
+                                {v}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}

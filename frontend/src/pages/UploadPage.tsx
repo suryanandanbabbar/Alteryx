@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileCode, FileText, Network, Terminal, AlertCircle, Loader2, Workflow } from 'lucide-react';
+import { Upload, AlertCircle, Loader2, Sun, Moon } from 'lucide-react';
 import { api } from '../api/client';
 import { AnalysisOverviewDTO } from '../types/workflow';
+import { useTheme } from '../context/ThemeContext';
 
 interface UploadPageProps {
   onUploadSuccess: (overview: AnalysisOverviewDTO) => void;
@@ -12,6 +13,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { theme, toggleTheme } = useTheme();
 
   const handleFile = async (file: File) => {
     setError(null);
@@ -21,7 +23,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
       const overview = await api.uploadWorkflow(file);
       onUploadSuccess(overview);
     } catch (err: any) {
-      setError(err.message || 'Failed to analyze workflow file.');
+      setError(err.message || 'Workflow could not be analyzed. Please check the file and try again.');
     } finally {
       setLoading(false);
     }
@@ -57,117 +59,124 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
       minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '40px 24px 32px 24px',
-      boxSizing: 'border-box',
+      background: 'var(--color-bg)',
     }}>
       {/* Top Header Bar */}
       <header style={{
-        width: '100%',
-        maxWidth: '1000px',
+        height: '56px',
+        borderBottom: '1px solid var(--color-border)',
+        background: 'var(--color-surface)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        padding: '0 32px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #38bdf8 0%, #3b82f6 100%)',
+            width: '28px',
+            height: '28px',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--color-primary)',
+            color: '#ffffff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#0f172a',
+            fontWeight: '800',
+            fontSize: '13px',
           }}>
-            <Workflow size={20} />
+            A
           </div>
-          <span style={{ fontSize: '16px', fontWeight: '700', color: '#f8fafc' }}>
-            Alteryx Converter
+          <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text)' }}>
+            AWA
+          </span>
+          <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>|</span>
+          <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: '500' }}>
+            Alteryx Workflow Analyzer
           </span>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <span style={{
-            padding: '4px 10px',
-            borderRadius: '20px',
-            background: 'rgba(56, 189, 248, 0.12)',
-            border: '1px solid rgba(56, 189, 248, 0.4)',
-            color: '#38bdf8',
-            fontSize: '11px',
-            fontWeight: '600',
-            fontFamily: 'monospace',
-          }}>
-            FastAPI
-          </span>
-          <span style={{
-            padding: '4px 10px',
-            borderRadius: '20px',
-            background: 'rgba(148, 163, 184, 0.12)',
-            border: '1px solid rgba(148, 163, 184, 0.4)',
-            color: '#cbd5e1',
-            fontSize: '11px',
-            fontWeight: '600',
-            fontFamily: 'monospace',
-          }}>
-            v1.0
-          </span>
-        </div>
+        <button
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '32px',
+            height: '32px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface)',
+            color: 'var(--color-text-secondary)',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+          }}
+        >
+          {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
+        </button>
       </header>
 
-      {/* Main Hero & Upload Card */}
+      {/* Main Container */}
       <main style={{
-        width: '100%',
+        flex: 1,
         maxWidth: '680px',
+        width: '100%',
+        margin: '0 auto',
+        padding: '60px 24px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        textAlign: 'center',
-        margin: 'auto 0',
       }}>
-        <h1 style={{
-          fontSize: '48px',
-          fontWeight: '800',
-          letterSpacing: '-1.5px',
-          lineHeight: '1.1',
-          marginBottom: '16px',
-          background: 'linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-        }}>
-          From .yxmd<br />to Python
-        </h1>
+        {/* Title & Introduction */}
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <h1 style={{
+            fontSize: '28px',
+            fontWeight: '800',
+            letterSpacing: '-0.5px',
+            color: 'var(--color-text)',
+            marginBottom: '8px',
+          }}>
+            Analyze Alteryx Workflow
+          </h1>
+          <p style={{
+            fontSize: '14px',
+            color: 'var(--color-text-muted)',
+            lineHeight: 1.5,
+            maxWidth: '520px',
+            margin: '0 auto',
+          }}>
+            Inspect workflow topology, tool configurations, data lineage, and generated Python transformations.
+          </p>
+        </div>
 
-        <p style={{
-          fontSize: '15px',
-          color: '#94a3b8',
-          lineHeight: '1.6',
-          maxWidth: '520px',
-          marginBottom: '36px',
-        }}>
-          Upload any Alteryx workflow and instantly get structured JSON, a full Word document, and an executable pandas pipeline.
-        </p>
-
-        {/* Drop Zone Box */}
+        {/* Upload Drop Zone Card */}
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => !loading && fileInputRef.current?.click()}
+          className="app-card"
           style={{
             width: '100%',
-            padding: '48px 24px',
-            borderRadius: '16px',
-            border: isDragging ? '2px dashed #38bdf8' : '2px dashed rgba(51, 65, 85, 0.8)',
-            background: isDragging ? 'rgba(56, 189, 248, 0.08)' : 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(8px)',
+            padding: '40px 24px',
+            textAlign: 'center',
             cursor: loading ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s ease',
+            borderColor: isDragging ? 'var(--color-primary)' : 'var(--color-border)',
+            background: isDragging ? 'var(--color-primary-subtle)' : 'var(--color-surface)',
+            borderStyle: 'dashed',
+            borderWidth: '2px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
             gap: '16px',
+            transition: 'all 0.15s ease',
           }}
         >
           <input
@@ -179,114 +188,104 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
           />
 
           {loading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-              <Loader2 size={36} color="#38bdf8" className="animate-spin" />
-              <span style={{ fontSize: '14px', color: '#38bdf8', fontWeight: '600' }}>
-                Analyzing workflow statically...
-              </span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '16px 0' }}>
+              <Loader2 size={32} color="var(--color-primary)" className="animate-spin" />
+              <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text)' }}>
+                Analyzing workflow...
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                Parsing graph topology and translating tool operations
+              </div>
             </div>
           ) : (
             <>
               <div style={{
-                width: '48px',
-                height: '48px',
+                width: '44px',
+                height: '44px',
                 borderRadius: '50%',
-                background: 'rgba(56, 189, 248, 0.12)',
+                background: 'var(--color-surface-secondary)',
+                border: '1px solid var(--color-border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#38bdf8',
+                color: 'var(--color-primary)',
               }}>
-                <Upload size={22} />
+                <Upload size={20} />
               </div>
 
               <div>
-                <div style={{ fontSize: '16px', fontWeight: '700', color: '#f8fafc', marginBottom: '6px' }}>
-                  Drop your workflow here
+                <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-text)', marginBottom: '4px' }}>
+                  Drop workflow file here, or choose file
                 </div>
-                <div style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>
-                  .yxmd · .yxwz · .xml
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                  Select a workflow file from your computer
                 </div>
               </div>
 
               <button
                 type="button"
-                style={{
-                  marginTop: '8px',
-                  padding: '10px 24px',
-                  borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
-                  border: 'none',
-                  color: '#ffffff',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
-                }}
+                className="btn-primary"
+                style={{ padding: '8px 20px', fontSize: '13px' }}
               >
-                Browse files
+                Choose file
               </button>
+
+              {/* Supported Formats */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginTop: '8px',
+                paddingTop: '16px',
+                borderTop: '1px solid var(--color-border-subtle)',
+                width: '100%',
+                justifyContent: 'center',
+              }}>
+                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Supported formats:
+                </span>
+                {['.yxmd', '.yxwz', '.xml'].map((fmt) => (
+                  <span
+                    key={fmt}
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      color: 'var(--color-text-secondary)',
+                      background: 'var(--color-surface-secondary)',
+                      border: '1px solid var(--color-border)',
+                      padding: '2px 6px',
+                      borderRadius: 'var(--radius-sm)',
+                    }}
+                  >
+                    {fmt}
+                  </span>
+                ))}
+              </div>
             </>
           )}
         </div>
 
-        {/* Error Alert */}
+        {/* Error State */}
         {error && (
           <div style={{
             marginTop: '16px',
             width: '100%',
             padding: '12px 16px',
-            borderRadius: '8px',
-            background: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid rgba(239, 68, 68, 0.4)',
-            color: '#f87171',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--color-error-subtle)',
+            border: '1px solid rgba(220, 38, 38, 0.3)',
+            color: 'var(--color-error)',
             fontSize: '13px',
             display: 'flex',
             alignItems: 'center',
             gap: '10px',
-            textAlign: 'left',
           }}>
             <AlertCircle size={16} style={{ flexShrink: 0 }} />
-            <span>{error}</span>
+            <div style={{ flex: 1 }}>{error}</div>
           </div>
         )}
       </main>
-
-      {/* Bottom Feature Pills */}
-      <footer style={{
-        width: '100%',
-        maxWidth: '900px',
-        display: 'flex',
-        justifyContent: 'center',
-        flexWrap: 'wrap',
-        gap: '16px',
-      }}>
-        {[
-          { label: 'DAG Diagram', icon: Network, color: '#38bdf8' },
-          { label: 'Word Document', icon: FileText, color: '#a855f7' },
-          { label: 'Python Pipeline', icon: Terminal, color: '#4ade80' },
-          { label: 'Structured JSON', icon: FileCode, color: '#f59e0b' },
-        ].map((pill, i) => {
-          const Icon = pill.icon;
-          return (
-            <div
-              key={i}
-              className="glass-card"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '8px 16px',
-                fontSize: '12px',
-                fontWeight: '600',
-                color: '#cbd5e1',
-              }}
-            >
-              <Icon size={15} color={pill.color} />
-              <span>{pill.label}</span>
-            </div>
-          );
-        })}
-      </footer>
     </div>
   );
 };

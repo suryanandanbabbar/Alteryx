@@ -4,116 +4,112 @@ import { ZoomIn, ZoomOut, RotateCcw, Download } from 'lucide-react';
 interface DagViewerProps {
   svgContent: string;
   onDownloadDocx?: () => void;
+  onDownloadSvg?: () => void;
 }
 
-export const DagViewer: React.FC<DagViewerProps> = ({ svgContent, onDownloadDocx }) => {
+export const DagViewer: React.FC<DagViewerProps> = ({ svgContent, onDownloadSvg }) => {
   const [zoom, setZoom] = useState(1);
 
   const handleZoomIn = () => setZoom((z) => Math.min(z + 0.15, 2.5));
-  const handleZoomOut = () => setZoom((z) => Math.max(z - 0.15, 0.5));
-  const handleResetZoom = () => setZoom(1);
+  const handleZoomOut = () => setZoom((z) => Math.max(z - 0.15, 0.4));
+  const handleReset = () => setZoom(1);
 
   return (
-    <div
-      className="glass-card"
-      style={{
-        overflow: 'hidden',
-        position: 'relative',
-        background: 'rgba(11, 17, 33, 0.95)',
-        border: '1px solid rgba(51, 65, 85, 0.6)',
-      }}
-    >
-      {/* Top Toolbar */}
+    <div className="app-card" style={{ overflow: 'hidden' }}>
+      {/* Viewer Header / Toolbar */}
       <div style={{
+        padding: '12px 16px',
+        borderBottom: '1px solid var(--color-border)',
+        background: 'var(--color-surface-secondary)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '12px 18px',
-        borderBottom: '1px solid rgba(51, 65, 85, 0.4)',
-        background: 'rgba(15, 23, 42, 0.8)',
+        flexWrap: 'wrap',
+        gap: '12px',
       }}>
-        <div style={{ fontSize: '12px', fontWeight: '600', color: '#94a3b8' }}>
-          Visual DAG — scroll or zoom to inspect workflow topology
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)' }}>
+            Workflow Graph (DAG)
+          </span>
+          <span style={{
+            fontSize: '11px',
+            color: 'var(--color-text-muted)',
+            fontFamily: 'var(--font-mono)',
+            padding: '2px 6px',
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-sm)',
+          }}>
+            Vector SVG
+          </span>
         </div>
 
+        {/* Action Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* Zoom controls */}
+          {/* Zoom Controls */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            background: 'rgba(30, 41, 59, 0.8)',
-            borderRadius: '6px',
-            border: '1px solid rgba(51, 65, 85, 0.6)',
-            padding: '2px',
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-sm)',
           }}>
             <button
               onClick={handleZoomOut}
-              title="Zoom out"
+              aria-label="Zoom out"
               style={{
-                background: 'transparent',
+                padding: '6px 8px',
                 border: 'none',
-                color: '#94a3b8',
+                background: 'transparent',
+                color: 'var(--color-text-secondary)',
                 cursor: 'pointer',
-                padding: '4px 6px',
-                borderRadius: '4px',
+                borderRight: '1px solid var(--color-border)',
               }}
             >
               <ZoomOut size={14} />
             </button>
-            <span style={{ fontSize: '11px', fontFamily: 'monospace', color: '#f8fafc', padding: '0 6px' }}>
+            <span style={{
+              padding: '4px 8px',
+              fontSize: '11px',
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--color-text-muted)',
+            }}>
               {Math.round(zoom * 100)}%
             </span>
             <button
               onClick={handleZoomIn}
-              title="Zoom in"
+              aria-label="Zoom in"
               style={{
-                background: 'transparent',
+                padding: '6px 8px',
                 border: 'none',
-                color: '#94a3b8',
+                background: 'transparent',
+                color: 'var(--color-text-secondary)',
                 cursor: 'pointer',
-                padding: '4px 6px',
-                borderRadius: '4px',
+                borderLeft: '1px solid var(--color-border)',
               }}
             >
               <ZoomIn size={14} />
             </button>
-            <button
-              onClick={handleResetZoom}
-              title="Reset zoom"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#94a3b8',
-                cursor: 'pointer',
-                padding: '4px 6px',
-                borderRadius: '4px',
-              }}
-            >
-              <RotateCcw size={14} />
-            </button>
           </div>
 
-          {/* Download Word Doc Button */}
-          {onDownloadDocx && (
+          <button
+            onClick={handleReset}
+            className="btn-secondary"
+            style={{ padding: '6px 10px', fontSize: '12px' }}
+            title="Reset Zoom"
+          >
+            <RotateCcw size={13} />
+            <span>Reset</span>
+          </button>
+
+          {onDownloadSvg && (
             <button
-              onClick={onDownloadDocx}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
-                border: 'none',
-                color: '#ffffff',
-                fontSize: '12px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(168, 85, 247, 0.3)',
-              }}
+              onClick={onDownloadSvg}
+              className="btn-secondary"
+              style={{ padding: '6px 12px', fontSize: '12px' }}
             >
               <Download size={13} />
-              <span>Download Word Doc</span>
+              <span>Download SVG</span>
             </button>
           )}
         </div>
@@ -121,19 +117,20 @@ export const DagViewer: React.FC<DagViewerProps> = ({ svgContent, onDownloadDocx
 
       {/* SVG Canvas Area */}
       <div style={{
-        padding: '24px',
+        padding: '32px 24px',
         overflow: 'auto',
-        maxHeight: '450px',
+        maxHeight: '520px',
+        minHeight: '260px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        background: 'var(--color-bg)',
       }}>
         <div
           style={{
             transform: `scale(${zoom})`,
-            transformOrigin: 'top left',
-            transition: 'transform 0.15s ease',
-            width: '100%',
+            transformOrigin: 'center center',
+            transition: 'transform 0.1s ease',
           }}
           dangerouslySetInnerHTML={{ __html: svgContent }}
         />

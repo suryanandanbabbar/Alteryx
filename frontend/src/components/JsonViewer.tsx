@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Check, Download } from 'lucide-react';
+import { Copy, Check, Download, FileCode } from 'lucide-react';
 
 interface JsonViewerProps {
   data: Record<string, any>;
@@ -9,6 +9,7 @@ interface JsonViewerProps {
 export const JsonViewer: React.FC<JsonViewerProps> = ({ data, onDownload }) => {
   const [copied, setCopied] = useState(false);
   const jsonString = JSON.stringify(data, null, 2);
+  const lines = jsonString.split('\n');
 
   const handleCopy = () => {
     navigator.clipboard.writeText(jsonString);
@@ -17,79 +18,94 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({ data, onDownload }) => {
   };
 
   return (
-    <div className="glass-card" style={{ overflow: 'hidden' }}>
-      {/* Top action bar */}
+    <div className="app-card" style={{ overflow: 'hidden' }}>
+      {/* Editor Toolbar */}
       <div style={{
+        padding: '10px 16px',
+        borderBottom: '1px solid var(--color-border)',
+        background: 'var(--color-surface-secondary)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '12px 18px',
-        background: 'rgba(15, 23, 42, 0.9)',
-        borderBottom: '1px solid rgba(51, 65, 85, 0.5)',
       }}>
-        <div style={{ fontSize: '12px', fontFamily: 'monospace', color: '#94a3b8' }}>
-          workflow.json — canonical intermediate representation
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <FileCode size={15} color="var(--color-primary)" />
+          <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)' }}>
+            workflow.json
+          </span>
+          <span style={{
+            fontSize: '11px',
+            color: 'var(--color-text-muted)',
+            fontFamily: 'var(--font-mono)',
+            padding: '2px 6px',
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-sm)',
+          }}>
+            {lines.length} lines · {(jsonString.length / 1024).toFixed(1)} KB
+          </span>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             onClick={handleCopy}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              borderRadius: '6px',
-              background: 'rgba(30, 41, 59, 0.8)',
-              border: '1px solid rgba(51, 65, 85, 0.8)',
-              color: copied ? '#4ade80' : '#cbd5e1',
-              fontSize: '12px',
-              fontWeight: '500',
-              cursor: 'pointer',
-            }}
+            className="btn-secondary"
+            style={{ padding: '6px 12px', fontSize: '12px' }}
           >
-            {copied ? <Check size={14} /> : <Copy size={14} />}
-            <span>{copied ? 'Copied!' : 'Copy JSON'}</span>
+            {copied ? <Check size={13} color="var(--color-success)" /> : <Copy size={13} />}
+            <span>{copied ? 'Copied' : 'Copy JSON'}</span>
           </button>
 
           {onDownload && (
             <button
               onClick={onDownload}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                border: 'none',
-                color: '#ffffff',
-                fontSize: '12px',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
+              className="btn-secondary"
+              style={{ padding: '6px 12px', fontSize: '12px' }}
             >
-              <Download size={14} />
+              <Download size={13} />
               <span>Download</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Code Display Area */}
-      <pre style={{
-        margin: 0,
-        padding: '20px 24px',
-        fontSize: '12px',
-        lineHeight: '1.6',
-        color: '#38bdf8',
-        background: 'rgba(7, 11, 25, 0.95)',
+      {/* Editor Body with Line Numbers */}
+      <div style={{
+        background: 'var(--color-bg)',
         overflow: 'auto',
         maxHeight: '650px',
-        fontFamily: "'JetBrains Mono', monospace",
+        display: 'flex',
+        fontSize: '12px',
+        fontFamily: 'var(--font-mono)',
+        lineHeight: 1.6,
       }}>
-        <code>{jsonString}</code>
-      </pre>
+        {/* Line Numbers */}
+        <div style={{
+          padding: '16px 12px',
+          textAlign: 'right',
+          color: 'var(--color-text-subtle)',
+          userSelect: 'none',
+          borderRight: '1px solid var(--color-border)',
+          background: 'var(--color-surface-secondary)',
+          minWidth: '48px',
+        }}>
+          {lines.map((_, i) => (
+            <div key={i}>{i + 1}</div>
+          ))}
+        </div>
+
+        {/* Code Content */}
+        <pre style={{
+          padding: '16px 20px',
+          margin: 0,
+          color: 'var(--color-text)',
+          whiteSpace: 'pre',
+          overflowX: 'auto',
+          flex: 1,
+        }}>
+          <code>{jsonString}</code>
+        </pre>
+      </div>
     </div>
   );
 };

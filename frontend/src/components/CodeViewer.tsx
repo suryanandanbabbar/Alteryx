@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PythonOutputDTO } from '../types/workflow';
-import { Copy, Check, Download, PackageCheck, Info } from 'lucide-react';
+import { Copy, Check, Download, Terminal, Layers, Info } from 'lucide-react';
 
 interface CodeViewerProps {
   pythonData: PythonOutputDTO;
@@ -9,7 +9,11 @@ interface CodeViewerProps {
 
 export const CodeViewer: React.FC<CodeViewerProps> = ({ pythonData, onDownload }) => {
   const [copied, setCopied] = useState(false);
-  const [highlightedToolId, setHighlightedToolId] = useState<number | null>(null);
+  const [selectedToolId, setSelectedToolId] = useState<number | null>(
+    pythonData.trace_map[0]?.tool_id || null
+  );
+
+  const lines = pythonData.code.split('\n');
 
   const handleCopy = () => {
     navigator.clipboard.writeText(pythonData.code);
@@ -17,221 +21,221 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({ pythonData, onDownload }
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const lines = pythonData.code.split('\n');
-
-  // Find active line range if a tool is highlighted
-  const activeEntry = highlightedToolId
-    ? pythonData.trace_map.find((e) => e.tool_id === highlightedToolId)
-    : null;
+  const selectedTrace = pythonData.trace_map.find((t) => t.tool_id === selectedToolId);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* 1. Required Libraries Disclosure Card */}
-      <div className="glass-card" style={{ padding: '16px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-          <PackageCheck size={16} color="#4ade80" />
-          <span style={{ fontSize: '12px', fontWeight: '700', color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Required Workflow Libraries
+      {/* Top Libraries & Actions Bar */}
+      <div className="app-card" style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Required Libraries:
           </span>
-        </div>
-        <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '12px' }}>
-          Only dependencies imported by the generated script are listed. AWA internal dependencies (Lark, NetworkX, FastAPI) are excluded.
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           {pythonData.required_libraries.map((lib) => (
             <span
               key={lib}
               style={{
-                padding: '5px 12px',
-                borderRadius: '6px',
-                background: 'rgba(74, 222, 128, 0.12)',
-                border: '1px solid rgba(74, 222, 128, 0.4)',
-                color: '#4ade80',
+                fontFamily: 'var(--font-mono)',
                 fontSize: '12px',
-                fontFamily: 'monospace',
                 fontWeight: '600',
+                color: 'var(--color-primary)',
+                background: 'var(--color-primary-subtle)',
+                border: '1px solid var(--color-primary-border)',
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-sm)',
               }}
             >
               {lib}
             </span>
           ))}
         </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={handleCopy}
+            className="btn-secondary"
+            style={{ padding: '6px 12px', fontSize: '12px' }}
+          >
+            {copied ? <Check size={13} color="var(--color-success)" /> : <Copy size={13} />}
+            <span>{copied ? 'Copied' : 'Copy Script'}</span>
+          </button>
+
+          {onDownload && (
+            <button
+              onClick={onDownload}
+              className="btn-secondary"
+              style={{ padding: '6px 12px', fontSize: '12px' }}
+            >
+              <Download size={13} />
+              <span>Download .py</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* 2. Tool-to-Code Traceability Table */}
-      <div className="glass-card" style={{ overflow: 'hidden' }}>
+      {/* Code Editor Surface */}
+      <div className="app-card" style={{ overflow: 'hidden' }}>
         <div style={{
-          padding: '12px 18px',
-          background: 'rgba(15, 23, 42, 0.9)',
-          borderBottom: '1px solid rgba(51, 65, 85, 0.5)',
+          padding: '10px 16px',
+          borderBottom: '1px solid var(--color-border)',
+          background: 'var(--color-surface-secondary)',
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
         }}>
-          <Info size={15} color="#38bdf8" />
-          <span style={{ fontSize: '12px', fontWeight: '700', color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Alteryx-to-Python Source Traceability & Explanations
+          <Terminal size={15} color="var(--color-primary)" />
+          <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)' }}>
+            workflow.py
+          </span>
+          <span style={{
+            fontSize: '11px',
+            color: 'var(--color-text-muted)',
+            fontFamily: 'var(--font-mono)',
+            padding: '2px 6px',
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-sm)',
+          }}>
+            {pythonData.total_lines} lines
           </span>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-            <thead>
-              <tr style={{ background: 'rgba(15, 23, 42, 0.6)', borderBottom: '1px solid rgba(51, 65, 85, 0.4)', textAlign: 'left' }}>
-                <th style={{ padding: '10px 16px', color: '#94a3b8', fontWeight: '600' }}>Tool</th>
-                <th style={{ padding: '10px 16px', color: '#94a3b8', fontWeight: '600' }}>Type</th>
-                <th style={{ padding: '10px 16px', color: '#94a3b8', fontWeight: '600' }}>Lines</th>
-                <th style={{ padding: '10px 16px', color: '#94a3b8', fontWeight: '600' }}>Pandas Operation</th>
-                <th style={{ padding: '10px 16px', color: '#94a3b8', fontWeight: '600' }}>Why Selected</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pythonData.trace_map.map((entry) => {
-                const isSelected = highlightedToolId === entry.tool_id;
-                return (
-                  <tr
-                    key={entry.tool_id}
-                    onClick={() => setHighlightedToolId(isSelected ? null : entry.tool_id)}
-                    style={{
-                      cursor: 'pointer',
-                      borderBottom: '1px solid rgba(51, 65, 85, 0.2)',
-                      background: isSelected ? 'rgba(56, 189, 248, 0.1)' : 'transparent',
-                      transition: 'background 0.15s ease',
-                    }}
-                  >
-                    <td style={{ padding: '10px 16px', fontWeight: '700', color: '#f8fafc' }}>
-                      #{entry.tool_id}
-                    </td>
-                    <td style={{ padding: '10px 16px', color: '#38bdf8', fontWeight: '600' }}>
-                      {entry.tool_type}
-                    </td>
-                    <td style={{ padding: '10px 16px', fontFamily: 'monospace', color: '#cbd5e1' }}>
-                      {entry.start_line}–{entry.end_line}
-                    </td>
-                    <td style={{ padding: '10px 16px', color: '#cbd5e1' }}>
-                      {entry.pandas_op}
-                    </td>
-                    <td style={{ padding: '10px 16px', color: '#94a3b8' }}>
-                      {entry.reason}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div style={{
+          background: 'var(--color-bg)',
+          overflow: 'auto',
+          maxHeight: '480px',
+          display: 'flex',
+          fontSize: '12px',
+          fontFamily: 'var(--font-mono)',
+          lineHeight: 1.6,
+        }}>
+          {/* Line Numbers */}
+          <div style={{
+            padding: '16px 12px',
+            textAlign: 'right',
+            color: 'var(--color-text-subtle)',
+            userSelect: 'none',
+            borderRight: '1px solid var(--color-border)',
+            background: 'var(--color-surface-secondary)',
+            minWidth: '48px',
+          }}>
+            {lines.map((_, i) => (
+              <div key={i}>{i + 1}</div>
+            ))}
+          </div>
+
+          {/* Python Code */}
+          <pre style={{
+            padding: '16px 20px',
+            margin: 0,
+            color: 'var(--color-text)',
+            whiteSpace: 'pre',
+            overflowX: 'auto',
+            flex: 1,
+          }}>
+            <code>{pythonData.code}</code>
+          </pre>
         </div>
       </div>
 
-      {/* 3. Code Editor / Viewer */}
-      <div className="glass-card" style={{ overflow: 'hidden' }}>
-        {/* Action Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '12px 18px',
-          background: 'rgba(15, 23, 42, 0.9)',
-          borderBottom: '1px solid rgba(51, 65, 85, 0.5)',
-        }}>
-          <div style={{ fontSize: '12px', fontFamily: 'monospace', color: '#94a3b8' }}>
-            workflow.py — executable pandas pipeline ({pythonData.total_lines} lines)
-          </div>
+      {/* Traceability & Tool Explanation Inspector (Section 16) */}
+      <div className="app-card" style={{ padding: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <Layers size={16} color="var(--color-primary)" />
+          <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Tool-to-Code Traceability Map
+          </span>
+        </div>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={handleCopy}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                background: 'rgba(30, 41, 59, 0.8)',
-                border: '1px solid rgba(51, 65, 85, 0.8)',
-                color: copied ? '#4ade80' : '#cbd5e1',
-                fontSize: '12px',
-                fontWeight: '500',
-                cursor: 'pointer',
-              }}
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              <span>{copied ? 'Copied!' : 'Copy Code'}</span>
-            </button>
-
-            {onDownload && (
+        {/* Tool Select Pills */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+          {pythonData.trace_map.map((entry) => {
+            const isSelected = entry.tool_id === selectedToolId;
+            return (
               <button
-                onClick={onDownload}
+                key={entry.tool_id}
+                onClick={() => setSelectedToolId(entry.tool_id)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
                   padding: '6px 12px',
-                  borderRadius: '6px',
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  border: 'none',
-                  color: '#ffffff',
+                  borderRadius: 'var(--radius-sm)',
+                  border: isSelected ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+                  background: isSelected ? 'var(--color-primary-subtle)' : 'var(--color-surface-secondary)',
+                  color: isSelected ? 'var(--color-primary)' : 'var(--color-text-secondary)',
                   fontSize: '12px',
-                  fontWeight: '600',
+                  fontWeight: isSelected ? '700' : '500',
                   cursor: 'pointer',
+                  transition: 'all 0.12s ease',
                 }}
               >
-                <Download size={14} />
-                <span>Download .py</span>
+                <span style={{ fontFamily: 'var(--font-mono)' }}>#{entry.tool_id}</span>
+                <span>{entry.tool_name || entry.tool_type}</span>
               </button>
-            )}
-          </div>
-        </div>
-
-        {/* Code Lines with Line Numbers */}
-        <div style={{
-          padding: '20px 0',
-          background: 'rgba(7, 11, 25, 0.95)',
-          overflow: 'auto',
-          maxHeight: '600px',
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '12px',
-          lineHeight: '1.6',
-        }}>
-          {lines.map((lineContent, idx) => {
-            const lineNum = idx + 1;
-            const isHighlighted = activeEntry
-              ? lineNum >= activeEntry.start_line && lineNum <= activeEntry.end_line
-              : false;
-
-            return (
-              <div
-                key={lineNum}
-                style={{
-                  display: 'flex',
-                  padding: '0 20px',
-                  background: isHighlighted ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
-                  borderLeft: isHighlighted ? '3px solid #38bdf8' : '3px solid transparent',
-                }}
-              >
-                <span style={{
-                  width: '45px',
-                  minWidth: '45px',
-                  color: '#475569',
-                  userSelect: 'none',
-                  textAlign: 'right',
-                  marginRight: '20px',
-                }}>
-                  {lineNum}
-                </span>
-                <span style={{
-                  color: lineContent.trim().startsWith('#')
-                    ? '#64748b'
-                    : lineContent.includes('import ')
-                    ? '#a78bfa'
-                    : '#e2e8f0',
-                  whiteSpace: 'pre',
-                }}>
-                  {lineContent || ' '}
-                </span>
-              </div>
             );
           })}
         </div>
+
+        {/* Selected Tool Details Card */}
+        {selectedTrace && (
+          <div style={{
+            background: 'var(--color-surface-secondary)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)' }}>
+                Tool #{selectedTrace.tool_id} — {selectedTrace.tool_name} ({selectedTrace.tool_type})
+              </div>
+              <span style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '11px',
+                color: 'var(--color-text-muted)',
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-sm)',
+              }}>
+                Lines {selectedTrace.start_line}–{selectedTrace.end_line}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', fontSize: '12px' }}>
+              <div>
+                <div style={{ fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
+                  Alteryx Operation
+                </div>
+                <div style={{ color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>
+                  {selectedTrace.description}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
+                  Python Translation
+                </div>
+                <div style={{ color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>
+                  {selectedTrace.pandas_op}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontWeight: '600', color: 'var(--color-text-muted)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Info size={12} />
+                <span>Translation Rationale</span>
+              </div>
+              <div style={{ color: 'var(--color-text-secondary)', fontSize: '12px' }}>
+                {selectedTrace.reason}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
