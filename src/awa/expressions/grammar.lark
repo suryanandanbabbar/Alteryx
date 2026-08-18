@@ -1,5 +1,4 @@
 // Alteryx Expression Grammar
-// Adapted from reference/alteryx2dbx transpiler grammar.
 // Target-independent — emitter handles pandas/numpy translation.
 
 // Entry point

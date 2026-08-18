@@ -1,34 +1,39 @@
 # Python
 .venv/
+env/
+venv/
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.coverage
-htmlcov/
+*$py.class
 *.egg-info/
 build/
 dist/
 
-# Generated AWA artifacts
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Analysis & generated outputs
 analysis/
 output/
 
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/.eslintcache
 
-# Environment
+# Environment & Secrets
 .env
 .env.*
 !.env.example
 
-# macOS
+# IDE & OS
 .DS_Store
-
-# IDE
-.vscode/
+.DS_Store?
+._*
+__MACOSX/
 .idea/
-
-# Temporary files
-*.tmp
+.vscode/
 *.log
+*.tmp

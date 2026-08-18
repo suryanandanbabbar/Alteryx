@@ -16,7 +16,7 @@ class ToolTranslator(ABC):
 
     Each translator converts an Alteryx tool's configuration into
     Python/pandas code. Translators produce TranslationResult objects
-    with output_map (anchor → variable name) per constraint C4.
+    with output_map (anchor → variable name).
     """
 
     @abstractmethod
@@ -43,10 +43,7 @@ class ToolTranslator(ABC):
         tool: Tool,
         translation: TranslationResult,
     ) -> ToolExplanation:
-        """Produce a deterministic explanation of why this translation was chosen.
-
-        Never uses LLMs or generative AI.
-        """
+        """Produce an explanation of why this translation was chosen."""
         libs = []
         for imp in translation.imports:
             if "pandas" in imp:
@@ -66,11 +63,7 @@ class ToolTranslator(ABC):
 
 
 class UnsupportedTranslator(ToolTranslator):
-    """Fallback translator for unrecognized or unsupported tools.
-
-    Never silently passes through. Always emits explicit diagnostics
-    with the tool's raw XML configuration preserved (C9).
-    """
+    """Fallback translator for unrecognized or unsupported tools."""
 
     def translate(
         self,
@@ -79,29 +72,13 @@ class UnsupportedTranslator(ToolTranslator):
         workflow: Workflow,
     ) -> TranslationResult:
         lines = [
-            f"# ⚠️ UNSUPPORTED TOOL",
-            f"# Tool ID: {tool.tool_id}",
-            f"# Type: {tool.tool_type}",
+            f"# Unsupported Alteryx tool: {tool.tool_type} (Tool #{tool.tool_id})",
             f"# Plugin: {tool.plugin}",
-            f"# Name: {tool.name}",
-            f"#",
-            f"# This tool has no deterministic Python/pandas equivalent implemented.",
-            f"# Original XML configuration is preserved in workflow.json.",
-            f"#",
-            f"# Raw configuration:",
+            f"# Raw XML configuration is preserved in workflow.json",
+            f"raise NotImplementedError(",
+            f"    \"No deterministic Python translation is available for {tool.tool_type} (Tool #{tool.tool_id}).\"",
+            f")",
         ]
-
-        # Include raw XML as comments (truncated if very long)
-        raw_xml = tool.configuration.raw_xml
-        if raw_xml:
-            xml_lines = raw_xml.split("\n")
-            for xml_line in xml_lines[:30]:  # Cap at 30 lines
-                lines.append(f"#   {xml_line}")
-            if len(xml_lines) > 30:
-                lines.append(f"#   ... ({len(xml_lines) - 30} more lines)")
-
-        lines.append(f"#")
-        lines.append(f"# TODO: Implement this transformation manually.")
 
         code = "\n".join(lines)
 
@@ -111,7 +88,7 @@ class UnsupportedTranslator(ToolTranslator):
             tool_id=tool.tool_id,
             tool_type=tool.tool_type,
             message=f"Unsupported tool: {tool.tool_type} ({tool.plugin})",
-            detail="No deterministic Python/pandas equivalent is currently implemented.",
+            detail="No deterministic Python translation is available for this tool.",
         )
 
         return TranslationResult(
@@ -121,7 +98,7 @@ class UnsupportedTranslator(ToolTranslator):
             python_code=code,
             imports=set(),
             input_variables=input_variables,
-            output_map={},  # No output — explicitly unsupported
+            output_map={},
             diagnostics=[diagnostic],
             description=f"Unsupported tool: {tool.tool_type}",
         )

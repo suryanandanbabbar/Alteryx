@@ -1,11 +1,4 @@
-"""AWA XML parser — parses .yxmd files into the Workflow IR.
-
-Adapted from reference/alteryx2dbx/parser/xml_parser.py with these changes:
-- Outputs AWA model types (Tool, Connection, Field, etc.) instead of Alteryx* types
-- Captures Position from GuiSettings
-- Uses ToolConfiguration with raw_xml preservation
-- Dispatches config extraction via dict lookup instead of if/elif chain
-"""
+"""AWA XML parser — parses .yxmd files into canonical Workflow IR."""
 
 from __future__ import annotations
 

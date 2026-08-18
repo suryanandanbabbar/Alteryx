@@ -26,7 +26,7 @@ def test_python_trace_line_accuracy():
         assert 1 <= entry.start_line <= entry.end_line <= trace_map.total_lines
         # The start line should contain the tool header comment
         start_snippet = code_lines[entry.start_line - 1]
-        assert "=" in start_snippet or f"Tool #{entry.tool_id}" in code_lines[entry.start_line]
+        assert f"Tool #{entry.tool_id}" in start_snippet
 
 
 def test_python_library_disclosure():

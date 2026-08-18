@@ -34,11 +34,12 @@ class TestSimpleFilterE2E:
         return analyze_workflow(fixture, tmp_path / "output")
 
     def test_output_files_exist(self, analysis_result):
-        """All 4 artifacts must be generated."""
+        """All 5 primary artifacts must be generated."""
         out = analysis_result.output_dir
         assert (out / "workflow.json").exists()
         assert (out / "workflow.py").exists()
-        assert (out / "workflow.md").exists()
+        assert (out / "workflow.svg").exists()
+        assert (out / "workflow.docx").exists()
         assert (out / "diagnostics.json").exists()
 
     def test_workflow_json_structure(self, analysis_result):
@@ -109,17 +110,13 @@ class TestSimpleFilterE2E:
         assert "_filter_mask_" in content or "df_2_true" in content
         assert ".copy()" in content
 
-    def test_markdown_sections(self, analysis_result):
-        """Markdown must contain required documentation sections."""
-        md_path = analysis_result.output_dir / "workflow.md"
-        content = md_path.read_text()
-
-        assert "# Workflow: simple_filter" in content
-        assert "## Overview" in content
-        assert "## Metadata" in content
-        assert "## Step-by-Step Workflow" in content
-        assert "## Tool Inventory" in content
-        assert "## Data Lineage" in content
+    def test_docx_and_svg_artifacts(self, analysis_result):
+        """DOCX report and SVG DAG must be generated as primary artifacts."""
+        docx_path = analysis_result.output_dir / "workflow.docx"
+        svg_path = analysis_result.output_dir / "workflow.svg"
+        assert docx_path.exists()
+        assert svg_path.exists()
+        assert svg_path.read_text().startswith("<svg")
 
     def test_diagnostics_json(self, analysis_result):
         """Diagnostics must have summary structure."""
@@ -162,7 +159,8 @@ class TestJoinWorkflowE2E:
         out = analysis_result.output_dir
         assert (out / "workflow.json").exists()
         assert (out / "workflow.py").exists()
-        assert (out / "workflow.md").exists()
+        assert (out / "workflow.svg").exists()
+        assert (out / "workflow.docx").exists()
         assert (out / "diagnostics.json").exists()
 
     def test_python_compiles(self, analysis_result):

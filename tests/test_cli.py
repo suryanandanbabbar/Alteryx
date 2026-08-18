@@ -43,7 +43,8 @@ class TestCLI:
 
         assert (out_dir / "workflow.json").exists()
         assert (out_dir / "workflow.py").exists()
-        assert (out_dir / "workflow.md").exists()
+        assert (out_dir / "workflow.svg").exists()
+        assert (out_dir / "workflow.docx").exists()
         assert (out_dir / "diagnostics.json").exists()
 
         with open(out_dir / "workflow.json") as f:

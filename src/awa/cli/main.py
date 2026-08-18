@@ -25,7 +25,7 @@ def cli():
 def analyze(workflow: Path, output: Path | None):
     """Analyze an Alteryx workflow and generate all output artifacts.
 
-    Produces: workflow.json, workflow.py, workflow.md, diagnostics.json
+    Produces: workflow.json, workflow.py, workflow.svg, workflow.docx, diagnostics.json
     """
     from awa.analysis.workflow_analyzer import analyze_workflow
 

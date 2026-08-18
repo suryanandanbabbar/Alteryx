@@ -1,6 +1,5 @@
 """Translator registry — 3-tier handler lookup.
 
-Adapted from reference/alteryx2dbx/handlers/registry.py.
 Uses exact plugin → tool type → prefix → UnsupportedTranslator fallback.
 """
 

@@ -2,7 +2,6 @@
 
 from .json_generator import generate_json
 from .python_generator import generate_python
-from .markdown_generator import generate_markdown
 from .diagnostics_generator import generate_diagnostics
 from .svg_generator import generate_svg
 from .docx_generator import generate_docx
@@ -11,7 +10,6 @@ from .doc_builder import build_document_model
 __all__ = [
     "generate_json",
     "generate_python",
-    "generate_markdown",
     "generate_diagnostics",
     "generate_svg",
     "generate_docx",
