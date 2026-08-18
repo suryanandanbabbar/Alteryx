@@ -5,7 +5,7 @@ import zipfile
 from pathlib import Path
 import pytest
 
-from backend.src.awa.parser.format_handler import (
+from awa.parser.format_handler import (
     detect_format,
     validate_alteryx_xml_structure,
     handle_upload,

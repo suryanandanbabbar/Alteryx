@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 
-from backend.src.awa.parser.format_handler import FormatValidationError
+from awa.parser.format_handler import FormatValidationError
 from backend.app.config import settings
 from backend.app.models.schemas import AnalysisOverviewDTO
 from backend.app.services.analyzer import process_uploaded_workflow, to_overview_dto

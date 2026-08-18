@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict
 
-from backend.src.awa.model.analysis_result import CanonicalAnalysisResult
+from awa.model.analysis_result import CanonicalAnalysisResult
 
 
 @dataclass

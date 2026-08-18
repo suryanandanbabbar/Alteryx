@@ -3,11 +3,11 @@
 import pandas as pd
 import pytest
 
-from backend.src.awa.model.tool import Tool, ToolConfiguration
-from backend.src.awa.model.workflow import Workflow, WorkflowMetadata
-from backend.src.awa.model.diagnostic import SupportLevel
-from backend.src.awa.translators.registry import get_translator
-import backend.src.awa.translators  # noqa: F401
+from awa.model.tool import Tool, ToolConfiguration
+from awa.model.workflow import Workflow, WorkflowMetadata
+from awa.model.diagnostic import SupportLevel
+from awa.translators.registry import get_translator
+import awa.translators  # noqa: F401
 
 
 @pytest.fixture

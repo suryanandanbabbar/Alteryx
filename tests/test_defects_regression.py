@@ -12,9 +12,9 @@ from pathlib import Path
 import zipfile
 import pytest
 
-from backend.src.awa.analysis.workflow_analyzer import analyze_canonical, analyze_workflow
-from backend.src.awa.generators.python_generator import generate_python_code
-from backend.src.awa.model.diagnostic import DiagnosticLevel, SupportLevel
+from awa.analysis.workflow_analyzer import analyze_canonical, analyze_workflow
+from awa.generators.python_generator import generate_python_code
+from awa.model.diagnostic import DiagnosticLevel, SupportLevel
 
 
 def test_defect1_python_trace_total_lines_exact_match():

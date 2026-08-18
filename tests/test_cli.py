@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from click.testing import CliRunner
 
-from backend.src.awa.cli.main import cli
+from awa.cli.main import cli
 
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"

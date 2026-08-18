@@ -11,10 +11,10 @@ import tempfile
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 
-from backend.src.awa.generators.svg_generator import generate_svg
-from backend.src.awa.generators.docx_generator import generate_docx
-from backend.src.awa.generators.doc_builder import build_document_model
-from backend.src.awa.generators.python_generator import generate_python_code
+from awa.generators.svg_generator import generate_svg
+from awa.generators.docx_generator import generate_docx
+from awa.generators.doc_builder import build_document_model
+from awa.generators.python_generator import generate_python_code
 from backend.app.services.storage import get_storage
 
 router = APIRouter(prefix="/download", tags=["Download"])

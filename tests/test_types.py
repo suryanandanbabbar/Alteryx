@@ -2,7 +2,7 @@
 
 import pytest
 
-from backend.src.awa.model.types import (
+from awa.model.types import (
     TYPE_MAPPING,
     CanonicalType,
     get_type_mapping,
