@@ -4,10 +4,10 @@ import xml.etree.ElementTree as ET
 import networkx as nx
 import pytest
 
-from awa.parser.xml_parser import parse_workflow
-from awa.graph.builder import build_graph, execution_order
-from awa.graph.dag_layouter import compute_dag_layout
-from awa.generators.svg_generator import generate_svg
+from backend.src.awa.parser.xml_parser import parse_workflow
+from backend.src.awa.graph.builder import build_graph, execution_order
+from backend.src.awa.graph.dag_layouter import compute_dag_layout
+from backend.src.awa.generators.svg_generator import generate_svg
 
 
 def test_dag_layouter_simple_filter():

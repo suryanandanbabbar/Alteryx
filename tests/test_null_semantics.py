@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from awa.expressions.pandas_emitter import emit_pandas
+from backend.src.awa.expressions.pandas_emitter import emit_pandas
 
 
 class TestNullSemanticsInExpressions:

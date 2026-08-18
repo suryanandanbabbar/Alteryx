@@ -2,8 +2,8 @@
 
 import pytest
 
-from awa.expressions.parser import parse_expression
-from awa.expressions.pandas_emitter import PandasEmitter, emit_pandas
+from backend.src.awa.expressions.parser import parse_expression
+from backend.src.awa.expressions.pandas_emitter import PandasEmitter, emit_pandas
 
 
 class TestExpressionParsing:

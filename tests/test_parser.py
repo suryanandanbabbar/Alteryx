@@ -7,9 +7,9 @@ Assertions check actual extracted data, not just 'is not None' (§32).
 import pytest
 from pathlib import Path
 
-from awa.parser.xml_parser import parse_workflow
-from awa.model.workflow import Workflow
-from awa.model.connection import Connection
+from backend.src.awa.parser.xml_parser import parse_workflow
+from backend.src.awa.model.workflow import Workflow
+from backend.src.awa.model.connection import Connection
 
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"

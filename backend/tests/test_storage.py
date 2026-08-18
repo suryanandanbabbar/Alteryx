@@ -1,7 +1,7 @@
 """Tests for backend storage service."""
 
 import time
-from awa.analysis.workflow_analyzer import analyze_canonical
+from backend.src.awa.analysis.workflow_analyzer import analyze_canonical
 from backend.app.services.storage import InMemoryStorage
 
 

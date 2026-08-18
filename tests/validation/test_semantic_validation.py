@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from pathlib import Path
 
-from awa.analysis.workflow_analyzer import analyze_workflow
+from backend.src.awa.analysis.workflow_analyzer import analyze_workflow
 
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "fixtures"

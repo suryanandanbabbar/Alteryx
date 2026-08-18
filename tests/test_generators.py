@@ -4,15 +4,15 @@ from pathlib import Path
 import docx
 import pytest
 
-from awa.parser.xml_parser import parse_workflow
-from awa.graph.builder import build_graph, execution_order, build_input_map
-from awa.graph.dag_layouter import compute_dag_layout
-from awa.graph.lineage import compute_lineage_paths
-from awa.translators.registry import get_translator
-import awa.translators  # register translators
-from awa.generators.doc_builder import build_document_model
-from awa.generators.docx_generator import generate_docx
-from awa.generators.svg_generator import generate_svg
+from backend.src.awa.parser.xml_parser import parse_workflow
+from backend.src.awa.graph.builder import build_graph, execution_order, build_input_map
+from backend.src.awa.graph.dag_layouter import compute_dag_layout
+from backend.src.awa.graph.lineage import compute_lineage_paths
+from backend.src.awa.translators.registry import get_translator
+import backend.src.awa.translators  # register translators
+from backend.src.awa.generators.doc_builder import build_document_model
+from backend.src.awa.generators.docx_generator import generate_docx
+from backend.src.awa.generators.svg_generator import generate_svg
 
 
 def test_docx_generation(tmp_path: Path):

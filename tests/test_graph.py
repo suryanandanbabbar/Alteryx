@@ -3,15 +3,15 @@
 import pytest
 from pathlib import Path
 
-from awa.parser.xml_parser import parse_workflow
-from awa.graph.builder import (
+from backend.src.awa.parser.xml_parser import parse_workflow
+from backend.src.awa.graph.builder import (
     build_graph,
     execution_order,
     consumed_anchors,
     build_input_map,
     resolve_output_variable,
 )
-from awa.graph.traversal import source_tools, sink_tools
+from backend.src.awa.graph.traversal import source_tools, sink_tools
 
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"

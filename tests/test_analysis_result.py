@@ -3,16 +3,16 @@
 import networkx as nx
 import pytest
 
-from awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
-from awa.model.source_info import SourceInfo, PackageMetadata
-from awa.model.visual_category import get_visual_category, get_tool_colors, get_category_colors, CATEGORY_COLORS
-from awa.model.python_trace import PythonTraceEntry, PythonTraceMap, ToolExplanation
-from awa.model.dag_layout import DagNodeLayout, DagEdgeLayout, DagLayout
-from awa.model.doc_model import NodeDocEntry, ExecutionStepDocEntry, DocumentModel
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, ToolConfiguration
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
-from awa.model.translation import TranslationResult
+from backend.src.awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
+from backend.src.awa.model.source_info import SourceInfo, PackageMetadata
+from backend.src.awa.model.visual_category import get_visual_category, get_tool_colors, get_category_colors, CATEGORY_COLORS
+from backend.src.awa.model.python_trace import PythonTraceEntry, PythonTraceMap, ToolExplanation
+from backend.src.awa.model.dag_layout import DagNodeLayout, DagEdgeLayout, DagLayout
+from backend.src.awa.model.doc_model import NodeDocEntry, ExecutionStepDocEntry, DocumentModel
+from backend.src.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.src.awa.model.tool import Tool, ToolConfiguration
+from backend.src.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.src.awa.model.translation import TranslationResult
 
 
 def test_visual_categories_and_colors():

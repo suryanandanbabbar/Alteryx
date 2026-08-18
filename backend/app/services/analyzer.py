@@ -5,10 +5,10 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from awa.parser.format_handler import handle_upload
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.visual_category import get_visual_category
+from backend.src.awa.parser.format_handler import handle_upload
+from backend.src.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.src.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.src.awa.model.visual_category import get_visual_category
 
 from backend.app.models.schemas import (
     AnalysisOverviewDTO,
@@ -29,7 +29,7 @@ from backend.app.models.schemas import (
     PythonOutputDTO,
     PythonTraceDTO,
 )
-from awa.generators.svg_generator import generate_svg
+from backend.src.awa.generators.svg_generator import generate_svg
 
 
 def process_uploaded_workflow(filename: str, content: bytes) -> CanonicalAnalysisResult:
@@ -199,7 +199,7 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
 
 def to_python_dto(res: CanonicalAnalysisResult) -> PythonOutputDTO:
     """Convert CanonicalAnalysisResult to PythonOutputDTO."""
-    from awa.generators.python_generator import generate_python_code
+    from backend.src.awa.generators.python_generator import generate_python_code
 
     code, trace_map, req_libs = generate_python_code(
         res.workflow, res.execution_order, res.translations, res.consumed_anchors
