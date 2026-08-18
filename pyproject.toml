@@ -38,8 +38,8 @@ dev = [
 awa = "awa.cli.main:cli"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/awa"]
+packages = ["backend/src/awa"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "backend/tests"]
-pythonpath = ["src", "."]
+pythonpath = ["backend/src", "."]
