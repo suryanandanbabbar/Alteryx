@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<AlteryxDocument yxmdVer="2024.1">
+  <Nodes>
+    <Node ToolID="1">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput">
+        <Position x="54" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>data/input.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Read Input</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="2">
+      <GuiSettings Plugin="CustomVendor.DataAccelerator.SuperBoost">
+        <Position x="210" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <Mode>UltraFast</Mode>
+          <ApiKey>secret_12345_token</ApiKey>
+        </Configuration>
+        <Annotation>
+          <Name>Proprietary Plugin</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="3">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput">
+        <Position x="366" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>output/result.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Save Output</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+  </Nodes>
+  <Connections>
+    <Connection>
+      <Origin ToolID="1" Connection="Output"/>
+      <Destination ToolID="2" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="2" Connection="Output"/>
+      <Destination ToolID="3" Connection="Input"/>
+    </Connection>
+  </Connections>
+  <Properties>
+    <MetaInfo>
+      <Name>registry_unknown_tool</Name>
+    </MetaInfo>
+  </Properties>
+</AlteryxDocument>

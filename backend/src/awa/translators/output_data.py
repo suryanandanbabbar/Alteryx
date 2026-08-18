@@ -10,7 +10,7 @@ from awa.model.translation import TranslationResult
 from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel, Dependency
 
 from .base import ToolTranslator
-from .registry import register_type
+from .registry import register_type, register_plugin
 
 
 _FILE_FORMAT_MAP = {
@@ -60,7 +60,7 @@ class OutputDataTranslator(ToolTranslator):
                     tool_id=tool.tool_id,
                     tool_type=tool.tool_type,
                     message=f"External file destination: '{file_path}' is referenced by Tool #{tool.tool_id}",
-                    detail="Translation logic is fully supported (SUPPORTED), but runtime execution requires write access to the target path.",
+                    detail="Translation logic is fully supported (FULL), but runtime execution requires write access to the target path.",
                 )
             )
 
@@ -76,7 +76,6 @@ class OutputDataTranslator(ToolTranslator):
         else:
             code = f'{input_var}.to_csv({path_repr}, index=False)'
 
-        # Track as dependency
         workflow.dependencies.append(
             Dependency(
                 dep_type="file",
@@ -89,11 +88,11 @@ class OutputDataTranslator(ToolTranslator):
         return TranslationResult(
             tool_id=tool.tool_id,
             tool_type=tool.tool_type,
-            support_level=SupportLevel.SUPPORTED,
+            support_level=SupportLevel.FULL,
             python_code=code,
             imports={"import pandas as pd"},
             input_variables=[input_var],
-            output_map={},  # Output tools produce no downstream DataFrame
+            output_map={},
             diagnostics=diagnostics,
             description=f"Write {fmt.upper()} file: {os.path.basename(file_path)}",
         )
@@ -101,3 +100,5 @@ class OutputDataTranslator(ToolTranslator):
 
 register_type("DbFileOutput", OutputDataTranslator)
 register_type("OutputData", OutputDataTranslator)
+register_type("OutputDataTranslator", OutputDataTranslator)
+register_plugin("AlteryxBasePluginsGui.DbFileOutput.DbFileOutput", OutputDataTranslator)

@@ -1,4 +1,4 @@
-"""InputData / DbFileInput translator."""
+"""InputData / DbFileInput / TextInput / DateTimeNow translators."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from awa.model.translation import TranslationResult
 from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel, Dependency
 
 from .base import ToolTranslator
-from .registry import register_type
+from .registry import register_type, register_plugin
 
 
 # Known FileFormat codes from Alteryx
@@ -59,7 +59,6 @@ class InputDataTranslator(ToolTranslator):
         output_var = f"df_{tool.tool_id}"
         diagnostics: list[Diagnostic] = []
 
-        # Check resolution of file dependency
         is_unc = file_path.startswith(("\\\\", "//"))
         is_resolved = os.path.exists(file_path) if not is_unc else False
 
@@ -71,11 +70,10 @@ class InputDataTranslator(ToolTranslator):
                     tool_id=tool.tool_id,
                     tool_type=tool.tool_type,
                     message=f"External file dependency: '{file_path}' is referenced by Tool #{tool.tool_id}",
-                    detail="Translation logic is fully supported (SUPPORTED), but runtime execution requires the external source file to be accessible.",
+                    detail="Translation logic is fully supported (FULL), but runtime execution requires the external source file to be accessible.",
                 )
             )
 
-        # Generate the read call
         path_repr = repr(file_path)
         if fmt == "csv":
             code = f'{output_var} = pd.read_csv({path_repr})'
@@ -86,7 +84,6 @@ class InputDataTranslator(ToolTranslator):
         elif fmt == "parquet":
             code = f'{output_var} = pd.read_parquet({path_repr})'
         elif fmt == "yxdb":
-            # .yxdb is Alteryx native format — not directly readable by pandas
             csv_path = repr(file_path.replace(".yxdb", ".csv"))
             code = (
                 f'# NOTE: .yxdb is an Alteryx native format.\n'
@@ -111,7 +108,6 @@ class InputDataTranslator(ToolTranslator):
                 message=f"Unknown file format code '{file_format_code}', defaulting to CSV",
             ))
 
-        # Track as file dependency
         workflow.dependencies.append(Dependency(
             dep_type="file",
             reference=file_path,
@@ -122,7 +118,7 @@ class InputDataTranslator(ToolTranslator):
         return TranslationResult(
             tool_id=tool.tool_id,
             tool_type=tool.tool_type,
-            support_level=SupportLevel.SUPPORTED,
+            support_level=SupportLevel.FULL,
             python_code=code,
             imports={"import pandas as pd"},
             input_variables=[],
@@ -132,6 +128,72 @@ class InputDataTranslator(ToolTranslator):
         )
 
 
-# Register for both plugin types
+class TextInputTranslator(ToolTranslator):
+    """Translates TextInput tools into in-memory pandas DataFrames."""
+
+    def translate(
+        self,
+        tool: Tool,
+        input_variables: list[str],
+        workflow: Workflow,
+    ) -> TranslationResult:
+        config = tool.configuration.parsed
+        fields = config.get("fields", [])
+        rows = config.get("rows", [])
+        output_var = f"df_{tool.tool_id}"
+
+        data_dict = {f: [r[i] if i < len(r) else None for r in rows] for i, f in enumerate(fields)}
+        code = f"{output_var} = pd.DataFrame({repr(data_dict)})"
+
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.FULL,
+            python_code=code,
+            imports={"import pandas as pd"},
+            input_variables=[],
+            output_map={"Output": output_var},
+            diagnostics=[],
+            description=f"Text input table ({len(rows)} rows, {len(fields)} columns)",
+        )
+
+
+class DateTimeNowTranslator(ToolTranslator):
+    """Translates DateTimeNow tools to current timestamp generator."""
+
+    def translate(
+        self,
+        tool: Tool,
+        input_variables: list[str],
+        workflow: Workflow,
+    ) -> TranslationResult:
+        output_var = f"df_{tool.tool_id}"
+        code = f"{output_var} = pd.DataFrame({{'DateTimeNow': [pd.Timestamp.now()]}})"
+
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.FULL,
+            python_code=code,
+            imports={"import pandas as pd"},
+            input_variables=[],
+            output_map={"Output": output_var},
+            diagnostics=[],
+            description="Generate current date/time record",
+        )
+
+
+# Registrations
 register_type("DbFileInput", InputDataTranslator)
 register_type("InputData", InputDataTranslator)
+register_type("InputDataTranslator", InputDataTranslator)
+register_plugin("AlteryxBasePluginsGui.DbFileInput.DbFileInput", InputDataTranslator)
+
+register_type("TextInput", TextInputTranslator)
+register_type("TextInputTranslator", TextInputTranslator)
+register_plugin("AlteryxBasePluginsGui.TextInput.TextInput", TextInputTranslator)
+
+register_type("DateTimeNow", DateTimeNowTranslator)
+register_type("DateTimeNowTranslator", DateTimeNowTranslator)
+register_plugin("DateTimeNow", DateTimeNowTranslator)
+register_plugin("DateTimeNow.yxmc", DateTimeNowTranslator)

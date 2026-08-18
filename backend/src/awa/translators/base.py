@@ -1,4 +1,4 @@
-"""Base translator interface and unsupported tool handler."""
+"""Base translator interface and specialized category translators."""
 
 from __future__ import annotations
 
@@ -59,6 +59,150 @@ class ToolTranslator(ABC):
             what_pandas_does=f"Translates to equivalent pandas dataframe manipulation ({translation.description})",
             why_selected=f"Deterministic pandas mapping for Alteryx {tool.tool_type} node.",
             libraries=libs,
+        )
+
+
+class PassThroughTranslator(ToolTranslator):
+    """Pass-through translator for inspection, sequencing, and routing tools (e.g. Browse, BlockUntilDone, Message)."""
+
+    def translate(
+        self,
+        tool: Tool,
+        input_variables: list[str],
+        workflow: Workflow,
+    ) -> TranslationResult:
+        in_var = input_variables[0] if input_variables else "None"
+        lines = [
+            f"# Tool #{tool.tool_id}: {tool.tool_type} (Pass-through / Inspection)",
+            f"# Operation does not modify dataset semantics; passes incoming dataframe through.",
+        ]
+        code = "\n".join(lines)
+
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.PASS_THROUGH,
+            python_code=code,
+            imports=set(),
+            input_variables=input_variables,
+            output_map={
+                "Output": in_var,
+                "Output1": in_var,
+                "Output2": in_var,
+                "Output3": in_var,
+            },
+            diagnostics=[],
+            description=f"Pass-through / Inspection tool ({tool.tool_type})",
+        )
+
+
+class DocumentationTranslator(ToolTranslator):
+    """Translator for presentation, documentation, and annotation tools (e.g. Comment, Tool Container)."""
+
+    def translate(
+        self,
+        tool: Tool,
+        input_variables: list[str],
+        workflow: Workflow,
+    ) -> TranslationResult:
+        lines = [
+            f"# Tool #{tool.tool_id}: {tool.tool_type} (Documentation / Presentation only)",
+            f"# No executable data transformation generated.",
+        ]
+        code = "\n".join(lines)
+
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.DOCUMENTATION_ONLY,
+            python_code=code,
+            imports=set(),
+            input_variables=input_variables,
+            output_map={},
+            diagnostics=[],
+            description=f"Documentation tool ({tool.tool_type})",
+        )
+
+
+class ExternalExecutionTranslator(ToolTranslator):
+    """Translator for tools that execute externally (e.g. Python, R, Run Command, Download, In-DB, Connectors)."""
+
+    def translate(
+        self,
+        tool: Tool,
+        input_variables: list[str],
+        workflow: Workflow,
+    ) -> TranslationResult:
+        lines = [
+            f"# External execution tool: {tool.tool_type} (Tool #{tool.tool_id})",
+            f"# Plugin: {tool.plugin}",
+            f"# This tool operates externally or depends on an external runtime environment.",
+            f"raise NotImplementedError(",
+            f"    \"Tool #{tool.tool_id} ({tool.tool_type}) requires external execution ({tool.plugin}).\"",
+            f")",
+        ]
+        code = "\n".join(lines)
+
+        diagnostic = Diagnostic(
+            level=DiagnosticLevel.WARNING,
+            category="external_execution",
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            message=f"External execution tool: {tool.tool_type} ({tool.plugin})",
+            detail="Executes externally or requires an external service/runtime.",
+        )
+
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.EXTERNAL_EXECUTION,
+            python_code=code,
+            imports=set(),
+            input_variables=input_variables,
+            output_map={},
+            diagnostics=[diagnostic],
+            description=f"External execution tool ({tool.tool_type})",
+        )
+
+
+class PartialSupportTranslator(ToolTranslator):
+    """Translator for partially supported tools with explicit configuration warnings."""
+
+    def translate(
+        self,
+        tool: Tool,
+        input_variables: list[str],
+        workflow: Workflow,
+    ) -> TranslationResult:
+        lines = [
+            f"# Partially supported Alteryx tool: {tool.tool_type} (Tool #{tool.tool_id})",
+            f"# Plugin: {tool.plugin}",
+            f"# Only specific configurations can be deterministically reproduced in pandas.",
+            f"raise NotImplementedError(",
+            f"    \"Partial support: No deterministic pandas equivalent for current {tool.tool_type} configuration.\"",
+            f")",
+        ]
+        code = "\n".join(lines)
+
+        diagnostic = Diagnostic(
+            level=DiagnosticLevel.WARNING,
+            category="partial_support",
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            message=f"Partially supported tool: {tool.tool_type} ({tool.plugin})",
+            detail="Only specific matching, spatial, or dynamic configurations can be translated.",
+        )
+
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.PARTIAL,
+            python_code=code,
+            imports=set(),
+            input_variables=input_variables,
+            output_map={},
+            diagnostics=[diagnostic],
+            description=f"Partially supported tool ({tool.tool_type})",
         )
 
 

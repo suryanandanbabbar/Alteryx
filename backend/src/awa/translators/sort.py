@@ -1,4 +1,4 @@
-"""Sort tool translator."""
+"""Sort and Rank tool translators."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from awa.model.translation import TranslationResult
 from awa.model.diagnostic import SupportLevel
 
 from .base import ToolTranslator
-from .registry import register_type
+from .registry import register_type, register_plugin
 
 
 class SortTranslator(ToolTranslator):
@@ -41,7 +41,7 @@ class SortTranslator(ToolTranslator):
         return TranslationResult(
             tool_id=tool.tool_id,
             tool_type=tool.tool_type,
-            support_level=SupportLevel.SUPPORTED,
+            support_level=SupportLevel.FULL,
             python_code=code,
             imports={"import pandas as pd"},
             input_variables=[input_var],
@@ -51,4 +51,37 @@ class SortTranslator(ToolTranslator):
         )
 
 
+class RankTranslator(ToolTranslator):
+    """Translates Rank macro/tool to Series.rank()."""
+
+    def translate(
+        self,
+        tool: Tool,
+        input_variables: list[str],
+        workflow: Workflow,
+    ) -> TranslationResult:
+        in_var = input_variables[0] if input_variables else "df_unknown"
+        out_var = f"df_{tool.tool_id}"
+        code = f"{out_var} = {in_var}.copy()\n{out_var}['Rank'] = {out_var}.iloc[:, 0].rank(method='dense').astype(int)"
+
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.FULL,
+            python_code=code,
+            imports={"import pandas as pd"},
+            input_variables=[in_var],
+            output_map={"Output": out_var},
+            diagnostics=[],
+            description="Calculate rank order",
+        )
+
+
 register_type("Sort", SortTranslator)
+register_type("SortTranslator", SortTranslator)
+register_plugin("AlteryxBasePluginsGui.Sort.Sort", SortTranslator)
+
+register_type("Rank", RankTranslator)
+register_type("RankTranslator", RankTranslator)
+register_plugin("AlteryxBasePluginsGui.Rank.Rank", RankTranslator)
+register_plugin("Rank.yxmc", RankTranslator)

@@ -1,7 +1,4 @@
-"""Union tool translator.
-
-Combines multiple incoming data streams by column name or by position.
-"""
+"""Union tool translator."""
 
 from __future__ import annotations
 
@@ -11,7 +8,7 @@ from awa.model.translation import TranslationResult
 from awa.model.diagnostic import SupportLevel
 
 from .base import ToolTranslator
-from .registry import register_type
+from .registry import register_type, register_plugin
 
 
 class UnionTranslator(ToolTranslator):
@@ -34,7 +31,6 @@ class UnionTranslator(ToolTranslator):
         else:
             inputs_list = ", ".join(input_variables)
             if by_name_or_pos.lower() == "bypos":
-                # Align by position: standard concat with ignore_index, assuming identical positional columns
                 code = f"{output_var} = pd.concat([{inputs_list}], ignore_index=True, axis=0)"
             else:
                 code = f"{output_var} = pd.concat([{inputs_list}], ignore_index=True, sort=False)"
@@ -42,7 +38,7 @@ class UnionTranslator(ToolTranslator):
         return TranslationResult(
             tool_id=tool.tool_id,
             tool_type=tool.tool_type,
-            support_level=SupportLevel.SUPPORTED,
+            support_level=SupportLevel.FULL,
             python_code=code,
             imports={"import pandas as pd"},
             input_variables=input_variables,
@@ -53,3 +49,5 @@ class UnionTranslator(ToolTranslator):
 
 
 register_type("Union", UnionTranslator)
+register_type("UnionTranslator", UnionTranslator)
+register_plugin("AlteryxBasePluginsGui.Union.Union", UnionTranslator)

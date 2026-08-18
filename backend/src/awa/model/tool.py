@@ -61,11 +61,22 @@ class Tool:
     engine_settings: dict[str, str] = dc_field(default_factory=dict)
 
     def to_dict(self) -> dict:
+        from awa.tools.catalog import get_tool_catalog
+        catalog = get_tool_catalog()
+        tool_def = catalog.resolve(self.plugin or self.tool_type)
+
         d: dict = {
             "tool_id": self.tool_id,
+            "id": str(self.tool_id),
+            "tool_name": self.name or tool_def.display_name,
+            "xml_name": tool_def.xml_name,
             "plugin": self.plugin,
             "tool_type": self.tool_type,
             "name": self.name,
+            "category": tool_def.category.value if hasattr(tool_def.category, "value") else str(tool_def.category),
+            "support": tool_def.capabilities.to_dict(),
+            "support_level": tool_def.support_level.value,
+            "translator": tool_def.translator_name,
             "configuration": self.configuration.to_dict(),
             "annotation": self.annotation,
             "output_fields": [f.to_dict() for f in self.output_fields],

@@ -1,15 +1,63 @@
-"""Tool-specific configuration extraction from XML.
-
-Each Alteryx tool type has its own Configuration XML structure.
-This module uses a dispatch table to extract structured configuration
-from the raw XML elements.
-"""
+"""Tool-specific configuration extraction and security redaction from XML."""
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
+from typing import Any, Callable
 
 from awa.model.tool import ToolConfiguration
+
+# Sensitive key patterns for security redaction
+REDACTED_VALUE = "[REDACTED]"
+_SENSITIVE_KEY_PATTERN = re.compile(
+    r"(password|pwd|secret|token|api_?key|client_?secret|access_?token|credential|private_?key|auth_?token)",
+    re.IGNORECASE,
+)
+_CONN_STRING_SECRET_PATTERN = re.compile(
+    r"(password|pwd|secret|token|api_?key|client_?secret|access_?token)\s*=\s*([^;,\s\"\'<>]+)",
+    re.IGNORECASE,
+)
+_XML_SECRET_TAG_PATTERN = re.compile(
+    r"(<(?:[a-zA-Z0-9_:]*)(?:password|pwd|secret|token|api_?key|client_?secret|access_?token|credential|private_?key|auth_?token)(?:[a-zA-Z0-9_:]*)[^>]*>)([^<]*)(</)",
+    re.IGNORECASE,
+)
+_XML_SECRET_ATTR_PATTERN = re.compile(
+    r'((?:password|pwd|secret|token|api_?key|client_?secret|access_?token)\s*=\s*["\'])[^"\']*(["\'])',
+    re.IGNORECASE,
+)
+
+
+def redact_sensitive_xml(xml_str: str) -> str:
+    """Scrub sensitive credentials, passwords, and tokens from raw XML strings."""
+    if not xml_str:
+        return ""
+    # Redact text inside tags: <ApiKey>secret</ApiKey> -> <ApiKey>[REDACTED]</ApiKey>
+    redacted = _XML_SECRET_TAG_PATTERN.sub(r"\1[REDACTED]\3", xml_str)
+    # Redact XML attributes: Password="secret" -> Password="[REDACTED]"
+    redacted = _XML_SECRET_ATTR_PATTERN.sub(r"\1[REDACTED]\2", redacted)
+    # Redact connection strings
+    redacted = _CONN_STRING_SECRET_PATTERN.sub(r"\1=[REDACTED]", redacted)
+    return redacted
+
+
+def redact_sensitive_data(obj: Any) -> Any:
+    """Recursively redact passwords, tokens, API keys, and credentials."""
+    if isinstance(obj, dict):
+        redacted = {}
+        for k, v in obj.items():
+            if _SENSITIVE_KEY_PATTERN.search(str(k)):
+                redacted[k] = REDACTED_VALUE
+            else:
+                redacted[k] = redact_sensitive_data(v)
+        return redacted
+    elif isinstance(obj, list):
+        return [redact_sensitive_data(item) for item in obj]
+    elif isinstance(obj, str):
+        if _CONN_STRING_SECRET_PATTERN.search(obj):
+            return _CONN_STRING_SECRET_PATTERN.sub(r"\1=[REDACTED]", obj)
+        return obj
+    return obj
 
 
 def extract_tool_config(
@@ -18,24 +66,54 @@ def extract_tool_config(
 ) -> ToolConfiguration:
     """Extract tool configuration from an XML Configuration element.
 
-    Always preserves raw XML. Dispatches to tool-specific extractors
-    for structured parsing.
+    Always preserves raw XML (with sensitive credentials scrubbed).
+    Dispatches to tool-specific extractors or generic XML-to-dict parser,
+    and strictly redacts credentials.
 
     Args:
         config_el: The <Configuration> XML element, or None.
         tool_type: The derived tool type name.
 
     Returns:
-        ToolConfiguration with raw_xml and parsed dict.
+        ToolConfiguration with sanitized raw_xml and parsed dict.
     """
     if config_el is None:
         return ToolConfiguration(raw_xml="", parsed={})
 
     raw_xml = ET.tostring(config_el, encoding="unicode")
-    extractor = _CONFIG_EXTRACTORS.get(tool_type)
-    parsed = extractor(config_el) if extractor else {}
+    sanitized_raw_xml = redact_sensitive_xml(raw_xml)
 
-    return ToolConfiguration(raw_xml=raw_xml, parsed=parsed)
+    extractor = _CONFIG_EXTRACTORS.get(tool_type)
+    if extractor:
+        parsed = extractor(config_el)
+    else:
+        parsed = _generic_xml_to_dict(config_el)
+
+    sanitized_parsed = redact_sensitive_data(parsed)
+    return ToolConfiguration(raw_xml=sanitized_raw_xml, parsed=sanitized_parsed)
+
+
+def _generic_xml_to_dict(el: ET.Element) -> dict:
+    """Generic fallback parser converting XML elements into nested dictionary."""
+    result: dict = {}
+    if el.attrib:
+        result.update(dict(el.attrib))
+
+    children = list(el)
+    if not children:
+        if el.text and el.text.strip():
+            result["value"] = el.text.strip()
+        return result
+
+    for child in children:
+        child_dict = _generic_xml_to_dict(child)
+        if child.tag in result:
+            if not isinstance(result[child.tag], list):
+                result[child.tag] = [result[child.tag]]
+            result[child.tag].append(child_dict)
+        else:
+            result[child.tag] = child_dict
+    return result
 
 
 # ── Tool-specific extractors ────────────────────────────────────────
@@ -55,7 +133,6 @@ def _extract_file_input_config(config_el: ET.Element) -> dict:
         if record_limit:
             config["record_limit"] = record_limit
 
-    # Format-specific options
     fmt_opts = config_el.find("FormatSpecificOptions")
     if fmt_opts is not None:
         for child in fmt_opts:
@@ -78,6 +155,24 @@ def _extract_file_output_config(config_el: ET.Element) -> dict:
         max_records = file_el.get("MaxRecords")
         if max_records:
             config["max_records"] = max_records
+    return config
+
+
+def _extract_text_input_config(config_el: ET.Element) -> dict:
+    """Extract TextInput configuration."""
+    config: dict = {}
+    fields = []
+    for f_el in config_el.findall(".//Fields/Field"):
+        fields.append(f_el.get("name", ""))
+    if fields:
+        config["fields"] = fields
+
+    rows = []
+    for r_el in config_el.findall(".//Data/r"):
+        row = [c.text or "" for c in r_el.findall("c")]
+        rows.append(row)
+    if rows:
+        config["rows"] = rows
     return config
 
 
@@ -146,7 +241,6 @@ def _extract_join_config(config_el: ET.Element) -> dict:
     if by_pos is not None:
         config["join_by_position"] = by_pos.get("value", "False") == "True"
 
-    # Extract select configuration for join output
     select_config = config_el.find(".//SelectConfiguration/Configuration")
     if select_config is not None:
         output_conn = select_config.get("outputConnection", "")
@@ -163,7 +257,6 @@ def _extract_union_config(config_el: ET.Element) -> dict:
     if mode:
         config["mode"] = mode
 
-    # Union field mappings
     by_name = config_el.find("ByName_or_ByPos")
     if by_name is not None and by_name.text:
         config["by_name_or_pos"] = by_name.text
@@ -329,14 +422,45 @@ def _extract_cross_tab_config(config_el: ET.Element) -> dict:
     return config
 
 
+def _extract_date_time_config(config_el: ET.Element) -> dict:
+    """Extract DateTime tool configuration."""
+    config: dict = {}
+    for tag in ("IsInputDate", "InputFormat", "OutputFormat", "InputFieldName", "OutputFieldName"):
+        el = config_el.find(tag)
+        if el is not None and el.text:
+            config[tag.lower()] = el.text
+    return config
+
+
+def _extract_regex_config(config_el: ET.Element) -> dict:
+    """Extract RegEx tool configuration."""
+    config: dict = {}
+    for tag in ("Field", "RegExExpression", "CaseInsensitve", "Method", "ReplaceString"):
+        el = config_el.find(tag)
+        if el is not None and el.text:
+            config[tag.lower()] = el.text
+    return config
+
+
+def _extract_text_to_columns_config(config_el: ET.Element) -> dict:
+    """Extract TextToColumns tool configuration."""
+    config: dict = {}
+    for tag in ("Field", "Delimeters", "NumFields", "Flags"):
+        el = config_el.find(tag)
+        if el is not None and el.text:
+            config[tag.lower()] = el.text
+    return config
+
+
 # ── Dispatch table ───────────────────────────────────────────────────
 
-_CONFIG_EXTRACTORS: dict[str, callable] = {
+_CONFIG_EXTRACTORS: dict[str, Callable[[ET.Element], dict]] = {
     # I/O
     "DbFileInput": _extract_file_input_config,
     "InputData": _extract_file_input_config,
     "DbFileOutput": _extract_file_output_config,
     "OutputData": _extract_file_output_config,
+    "TextInput": _extract_text_input_config,
     # Transform
     "Filter": _extract_filter_config,
     "Formula": _extract_formula_config,
@@ -354,4 +478,8 @@ _CONFIG_EXTRACTORS: dict[str, callable] = {
     "Summarize": _extract_summarize_config,
     "Transpose": _extract_transpose_config,
     "CrossTab": _extract_cross_tab_config,
+    # Parse
+    "DateTime": _extract_date_time_config,
+    "RegEx": _extract_regex_config,
+    "TextToColumns": _extract_text_to_columns_config,
 }

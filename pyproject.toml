@@ -14,6 +14,9 @@ dependencies = [
     "python-docx>=1.0.0",
     "pillow>=10.0.0",
     "pydantic>=2.0.0",
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "openpyxl>=3.0",
 ]
 
 [project.optional-dependencies]
@@ -26,9 +29,6 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "httpx>=0.24.0",
-    "pandas>=2.0",
-    "numpy>=1.24",
-    "openpyxl>=3.0",
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.20.0",
     "python-multipart>=0.0.6",
@@ -38,7 +38,9 @@ dev = [
 awa = "awa.cli.main:cli"
 
 [tool.hatch.build.targets.wheel]
-packages = ["backend/src/awa"]
+packages = [
+    "backend/src/awa",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "backend/tests"]

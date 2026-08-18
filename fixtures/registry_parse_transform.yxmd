@@ -1,0 +1,135 @@
+<?xml version="1.0"?>
+<AlteryxDocument yxmdVer="2024.1">
+  <Nodes>
+    <Node ToolID="1">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.TextInput.TextInput">
+        <Position x="54" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <Fields>
+            <Field name="id"/>
+            <Field name="raw_date"/>
+            <Field name="tag_str"/>
+            <Field name="q1"/>
+            <Field name="q2"/>
+          </Fields>
+          <Data>
+            <r><c>1</c><c>2024-01-15</c><c>alpha,beta,gamma</c><c>100</c><c>150</c></r>
+            <r><c>2</c><c>2024-02-20</c><c>delta,epsilon</c><c>200</c><c>250</c></r>
+          </Data>
+        </Configuration>
+        <Annotation>
+          <Name>Raw Text Input</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="2">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DateTime.DateTime">
+        <Position x="186" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <InputFieldName>raw_date</InputFieldName>
+          <InputFormat>%Y-%m-%d</InputFormat>
+          <OutputFieldName>parsed_date</OutputFieldName>
+        </Configuration>
+        <Annotation>
+          <Name>Parse DateTime</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="3">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.TextToColumns.TextToColumns">
+        <Position x="318" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <Field>tag_str</Field>
+          <Delimeters>,</Delimeters>
+          <NumFields>3</NumFields>
+        </Configuration>
+        <Annotation>
+          <Name>Split Tags</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="4">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Transpose.Transpose">
+        <Position x="450" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <KeyFields>
+            <Field field="id"/>
+          </KeyFields>
+          <DataFields>
+            <Field field="q1"/>
+            <Field field="q2"/>
+          </DataFields>
+        </Configuration>
+        <Annotation>
+          <Name>Melt Quarters</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="5">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.CrossTab.CrossTab">
+        <Position x="582" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <GroupFields>
+            <Field field="id"/>
+          </GroupFields>
+          <HeaderField>Name</HeaderField>
+          <DataField>Value</DataField>
+          <Method>Sum</Method>
+        </Configuration>
+        <Annotation>
+          <Name>Pivot Back</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="6">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput">
+        <Position x="714" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>output/transformed.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Output Pivot</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+  </Nodes>
+  <Connections>
+    <Connection>
+      <Origin ToolID="1" Connection="Output"/>
+      <Destination ToolID="2" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="2" Connection="Output"/>
+      <Destination ToolID="3" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="3" Connection="Output"/>
+      <Destination ToolID="4" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="4" Connection="Output"/>
+      <Destination ToolID="5" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="5" Connection="Output"/>
+      <Destination ToolID="6" Connection="Input"/>
+    </Connection>
+  </Connections>
+  <Properties>
+    <MetaInfo>
+      <Name>registry_parse_transform</Name>
+    </MetaInfo>
+  </Properties>
+</AlteryxDocument>

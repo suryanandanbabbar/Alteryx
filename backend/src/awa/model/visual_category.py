@@ -16,10 +16,13 @@ TOOL_VISUAL_CATEGORIES: dict[str, str] = {
     "InputData": "input",
     "TextInput": "input",
     "DynamicInput": "input",
+    "Directory": "input",
+    "DateTimeNow": "datetime",
     # Output tools
     "DbFileOutput": "output",
     "OutputData": "output",
     "Browse": "output",
+    "BrowseV2": "output",
     # Filter
     "Filter": "filter",
     # DateTime
@@ -28,9 +31,12 @@ TOOL_VISUAL_CATEGORIES: dict[str, str] = {
     "Summarize": "summarize",
     # Join / Merge
     "Join": "join",
+    "JoinMultiple": "join",
     "Union": "join",
     "AppendFields": "join",
     "FindReplace": "join",
+    "FuzzyMatch": "join",
+    "MakeGroup": "join",
     # Sort
     "Sort": "sort",
     # Unique
@@ -38,19 +44,28 @@ TOOL_VISUAL_CATEGORIES: dict[str, str] = {
     # Select / Schema
     "Select": "select",
     "AlteryxSelect": "select",
+    "AutoField": "select",
+    "SelectRecords": "select",
     # Formula
     "Formula": "formula",
     "MultiFieldFormula": "formula",
     "MultiRowFormula": "formula",
     # Data Cleansing
     "DataCleansing": "cleansing",
+    "DataCleansePro": "cleansing",
     # Reshape
     "Sample": "reshape",
     "RecordID": "reshape",
     "Transpose": "reshape",
     "CrossTab": "reshape",
-    # Regex
+    "Arrange": "reshape",
+    "MakeColumns": "reshape",
+    "RandomSample": "reshape",
+    "CreateSamples": "reshape",
+    # Regex / Parse
     "RegEx": "regex",
+    "TextToColumns": "regex",
+    "XMLParse": "regex",
     # Generate Rows
     "GenerateRows": "generate",
     # Running Total
@@ -66,15 +81,24 @@ DEFAULT_VISUAL_CATEGORY = "transform"
 def get_visual_category(tool_type: str) -> str:
     """Return the visual category for a given tool type.
 
-    Falls back to 'transform' for unmapped types.
+    Falls back to Tool Registry catalog or 'transform' for unmapped types.
     """
-    return TOOL_VISUAL_CATEGORIES.get(tool_type, DEFAULT_VISUAL_CATEGORY)
+    if tool_type in TOOL_VISUAL_CATEGORIES:
+        return TOOL_VISUAL_CATEGORIES[tool_type]
+
+    try:
+        from awa.tools.catalog import get_tool_catalog
+        catalog = get_tool_catalog()
+        tool_def = catalog.get(tool_type) or catalog.get_by_display_name(tool_type)
+        if tool_def:
+            return tool_def.get_visual_category()
+    except Exception:
+        pass
+
+    return DEFAULT_VISUAL_CATEGORY
 
 
 # --- Color palette per visual category ---
-# Each category has: fill (node background), stroke (border),
-# badge (type label background), text (label color)
-# Colors approximated from reference screenshots (dark theme).
 
 CATEGORY_COLORS: dict[str, dict[str, str]] = {
     "input": {
@@ -172,6 +196,42 @@ CATEGORY_COLORS: dict[str, dict[str, str]] = {
         "stroke": "#90a4ae",
         "badge": "#90a4ae",
         "text": "#eceff1",
+    },
+    "developer": {
+        "fill": "#2c223b",
+        "stroke": "#ab47bc",
+        "badge": "#ab47bc",
+        "text": "#f3e5f5",
+    },
+    "documentation": {
+        "fill": "#263238",
+        "stroke": "#b0bec5",
+        "badge": "#b0bec5",
+        "text": "#eceff1",
+    },
+    "reporting": {
+        "fill": "#3e2723",
+        "stroke": "#ff8a65",
+        "badge": "#ff8a65",
+        "text": "#fbe9e7",
+    },
+    "spatial": {
+        "fill": "#004d40",
+        "stroke": "#00bfa5",
+        "badge": "#00bfa5",
+        "text": "#e0f2f1",
+    },
+    "in_database": {
+        "fill": "#1a237e",
+        "stroke": "#536dfe",
+        "badge": "#536dfe",
+        "text": "#e8eaf6",
+    },
+    "connector": {
+        "fill": "#bf360c",
+        "stroke": "#ff7043",
+        "badge": "#ff7043",
+        "text": "#fbe9e7",
     },
 }
 

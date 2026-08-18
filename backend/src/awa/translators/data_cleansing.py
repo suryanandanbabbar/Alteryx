@@ -8,7 +8,7 @@ from awa.model.translation import TranslationResult
 from awa.model.diagnostic import SupportLevel
 
 from .base import ToolTranslator
-from .registry import register_type
+from .registry import register_type, register_plugin
 
 
 class DataCleansingTranslator(ToolTranslator):
@@ -56,7 +56,6 @@ class DataCleansingTranslator(ToolTranslator):
                     lines.append(f'if {col_repr} in {output_var}.columns:')
                     lines.append(f'    {output_var} = {output_var}[{output_var}[{col_repr}].notna()]')
         else:
-            # Apply to all string columns
             if trim_ws:
                 lines.append(f'for _c in {output_var}.select_dtypes(include=["object"]).columns:')
                 lines.append(f'    {output_var}[_c] = {output_var}[_c].str.strip()')
@@ -68,7 +67,7 @@ class DataCleansingTranslator(ToolTranslator):
         return TranslationResult(
             tool_id=tool.tool_id,
             tool_type=tool.tool_type,
-            support_level=SupportLevel.SUPPORTED,
+            support_level=SupportLevel.FULL,
             python_code=code,
             imports={"import pandas as pd"},
             input_variables=[input_var],
@@ -79,3 +78,6 @@ class DataCleansingTranslator(ToolTranslator):
 
 
 register_type("DataCleansing", DataCleansingTranslator)
+register_type("DataCleansingTranslator", DataCleansingTranslator)
+register_plugin("Cleanse.yxmc", DataCleansingTranslator)
+register_plugin("AlteryxBasePluginsGui.DataCleansing.DataCleansing", DataCleansingTranslator)

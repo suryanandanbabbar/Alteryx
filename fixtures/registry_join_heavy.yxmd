@@ -1,0 +1,131 @@
+<?xml version="1.0"?>
+<AlteryxDocument yxmdVer="2024.1">
+  <Nodes>
+    <Node ToolID="1">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput">
+        <Position x="54" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>data/left_data.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Left Dataset</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="2">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput">
+        <Position x="54" y="186"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>data/right_data.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Right Dataset</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="3">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Join.Join">
+        <Position x="210" y="114"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <JoinInfo connection="Left">
+            <Field left="id" right="id"/>
+          </JoinInfo>
+        </Configuration>
+        <Annotation>
+          <Name>Join on ID</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="4">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput">
+        <Position x="210" y="246"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>data/dim_meta.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Dimension Meta</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="5">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.AppendFields.AppendFields">
+        <Position x="366" y="186"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration/>
+        <Annotation>
+          <Name>Append Dimension Meta</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="6">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Union.Union">
+        <Position x="522" y="114"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <ByName_or_ByPos>ByName</ByName_or_ByPos>
+        </Configuration>
+        <Annotation>
+          <Name>Union Streams</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="7">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput">
+        <Position x="678" y="114"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>output/joined_heavy.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Output Results</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+  </Nodes>
+  <Connections>
+    <Connection>
+      <Origin ToolID="1" Connection="Output"/>
+      <Destination ToolID="3" Connection="Left"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="2" Connection="Output"/>
+      <Destination ToolID="3" Connection="Right"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="3" Connection="Left"/>
+      <Destination ToolID="6" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="3" Connection="Join"/>
+      <Destination ToolID="5" Connection="Targets"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="4" Connection="Output"/>
+      <Destination ToolID="5" Connection="Source"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="5" Connection="Output"/>
+      <Destination ToolID="6" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="6" Connection="Output"/>
+      <Destination ToolID="7" Connection="Input"/>
+    </Connection>
+  </Connections>
+  <Properties>
+    <MetaInfo>
+      <Name>registry_join_heavy</Name>
+    </MetaInfo>
+  </Properties>
+</AlteryxDocument>

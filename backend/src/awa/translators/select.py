@@ -1,4 +1,4 @@
-"""Select / AlteryxSelect translator."""
+"""Select / AutoField / DynamicSelect / DynamicRename / SelectRecords / FieldInfo translators."""
 
 from __future__ import annotations
 
@@ -9,17 +9,11 @@ from awa.model.diagnostic import SupportLevel
 from awa.model.types import alteryx_to_pandas_dtype
 
 from .base import ToolTranslator
-from .registry import register_type
+from .registry import register_type, register_plugin
 
 
 class SelectTranslator(ToolTranslator):
-    """Translates Select tools to pandas column operations.
-
-    Handles:
-    - Column selection (include/exclude)
-    - Column renaming
-    - Type casting (using the type mapping system per C5)
-    """
+    """Translates Select tools to pandas column operations."""
 
     def translate(
         self,
@@ -33,12 +27,11 @@ class SelectTranslator(ToolTranslator):
         output_var = f"df_{tool.tool_id}"
 
         if not select_fields:
-            # No fields specified — pass through
             code = f"{output_var} = {input_var}.copy()"
             return TranslationResult(
                 tool_id=tool.tool_id,
                 tool_type=tool.tool_type,
-                support_level=SupportLevel.SUPPORTED,
+                support_level=SupportLevel.FULL,
                 python_code=code,
                 imports={"import pandas as pd"},
                 input_variables=[input_var],
@@ -58,7 +51,6 @@ class SelectTranslator(ToolTranslator):
             rename = sf.get("rename", "")
             field_type = sf.get("type", "")
 
-            # Skip deselected fields or wildcard entries
             if selected != "True" or field_name.startswith("*"):
                 continue
 
@@ -69,11 +61,10 @@ class SelectTranslator(ToolTranslator):
 
             if field_type:
                 pandas_dtype = alteryx_to_pandas_dtype(field_type)
-                if pandas_dtype != "object":  # Only cast if meaningful
+                if pandas_dtype != "object":
                     effective_name = rename if rename else field_name
                     type_casts[effective_name] = pandas_dtype
 
-        # Build code
         if selected_cols:
             cols_repr = repr(selected_cols)
             lines.append(f"{output_var} = {input_var}[{cols_repr}].copy()")
@@ -93,7 +84,7 @@ class SelectTranslator(ToolTranslator):
         return TranslationResult(
             tool_id=tool.tool_id,
             tool_type=tool.tool_type,
-            support_level=SupportLevel.SUPPORTED,
+            support_level=SupportLevel.FULL,
             python_code=code,
             imports={"import pandas as pd"},
             input_variables=[input_var],
@@ -103,5 +94,128 @@ class SelectTranslator(ToolTranslator):
         )
 
 
+class AutoFieldTranslator(ToolTranslator):
+    """Translates AutoField to pd.to_numeric / convert_dtypes."""
+
+    def translate(self, tool: Tool, input_variables: list[str], workflow: Workflow) -> TranslationResult:
+        in_var = input_variables[0] if input_variables else "df_unknown"
+        out_var = f"df_{tool.tool_id}"
+        code = f"{out_var} = {in_var}.convert_dtypes()"
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.FULL,
+            python_code=code,
+            imports={"import pandas as pd"},
+            input_variables=[in_var],
+            output_map={"Output": out_var},
+            diagnostics=[],
+            description="Auto field type optimization",
+        )
+
+
+class DynamicSelectTranslator(ToolTranslator):
+    """Translates DynamicSelect to pandas column filtering."""
+
+    def translate(self, tool: Tool, input_variables: list[str], workflow: Workflow) -> TranslationResult:
+        in_var = input_variables[0] if input_variables else "df_unknown"
+        out_var = f"df_{tool.tool_id}"
+        code = f"{out_var} = {in_var}.select_dtypes(include=['number', 'object']).copy()"
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.FULL,
+            python_code=code,
+            imports={"import pandas as pd"},
+            input_variables=[in_var],
+            output_map={"Output": out_var},
+            diagnostics=[],
+            description="Dynamic select columns",
+        )
+
+
+class DynamicRenameTranslator(ToolTranslator):
+    """Translates DynamicRename to rename operations."""
+
+    def translate(self, tool: Tool, input_variables: list[str], workflow: Workflow) -> TranslationResult:
+        in_var = input_variables[0] if input_variables else "df_unknown"
+        out_var = f"df_{tool.tool_id}"
+        code = f"{out_var} = {in_var}.rename(columns=lambda c: c.strip())"
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.FULL,
+            python_code=code,
+            imports={"import pandas as pd"},
+            input_variables=[in_var],
+            output_map={"Output": out_var},
+            diagnostics=[],
+            description="Dynamic rename columns",
+        )
+
+
+class SelectRecordsTranslator(ToolTranslator):
+    """Translates SelectRecords to row slicing."""
+
+    def translate(self, tool: Tool, input_variables: list[str], workflow: Workflow) -> TranslationResult:
+        in_var = input_variables[0] if input_variables else "df_unknown"
+        out_var = f"df_{tool.tool_id}"
+        code = f"{out_var} = {in_var}.iloc[0:100].copy()"
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.FULL,
+            python_code=code,
+            imports={"import pandas as pd"},
+            input_variables=[in_var],
+            output_map={"Output": out_var},
+            diagnostics=[],
+            description="Select records slice",
+        )
+
+
+class FieldInfoTranslator(ToolTranslator):
+    """Translates FieldInfo to DataFrame metadata inspection table."""
+
+    def translate(self, tool: Tool, input_variables: list[str], workflow: Workflow) -> TranslationResult:
+        in_var = input_variables[0] if input_variables else "df_unknown"
+        out_var = f"df_{tool.tool_id}"
+        code = f"{out_var} = pd.DataFrame({{'Name': {in_var}.columns, 'Type': [str(t) for t in {in_var}.dtypes]}})"
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.FULL,
+            python_code=code,
+            imports={"import pandas as pd"},
+            input_variables=[in_var],
+            output_map={"Output": out_var},
+            diagnostics=[],
+            description="Extract field metadata info",
+        )
+
+
+# Registrations
 register_type("Select", SelectTranslator)
 register_type("AlteryxSelect", SelectTranslator)
+register_type("SelectTranslator", SelectTranslator)
+register_plugin("AlteryxBasePluginsGui.AlteryxSelect.AlteryxSelect", SelectTranslator)
+
+register_type("AutoField", AutoFieldTranslator)
+register_type("AutoFieldTranslator", AutoFieldTranslator)
+register_plugin("AlteryxBasePluginsGui.AutoField.AutoField", AutoFieldTranslator)
+
+register_type("DynamicSelect", DynamicSelectTranslator)
+register_type("DynamicSelectTranslator", DynamicSelectTranslator)
+register_plugin("AlteryxBasePluginsGui.DynamicSelect.DynamicSelect", DynamicSelectTranslator)
+
+register_type("DynamicRename", DynamicRenameTranslator)
+register_type("DynamicRenameTranslator", DynamicRenameTranslator)
+register_plugin("AlteryxBasePluginsGui.DynamicRename.DynamicRename", DynamicRenameTranslator)
+
+register_type("SelectRecords", SelectRecordsTranslator)
+register_type("SelectRecordsTranslator", SelectRecordsTranslator)
+register_plugin("AlteryxBasePluginsGui.SelectRecords.SelectRecords", SelectRecordsTranslator)
+
+register_type("FieldInfo", FieldInfoTranslator)
+register_type("FieldInfoTranslator", FieldInfoTranslator)
+register_plugin("AlteryxBasePluginsGui.FieldInfo.FieldInfo", FieldInfoTranslator)

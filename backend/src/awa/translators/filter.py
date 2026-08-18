@@ -1,9 +1,4 @@
-"""Filter translator.
-
-Produces True and False branches. Per constraint C3, the IR preserves
-both branches in output_map. The Python generator only emits code for
-consumed branches.
-"""
+"""Filter translator."""
 
 from __future__ import annotations
 
@@ -14,17 +9,11 @@ from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
 from awa.expressions.pandas_emitter import emit_pandas
 
 from .base import ToolTranslator
-from .registry import register_type
+from .registry import register_type, register_plugin
 
 
 class FilterTranslator(ToolTranslator):
-    """Translates Filter tools to pandas boolean indexing.
-
-    Always generates both True and False branches in output_map (C3).
-    The Python code generates both assignments.
-    The Python generator downstream decides which to include based on
-    consumed_anchors.
-    """
+    """Translates Filter tools to pandas boolean indexing."""
 
     def translate(
         self,
@@ -43,10 +32,9 @@ class FilterTranslator(ToolTranslator):
         imports: set[str] = {"import pandas as pd"}
 
         if not expression:
-            # No expression — pass everything to True branch
             code = (
                 f"{true_var} = {input_var}.copy()\n"
-                f"{false_var} = {input_var}.iloc[0:0].copy()  # Empty DataFrame"
+                f"{false_var} = {input_var}.iloc[0:0].copy()"
             )
             diagnostics.append(Diagnostic(
                 level=DiagnosticLevel.WARNING,
@@ -84,7 +72,7 @@ class FilterTranslator(ToolTranslator):
         return TranslationResult(
             tool_id=tool.tool_id,
             tool_type=tool.tool_type,
-            support_level=SupportLevel.SUPPORTED if not diagnostics else SupportLevel.PARTIAL,
+            support_level=SupportLevel.FULL if not diagnostics else SupportLevel.PARTIAL,
             python_code=code,
             imports=imports,
             input_variables=[input_var],
@@ -98,3 +86,5 @@ class FilterTranslator(ToolTranslator):
 
 
 register_type("Filter", FilterTranslator)
+register_type("FilterTranslator", FilterTranslator)
+register_plugin("AlteryxBasePluginsGui.Filter.Filter", FilterTranslator)

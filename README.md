@@ -116,10 +116,13 @@ npm run dev
 
 Open `http://localhost:5173` in your browser.
 
-### Production / Deployment Mode
+### Production / Azure Deployment Mode
 
-**Backend:**
+See the complete [Azure Deployment Guide](docs/azure-deployment.md) for step-by-step production configuration.
+
+**Backend Installation & Startup:**
 ```bash
+python -m pip install ".[server]"
 python -m uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}
 ```
 

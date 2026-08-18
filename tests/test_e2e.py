@@ -133,7 +133,8 @@ class TestSimpleFilterE2E:
         for tr in analysis_result.translations.values():
             assert tr.support_level is not None
             assert tr.support_level.value in (
-                "supported", "partial", "unsupported",
+                "full", "supported", "partial", "pass_through",
+                "documentation_only", "external_execution", "unsupported",
                 "unknown", "ambiguous", "external_dependency",
             )
 

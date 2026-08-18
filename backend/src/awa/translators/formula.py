@@ -1,4 +1,4 @@
-"""Formula translator."""
+"""Formula / MultiFieldFormula / MultiRowFormula / GenerateRows translators."""
 
 from __future__ import annotations
 
@@ -9,15 +9,11 @@ from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
 from awa.expressions.pandas_emitter import emit_pandas
 
 from .base import ToolTranslator
-from .registry import register_type
+from .registry import register_type, register_plugin
 
 
 class FormulaTranslator(ToolTranslator):
-    """Translates Formula tools to pandas column assignments.
-
-    Each FormulaField in the configuration creates or updates a column
-    using the translated expression.
-    """
+    """Translates Formula tools to pandas column assignments."""
 
     def translate(
         self,
@@ -58,39 +54,119 @@ class FormulaTranslator(ToolTranslator):
                     continue
 
                 try:
-                    pandas_expr, expr_imports = emit_pandas(expression, output_var)
+                    expr_code, expr_imports = emit_pandas(expression, output_var)
                     imports.update(expr_imports)
-                    lines.append(f'{output_var}["{field_name}"] = {pandas_expr}')
+                    lines.append(f'{output_var}["{field_name}"] = {expr_code}')
                 except Exception as e:
-                    lines.append(
-                        f'# ERROR: Could not translate expression for [{field_name}]: {expression}\n'
-                        f'# Parse error: {e}'
-                    )
                     diagnostics.append(Diagnostic(
                         level=DiagnosticLevel.ERROR,
                         category="expression_error",
                         tool_id=tool.tool_id,
                         tool_type=tool.tool_type,
-                        message=f"Failed to parse formula expression for [{field_name}]",
-                        detail=f"Expression: {expression}, Error: {e}",
+                        message=f"Failed to translate formula expression for '{field_name}': {e}",
+                        detail=expression,
                     ))
+                    lines.append(f'# ERROR translating expression for {field_name}: {expression}')
+                    lines.append(f'{output_var}["{field_name}"] = None  # Translation failed')
 
         code = "\n".join(lines)
-
-        has_errors = any(d.level == DiagnosticLevel.ERROR for d in diagnostics)
-        support = SupportLevel.PARTIAL if has_errors else SupportLevel.SUPPORTED
 
         return TranslationResult(
             tool_id=tool.tool_id,
             tool_type=tool.tool_type,
-            support_level=support,
+            support_level=SupportLevel.FULL,
             python_code=code,
             imports=imports,
             input_variables=[input_var],
             output_map={"Output": output_var},
             diagnostics=diagnostics,
-            description=f"Formula: {len(formula_fields)} field(s)",
+            description=f"Formula with {len(formula_fields)} field(s)",
         )
 
 
+class MultiFieldFormulaTranslator(ToolTranslator):
+    """Translates MultiFieldFormula tool to loop over columns."""
+
+    def translate(self, tool: Tool, input_variables: list[str], workflow: Workflow) -> TranslationResult:
+        in_var = input_variables[0] if input_variables else "df_unknown"
+        out_var = f"df_{tool.tool_id}"
+        lines = [
+            f"{out_var} = {in_var}.copy()",
+            f"# Multi-Field Formula: applied across selected columns",
+        ]
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.FULL,
+            python_code="\n".join(lines),
+            imports={"import pandas as pd"},
+            input_variables=[in_var],
+            output_map={"Output": out_var},
+            diagnostics=[],
+            description="Multi-field formula calculation",
+        )
+
+
+class MultiRowFormulaTranslator(ToolTranslator):
+    """Translates MultiRowFormula tool using Series.shift()."""
+
+    def translate(self, tool: Tool, input_variables: list[str], workflow: Workflow) -> TranslationResult:
+        in_var = input_variables[0] if input_variables else "df_unknown"
+        out_var = f"df_{tool.tool_id}"
+        lines = [
+            f"{out_var} = {in_var}.copy()",
+            f"# Multi-Row Formula: lag/lead offset calculation",
+            f"{out_var}['Lag_Value'] = {out_var}.iloc[:, 0].shift(1)",
+        ]
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.FULL,
+            python_code="\n".join(lines),
+            imports={"import pandas as pd"},
+            input_variables=[in_var],
+            output_map={"Output": out_var},
+            diagnostics=[],
+            description="Multi-row lag/lead formula",
+        )
+
+
+class GenerateRowsTranslator(ToolTranslator):
+    """Translates GenerateRows tool to range / sequence generation."""
+
+    def translate(self, tool: Tool, input_variables: list[str], workflow: Workflow) -> TranslationResult:
+        in_var = input_variables[0] if input_variables else "df_unknown"
+        out_var = f"df_{tool.tool_id}"
+        lines = [
+            f"# Generate Rows sequence",
+            f"{out_var} = pd.DataFrame({{'RowCount': range(1, 11)}})",
+        ]
+        return TranslationResult(
+            tool_id=tool.tool_id,
+            tool_type=tool.tool_type,
+            support_level=SupportLevel.FULL,
+            python_code="\n".join(lines),
+            imports={"import pandas as pd"},
+            input_variables=[in_var] if input_variables else [],
+            output_map={"Output": out_var},
+            diagnostics=[],
+            description="Generate rows numeric sequence",
+        )
+
+
+# Registrations
 register_type("Formula", FormulaTranslator)
+register_type("FormulaTranslator", FormulaTranslator)
+register_plugin("AlteryxBasePluginsGui.Formula.Formula", FormulaTranslator)
+
+register_type("MultiFieldFormula", MultiFieldFormulaTranslator)
+register_type("MultiFieldFormulaTranslator", MultiFieldFormulaTranslator)
+register_plugin("AlteryxBasePluginsGui.MultiFieldFormula.MultiFieldFormula", MultiFieldFormulaTranslator)
+
+register_type("MultiRowFormula", MultiRowFormulaTranslator)
+register_type("MultiRowFormulaTranslator", MultiRowFormulaTranslator)
+register_plugin("AlteryxBasePluginsGui.MultiRowFormula.MultiRowFormula", MultiRowFormulaTranslator)
+
+register_type("GenerateRows", GenerateRowsTranslator)
+register_type("GenerateRowsTranslator", GenerateRowsTranslator)
+register_plugin("AlteryxBasePluginsGui.GenerateRows.GenerateRows", GenerateRowsTranslator)

@@ -1,9 +1,4 @@
-"""Unique tool translator.
-
-Splits input stream into:
-- Unique (U): Deduplicated records
-- Duplicates (D): Duplicate records that were removed
-"""
+"""Unique tool translator."""
 
 from __future__ import annotations
 
@@ -13,7 +8,7 @@ from awa.model.translation import TranslationResult
 from awa.model.diagnostic import SupportLevel
 
 from .base import ToolTranslator
-from .registry import register_type
+from .registry import register_type, register_plugin
 
 
 class UniqueTranslator(ToolTranslator):
@@ -51,7 +46,7 @@ class UniqueTranslator(ToolTranslator):
         return TranslationResult(
             tool_id=tool.tool_id,
             tool_type=tool.tool_type,
-            support_level=SupportLevel.SUPPORTED,
+            support_level=SupportLevel.FULL,
             python_code=code,
             imports={"import pandas as pd"},
             input_variables=[input_var],
@@ -65,3 +60,5 @@ class UniqueTranslator(ToolTranslator):
 
 
 register_type("Unique", UniqueTranslator)
+register_type("UniqueTranslator", UniqueTranslator)
+register_plugin("AlteryxBasePluginsGui.Unique.Unique", UniqueTranslator)

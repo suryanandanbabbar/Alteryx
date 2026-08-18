@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<AlteryxDocument yxmdVer="2024.1">
+  <Nodes>
+    <Node ToolID="1">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput">
+        <Position x="54" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>data/orders.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Read Orders</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="2">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.BlockUntilDone.BlockUntilDone">
+        <Position x="186" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration/>
+        <Annotation>
+          <Name>Sequence Pipeline</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="3">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.BrowseV2.BrowseV2">
+        <Position x="318" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration/>
+        <Annotation>
+          <Name>Inspect Stage 1</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="4">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Message.Message">
+        <Position x="318" y="162"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration/>
+        <Annotation>
+          <Name>Audit Log</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="5">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput">
+        <Position x="450" y="162"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>output/orders_final.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Write Final Orders</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+  </Nodes>
+  <Connections>
+    <Connection>
+      <Origin ToolID="1" Connection="Output"/>
+      <Destination ToolID="2" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="2" Connection="Output1"/>
+      <Destination ToolID="3" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="2" Connection="Output2"/>
+      <Destination ToolID="4" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="4" Connection="Output"/>
+      <Destination ToolID="5" Connection="Input"/>
+    </Connection>
+  </Connections>
+  <Properties>
+    <MetaInfo>
+      <Name>registry_control_flow</Name>
+    </MetaInfo>
+  </Properties>
+</AlteryxDocument>

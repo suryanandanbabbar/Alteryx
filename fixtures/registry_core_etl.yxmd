@@ -1,0 +1,138 @@
+<?xml version="1.0"?>
+<AlteryxDocument yxmdVer="2024.1">
+  <Nodes>
+    <Node ToolID="1">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput">
+        <Position x="54" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>data/sales.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Sales Data</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="2">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.AlteryxSelect.AlteryxSelect">
+        <Position x="186" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <SelectFields>
+            <SelectField field="order_id" selected="True"/>
+            <SelectField field="amount" selected="True" type="Double"/>
+            <SelectField field="category" selected="True" rename="product_category"/>
+          </SelectFields>
+        </Configuration>
+        <Annotation>
+          <Name>Select &amp; Cast</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="3">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Formula.Formula">
+        <Position x="318" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <FormulaFields>
+            <FormulaField field="tax" expression="[amount] * 0.1" type="Double"/>
+            <FormulaField field="total" expression="[amount] + [tax]" type="Double"/>
+          </FormulaFields>
+        </Configuration>
+        <Annotation>
+          <Name>Compute Tax and Total</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="4">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Filter.Filter">
+        <Position x="450" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <Expression>[total] &gt; 50</Expression>
+        </Configuration>
+        <Annotation>
+          <Name>Filter High Value</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="5">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Sort.Sort">
+        <Position x="582" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <SortInfo>
+            <Field field="total" order="Descending"/>
+          </SortInfo>
+        </Configuration>
+        <Annotation>
+          <Name>Sort by Total</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="6">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Unique.Unique">
+        <Position x="714" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <UniqueFields>
+            <Field field="order_id"/>
+          </UniqueFields>
+        </Configuration>
+        <Annotation>
+          <Name>Unique Orders</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="7">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput">
+        <Position x="846" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>output/core_etl_results.xlsx</File>
+        </Configuration>
+        <Annotation>
+          <Name>Output Results</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+  </Nodes>
+  <Connections>
+    <Connection>
+      <Origin ToolID="1" Connection="Output"/>
+      <Destination ToolID="2" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="2" Connection="Output"/>
+      <Destination ToolID="3" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="3" Connection="Output"/>
+      <Destination ToolID="4" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="4" Connection="True"/>
+      <Destination ToolID="5" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="5" Connection="Output"/>
+      <Destination ToolID="6" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="6" Connection="Unique"/>
+      <Destination ToolID="7" Connection="Input"/>
+    </Connection>
+  </Connections>
+  <Properties>
+    <MetaInfo>
+      <Name>registry_core_etl</Name>
+    </MetaInfo>
+  </Properties>
+</AlteryxDocument>

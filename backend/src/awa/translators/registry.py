@@ -1,12 +1,18 @@
-"""Translator registry — 3-tier handler lookup.
-
-Uses exact plugin → tool type → prefix → UnsupportedTranslator fallback.
-"""
+"""Translator registry — unified registry-driven handler lookup."""
 
 from __future__ import annotations
 
 from awa.model.tool import Tool
-from .base import ToolTranslator, UnsupportedTranslator
+from awa.model.diagnostic import SupportLevel
+from awa.tools.catalog import get_tool_definition
+from .base import (
+    ToolTranslator,
+    PassThroughTranslator,
+    DocumentationTranslator,
+    ExternalExecutionTranslator,
+    PartialSupportTranslator,
+    UnsupportedTranslator,
+)
 
 
 class TranslatorRegistry:
@@ -15,8 +21,9 @@ class TranslatorRegistry:
     Lookup order:
     1. Exact plugin name match
     2. Tool type match
-    3. Prefix match (for versioned plugins like box_input_v*)
-    4. UnsupportedTranslator fallback
+    3. Prefix match (for versioned plugins)
+    4. Canonical Tool Registry lookup (translator_name / capability mapping)
+    5. UnsupportedTranslator fallback
     """
 
     def __init__(self) -> None:
@@ -37,11 +44,7 @@ class TranslatorRegistry:
         self._prefix_handlers[prefix] = translator_cls
 
     def get(self, tool: Tool) -> ToolTranslator:
-        """Look up the translator for a tool.
-
-        Returns an instance of the matching translator,
-        or UnsupportedTranslator if no match is found.
-        """
+        """Look up the translator for a tool."""
         # 1. Exact plugin match
         cls = self._plugin_handlers.get(tool.plugin)
         if cls:
@@ -57,7 +60,21 @@ class TranslatorRegistry:
             if tool.plugin.startswith(prefix) or tool.tool_type.startswith(prefix):
                 return cls()
 
-        # 4. Fallback
+        # 4. Tool Registry catalog lookup
+        tool_def = get_tool_definition(tool.plugin) or get_tool_definition(tool.tool_type)
+        if tool_def:
+            if tool_def.translator_name and tool_def.translator_name in self._type_handlers:
+                return self._type_handlers[tool_def.translator_name]()
+            if tool_def.support_level == SupportLevel.PASS_THROUGH:
+                return PassThroughTranslator()
+            if tool_def.support_level == SupportLevel.DOCUMENTATION_ONLY:
+                return DocumentationTranslator()
+            if tool_def.support_level == SupportLevel.EXTERNAL_EXECUTION:
+                return ExternalExecutionTranslator()
+            if tool_def.support_level == SupportLevel.PARTIAL:
+                return PartialSupportTranslator()
+
+        # 5. Fallback
         return UnsupportedTranslator()
 
     def supported_types(self) -> set[str]:

@@ -1,0 +1,118 @@
+"""In/Out category tool definitions (Tools 1-6)."""
+
+from __future__ import annotations
+
+from awa.model.diagnostic import SupportLevel
+from awa.tools.categories import ToolCategory
+from awa.tools.definition import ToolDefinition
+
+IN_OUT_TOOLS: tuple[ToolDefinition, ...] = (
+    # 1. Input Data
+    ToolDefinition(
+        xml_name="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+        display_name="Input Data",
+        category=ToolCategory.IN_OUT,
+        support_level=SupportLevel.FULL,
+        alters_data=True,
+        is_blocking=False,
+        is_macro=False,
+        has_python_translation=True,
+        translator_name="InputDataTranslator",
+        parser_name="extract_file_input_config",
+        input_anchors=(),
+        output_anchors=("Output",),
+        aliases=("DbFileInput", "InputData", "AlteryxBasePluginsEngine.DbFileInput"),
+        description="Reads records from supported files, databases, or cloud stores into a workflow.",
+        visual_category="input",
+    ),
+    # 2. Output Data
+    ToolDefinition(
+        xml_name="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+        display_name="Output Data",
+        category=ToolCategory.IN_OUT,
+        support_level=SupportLevel.FULL,
+        alters_data=False,
+        is_blocking=False,
+        is_macro=False,
+        has_python_translation=True,
+        translator_name="OutputDataTranslator",
+        parser_name="extract_file_output_config",
+        input_anchors=("Input",),
+        output_anchors=(),
+        aliases=("DbFileOutput", "OutputData", "AlteryxBasePluginsEngine.DbFileOutput"),
+        description="Writes workflow data to files, relational tables, or cloud destinations.",
+        visual_category="output",
+    ),
+    # 3. Browse
+    ToolDefinition(
+        xml_name="AlteryxBasePluginsGui.BrowseV2.BrowseV2",
+        display_name="Browse",
+        category=ToolCategory.IN_OUT,
+        support_level=SupportLevel.PASS_THROUGH,
+        alters_data=False,
+        is_blocking=False,
+        is_macro=False,
+        has_python_translation=False,
+        translator_name="PassThroughTranslator",
+        parser_name=None,
+        input_anchors=("Input",),
+        output_anchors=(),
+        aliases=("BrowseV2", "Browse", "AlteryxBasePluginsGui.Browse.Browse"),
+        description="Displays data profile, schema, and record details during workflow execution without altering data.",
+        visual_category="output",
+    ),
+    # 4. Text Input
+    ToolDefinition(
+        xml_name="AlteryxBasePluginsGui.TextInput.TextInput",
+        display_name="Text Input",
+        category=ToolCategory.IN_OUT,
+        support_level=SupportLevel.FULL,
+        alters_data=True,
+        is_blocking=False,
+        is_macro=False,
+        has_python_translation=True,
+        translator_name="TextInputTranslator",
+        parser_name="extract_text_input_config",
+        input_anchors=(),
+        output_anchors=("Output",),
+        aliases=("TextInput",),
+        description="Embeds hard-coded tabular text data directly into the workflow.",
+        visual_category="input",
+    ),
+    # 5. Directory
+    ToolDefinition(
+        xml_name="AlteryxBasePluginsGui.Directory.Directory",
+        display_name="Directory",
+        category=ToolCategory.IN_OUT,
+        support_level=SupportLevel.PARTIAL,
+        alters_data=True,
+        is_blocking=False,
+        is_macro=False,
+        has_python_translation=False,
+        translator_name=None,
+        parser_name=None,
+        input_anchors=(),
+        output_anchors=("Output",),
+        aliases=("Directory",),
+        description="Returns a list of files from a specified directory with file metadata.",
+        visual_category="input",
+    ),
+    # 6. Date Time Now
+    ToolDefinition(
+        xml_name="DateTimeNow",
+        display_name="Date Time Now",
+        category=ToolCategory.IN_OUT,
+        support_level=SupportLevel.FULL,
+        alters_data=True,
+        is_blocking=False,
+        is_macro=True,
+        has_python_translation=True,
+        translator_name="DateTimeNowTranslator",
+        parser_name=None,
+        input_anchors=(),
+        output_anchors=("Output",),
+        aliases=("DateTimeNow.yxmc", "AlteryxBasePluginsGui.DateTimeNow.DateTimeNow"),
+        description="Returns the current date and time formatted according to user specifications.",
+        visual_category="datetime",
+    ),
+)

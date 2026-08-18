@@ -15,3 +15,4 @@ from awa.translators import sort  # noqa: F401
 from awa.translators import unique  # noqa: F401
 from awa.translators import data_cleansing  # noqa: F401
 from awa.translators import reshape  # noqa: F401
+from awa.translators import parse  # noqa: F401

@@ -10,6 +10,7 @@ from pathlib import Path
 from awa.model.workflow import Workflow
 from awa.model.translation import TranslationResult
 from awa.model.python_trace import PythonTraceEntry, PythonTraceMap
+from awa.tools.catalog import get_tool_catalog
 
 
 def generate_python_code(
@@ -30,6 +31,7 @@ def generate_python_code(
         tuple of (generated_python_code_str, PythonTraceMap, required_libraries_list)
     """
     lines: list[str] = []
+    catalog = get_tool_catalog()
 
     # File Header
     lines.append('"""')
@@ -72,11 +74,15 @@ def generate_python_code(
         if tool is None or tr is None:
             continue
 
+        tool_def = catalog.resolve(tool.plugin or tool.tool_type)
+
         # Traceability header
         lines.append("")
         start_line = len(lines) + 1  # 1-indexed, starts at the tool comment header
         name_part = f" ({tool.name})" if tool.name and tool.name != tool.tool_type else ""
         lines.append(f"# Alteryx Tool #{tool.tool_id}: {tool.tool_type}{name_part}")
+        lines.append(f"# Plugin: {tool.plugin or tool_def.xml_name}")
+        lines.append(f"# Translation: {tr.support_level.name}")
         if tr.description:
             lines.append(f"# {tr.description}")
 
@@ -111,7 +117,7 @@ def generate_python_code(
                 end_line=end_line,
                 description=tr.description or f"{tool.tool_type} operation",
                 pandas_op=tr.description or f"pandas {tool.tool_type.lower()}",
-                reason=f"Deterministic {tool.tool_type} translation",
+                reason=f"Deterministic {tool.tool_type} translation ({tr.support_level.value})",
                 libraries=tool_libs,
             )
         )

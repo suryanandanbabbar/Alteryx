@@ -26,7 +26,9 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
   };
 
   const getSupportBadge = (level: string) => {
-    switch (level.toLowerCase()) {
+    const norm = level.toLowerCase().replace(/-/g, '_');
+    switch (norm) {
+      case 'full':
       case 'supported':
         return (
           <span style={{
@@ -42,7 +44,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
             border: '1px solid rgba(34, 197, 94, 0.3)',
           }}>
             <CheckCircle2 size={11} />
-            SUPPORTED
+            FULL
           </span>
         );
       case 'partial':
@@ -61,6 +63,60 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
           }}>
             <AlertTriangle size={11} />
             PARTIAL
+          </span>
+        );
+      case 'pass_through':
+        return (
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '11px',
+            fontWeight: '600',
+            color: '#38bdf8',
+            background: 'rgba(56, 189, 248, 0.12)',
+            padding: '2px 8px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid rgba(56, 189, 248, 0.3)',
+          }}>
+            <CheckCircle2 size={11} />
+            PASS-THROUGH
+          </span>
+        );
+      case 'documentation_only':
+      case 'documentation':
+        return (
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '11px',
+            fontWeight: '600',
+            color: 'var(--color-text-muted)',
+            background: 'var(--color-surface-secondary)',
+            padding: '2px 8px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--color-border)',
+          }}>
+            DOCUMENTATION
+          </span>
+        );
+      case 'external_execution':
+      case 'external':
+        return (
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '11px',
+            fontWeight: '600',
+            color: '#c084fc',
+            background: 'rgba(192, 132, 252, 0.12)',
+            padding: '2px 8px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid rgba(192, 132, 252, 0.3)',
+          }}>
+            EXTERNAL
           </span>
         );
       default:

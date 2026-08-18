@@ -6,18 +6,24 @@ from dataclasses import dataclass
 from enum import Enum
 
 
-class DiagnosticLevel(Enum):
+class DiagnosticLevel(str, Enum):
     """Severity level for diagnostics."""
     INFO = "info"
     WARNING = "warning"
     ERROR = "error"
 
 
-class SupportLevel(Enum):
+class SupportLevel(str, Enum):
     """Classification of tool/feature support."""
-    SUPPORTED = "supported"
+    FULL = "full"
     PARTIAL = "partial"
+    PASS_THROUGH = "pass_through"
+    DOCUMENTATION_ONLY = "documentation_only"
+    EXTERNAL_EXECUTION = "external_execution"
     UNSUPPORTED = "unsupported"
+    
+    # Legacy / alias compatibility
+    SUPPORTED = "full"
     UNKNOWN = "unknown"
     AMBIGUOUS = "ambiguous"
     EXTERNAL_DEPENDENCY = "external_dependency"
@@ -44,7 +50,7 @@ class Diagnostic:
 
     def to_dict(self) -> dict:
         d: dict = {
-            "level": self.level.value,
+            "level": self.level.value if isinstance(self.level, Enum) else str(self.level),
             "category": self.category,
             "message": self.message,
         }

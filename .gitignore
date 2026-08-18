@@ -15,8 +15,8 @@ dist/
 htmlcov/
 
 # Analysis & generated outputs
-analysis/
-output/
+/analysis/
+/output/
 
 # Frontend
 frontend/node_modules/

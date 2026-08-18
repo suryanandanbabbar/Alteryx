@@ -1,0 +1,247 @@
+<?xml version="1.0"?>
+<AlteryxDocument yxmdVer="2024.1">
+  <Nodes>
+    <Node ToolID="1">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput">
+        <Position x="54" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>data/primary_transactions.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Primary Input</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="2">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.AlteryxSelect.AlteryxSelect">
+        <Position x="174" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <SelectFields>
+            <SelectField field="cust_id" selected="True"/>
+            <SelectField field="raw_amount" selected="True" rename="amount" type="Double"/>
+            <SelectField field="channel" selected="True"/>
+          </SelectFields>
+        </Configuration>
+        <Annotation>
+          <Name>Select &amp; Cast</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="3">
+      <GuiSettings Plugin="Cleanse.yxmc">
+        <Position x="294" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <TrimWhitespace value="True"/>
+          <RemoveNull value="True"/>
+        </Configuration>
+        <Annotation>
+          <Name>Clean Channel</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="4">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Formula.Formula">
+        <Position x="414" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <FormulaFields>
+            <FormulaField field="net_amount" expression="[amount] * 0.95" type="Double"/>
+          </FormulaFields>
+        </Configuration>
+        <Annotation>
+          <Name>Calculate Net Amount</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="5">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Filter.Filter">
+        <Position x="534" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <Expression>[net_amount] &gt; 100</Expression>
+        </Configuration>
+        <Annotation>
+          <Name>Split High / Low</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="6">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Join.Join">
+        <Position x="678" y="54"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <JoinInfo connection="Left">
+            <Field left="cust_id" right="cust_id"/>
+          </JoinInfo>
+        </Configuration>
+        <Annotation>
+          <Name>Enrich High Value</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="7">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput">
+        <Position x="534" y="186"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>data/customer_profiles.csv</File>
+        </Configuration>
+        <Annotation>
+          <Name>Customer Profiles</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="8">
+      <GuiSettings Plugin="AlteryxSpatialPluginsGui.Summarize.Summarize">
+        <Position x="678" y="186"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <SummarizeFields>
+            <SummarizeField field="channel" action="GroupBy" rename="channel"/>
+            <SummarizeField field="net_amount" action="Sum" rename="total_low_amount"/>
+          </SummarizeFields>
+        </Configuration>
+        <Annotation>
+          <Name>Aggregate Low Value</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="9">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Union.Union">
+        <Position x="822" y="114"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <ByName_or_ByPos>ByName</ByName_or_ByPos>
+        </Configuration>
+        <Annotation>
+          <Name>Union Results</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="10">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Sort.Sort">
+        <Position x="942" y="114"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <SortInfo>
+            <Field field="net_amount" order="Descending"/>
+          </SortInfo>
+        </Configuration>
+        <Annotation>
+          <Name>Sort Final</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="11">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.Unique.Unique">
+        <Position x="1062" y="114"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <UniqueFields>
+            <Field field="cust_id"/>
+          </UniqueFields>
+        </Configuration>
+        <Annotation>
+          <Name>Deduplicate</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="12">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput">
+        <Position x="1194" y="114"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration>
+          <File>output/final_complex_report.xlsx</File>
+        </Configuration>
+        <Annotation>
+          <Name>Write Final Report</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+    <Node ToolID="13">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.BrowseV2.BrowseV2">
+        <Position x="1194" y="234"/>
+      </GuiSettings>
+      <Properties>
+        <Configuration/>
+        <Annotation>
+          <Name>Browse Deduplicated</Name>
+        </Annotation>
+      </Properties>
+    </Node>
+  </Nodes>
+  <Connections>
+    <Connection>
+      <Origin ToolID="1" Connection="Output"/>
+      <Destination ToolID="2" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="2" Connection="Output"/>
+      <Destination ToolID="3" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="3" Connection="Output"/>
+      <Destination ToolID="4" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="4" Connection="Output"/>
+      <Destination ToolID="5" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="5" Connection="True"/>
+      <Destination ToolID="6" Connection="Left"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="7" Connection="Output"/>
+      <Destination ToolID="6" Connection="Right"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="5" Connection="False"/>
+      <Destination ToolID="8" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="6" Connection="Join"/>
+      <Destination ToolID="9" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="8" Connection="Output"/>
+      <Destination ToolID="9" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="9" Connection="Output"/>
+      <Destination ToolID="10" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="10" Connection="Output"/>
+      <Destination ToolID="11" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="11" Connection="Unique"/>
+      <Destination ToolID="12" Connection="Input"/>
+    </Connection>
+    <Connection>
+      <Origin ToolID="11" Connection="Unique"/>
+      <Destination ToolID="13" Connection="Input"/>
+    </Connection>
+  </Connections>
+  <Properties>
+    <MetaInfo>
+      <Name>registry_mixed_complex</Name>
+    </MetaInfo>
+  </Properties>
+</AlteryxDocument>
