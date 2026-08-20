@@ -59,7 +59,7 @@ export interface NodeDTO {
   plugin: string;
   position?: PositionDTO | null;
   configuration: Record<string, any>;
-  support_level: string;
+  summary?: string;
   annotation: string;
   output_fields: FieldDTO[];
   engine_settings?: Record<string, string>;
@@ -79,6 +79,7 @@ export interface ExecutionStepDTO {
   tool_type: string;
   name: string;
   visual_category: string;
+  summary?: string;
 }
 
 export interface DagNodeLayoutDTO {

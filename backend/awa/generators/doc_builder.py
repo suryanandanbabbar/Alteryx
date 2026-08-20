@@ -12,6 +12,7 @@ from awa.model.dag_layout import DagLayout
 from awa.model.doc_model import DocumentModel, NodeDocEntry, ExecutionStepDocEntry
 from awa.model.visual_category import get_visual_category
 from awa.graph.lineage import LineagePath
+from awa.tools import get_tool_summary, humanize_tool_configuration
 
 
 def build_document_model(
@@ -35,8 +36,8 @@ def build_document_model(
     """
     # 1. Metadata dict
     metadata: dict[str, str] = {
-        "Name": workflow.metadata.name or "Untitled Workflow",
-        "Version": workflow.metadata.version or "Unknown",
+        "Workflow Name": workflow.metadata.name or "Untitled Workflow",
+        "Alteryx Version": workflow.metadata.version or "2024.1",
     }
     if workflow.metadata.author:
         metadata["Author"] = workflow.metadata.author
@@ -55,8 +56,8 @@ def build_document_model(
     metrics: dict[str, int] = {
         "Total Tools": len(workflow.tools),
         "Total Connections": len(workflow.connections),
-        "Input Tools": input_count,
-        "Output Tools": output_count,
+        "Data Inputs": input_count,
+        "Data Outputs": output_count,
     }
 
     # 3. Execution steps
@@ -66,6 +67,7 @@ def build_document_model(
         tool_type = tool.tool_type if tool else "Unknown"
         name = (tool.name if tool and tool.name else tool_type)
         vcat = get_visual_category(tool_type)
+        summary = get_tool_summary(tool.plugin or tool_type) if tool else get_tool_summary(tool_type)
         exec_steps.append(
             ExecutionStepDocEntry(
                 step_number=step_num,
@@ -73,6 +75,7 @@ def build_document_model(
                 tool_type=tool_type,
                 name=name,
                 visual_category=vcat,
+                summary=summary,
             )
         )
 
@@ -83,11 +86,10 @@ def build_document_model(
         if not tool:
             continue
         tr = translations.get(tool_id)
-        support_level = tr.support_level.value if tr else "unknown"
         description = tr.description if tr else ""
         input_vars = tr.input_variables if tr else []
         output_vars = tr.output_map if tr else {}
-        diags = tr.diagnostics if tr else []
+        summary = get_tool_summary(tool.plugin or tool.tool_type)
 
         node_entries.append(
             NodeDocEntry(
@@ -95,31 +97,28 @@ def build_document_model(
                 tool_type=tool.tool_type,
                 name=tool.name or tool.tool_type,
                 plugin=tool.plugin,
-                support_level=support_level,
                 annotation=tool.annotation,
                 description=description,
-                configuration=tool.configuration.parsed,
+                summary=summary,
+                configuration=humanize_tool_configuration(tool.tool_type, tool.configuration.parsed),
                 input_variables=input_vars,
                 output_variables=output_vars,
-                diagnostics=diags,
             )
         )
 
     # 5. Python summary text
-    supported_tools = sum(1 for tr in translations.values() if tr.support_level.value == "supported")
-    total_tr = len(translations)
     python_summary = (
-        f"Generated deterministic Python/pandas script with {supported_tools}/{total_tr} "
-        f"tools fully supported."
+        f"Automated deterministic Python/pandas translation pipeline covering "
+        f"{len(workflow.tools)} workflow tools."
     )
 
-    # 6. All diagnostics (workflow-level + tool-level)
+    # 6. All diagnostics (preserved in internal model for technical consumers)
     all_diags = list(workflow.diagnostics)
     for tr in translations.values():
         all_diags.extend(tr.diagnostics)
 
     return DocumentModel(
-        title=f"Alteryx Workflow Documentation: {workflow.metadata.name}",
+        title=f"Workflow Analysis Report: {workflow.metadata.name or 'Alteryx Workflow'}",
         metadata=metadata,
         metrics=metrics,
         execution_order=exec_steps,

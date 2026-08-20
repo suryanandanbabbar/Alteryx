@@ -35,11 +35,14 @@ def test_upload_and_query_workflow():
     assert data["metrics"]["total_nodes"] == 3
     assert data["metrics"]["total_connections"] == 2
     assert len(data["execution_order"]) == 3
+    assert all(step.get("summary") for step in data["execution_order"])
 
     # 2. Query /api/analysis/{aid}/overview
     resp_ov = client.get(f"/api/analysis/{aid}/overview")
     assert resp_ov.status_code == 200
-    assert resp_ov.json()["analysis_id"] == aid
+    ov_data = resp_ov.json()
+    assert ov_data["analysis_id"] == aid
+    assert all(step.get("summary") for step in ov_data["execution_order"])
 
     # 3. Query /api/analysis/{aid}/diagram
     resp_diag = client.get(f"/api/analysis/{aid}/diagram")
@@ -47,6 +50,7 @@ def test_upload_and_query_workflow():
     diag_data = resp_diag.json()
     assert "<svg" in diag_data["svg"]
     assert len(diag_data["nodes"]) == 3
+    assert all(node.get("summary") for node in diag_data["nodes"])
 
     # 4. Query /api/analysis/{aid}/json
     resp_json = client.get(f"/api/analysis/{aid}/json")

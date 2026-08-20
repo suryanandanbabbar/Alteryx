@@ -31,7 +31,7 @@ def test_docx_generation(tmp_path: Path):
     lineage = compute_lineage_paths(wf, g)
 
     doc_model = build_document_model(wf, order, translations, layout, lineage)
-    assert doc_model.title.startswith("Alteryx Workflow Documentation")
+    assert "join_workflow" in doc_model.title
     assert len(doc_model.nodes) == 6
     assert len(doc_model.execution_order) == 6
 
@@ -46,3 +46,17 @@ def test_docx_generation(tmp_path: Path):
     headings = [p.text for p in doc.paragraphs if p.text.startswith("1.") or p.text.startswith("2.") or p.text.startswith("3.")]
     assert len(headings) >= 3
     assert len(doc.tables) >= 3
+
+    # Assert no forbidden support level words exist in document text
+    full_text = "\n".join(p.text for p in doc.paragraphs)
+    for table in doc.tables:
+        for row in table.rows:
+            full_text += "\n" + " | ".join(c.text for c in row.cells)
+
+    forbidden = [
+        "Support Level", "FULL", "SUPPORTED", "PARTIAL", "PASS-THROUGH",
+        "PASS_THROUGH", "DOCUMENTATION_ONLY", "EXTERNAL_EXECUTION",
+        "UNSUPPORTED", "Analysis Diagnostics"
+    ]
+    for word in forbidden:
+        assert word not in full_text, f"Forbidden word '{word}' found in DOCX!"

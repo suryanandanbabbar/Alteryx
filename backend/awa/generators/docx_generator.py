@@ -1,30 +1,66 @@
-"""DOCX documentation generator — produces workflow.docx.
+"""DOCX documentation generator — produces polished, business-facing workflow.docx.
 
-Renders a rich, professional Word document from the canonical DocumentModel,
-including an embedded high-resolution visual DAG diagram.
+Renders an executive-ready business report from the canonical DocumentModel,
+including an embedded high-resolution visual DAG diagram, one-line business
+summaries for each tool, data lineage, and configuration appendices.
 """
 
 from __future__ import annotations
 
 import io
 import math
+from datetime import datetime
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
+from docx.oxml import OxmlElement, parse_xml
+from docx.oxml.ns import nsdecls, qn
 
 from awa.model.doc_model import DocumentModel
 from awa.model.dag_layout import DagLayout
 from awa.model.visual_category import get_category_colors
 
+# Brand Colors
+COLOR_PRIMARY_HEX = "EA580C"       # AWA Orange
+COLOR_NAVY_HEX = "0F172A"          # Deep Slate / Navy
+COLOR_SECONDARY_HEX = "1E293B"     # Slate 800
+COLOR_MUTED_HEX = "64748B"         # Slate 500
+COLOR_BG_LIGHT_HEX = "F8FAFC"      # Light background
+COLOR_BORDER_HEX = "E2E8F0"        # Subtle border
+
+RGB_PRIMARY = RGBColor(0xEA, 0x58, 0x0C)
+RGB_NAVY = RGBColor(0x0F, 0x17, 0x2A)
+RGB_MUTED = RGBColor(0x64, 0x74, 0x8B)
+RGB_TEXT = RGBColor(0x1E, 0x29, 0x3B)
+RGB_WHITE = RGBColor(0xFF, 0xFF, 0xFF)
+
+
+def set_cell_background(cell, fill_hex: str) -> None:
+    """Set background color of a table cell."""
+    tc_pr = cell._element.get_or_add_tcPr()
+    shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
+    tc_pr.append(shd)
+
+
+def set_cell_margins(cell, top: int = 100, bottom: int = 100, left: int = 150, right: int = 150) -> None:
+    """Set inner cell padding in dxa (1 pt = 20 dxa)."""
+    tc_pr = cell._element.get_or_add_tcPr()
+    tc_mar = parse_xml(
+        f'<w:tcMar {nsdecls("w")}>'
+        f'<w:top w:w="{top}" w:type="dxa"/>'
+        f'<w:bottom w:w="{bottom}" w:type="dxa"/>'
+        f'<w:left w:w="{left}" w:type="dxa"/>'
+        f'<w:right w:w="{right}" w:type="dxa"/>'
+        f'</w:tcMar>'
+    )
+    tc_pr.append(tc_mar)
+
 
 def render_dag_image(layout: DagLayout, scale: float = 2.0) -> bytes:
     """Render the canonical DagLayout as a high-resolution raster PNG image.
-
-    Directly consumes the canonical DagLayout geometry so the diagram in DOCX
-    matches workflow.svg and the React DAG viewer exactly.
 
     Args:
         layout: Canonical DAG layout.
@@ -40,8 +76,8 @@ def render_dag_image(layout: DagLayout, scale: float = 2.0) -> bytes:
     draw = ImageDraw.Draw(img)
 
     # 1. Header Title
-    title_text = f"Alteryx Workflow DAG — {layout.title}"
-    sub_text = f"{len(layout.nodes)} nodes · {len(layout.edges)} connections"
+    title_text = f"Workflow DAG — {layout.title}"
+    sub_text = f"{len(layout.nodes)} workflow tools · {len(layout.edges)} data connections"
 
     draw.text(
         (int(24 * scale), int(20 * scale)),
@@ -51,7 +87,7 @@ def render_dag_image(layout: DagLayout, scale: float = 2.0) -> bytes:
     draw.text(
         (int(24 * scale), int(40 * scale)),
         sub_text,
-        fill="#64748b",
+        fill="#94a3b8",
     )
 
     offset_y = 50.0 * scale
@@ -174,164 +210,383 @@ def generate_docx(
     output_path: Path | str,
     svg_content: str | None = None,
 ) -> None:
-    """Generate workflow.docx from a DocumentModel with an embedded DAG diagram.
+    """Generate workflow.docx from a DocumentModel with an executive business structure.
 
     Args:
         doc_model: Canonical format-independent documentation model.
         output_path: Target path for the .docx file.
-        svg_content: Optional SVG string (for fallback).
+        svg_content: Optional SVG string.
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     doc = Document()
 
-    # --- Document Header ---
-    title = doc.add_heading(doc_model.title, level=0)
-    title.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    # Configure Margins (1 inch all around)
+    for section in doc.sections:
+        section.top_margin = Inches(1.0)
+        section.bottom_margin = Inches(1.0)
+        section.left_margin = Inches(1.0)
+        section.right_margin = Inches(1.0)
 
-    p = doc.add_paragraph()
-    p.add_run("Automated Deterministic Workflow Analysis & Lineage Report").italic = True
+    # -------------------------------------------------------------
+    # Cover Section / Document Header Banner
+    # -------------------------------------------------------------
+    p_brand = doc.add_paragraph()
+    p_brand.paragraph_format.space_before = Pt(0)
+    p_brand.paragraph_format.space_after = Pt(4)
+    run_brand = p_brand.add_run("AWA — ALTERYX WORKFLOW ANALYZER")
+    run_brand.font.size = Pt(9.5)
+    run_brand.font.bold = True
+    run_brand.font.color.rgb = RGB_PRIMARY
 
-    # 1. Executive Summary & Metadata
-    doc.add_heading("1. Workflow Metadata & Summary", level=1)
+    p_title = doc.add_paragraph()
+    p_title.paragraph_format.space_before = Pt(0)
+    p_title.paragraph_format.space_after = Pt(6)
+    workflow_name = doc_model.metadata.get("Workflow Name", "Alteryx Workflow")
+    run_title = p_title.add_run(f"Workflow Analysis Report: {workflow_name}")
+    run_title.font.size = Pt(22)
+    run_title.font.bold = True
+    run_title.font.color.rgb = RGB_NAVY
+
+    p_subtitle = doc.add_paragraph()
+    p_subtitle.paragraph_format.space_after = Pt(18)
+    run_sub = p_subtitle.add_run("Business Process Specification, Tool Catalog & Data Lineage Documentation")
+    run_sub.font.size = Pt(11)
+    run_sub.font.color.rgb = RGB_MUTED
+
+    # -------------------------------------------------------------
+    # 1. Executive Summary & Properties
+    # -------------------------------------------------------------
+    h1 = doc.add_heading("1. Executive Summary", level=1)
+    h1.paragraph_format.space_before = Pt(12)
+    h1.paragraph_format.space_after = Pt(8)
+
+    p_exec = doc.add_paragraph()
+    p_exec.paragraph_format.space_after = Pt(10)
+    total_tools = doc_model.metrics.get("Total Tools", len(doc_model.nodes))
+    total_conns = doc_model.metrics.get("Total Connections", 0)
+    inputs_count = doc_model.metrics.get("Data Inputs", 0)
+    outputs_count = doc_model.metrics.get("Data Outputs", 0)
     
-    meta_table = doc.add_table(rows=1, cols=2)
-    meta_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    hdr_cells = meta_table.rows[0].cells
-    hdr_cells[0].text = "Property"
-    hdr_cells[1].text = "Value"
+    p_exec.add_run(
+        f"This report presents an automated structural analysis and business-level specification "
+        f"for the '{workflow_name}' Alteryx workflow. The workflow comprises {total_tools} discrete "
+        f"tools and {total_conns} data connections, executing from {inputs_count} source input(s) "
+        f"to {outputs_count} destination output(s)."
+    )
 
-    for prop, val in doc_model.metadata.items():
-        row_cells = meta_table.add_row().cells
-        row_cells[0].text = str(prop)
-        row_cells[1].text = str(val)
+    # Summary Metrics Table
+    summary_table = doc.add_table(rows=1, cols=4)
+    summary_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    summary_table.autofit = False
 
-    # Metrics Table
-    p_metrics = doc.add_paragraph()
-    p_metrics.add_run("\nWorkflow Metrics:").bold = True
+    metrics_headers = ["Total Tools", "Connections", "Data Inputs", "Data Outputs"]
+    metrics_values = [str(total_tools), str(total_conns), str(inputs_count), str(outputs_count)]
 
-    metrics_table = doc.add_table(rows=1, cols=2)
-    metrics_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    m_hdr = metrics_table.rows[0].cells
-    m_hdr[0].text = "Metric"
-    m_hdr[1].text = "Count"
+    # Header Row
+    for idx, (cell, text) in enumerate(zip(summary_table.rows[0].cells, metrics_headers)):
+        set_cell_background(cell, COLOR_NAVY_HEX)
+        set_cell_margins(cell, top=120, bottom=120, left=140, right=140)
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(text)
+        run.font.size = Pt(10)
+        run.font.bold = True
+        run.font.color.rgb = RGB_WHITE
 
-    for metric_name, count in doc_model.metrics.items():
-        row_cells = metrics_table.add_row().cells
-        row_cells[0].text = str(metric_name)
-        row_cells[1].text = str(count)
+    # Values Row
+    row_cells = summary_table.add_row().cells
+    for idx, (cell, val) in enumerate(zip(row_cells, metrics_values)):
+        set_cell_background(cell, COLOR_BG_LIGHT_HEX)
+        set_cell_margins(cell, top=140, bottom=140, left=140, right=140)
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(val)
+        run.font.size = Pt(14)
+        run.font.bold = True
+        run.font.color.rgb = RGB_PRIMARY if idx == 0 else RGB_NAVY
 
-    # 2. Embedded Visual DAG Diagram
-    doc.add_heading("2. Workflow Graph (Visual DAG)", level=1)
+    doc.add_paragraph().paragraph_format.space_after = Pt(10)
+
+    # Workflow Properties Table
+    p_props = doc.add_paragraph()
+    p_props.add_run("Workflow Properties").bold = True
+    p_props.paragraph_format.space_after = Pt(6)
+
+    prop_table = doc.add_table(rows=1, cols=2)
+    prop_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    hdr_cells = prop_table.rows[0].cells
+    hdr_cells[0].text = "Attribute"
+    hdr_cells[1].text = "Details"
+    set_cell_background(hdr_cells[0], COLOR_SECONDARY_HEX)
+    set_cell_background(hdr_cells[1], COLOR_SECONDARY_HEX)
+    for c in hdr_cells:
+        c.paragraphs[0].runs[0].font.bold = True
+        c.paragraphs[0].runs[0].font.color.rgb = RGB_WHITE
+        c.paragraphs[0].runs[0].font.size = Pt(10)
+        set_cell_margins(c, top=100, bottom=100, left=140, right=140)
+
+    for prop_name, prop_val in doc_model.metadata.items():
+        row = prop_table.add_row().cells
+        set_cell_background(row[0], COLOR_BG_LIGHT_HEX)
+        set_cell_margins(row[0], top=80, bottom=80, left=140, right=140)
+        set_cell_margins(row[1], top=80, bottom=80, left=140, right=140)
+        r0 = row[0].paragraphs[0].add_run(str(prop_name))
+        r0.font.bold = True
+        r0.font.size = Pt(9.5)
+        r1 = row[1].paragraphs[0].add_run(str(prop_val))
+        r1.font.size = Pt(9.5)
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(14)
+
+    # -------------------------------------------------------------
+    # 2. Workflow at a Glance (DAG Diagram)
+    # -------------------------------------------------------------
+    h2 = doc.add_heading("2. Workflow at a Glance", level=1)
+    h2.paragraph_format.space_before = Pt(14)
+    h2.paragraph_format.space_after = Pt(8)
+
+    p_dag_intro = doc.add_paragraph()
+    p_dag_intro.add_run(
+        "The following diagram illustrates the complete data-flow topology and transformation stages "
+        "of the workflow:"
+    )
+
     if doc_model.dag_layout.nodes:
         dag_png_bytes = render_dag_image(doc_model.dag_layout)
         p_img = doc.add_paragraph()
         p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        doc.add_picture(io.BytesIO(dag_png_bytes), width=Inches(6.0))
+        p_img.paragraph_format.space_before = Pt(6)
+        p_img.paragraph_format.space_after = Pt(4)
+        doc.add_picture(io.BytesIO(dag_png_bytes), width=Inches(6.2))
+        
         p_caption = doc.add_paragraph()
         p_caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p_caption.add_run(f"Figure 1: Visual DAG for {doc_model.dag_layout.title}").italic = True
+        p_caption.paragraph_format.space_after = Pt(16)
+        r_cap = p_caption.add_run(f"Figure 1: Workflow Execution Diagram — {workflow_name}")
+        r_cap.font.size = Pt(9)
+        r_cap.font.italic = True
+        r_cap.font.color.rgb = RGB_MUTED
     else:
         doc.add_paragraph("No nodes present in workflow graph.")
 
-    # 3. Execution Order
-    doc.add_heading("3. Execution Order (Topological Sort)", level=1)
+    # -------------------------------------------------------------
+    # 3. Workflow Steps (Execution Order with Business Summaries)
+    # -------------------------------------------------------------
+    h3 = doc.add_heading("3. Workflow Steps", level=1)
+    h3.paragraph_format.space_before = Pt(14)
+    h3.paragraph_format.space_after = Pt(8)
+
     doc.add_paragraph(
-        "Tools execute strictly in data-flow dependency order as determined by graph topology:"
+        "Each tool in the workflow executes in sequential data-flow order. The table and step breakdown "
+        "below describe the business function performed at each stage:"
     )
 
-    exec_table = doc.add_table(rows=1, cols=4)
-    exec_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    e_hdr = exec_table.rows[0].cells
-    e_hdr[0].text = "Step #"
-    e_hdr[1].text = "Tool ID"
-    e_hdr[2].text = "Type"
-    e_hdr[3].text = "Name / Annotation"
+    # Steps Summary Table
+    steps_table = doc.add_table(rows=1, cols=4)
+    steps_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    s_hdrs = ["Step", "Tool Name", "Tool Type", "Business Function"]
+    for idx, (cell, text) in enumerate(zip(steps_table.rows[0].cells, s_hdrs)):
+        set_cell_background(cell, COLOR_NAVY_HEX)
+        set_cell_margins(cell, top=100, bottom=100, left=120, right=120)
+        p = cell.paragraphs[0]
+        run = p.add_run(text)
+        run.font.bold = True
+        run.font.color.rgb = RGB_WHITE
+        run.font.size = Pt(9.5)
 
     for step in doc_model.execution_order:
-        row_cells = exec_table.add_row().cells
-        row_cells[0].text = str(step.step_number)
-        row_cells[1].text = str(step.tool_id)
-        row_cells[2].text = str(step.tool_type)
-        row_cells[3].text = str(step.name)
+        row = steps_table.add_row().cells
+        set_cell_background(row[0], COLOR_BG_LIGHT_HEX)
+        for c in row:
+            set_cell_margins(c, top=80, bottom=80, left=120, right=120)
+        
+        p0 = row[0].paragraphs[0]
+        p0.add_run(f"{step.step_number:02d}").bold = True
+        p0.runs[0].font.size = Pt(9)
 
-    # 4. Node-by-Node Details
-    doc.add_heading("4. Detailed Node Configurations", level=1)
+        p1 = row[1].paragraphs[0]
+        p1.add_run(step.name).bold = True
+        p1.runs[0].font.size = Pt(9)
+
+        p2 = row[2].paragraphs[0]
+        p2.add_run(step.tool_type)
+        p2.runs[0].font.size = Pt(9)
+
+        p3 = row[3].paragraphs[0]
+        p3.add_run(step.summary or "Processes data in the workflow.")
+        p3.runs[0].font.size = Pt(9)
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(14)
+
+    # Detailed Step-by-Step Cards
+    p_detail_hdr = doc.add_paragraph()
+    p_detail_hdr.add_run("Step-by-Step Overview").bold = True
+    p_detail_hdr.paragraph_format.space_after = Pt(8)
+
+    for step in doc_model.execution_order:
+        # Find corresponding node entry
+        matching_node = next((n for n in doc_model.nodes if n.tool_id == step.tool_id), None)
+        summary_text = step.summary or (matching_node.summary if matching_node else "Processes data in the workflow.")
+
+        p_step = doc.add_paragraph()
+        p_step.paragraph_format.space_before = Pt(8)
+        p_step.paragraph_format.space_after = Pt(2)
+        r_num = p_step.add_run(f"Step {step.step_number:02d}: ")
+        r_num.bold = True
+        r_num.font.color.rgb = RGB_PRIMARY
+        r_num.font.size = Pt(11)
+
+        r_name = p_step.add_run(f"{step.name} ")
+        r_name.bold = True
+        r_name.font.color.rgb = RGB_NAVY
+        r_name.font.size = Pt(11)
+
+        r_type = p_step.add_run(f"({step.tool_type})")
+        r_type.font.color.rgb = RGB_MUTED
+        r_type.font.size = Pt(10)
+
+        p_desc = doc.add_paragraph()
+        p_desc.paragraph_format.left_indent = Inches(0.25)
+        p_desc.paragraph_format.space_after = Pt(6)
+        r_what = p_desc.add_run("What it does: ")
+        r_what.bold = True
+        r_what.font.size = Pt(9.5)
+        r_summary = p_desc.add_run(summary_text)
+        r_summary.font.size = Pt(9.5)
+
+        if matching_node and matching_node.annotation:
+            p_ann = doc.add_paragraph()
+            p_ann.paragraph_format.left_indent = Inches(0.25)
+            p_ann.paragraph_format.space_after = Pt(6)
+            r_ann_lbl = p_ann.add_run("Annotation: ")
+            r_ann_lbl.italic = True
+            r_ann_lbl.font.size = Pt(9)
+            r_ann_txt = p_ann.add_run(matching_node.annotation)
+            r_ann_txt.font.size = Pt(9)
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(14)
+
+    # -------------------------------------------------------------
+    # 4. Data Flow & Lineage Paths
+    # -------------------------------------------------------------
+    h4 = doc.add_heading("4. Data Flow & Lineage Paths", level=1)
+    h4.paragraph_format.space_before = Pt(14)
+    h4.paragraph_format.space_after = Pt(8)
+
+    doc.add_paragraph(
+        "Data lineage tracks the complete progression of records from source inputs through intermediate "
+        "transformations to terminal outputs:"
+    )
+
+    if doc_model.lineage_paths:
+        for idx, lp in enumerate(doc_model.lineage_paths, start=1):
+            p_lineage = doc.add_paragraph(style="List Bullet")
+            p_lineage.paragraph_format.space_after = Pt(4)
+            path_str = "  ➔  ".join(
+                f"{name}" for name in lp.tool_names
+            )
+            r_path = p_lineage.add_run(f"Path {idx}: {path_str}")
+            r_path.font.size = Pt(9.5)
+    else:
+        doc.add_paragraph("No source-to-destination lineage paths detected.")
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(14)
+
+    # -------------------------------------------------------------
+    # 5. Inputs, Outputs & External Dependencies
+    # -------------------------------------------------------------
+    h5 = doc.add_heading("5. Inputs, Outputs & Data Dependencies", level=1)
+    h5.paragraph_format.space_before = Pt(14)
+    h5.paragraph_format.space_after = Pt(8)
+
+    if doc_model.dependencies:
+        dep_table = doc.add_table(rows=1, cols=3)
+        dep_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        d_hdrs = ["Category", "File / Database Reference", "Associated Tool"]
+        for cell, text in zip(dep_table.rows[0].cells, d_hdrs):
+            set_cell_background(cell, COLOR_NAVY_HEX)
+            set_cell_margins(cell, top=100, bottom=100, left=120, right=120)
+            p = cell.paragraphs[0]
+            run = p.add_run(text)
+            run.font.bold = True
+            run.font.color.rgb = RGB_WHITE
+            run.font.size = Pt(9.5)
+
+        for dep in doc_model.dependencies:
+            row = dep_table.add_row().cells
+            set_cell_background(row[0], COLOR_BG_LIGHT_HEX)
+            for c in row:
+                set_cell_margins(c, top=80, bottom=80, left=120, right=120)
+            
+            p0 = row[0].paragraphs[0]
+            p0.add_run(str(dep.dep_type).capitalize())
+            p0.runs[0].font.size = Pt(9)
+
+            p1 = row[1].paragraphs[0]
+            p1.add_run(str(dep.reference))
+            p1.runs[0].font.size = Pt(9)
+
+            p2 = row[2].paragraphs[0]
+            matching = next((s for s in doc_model.execution_order if s.tool_id == dep.tool_id), None)
+            tool_label = f"{matching.name} (#{dep.tool_id})" if matching else (f"Tool #{dep.tool_id}" if dep.tool_id else "Workflow")
+            p2.add_run(tool_label)
+            p2.runs[0].font.size = Pt(9)
+    else:
+        doc.add_paragraph("No external file, database, or network dependencies referenced in this workflow.")
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(14)
+
+    # -------------------------------------------------------------
+    # 6. Technical Configuration Appendix
+    # -------------------------------------------------------------
+    h6 = doc.add_heading("6. Technical Configuration Appendix", level=1)
+    h6.paragraph_format.space_before = Pt(16)
+    h6.paragraph_format.space_after = Pt(8)
+
+    doc.add_paragraph(
+        "This appendix documents the parsed configuration parameters for each workflow tool for technical review:"
+    )
 
     for node in doc_model.nodes:
-        doc.add_heading(f"Tool #{node.tool_id} — {node.name} ({node.tool_type})", level=2)
-        
-        info_p = doc.add_paragraph()
-        info_p.add_run(f"Plugin: {node.plugin}\n")
-        info_p.add_run(f"Support Level: ").bold = True
-        info_p.add_run(f"{node.support_level.upper()}\n")
-        if node.description:
-            info_p.add_run(f"Description: {node.description}\n")
-
-        if node.input_variables:
-            info_p.add_run(f"Input Variables: {', '.join(node.input_variables)}\n")
-        if node.output_variables:
-            out_str = ", ".join(f"{k} → {v}" for k, v in node.output_variables.items())
-            info_p.add_run(f"Output Variables: {out_str}\n")
+        p_node_title = doc.add_paragraph()
+        p_node_title.paragraph_format.space_before = Pt(10)
+        p_node_title.paragraph_format.space_after = Pt(4)
+        r_nh = p_node_title.add_run(f"Tool #{node.tool_id} — {node.name} ({node.tool_type})")
+        r_nh.bold = True
+        r_nh.font.size = Pt(10.5)
+        r_nh.font.color.rgb = RGB_NAVY
 
         # Configuration Table
         if node.configuration:
-            config_table = doc.add_table(rows=1, cols=2)
-            c_hdr = config_table.rows[0].cells
-            c_hdr[0].text = "Setting"
+            cfg_table = doc.add_table(rows=1, cols=2)
+            cfg_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+            c_hdr = cfg_table.rows[0].cells
+            c_hdr[0].text = "Parameter"
             c_hdr[1].text = "Value"
+            set_cell_background(c_hdr[0], COLOR_SECONDARY_HEX)
+            set_cell_background(c_hdr[1], COLOR_SECONDARY_HEX)
+            for c in c_hdr:
+                c.paragraphs[0].runs[0].font.bold = True
+                c.paragraphs[0].runs[0].font.color.rgb = RGB_WHITE
+                c.paragraphs[0].runs[0].font.size = Pt(9)
+                set_cell_margins(c, top=80, bottom=80, left=100, right=100)
+
             for k, v in sorted(node.configuration.items()):
-                val_str = str(v) if not isinstance(v, (dict, list)) else str(v)[:100]
-                row_cells = config_table.add_row().cells
-                row_cells[0].text = str(k)
-                row_cells[1].text = val_str
-
-        # Tool Diagnostics
-        if node.diagnostics:
-            diag_p = doc.add_paragraph()
-            diag_p.add_run("Diagnostics:").bold = True
-            for d in node.diagnostics:
-                diag_p.add_run(f"\n• [{d.level.value.upper()}] {d.message}")
-
-    # 5. Data Lineage
-    doc.add_heading("5. Data Lineage Paths", level=1)
-    if doc_model.lineage_paths:
-        for idx, lp in enumerate(doc_model.lineage_paths, start=1):
-            path_str = " → ".join(
-                f"{name} (#{tid})" for tid, name in zip(lp.tool_ids, lp.tool_names)
-            )
-            doc.add_paragraph(f"{idx}. {path_str}")
-    else:
-        doc.add_paragraph("No source-to-sink lineage paths detected.")
-
-    # 6. External Dependencies
-    doc.add_heading("6. External Dependencies", level=1)
-    if doc_model.dependencies:
-        dep_table = doc.add_table(rows=1, cols=3)
-        d_hdr = dep_table.rows[0].cells
-        d_hdr[0].text = "Type"
-        d_hdr[1].text = "Reference"
-        d_hdr[2].text = "Associated Tool"
-        for dep in doc_model.dependencies:
-            row_cells = dep_table.add_row().cells
-            row_cells[0].text = str(dep.dep_type)
-            row_cells[1].text = str(dep.reference)
-            row_cells[2].text = f"Tool #{dep.tool_id}" if dep.tool_id else "Workflow"
-    else:
-        doc.add_paragraph("No external file, database, or macro dependencies detected.")
-
-    # 7. Global Diagnostics & Unsupported Features
-    doc.add_heading("7. Analysis Diagnostics", level=1)
-    if doc_model.diagnostics:
-        for diag in doc_model.diagnostics:
-            tool_info = f" (Tool #{diag.tool_id})" if diag.tool_id else ""
-            p_diag = doc.add_paragraph(style="List Bullet")
-            p_diag.add_run(f"[{diag.level.value.upper()}]{tool_info}: ").bold = True
-            p_diag.add_run(diag.message)
-            if diag.detail:
-                p_diag.add_run(f" — {diag.detail}").italic = True
-    else:
-        doc.add_paragraph("No warnings or errors detected during analysis.")
+                val_str = str(v) if not isinstance(v, (dict, list)) else str(v)[:120]
+                row = cfg_table.add_row().cells
+                set_cell_background(row[0], COLOR_BG_LIGHT_HEX)
+                set_cell_margins(row[0], top=60, bottom=60, left=100, right=100)
+                set_cell_margins(row[1], top=60, bottom=60, left=100, right=100)
+                r0 = row[0].paragraphs[0].add_run(str(k))
+                r0.font.size = Pt(8.5)
+                r1 = row[1].paragraphs[0].add_run(val_str)
+                r1.font.size = Pt(8.5)
+        else:
+            p_none = doc.add_paragraph()
+            p_none.paragraph_format.left_indent = Inches(0.2)
+            p_none.add_run("No custom parameters configured.").italic = True
+            p_none.runs[0].font.size = Pt(8.5)
 
     doc.save(str(output_path))

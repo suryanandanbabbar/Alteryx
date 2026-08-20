@@ -69,8 +69,9 @@ class NodeDTO(BaseModel):
     plugin: str
     position: PositionDTO | None = None
     configuration: dict[str, Any] = Field(default_factory=dict)
-    support_level: str
-    annotation: str
+    support_level: str = ""
+    summary: str = ""
+    annotation: str = ""
     output_fields: list[FieldDTO] = Field(default_factory=list)
     engine_settings: dict[str, str] = Field(default_factory=dict)
     visual_category: str
@@ -89,6 +90,7 @@ class ExecutionStepDTO(BaseModel):
     tool_type: str
     name: str
     visual_category: str
+    summary: str = ""
 
 
 class DagNodeLayoutDTO(BaseModel):

@@ -2,7 +2,8 @@ import React from 'react';
 import { AnalysisOverviewDTO } from '../types/workflow';
 import { StatCard } from '../components/StatCard';
 import { ExecutionOrder } from '../components/ExecutionOrder';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { getCategoryColor } from '../theme/palette';
+import { ArrowRight } from 'lucide-react';
 
 interface OverviewPageProps {
   overview: AnalysisOverviewDTO;
@@ -10,8 +11,6 @@ interface OverviewPageProps {
 }
 
 export const OverviewPage: React.FC<OverviewPageProps> = ({ overview, onSelectTool }) => {
-  const hasDiagnostics = overview.diagnostics && overview.diagnostics.length > 0;
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1000px' }}>
       {/* Section Subtitle */}
@@ -27,7 +26,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ overview, onSelectTo
           01 Overview
         </div>
         <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', margin: 0 }}>
-          Workflow Metrics & Execution Graph
+          Workflow Metrics & Process Overview
         </h2>
       </div>
 
@@ -56,8 +55,114 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ overview, onSelectTo
         />
       </div>
 
-      {/* Execution Order */}
+      {/* Execution Flow Diagram */}
       <ExecutionOrder steps={overview.execution_order} onSelectStep={onSelectTool} />
+
+      {/* Workflow Tools (Business-Friendly Process Steps) */}
+      <div className="app-card" style={{ overflow: 'hidden' }}>
+        <div style={{
+          padding: '14px 18px',
+          borderBottom: '1px solid var(--color-border)',
+          background: 'var(--color-surface-secondary)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <div>
+            <h3 style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>
+              Workflow Tools & Business Process Steps
+            </h3>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', display: 'block' }}>
+              Sequential execution breakdown and business function descriptions ({overview.execution_order.length} tools)
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {overview.execution_order.map((step, idx) => {
+            const catColor = getCategoryColor(step.visual_category);
+            const isLast = idx === overview.execution_order.length - 1;
+
+            return (
+              <div
+                key={step.tool_id}
+                onClick={() => onSelectTool && onSelectTool(step.tool_id)}
+                style={{
+                  padding: '14px 18px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '16px',
+                  borderBottom: isLast ? 'none' : '1px solid var(--color-border-subtle)',
+                  cursor: onSelectTool ? 'pointer' : 'default',
+                  transition: 'background-color 0.15s ease',
+                  backgroundColor: 'var(--color-surface)',
+                }}
+                onMouseEnter={(e) => {
+                  if (onSelectTool) {
+                    e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (onSelectTool) {
+                    e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+                  }
+                }}
+              >
+                {/* Step Number Badge */}
+                <div style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  color: 'var(--color-primary)',
+                  background: 'var(--color-primary-subtle)',
+                  border: '1px solid rgba(234, 88, 12, 0.25)',
+                  padding: '4px 8px',
+                  borderRadius: 'var(--radius-sm)',
+                  flexShrink: 0,
+                  minWidth: '28px',
+                  textAlign: 'center',
+                }}>
+                  {String(step.step_number).padStart(2, '0')}
+                </div>
+
+                {/* Tool Details & Summary */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)' }}>
+                      {step.name || step.tool_type}
+                    </span>
+                    <span style={{
+                      fontSize: '10.5px',
+                      fontWeight: '600',
+                      color: catColor.text,
+                      background: catColor.badgeBg,
+                      border: `1px solid ${catColor.stroke}`,
+                      padding: '1px 6px',
+                      borderRadius: 'var(--radius-sm)',
+                    }}>
+                      {step.tool_type}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                      #{step.tool_id}
+                    </span>
+                  </div>
+
+                  {/* Business Summary */}
+                  <div style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', lineHeight: '1.45' }}>
+                    {step.summary || 'Processes records in the workflow data pipeline.'}
+                  </div>
+                </div>
+
+                {onSelectTool && (
+                  <div style={{ alignSelf: 'center', color: 'var(--color-text-muted)', flexShrink: 0 }}>
+                    <ArrowRight size={14} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Workflow Metadata Table */}
       <div className="app-card" style={{ overflow: 'hidden' }}>
@@ -95,70 +200,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ overview, onSelectTo
             </tr>
           </tbody>
         </table>
-      </div>
-
-      {/* Diagnostics Summary Card */}
-      <div className="app-card" style={{ padding: '16px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Analysis Diagnostics & Tool Support
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            {Object.entries(overview.metrics.support_summary).map(([level, count]) => (
-              <span
-                key={level}
-                style={{
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  color: level === 'supported' ? 'var(--color-success)' : 'var(--color-warning)',
-                  background: level === 'supported' ? 'var(--color-success-subtle)' : 'var(--color-warning-subtle)',
-                  padding: '2px 8px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: `1px solid ${level === 'supported' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(245, 158, 11, 0.3)'}`,
-                }}
-              >
-                {count} {level}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {hasDiagnostics ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
-            {overview.diagnostics.map((diag, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '10px',
-                  padding: '10px 12px',
-                  background: 'var(--color-surface-secondary)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '12px',
-                }}
-              >
-                <AlertCircle size={15} color="var(--color-warning)" style={{ marginTop: '2px', flexShrink: 0 }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                  <div style={{ color: 'var(--color-text)', fontWeight: '600' }}>
-                    {diag.message}
-                  </div>
-                  {diag.detail && (
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>
-                      {diag.detail}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-success)', fontSize: '12px', marginTop: '6px' }}>
-            <CheckCircle2 size={14} />
-            <span>All workflow tools are supported with deterministic Python translations.</span>
-          </div>
-        )}
       </div>
     </div>
   );

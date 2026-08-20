@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NodeDTO } from '../types/workflow';
 import { getCategoryColor } from '../theme/palette';
-import { ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 interface NodeDetailsProps {
   nodes: NodeDTO[];
@@ -25,121 +25,6 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
     }));
   };
 
-  const getSupportBadge = (level: string) => {
-    const norm = level.toLowerCase().replace(/-/g, '_');
-    switch (norm) {
-      case 'full':
-      case 'supported':
-        return (
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '11px',
-            fontWeight: '600',
-            color: 'var(--color-success)',
-            background: 'var(--color-success-subtle)',
-            padding: '2px 8px',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid rgba(34, 197, 94, 0.3)',
-          }}>
-            <CheckCircle2 size={11} />
-            FULL
-          </span>
-        );
-      case 'partial':
-        return (
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '11px',
-            fontWeight: '600',
-            color: 'var(--color-warning)',
-            background: 'var(--color-warning-subtle)',
-            padding: '2px 8px',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid rgba(245, 158, 11, 0.3)',
-          }}>
-            <AlertTriangle size={11} />
-            PARTIAL
-          </span>
-        );
-      case 'pass_through':
-        return (
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '11px',
-            fontWeight: '600',
-            color: '#38bdf8',
-            background: 'rgba(56, 189, 248, 0.12)',
-            padding: '2px 8px',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-          }}>
-            <CheckCircle2 size={11} />
-            PASS-THROUGH
-          </span>
-        );
-      case 'documentation_only':
-      case 'documentation':
-        return (
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '11px',
-            fontWeight: '600',
-            color: 'var(--color-text-muted)',
-            background: 'var(--color-surface-secondary)',
-            padding: '2px 8px',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--color-border)',
-          }}>
-            DOCUMENTATION
-          </span>
-        );
-      case 'external_execution':
-      case 'external':
-        return (
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '11px',
-            fontWeight: '600',
-            color: '#c084fc',
-            background: 'rgba(192, 132, 252, 0.12)',
-            padding: '2px 8px',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid rgba(192, 132, 252, 0.3)',
-          }}>
-            EXTERNAL
-          </span>
-        );
-      default:
-        return (
-          <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '11px',
-            fontWeight: '600',
-            color: 'var(--color-error)',
-            background: 'var(--color-error-subtle)',
-            padding: '2px 8px',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-          }}>
-            <XCircle size={11} />
-            {level.toUpperCase()}
-          </span>
-        );
-    }
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
       <div style={{
@@ -150,7 +35,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
         textTransform: 'uppercase',
         marginBottom: '2px',
       }}>
-        Node Configurations & Metadata ({nodes.length} tools)
+        Tool Specifications & Configuration ({nodes.length} tools)
       </div>
 
       {nodes.map((node) => {
@@ -220,26 +105,33 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
                   {node.name || node.tool_type}
                 </span>
               </div>
-
-              {/* Support Level Badge */}
-              <div>
-                {getSupportBadge(node.support_level)}
-              </div>
             </div>
 
             {/* Expanded Content */}
             {isExpanded && (
-              <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* Business Summary Box */}
+                {node.summary && (
+                  <div style={{
+                    padding: '10px 14px',
+                    background: 'var(--color-surface-secondary)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '12.5px',
+                    color: 'var(--color-text)',
+                    lineHeight: '1.45',
+                  }}>
+                    <span style={{ fontWeight: '600', color: 'var(--color-text-muted)', marginRight: '6px' }}>Function:</span>
+                    {node.summary}
+                  </div>
+                )}
+
                 {/* Meta Table */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                   <tbody>
-                    <tr style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
-                      <td style={{ padding: '6px 0', width: '140px', color: 'var(--color-text-muted)', fontWeight: '500' }}>Plugin</td>
-                      <td style={{ padding: '6px 0', color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>{node.plugin}</td>
-                    </tr>
                     {node.position && (
                       <tr style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
-                        <td style={{ padding: '6px 0', color: 'var(--color-text-muted)', fontWeight: '500' }}>Canvas Position</td>
+                        <td style={{ padding: '6px 0', width: '150px', color: 'var(--color-text-muted)', fontWeight: '500' }}>Canvas Position</td>
                         <td style={{ padding: '6px 0', color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>
                           x={node.position.x}, y={node.position.y}
                         </td>
@@ -265,7 +157,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
                       textTransform: 'uppercase',
                       marginBottom: '8px',
                     }}>
-                      Parsed Configuration
+                      Tool Configuration
                     </div>
                     <div style={{
                       background: 'var(--color-surface-secondary)',
@@ -273,14 +165,14 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
                       borderRadius: 'var(--radius-sm)',
                       overflow: 'hidden',
                     }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
                         <tbody>
                           {Object.entries(node.configuration).map(([k, v], idx) => (
                             <tr key={k} style={{ borderBottom: idx < Object.keys(node.configuration).length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                              <td style={{ padding: '8px 12px', width: '180px', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                              <td style={{ padding: '8px 14px', width: '200px', color: 'var(--color-text-muted)', fontWeight: '600' }}>
                                 {k}
                               </td>
-                              <td style={{ padding: '8px 12px', color: 'var(--color-text)', fontFamily: 'var(--font-mono)', wordBreak: 'break-all' }}>
+                              <td style={{ padding: '8px 14px', color: 'var(--color-text)', wordBreak: 'break-word', lineHeight: '1.4' }}>
                                 {typeof v === 'object' ? JSON.stringify(v) : String(v)}
                               </td>
                             </tr>
@@ -291,7 +183,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
                   </div>
                 )}
 
-                {/* Engine Settings (if available) */}
+                {/* Engine Settings (Technical Metadata) */}
                 {node.engine_settings && Object.keys(node.engine_settings).length > 0 && (
                   <div>
                     <div style={{
@@ -302,7 +194,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
                       textTransform: 'uppercase',
                       marginBottom: '8px',
                     }}>
-                      Engine Settings
+                      Technical Engine Settings
                     </div>
                     <div style={{
                       background: 'var(--color-surface-secondary)',
@@ -314,7 +206,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
                         <tbody>
                           {Object.entries(node.engine_settings).map(([k, v], idx) => (
                             <tr key={k} style={{ borderBottom: idx < Object.keys(node.engine_settings!).length - 1 ? '1px solid var(--color-border)' : 'none' }}>
-                              <td style={{ padding: '6px 12px', width: '180px', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                              <td style={{ padding: '6px 12px', width: '200px', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
                                 {k}
                               </td>
                               <td style={{ padding: '6px 12px', color: 'var(--color-text)', fontFamily: 'var(--font-mono)' }}>

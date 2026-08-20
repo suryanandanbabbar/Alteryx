@@ -9,6 +9,7 @@ from awa.parser.format_handler import handle_upload
 from awa.analysis.workflow_analyzer import analyze_canonical
 from awa.model.analysis_result import CanonicalAnalysisResult
 from awa.model.visual_category import get_visual_category
+from awa.tools import get_tool_summary, humanize_tool_configuration
 
 from backend.app.models.schemas import (
     AnalysisOverviewDTO,
@@ -79,6 +80,7 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
         tool = res.workflow.tools.get(tid)
         ttype = tool.tool_type if tool else "Unknown"
         name = (tool.name if tool and tool.name else ttype)
+        summary = get_tool_summary(tool.plugin or ttype) if tool else get_tool_summary(ttype)
         exec_steps.append(
             ExecutionStepDTO(
                 step_number=idx,
@@ -86,6 +88,7 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
                 tool_type=ttype,
                 name=name,
                 visual_category=get_visual_category(ttype),
+                summary=summary,
             )
         )
 
@@ -133,6 +136,7 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
             continue
         tr = res.translations.get(tid)
         support = tr.support_level.value if tr else "unknown"
+        summary = get_tool_summary(tool.plugin or tool.tool_type)
 
         pos_dto = PositionDTO(x=tool.position.x, y=tool.position.y) if tool.position else None
         fields_dto = [
@@ -147,8 +151,9 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
                 name=tool.name or tool.tool_type,
                 plugin=tool.plugin,
                 position=pos_dto,
-                configuration=tool.configuration.parsed,
+                configuration=humanize_tool_configuration(tool.tool_type, tool.configuration.parsed),
                 support_level=support,
+                summary=summary,
                 annotation=tool.annotation,
                 output_fields=fields_dto,
                 engine_settings=tool.engine_settings,

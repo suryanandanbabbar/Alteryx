@@ -21,13 +21,12 @@ class NodeDocEntry:
     tool_type: str
     name: str
     plugin: str
-    support_level: str
     annotation: str
     description: str
+    summary: str = ""
     configuration: dict[str, Any] = dc_field(default_factory=dict)
     input_variables: list[str] = dc_field(default_factory=list)
     output_variables: dict[str, str] = dc_field(default_factory=dict)
-    diagnostics: list[Diagnostic] = dc_field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -35,13 +34,12 @@ class NodeDocEntry:
             "tool_type": self.tool_type,
             "name": self.name,
             "plugin": self.plugin,
-            "support_level": self.support_level,
             "annotation": self.annotation,
             "description": self.description,
+            "summary": self.summary,
             "configuration": self.configuration,
             "input_variables": self.input_variables,
             "output_variables": self.output_variables,
-            "diagnostics": [d.to_dict() for d in self.diagnostics],
         }
 
 
@@ -53,6 +51,7 @@ class ExecutionStepDocEntry:
     tool_type: str
     name: str
     visual_category: str
+    summary: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -61,6 +60,7 @@ class ExecutionStepDocEntry:
             "tool_type": self.tool_type,
             "name": self.name,
             "visual_category": self.visual_category,
+            "summary": self.summary,
         }
 
 
@@ -80,7 +80,7 @@ class DocumentModel:
     lineage_paths: list[LineagePath]
     python_summary: str
     dependencies: list[Dependency]
-    diagnostics: list[Diagnostic]
+    diagnostics: list[Diagnostic] = dc_field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
