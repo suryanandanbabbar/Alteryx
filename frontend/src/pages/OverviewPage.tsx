@@ -100,24 +100,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
             </span>
             <span style={{ color: 'var(--color-text-muted)' }}>Outputs</span>
           </div>
-          {assessment && (
-            <>
-              <span style={{ color: 'var(--color-border)' }}>|</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Complexity:</span>
-                <span style={{
-                  fontWeight: '600',
-                  fontSize: '11.5px',
-                  color: 'var(--color-primary)',
-                  background: 'var(--color-primary-subtle)',
-                  padding: '1px 6px',
-                  borderRadius: 'var(--radius-sm)',
-                }}>
-                  {assessment.complexity}
-                </span>
-              </div>
-            </>
-          )}
         </div>
       </div>
 
