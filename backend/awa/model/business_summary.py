@@ -172,6 +172,27 @@ class BusinessLineageEntry:
 
 
 @dataclass
+class ExecutiveSummaryContent:
+    """Structured, professional Executive Summary content following the report writing standard."""
+    subject_and_purpose: str        # 2-4 sentences: subject, purpose, process supported
+    method_and_scope: str           # 1-2 sentences: static analysis & lineage reconstruction
+    key_findings: list[str] = dc_field(default_factory=list)      # 3-5 synthesized material findings
+    conclusion: str = ""            # 1-2 sentences: business interpretation / process role
+    recommendations: list[str] = dc_field(default_factory=list)   # 2-4 actionable items based on evidence
+    limitations: list[str] = dc_field(default_factory=list)       # 2-3 material limitations of static analysis
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "subject_and_purpose": self.subject_and_purpose,
+            "method_and_scope": self.method_and_scope,
+            "key_findings": self.key_findings,
+            "conclusion": self.conclusion,
+            "recommendations": self.recommendations,
+            "limitations": self.limitations,
+        }
+
+
+@dataclass
 class BusinessAssessment:
     """Governance, complexity, findings, gaps, disposition, and validation requirements."""
     complexity: str                 # "Low", "Moderate", "High", "Very High"
@@ -229,6 +250,7 @@ class WorkflowBusinessSummary:
     lineage: list[BusinessLineageEntry] = dc_field(default_factory=list)
     business_outputs: list[BusinessOutput] = dc_field(default_factory=list)
     assessment: BusinessAssessment = dc_field(default_factory=lambda: BusinessAssessment("Moderate", "Standard processing"))
+    executive_summary: ExecutiveSummaryContent | None = None
     process_overview: str = ""      # Retained for compatibility
     information_flow: list[str] = dc_field(default_factory=list)
     overall_interpretation: str = ""
@@ -236,7 +258,7 @@ class WorkflowBusinessSummary:
     confidence_level: str = "High"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "business_purpose": self.business_purpose,
             "one_line_purpose": self.one_line_purpose,
             "why_it_matters": self.why_it_matters,
@@ -253,3 +275,6 @@ class WorkflowBusinessSummary:
             "evidence": self.evidence,
             "confidence_level": self.confidence_level,
         }
+        if self.executive_summary is not None:
+            d["executive_summary"] = self.executive_summary.to_dict()
+        return d

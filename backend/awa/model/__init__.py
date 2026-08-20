@@ -23,6 +23,7 @@ from .business_summary import (
     BusinessRule,
     BusinessLineageEntry,
     BusinessAssessment,
+    ExecutiveSummaryContent,
     WorkflowBusinessSummary,
 )
 
@@ -42,5 +43,5 @@ __all__ = [
     "NodeDocEntry", "ExecutionStepDocEntry", "DocumentModel",
     "CanonicalAnalysisResult", "WorkflowMetrics",
     "BusinessInput", "BusinessOutput", "BusinessStage", "BusinessTransformation",
-    "BusinessRule", "BusinessLineageEntry", "BusinessAssessment", "WorkflowBusinessSummary",
+    "BusinessRule", "BusinessLineageEntry", "BusinessAssessment", "ExecutiveSummaryContent", "WorkflowBusinessSummary",
 ]

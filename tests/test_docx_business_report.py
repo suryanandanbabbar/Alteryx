@@ -1,4 +1,4 @@
-"""Tests for Executive Business Assessment DOCX report structure and content."""
+"""Tests for Executive Summary DOCX report structure, length, and content."""
 
 from pathlib import Path
 import docx
@@ -8,7 +8,7 @@ from awa.analysis.workflow_analyzer import analyze_workflow
 
 
 class TestDocxBusinessReport:
-    """Validate Executive Business Assessment formatting, absence of support tags, and structured business sections."""
+    """Validate Executive Summary conforming to the business report standard."""
 
     FORBIDDEN_USER_FACING_TERMS = [
         "Support Level",
@@ -31,6 +31,19 @@ class TestDocxBusinessReport:
                 text_parts.append(" | ".join(c.text for c in row.cells))
         return "\n".join(text_parts)
 
+    def _extract_executive_summary_text(self, docx_path: Path) -> str:
+        doc = docx.Document(str(docx_path))
+        in_exec = False
+        exec_lines = []
+        for p in doc.paragraphs:
+            if p.text == "1. Executive Summary":
+                in_exec = True
+            elif p.text.startswith("2. "):
+                in_exec = False
+            if in_exec:
+                exec_lines.append(p.text)
+        return "\n".join(exec_lines)
+
     def test_simple_filter_docx_business_report(self, tmp_path: Path):
         out_dir = tmp_path / "simple_filter_report"
         analyze_workflow("fixtures/basic/simple_filter.yxmd", out_dir)
@@ -38,36 +51,32 @@ class TestDocxBusinessReport:
         assert docx_file.exists()
 
         full_text = self._extract_all_docx_text(docx_file)
+        exec_text = self._extract_executive_summary_text(docx_file)
 
         # 1. No forbidden support classifications or diagnostic dumps
         for term in self.FORBIDDEN_USER_FACING_TERMS:
             assert term not in full_text, f"Forbidden term '{term}' found in simple_filter DOCX!"
 
-        # 2. Executive Business Assessment and Technical sections present
-        assert "1. Executive Business Assessment" in full_text
-        assert "1.1 Workflow at a Glance" in full_text
-        assert "1.2 Business Purpose" in full_text
-        assert "1.3 Business Process" in full_text
-        assert "1.4 Inputs & Dependencies" in full_text
-        assert "1.5 Outputs & Business Use" in full_text
-        assert "1.6 Business Lineage" in full_text
-        assert "1.7 Business Role & Value" in full_text
-        assert "1.8 Key Findings" in full_text
-        assert "1.9 Assessment Gaps" in full_text
-        assert "1.10 Preliminary Disposition" in full_text
-        assert "1.11 Business Validation Required" in full_text
+        # 2. Executive Summary components present
+        assert "1. Executive Summary" in exec_text
+        assert "Scope of Analysis" in exec_text
+        assert "Key Findings" in exec_text
+        assert "Conclusion" in exec_text
+        assert "Limitations" in exec_text
 
-        assert "2. Visual Workflow Graph (DAG Architecture)" in full_text
-        assert "3. Step-by-Step Tool Specifications" in full_text
-        assert "4. Technical Configuration Appendix" in full_text
+        # 3. Concise length (less than 500 words)
+        words = len(exec_text.split())
+        assert 50 <= words <= 450, f"Executive summary word count {words} out of expected range!"
 
-        # 3. Governance and validation fields
-        assert "Alteryx Designer" in full_text
-        assert "Not documented" in full_text
-        assert "Further assessment required" in full_text
-        assert "Pending Validation" in full_text
+        # 4. Report body sections present
+        assert "2. Business Process & Operational Deliverables" in full_text
+        assert "3. Key Business Rules & Transformations" in full_text
+        assert "4. Source-to-Target Data Lineage" in full_text
+        assert "5. Visual Workflow Graph (DAG Architecture)" in full_text
+        assert "6. Step-by-Step Tool Specifications" in full_text
+        assert "7. Technical Configuration Appendix" in full_text
 
-        # 4. Tool business action and technical summary present
+        # 5. Tool business action and technical summary present in body
         assert "Business Action:" in full_text
         assert "Technical Function:" in full_text
 
@@ -78,16 +87,18 @@ class TestDocxBusinessReport:
         assert docx_file.exists()
 
         full_text = self._extract_all_docx_text(docx_file)
+        exec_text = self._extract_executive_summary_text(docx_file)
 
         for term in self.FORBIDDEN_USER_FACING_TERMS:
             assert term not in full_text, f"Forbidden term '{term}' found in join_workflow DOCX!"
 
-        assert "1. Executive Business Assessment" in full_text
-        assert "1.1 Workflow at a Glance" in full_text
-        assert "1.4 Inputs & Dependencies" in full_text
-        assert "1.5 Outputs & Business Use" in full_text
-        assert "1.10 Preliminary Disposition" in full_text
-        assert "1.11 Business Validation Required" in full_text
+        assert "1. Executive Summary" in exec_text
+        assert "Scope of Analysis" in exec_text
+        assert "Key Findings" in exec_text
+        assert "Conclusion" in exec_text
+
+        words = len(exec_text.split())
+        assert 50 <= words <= 450
 
     def test_demo_claims_volume_extract_docx_business_report(self, tmp_path: Path):
         out_dir = tmp_path / "claims_report"
@@ -96,27 +107,36 @@ class TestDocxBusinessReport:
         assert docx_file.exists()
 
         full_text = self._extract_all_docx_text(docx_file)
+        exec_text = self._extract_executive_summary_text(docx_file)
 
-        # Verify all 11 Executive Business Assessment subsections
-        assert "1. Executive Business Assessment" in full_text
-        assert "1.1 Workflow at a Glance" in full_text
-        assert "1.2 Business Purpose" in full_text
-        assert "1.3 Business Process" in full_text
-        assert "1.4 Inputs & Dependencies" in full_text
-        assert "1.5 Outputs & Business Use" in full_text
-        assert "1.6 Business Lineage (Impact Mapping)" in full_text
-        assert "1.7 Business Role & Value" in full_text
-        assert "1.8 Key Findings" in full_text
-        assert "1.9 Assessment Gaps (Unestablished Facts)" in full_text
-        assert "1.10 Preliminary Disposition" in full_text
-        assert "1.11 Business Validation Required" in full_text
+        # Verify Executive Summary components
+        assert "1. Executive Summary" in exec_text
+        assert "Scope of Analysis" in exec_text
+        assert "Key Findings" in exec_text
+        assert "Conclusion" in exec_text
+        assert "Recommendations & Business Validation" in exec_text
+        assert "Limitations" in exec_text
 
-        # Verify Technical sections
-        assert "2. Visual Workflow Graph (DAG Architecture)" in full_text
-        assert "3. Step-by-Step Tool Specifications" in full_text
-        assert "4. Technical Configuration Appendix" in full_text
+        # Word count check (~250-400 words)
+        words = len(exec_text.split())
+        assert 200 <= words <= 450, f"Demo claims executive summary word count: {words}"
 
-        # Verify specific business facts
+        # No raw tool IDs in Executive Summary
+        assert "#1" not in exec_text
+        assert "#39" not in exec_text
+
+        # Verify body sections
+        assert "2. Business Process & Operational Deliverables" in full_text
+        assert "2.1 Inputs & Upstream Dependencies" in full_text
+        assert "2.2 Outputs & Business Reporting Deliverables" in full_text
+        assert "2.3 Sequential Operational Stages" in full_text
+        assert "3. Key Business Rules & Transformations" in full_text
+        assert "4. Source-to-Target Data Lineage" in full_text
+        assert "5. Visual Workflow Graph (DAG Architecture)" in full_text
+        assert "6. Step-by-Step Tool Specifications" in full_text
+        assert "7. Technical Configuration Appendix" in full_text
+
+        # Verify specific business facts in body
         assert "Claims Volume" in full_text
         assert "Policy Master" in full_text
         assert "Claim Payments" in full_text
@@ -125,8 +145,3 @@ class TestDocxBusinessReport:
         assert "Product Type Analysis" in full_text
         assert "State Analysis" in full_text
         assert "Aging & Litigation Risk Analysis" in full_text
-
-        # Verify governance facts explicitly distinguished
-        assert "Not documented" in full_text
-        assert "Further assessment required" in full_text
-        assert "Pending Validation" in full_text

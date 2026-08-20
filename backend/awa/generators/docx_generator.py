@@ -1,10 +1,10 @@
 """Business-oriented DOCX report generator for AWA.
 
-Generates a publication-quality Executive Business Assessment (.docx)
-with an executive business assessment on page 1, process flow, inputs, deliverables,
-key business rules, source-to-target lineage, governance assessment,
-embedded DAG diagram, tool specifications (business action first),
-and technical configuration appendix.
+Generates a publication-quality Executive Business Report (.docx)
+with an Executive Summary adhering to the reference business report standard
+(Subject & Purpose -> Scope -> Key Findings -> Conclusion -> Recommendations -> Limitations),
+followed by detailed business process, rules, lineage, visual DAG graph,
+tool specifications (business action first), and technical configuration appendix.
 
 LLM-free and 100% deterministic.
 """
@@ -155,7 +155,7 @@ def generate_docx(
     output_path: Path | str,
     svg_content: str | None = None,
 ) -> None:
-    """Generate workflow.docx with a comprehensive Executive Business Assessment structure.
+    """Generate workflow.docx with an Executive Summary conforming to the business report standard.
 
     Args:
         doc_model: Canonical format-independent documentation model.
@@ -177,6 +177,7 @@ def generate_docx(
     workflow_name = doc_model.metadata.get("Workflow Name", "Alteryx Workflow")
     bs = doc_model.business_summary
     assessment = bs.assessment if bs else None
+    exec_summary = bs.executive_summary if bs else None
 
     # -------------------------------------------------------------
     # Cover Section / Document Header Banner
@@ -192,7 +193,7 @@ def generate_docx(
     p_title = doc.add_paragraph()
     p_title.paragraph_format.space_before = Pt(0)
     p_title.paragraph_format.space_after = Pt(4)
-    run_title = p_title.add_run(f"EXECUTIVE BUSINESS ASSESSMENT\n{workflow_name}")
+    run_title = p_title.add_run(f"EXECUTIVE BUSINESS REPORT\n{workflow_name}")
     run_title.font.size = Pt(20)
     run_title.font.bold = True
     run_title.font.color.rgb = RGB_NAVY
@@ -205,128 +206,143 @@ def generate_docx(
     run_sub.font.color.rgb = RGB_MUTED
 
     # =============================================================
-    # SECTION 1: EXECUTIVE BUSINESS ASSESSMENT
+    # SECTION 1: EXECUTIVE SUMMARY (Business Report Standard)
     # =============================================================
-    h1 = doc.add_heading("1. Executive Business Assessment", level=1)
+    h1 = doc.add_heading("1. Executive Summary", level=1)
     h1.paragraph_format.space_before = Pt(8)
     h1.paragraph_format.space_after = Pt(6)
 
-    # 1.1 Workflow at a Glance
-    p_glance_hdr = doc.add_paragraph()
-    p_glance_hdr.paragraph_format.space_after = Pt(3)
-    r_gh = p_glance_hdr.add_run("1.1 Workflow at a Glance")
-    r_gh.bold = True
-    r_gh.font.color.rgb = RGB_NAVY
-    r_gh.font.size = Pt(10.5)
-
-    glance_table = doc.add_table(rows=1, cols=2)
-    glance_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    g_hdr = glance_table.rows[0].cells
-    g_hdr[0].text = "Dimension"
-    g_hdr[1].text = "Workflow Status / Detail"
-    set_cell_background(g_hdr[0], COLOR_NAVY_HEX)
-    set_cell_background(g_hdr[1], COLOR_NAVY_HEX)
-    for c in g_hdr:
-        c.paragraphs[0].runs[0].font.bold = True
-        c.paragraphs[0].runs[0].font.color.rgb = RGB_WHITE
-        c.paragraphs[0].runs[0].font.size = Pt(8.5)
-        set_cell_margins(c, top=60, bottom=60, left=90, right=90)
-
-    input_count = len(bs.source_inputs) if bs and bs.source_inputs else doc_model.metrics.get("Data Inputs", 0)
-    output_count = len(bs.business_outputs) if bs and bs.business_outputs else doc_model.metrics.get("Data Outputs", 0)
-
-    glance_rows = [
-        ("Workflow Name", workflow_name),
-        ("Business Purpose", bs.business_purpose if bs else one_line),
-        ("Platform", assessment.platform if assessment else "Alteryx Designer"),
-        ("Source Data Inputs", f"{input_count} upstream source dataset(s)"),
-        ("Business Outputs", f"{output_count} published reporting deliverable(s)"),
-        ("Business Owner", assessment.business_owner if assessment else "Not documented"),
-        ("Frequency / Schedule", assessment.schedule if assessment else "Not documented"),
-        ("Operational Criticality", assessment.criticality if assessment else "Not documented"),
-        ("Assessment Status", assessment.assessment_status if assessment else "Automated assessment"),
-    ]
-
-    for dim, val in glance_rows:
-        row = glance_table.add_row().cells
-        set_cell_background(row[0], COLOR_BG_LIGHT_HEX)
-        set_cell_margins(row[0], top=50, bottom=50, left=90, right=90)
-        set_cell_margins(row[1], top=50, bottom=50, left=90, right=90)
-
-        p0 = row[0].paragraphs[0]
-        p0.add_run(dim).bold = True
-        p0.runs[0].font.size = Pt(8.5)
-
-        p1 = row[1].paragraphs[0]
-        p1.add_run(str(val))
-        p1.runs[0].font.size = Pt(8.5)
-        if val == "Not documented":
-            p1.runs[0].font.italic = True
-            p1.runs[0].font.color.rgb = RGB_MUTED
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(8)
-
-    # 1.2 Business Purpose
-    p_purp_hdr = doc.add_paragraph()
-    p_purp_hdr.paragraph_format.space_after = Pt(2)
-    r_ph = p_purp_hdr.add_run("1.2 Business Purpose")
-    r_ph.bold = True
-    r_ph.font.color.rgb = RGB_NAVY
-    r_ph.font.size = Pt(10.5)
-
-    p_purp = doc.add_paragraph()
-    p_purp.paragraph_format.space_after = Pt(8)
-    if bs and bs.business_purpose:
-        p_purp.add_run(bs.business_purpose)
+    # 1.1 Subject and Purpose
+    p_subj = doc.add_paragraph()
+    p_subj.paragraph_format.space_after = Pt(6)
+    if exec_summary and exec_summary.subject_and_purpose:
+        r_sp = p_subj.add_run(exec_summary.subject_and_purpose)
+    elif bs and bs.business_purpose:
+        r_sp = p_subj.add_run(bs.business_purpose)
     else:
-        p_purp.add_run(
-            "The workflow ingests source operational records, applies business transformation "
-            "and enrichment rules, and publishes consolidated reporting datasets."
+        r_sp = p_subj.add_run(
+            f"The workflow supports operational reporting and data preparation for {workflow_name}. "
+            f"Its apparent purpose is to automate source record ingestion, apply business transformation rules, "
+            f"and generate standardized reporting deliverables."
         )
+    r_sp.font.size = Pt(9.5)
 
-    # 1.3 Business Process
-    p_proc_hdr = doc.add_paragraph()
-    p_proc_hdr.paragraph_format.space_after = Pt(2)
-    r_prh = p_proc_hdr.add_run("1.3 Business Process")
-    r_prh.bold = True
-    r_prh.font.color.rgb = RGB_NAVY
-    r_prh.font.size = Pt(10.5)
+    # 1.2 Scope of Analysis
+    p_scope_hdr = doc.add_paragraph()
+    p_scope_hdr.paragraph_format.space_before = Pt(4)
+    p_scope_hdr.paragraph_format.space_after = Pt(2)
+    r_sch = p_scope_hdr.add_run("Scope of Analysis")
+    r_sch.bold = True
+    r_sch.font.color.rgb = RGB_NAVY
+    r_sch.font.size = Pt(10)
 
-    p_proc_desc = doc.add_paragraph()
-    p_proc_desc.paragraph_format.space_after = Pt(4)
-    p_proc_desc.add_run(
-        "The workflow executes a sequential multi-stage business process, moving from source data ingestion "
-        "through cross-source reconciliation and multi-dimensional reporting deliverable generation:"
-    )
+    p_scope = doc.add_paragraph()
+    p_scope.paragraph_format.space_after = Pt(6)
+    if exec_summary and exec_summary.method_and_scope:
+        r_sc = p_scope.add_run(exec_summary.method_and_scope)
+    else:
+        r_sc = p_scope.add_run(
+            "This assessment was conducted via static structural analysis of workflow configurations, data linkages, "
+            "and embedded annotations without live database execution. Source-to-target lineages, operational stages, "
+            "and business logic were deterministically reconstructed from the workflow definition."
+        )
+    r_sc.font.size = Pt(9)
 
-    if bs and bs.processing_stages:
-        for stg in bs.processing_stages:
-            p_stg = doc.add_paragraph()
-            p_stg.paragraph_format.left_indent = Inches(0.2)
-            p_stg.paragraph_format.space_after = Pt(3)
-            r_num = p_stg.add_run(f"Stage {stg.stage_number:02d} — {stg.name}: ")
-            r_num.bold = True
-            r_num.font.size = Pt(8.5)
-            r_num.font.color.rgb = RGB_NAVY
+    # 1.3 Key Findings
+    p_fnd_hdr = doc.add_paragraph()
+    p_fnd_hdr.paragraph_format.space_before = Pt(4)
+    p_fnd_hdr.paragraph_format.space_after = Pt(2)
+    r_fndh = p_fnd_hdr.add_run("Key Findings")
+    r_fndh.bold = True
+    r_fndh.font.color.rgb = RGB_NAVY
+    r_fndh.font.size = Pt(10)
 
-            r_desc = p_stg.add_run(f"{stg.summary or stg.description}. ")
-            r_desc.font.size = Pt(8.5)
+    findings = exec_summary.key_findings if exec_summary and exec_summary.key_findings else (assessment.key_findings if assessment else [])
+    if not findings and bs and bs.source_inputs:
+        findings = [
+            f"Ingests {len(bs.source_inputs)} source datasets ({', '.join(i.name for i in bs.source_inputs[:4])}).",
+            f"Publishes {len(bs.business_outputs)} reporting deliverables ({', '.join(o.name for o in bs.business_outputs[:4])}).",
+            "Business ownership and schedule are not documented in the workflow definition.",
+        ]
 
-            if stg.major_transformation:
-                r_t = p_stg.add_run(f"({stg.major_transformation})")
-                r_t.font.size = Pt(8.0)
-                r_t.font.color.rgb = RGB_MUTED
-                r_t.font.italic = True
+    for fnd in findings:
+        p_f = doc.add_paragraph(style='List Bullet')
+        p_f.paragraph_format.space_after = Pt(2)
+        r_f = p_f.add_run(fnd)
+        r_f.font.size = Pt(8.5)
 
-    doc.add_paragraph().paragraph_format.space_after = Pt(8)
+    # 1.4 Conclusion
+    p_conc_hdr = doc.add_paragraph()
+    p_conc_hdr.paragraph_format.space_before = Pt(4)
+    p_conc_hdr.paragraph_format.space_after = Pt(2)
+    r_conch = p_conc_hdr.add_run("Conclusion")
+    r_conch.bold = True
+    r_conch.font.color.rgb = RGB_NAVY
+    r_conch.font.size = Pt(10)
 
-    # 1.4 Inputs & Dependencies
+    p_conc = doc.add_paragraph()
+    p_conc.paragraph_format.space_after = Pt(6)
+    if exec_summary and exec_summary.conclusion:
+        r_c = p_conc.add_run(exec_summary.conclusion)
+    elif assessment and assessment.why_it_matters:
+        r_c = p_conc.add_run(assessment.why_it_matters)
+    else:
+        r_c = p_conc.add_run(
+            "The analysis indicates that the workflow functions as a centralized data preparation and reporting pipeline, "
+            "where multiple analytical deliverables depend on a shared, multi-stage processing sequence."
+        )
+    r_c.font.size = Pt(9)
+
+    # 1.5 Recommendations & Business Validation (Only when justified)
+    recs = exec_summary.recommendations if exec_summary and exec_summary.recommendations else []
+    if recs:
+        p_rec_hdr = doc.add_paragraph()
+        p_rec_hdr.paragraph_format.space_before = Pt(4)
+        p_rec_hdr.paragraph_format.space_after = Pt(2)
+        r_rech = p_rec_hdr.add_run("Recommendations & Business Validation")
+        r_rech.bold = True
+        r_rech.font.color.rgb = RGB_NAVY
+        r_rech.font.size = Pt(10)
+
+        for rec in recs:
+            p_r = doc.add_paragraph(style='List Bullet')
+            p_r.paragraph_format.space_after = Pt(2)
+            r_r = p_r.add_run(rec)
+            r_r.font.size = Pt(8.5)
+
+    # 1.6 Limitations
+    limits = exec_summary.limitations if exec_summary and exec_summary.limitations else []
+    if limits:
+        p_lim_hdr = doc.add_paragraph()
+        p_lim_hdr.paragraph_format.space_before = Pt(4)
+        p_lim_hdr.paragraph_format.space_after = Pt(2)
+        r_limh = p_lim_hdr.add_run("Limitations")
+        r_limh.bold = True
+        r_limh.font.color.rgb = RGB_NAVY
+        r_limh.font.size = Pt(10)
+
+        for lim in limits:
+            p_l = doc.add_paragraph(style='List Bullet')
+            p_l.paragraph_format.space_after = Pt(2)
+            r_l = p_l.add_run(lim)
+            r_l.font.size = Pt(8.5)
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(16)
+
+    # =============================================================
+    # SECTION 2: BUSINESS PROCESS & OPERATIONAL DELIVERABLES
+    # =============================================================
+    h2 = doc.add_heading("2. Business Process & Operational Deliverables", level=1)
+    h2.paragraph_format.space_before = Pt(16)
+    h2.paragraph_format.space_after = Pt(6)
+
+    # 2.1 Inputs & Dependencies
     p_in_hdr = doc.add_paragraph()
     p_in_hdr.paragraph_format.space_after = Pt(3)
-    r_ih = p_in_hdr.add_run("1.4 Inputs & Dependencies")
+    r_ih = p_in_hdr.add_run("2.1 Inputs & Upstream Dependencies")
     r_ih.bold = True
     r_ih.font.color.rgb = RGB_NAVY
-    r_ih.font.size = Pt(10.5)
+    r_ih.font.size = Pt(10)
 
     if bs and bs.source_inputs:
         in_table = doc.add_table(rows=1, cols=4)
@@ -368,13 +384,13 @@ def generate_docx(
 
     doc.add_paragraph().paragraph_format.space_after = Pt(8)
 
-    # 1.5 Outputs & Business Use
+    # 2.2 Outputs & Business Use
     p_out_hdr = doc.add_paragraph()
     p_out_hdr.paragraph_format.space_after = Pt(3)
-    r_oh = p_out_hdr.add_run("1.5 Outputs & Business Use")
+    r_oh = p_out_hdr.add_run("2.2 Outputs & Business Reporting Deliverables")
     r_oh.bold = True
     r_oh.font.color.rgb = RGB_NAVY
-    r_oh.font.size = Pt(10.5)
+    r_oh.font.size = Pt(10)
 
     if bs and bs.business_outputs:
         out_table = doc.add_table(rows=1, cols=4)
@@ -420,13 +436,91 @@ def generate_docx(
 
     doc.add_paragraph().paragraph_format.space_after = Pt(8)
 
-    # 1.6 Business Lineage
-    p_lin_hdr = doc.add_paragraph()
-    p_lin_hdr.paragraph_format.space_after = Pt(3)
-    r_lh = p_lin_hdr.add_run("1.6 Business Lineage (Impact Mapping)")
-    r_lh.bold = True
-    r_lh.font.color.rgb = RGB_NAVY
-    r_lh.font.size = Pt(10.5)
+    # 2.3 Operational Stages
+    p_stg_hdr = doc.add_paragraph()
+    p_stg_hdr.paragraph_format.space_after = Pt(3)
+    r_stgh = p_stg_hdr.add_run("2.3 Sequential Operational Stages")
+    r_stgh.bold = True
+    r_stgh.font.color.rgb = RGB_NAVY
+    r_stgh.font.size = Pt(10)
+
+    if bs and bs.processing_stages:
+        for stg in bs.processing_stages:
+            p_stg = doc.add_paragraph()
+            p_stg.paragraph_format.left_indent = Inches(0.2)
+            p_stg.paragraph_format.space_after = Pt(3)
+            r_num = p_stg.add_run(f"Stage {stg.stage_number:02d} — {stg.name}: ")
+            r_num.bold = True
+            r_num.font.size = Pt(8.5)
+            r_num.font.color.rgb = RGB_NAVY
+
+            r_desc = p_stg.add_run(f"{stg.summary or stg.description}. ")
+            r_desc.font.size = Pt(8.5)
+
+            if stg.major_transformation:
+                r_t = p_stg.add_run(f"({stg.major_transformation})")
+                r_t.font.size = Pt(8.0)
+                r_t.font.color.rgb = RGB_MUTED
+                r_t.font.italic = True
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(16)
+
+    # =============================================================
+    # SECTION 3: KEY BUSINESS RULES & TRANSFORMATIONS
+    # =============================================================
+    h3 = doc.add_heading("3. Key Business Rules & Transformations", level=1)
+    h3.paragraph_format.space_before = Pt(16)
+    h3.paragraph_format.space_after = Pt(6)
+
+    doc.add_paragraph(
+        "The following business rules and operational derivations have been extracted directly from workflow tool configurations and annotations:"
+    )
+
+    if bs and bs.business_rules:
+        rules_table = doc.add_table(rows=1, cols=3)
+        rules_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        r_hdr = rules_table.rows[0].cells
+        r_hdr[0].text = "Business Rule"
+        r_hdr[1].text = "Category"
+        r_hdr[2].text = "Evidence / Configuration"
+
+        for c in r_hdr:
+            set_cell_background(c, COLOR_SECONDARY_HEX)
+            c.paragraphs[0].runs[0].font.bold = True
+            c.paragraphs[0].runs[0].font.color.rgb = RGB_WHITE
+            c.paragraphs[0].runs[0].font.size = Pt(8.0)
+            set_cell_margins(c, top=60, bottom=60, left=80, right=80)
+
+        for rule in bs.business_rules:
+            row = rules_table.add_row().cells
+            set_cell_background(row[0], COLOR_BG_LIGHT_HEX)
+            for c in row:
+                set_cell_margins(c, top=50, bottom=50, left=80, right=80)
+
+            p0 = row[0].paragraphs[0]
+            p0.add_run(rule.description).bold = True
+            p0.runs[0].font.size = Pt(8.0)
+
+            p1 = row[1].paragraphs[0]
+            p1.add_run(rule.category)
+            p1.runs[0].font.size = Pt(8.0)
+
+            p2 = row[2].paragraphs[0]
+            p2.add_run(rule.evidence)
+            p2.runs[0].font.size = Pt(8.0)
+
+    doc.add_paragraph().paragraph_format.space_after = Pt(16)
+
+    # =============================================================
+    # SECTION 4: SOURCE-TO-TARGET DATA LINEAGE
+    # =============================================================
+    h4 = doc.add_heading("4. Source-to-Target Data Lineage", level=1)
+    h4.paragraph_format.space_before = Pt(16)
+    h4.paragraph_format.space_after = Pt(6)
+
+    doc.add_paragraph(
+        "The following matrix maps source datasets through intermediate transformation operations to finalized published deliverables:"
+    )
 
     if bs and bs.lineage:
         lin_table = doc.add_table(rows=1, cols=3)
@@ -437,7 +531,7 @@ def generate_docx(
         l_hdr[2].text = "Target Deliverable"
 
         for c in l_hdr:
-            set_cell_background(c, COLOR_SECONDARY_HEX)
+            set_cell_background(c, COLOR_NAVY_HEX)
             c.paragraphs[0].runs[0].font.bold = True
             c.paragraphs[0].runs[0].font.color.rgb = RGB_WHITE
             c.paragraphs[0].runs[0].font.size = Pt(8.0)
@@ -461,189 +555,14 @@ def generate_docx(
             p2.add_run(lin.target_name).bold = True
             p2.runs[0].font.size = Pt(8.0)
 
-    doc.add_paragraph().paragraph_format.space_after = Pt(8)
-
-    # 1.7 Business Role & Value
-    p_rv_hdr = doc.add_paragraph()
-    p_rv_hdr.paragraph_format.space_after = Pt(2)
-    r_rvh = p_rv_hdr.add_run("1.7 Business Role & Value")
-    r_rvh.bold = True
-    r_rvh.font.color.rgb = RGB_NAVY
-    r_rvh.font.size = Pt(10.5)
-
-    role_values = getattr(assessment, "role_and_value", []) if assessment else []
-    if not role_values and assessment and assessment.why_it_matters:
-        role_values = [assessment.why_it_matters]
-
-    for rv in role_values:
-        p_rv = doc.add_paragraph(style='List Bullet')
-        p_rv.paragraph_format.space_after = Pt(2)
-        r_rv = p_rv.add_run(rv)
-        r_rv.font.size = Pt(8.5)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(6)
-
-    # 1.8 Key Findings
-    p_fnd_hdr = doc.add_paragraph()
-    p_fnd_hdr.paragraph_format.space_after = Pt(2)
-    r_fndh = p_fnd_hdr.add_run("1.8 Key Findings")
-    r_fndh.bold = True
-    r_fndh.font.color.rgb = RGB_NAVY
-    r_fndh.font.size = Pt(10.5)
-
-    findings = getattr(assessment, "key_findings", []) if assessment else []
-    if not findings and assessment and assessment.key_observations:
-        findings = assessment.key_observations
-
-    for fnd in findings:
-        p_f = doc.add_paragraph(style='List Bullet')
-        p_f.paragraph_format.space_after = Pt(2)
-        r_f = p_f.add_run(fnd)
-        r_f.font.size = Pt(8.5)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(8)
-
-    # 1.9 Assessment Gaps
-    p_gap_hdr = doc.add_paragraph()
-    p_gap_hdr.paragraph_format.space_after = Pt(3)
-    r_gaph = p_gap_hdr.add_run("1.9 Assessment Gaps (Unestablished Facts)")
-    r_gaph.bold = True
-    r_gaph.font.color.rgb = RGB_NAVY
-    r_gaph.font.size = Pt(10.5)
-
-    gaps = getattr(assessment, "assessment_gaps", []) if assessment else []
-    if gaps:
-        gap_table = doc.add_table(rows=1, cols=3)
-        gap_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-        gp_hdr = gap_table.rows[0].cells
-        gp_hdr[0].text = "Governance & Operational Dimension"
-        gp_hdr[1].text = "Workflow Status"
-        gp_hdr[2].text = "Validation Action Required"
-
-        for c in gp_hdr:
-            set_cell_background(c, COLOR_NAVY_HEX)
-            c.paragraphs[0].runs[0].font.bold = True
-            c.paragraphs[0].runs[0].font.color.rgb = RGB_WHITE
-            c.paragraphs[0].runs[0].font.size = Pt(8.0)
-            set_cell_margins(c, top=60, bottom=60, left=80, right=80)
-
-        for gap in gaps:
-            row = gap_table.add_row().cells
-            set_cell_background(row[0], COLOR_BG_LIGHT_HEX)
-            for c in row:
-                set_cell_margins(c, top=50, bottom=50, left=80, right=80)
-
-            p0 = row[0].paragraphs[0]
-            p0.add_run(gap.get("dimension", "")).bold = True
-            p0.runs[0].font.size = Pt(8.0)
-
-            p1 = row[1].paragraphs[0]
-            status_txt = gap.get("status", "Not documented")
-            p1.add_run(status_txt)
-            p1.runs[0].font.size = Pt(8.0)
-            if status_txt == "Not documented":
-                p1.runs[0].font.italic = True
-                p1.runs[0].font.color.rgb = RGB_MUTED
-
-            p2 = row[2].paragraphs[0]
-            p2.add_run(gap.get("action", "Confirm with business owner"))
-            p2.runs[0].font.size = Pt(8.0)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(8)
-
-    # 1.10 Preliminary Disposition
-    p_disp_hdr = doc.add_paragraph()
-    p_disp_hdr.paragraph_format.space_after = Pt(2)
-    r_disph = p_disp_hdr.add_run("1.10 Preliminary Disposition")
-    r_disph.bold = True
-    r_disph.font.color.rgb = RGB_NAVY
-    r_disph.font.size = Pt(10.5)
-
-    disp_val = getattr(assessment, "preliminary_disposition", "Further assessment required") if assessment else "Further assessment required"
-    disp_rat = getattr(assessment, "disposition_rationale", "") if assessment else ""
-
-    p_disp = doc.add_paragraph()
-    p_disp.paragraph_format.space_after = Pt(4)
-    r_dv = p_disp.add_run(f"Recommendation: {disp_val}\n")
-    r_dv.bold = True
-    r_dv.font.size = Pt(9.0)
-    r_dv.font.color.rgb = RGB_PRIMARY
-
-    r_dr = p_disp.add_run(f"Rationale: {disp_rat}")
-    r_dr.font.size = Pt(8.5)
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(8)
-
-    # 1.11 Business Validation Required
-    p_val_hdr = doc.add_paragraph()
-    p_val_hdr.paragraph_format.space_after = Pt(3)
-    r_valh = p_val_hdr.add_run("1.11 Business Validation Required")
-    r_valh.bold = True
-    r_valh.font.color.rgb = RGB_NAVY
-    r_valh.font.size = Pt(10.5)
-
-    p_val_intro = doc.add_paragraph()
-    p_val_intro.paragraph_format.space_after = Pt(4)
-    p_val_intro.add_run(
-        "Automated static workflow analysis confirms the technical structure and derived business flow, "
-        "but cannot reliably establish organizational governance. The following items require formal business stakeholder confirmation:"
-    )
-
-    checklist_items = getattr(assessment, "validation_checklist", []) if assessment else []
-    if not checklist_items:
-        checklist_items = [
-            "Business Owner: Confirm",
-            "Frequency / Schedule: Confirm",
-            "Criticality: Confirm",
-            "Downstream Consumers: Confirm",
-            "Current Usage: Confirm",
-            "Redundancy / Duplicate Flow: Confirm",
-            "Business Value: Confirm",
-            "Final Disposition: Confirm",
-        ]
-
-    val_table = doc.add_table(rows=1, cols=3)
-    val_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    v_hdr = val_table.rows[0].cells
-    v_hdr[0].text = "Validation Dimension"
-    v_hdr[1].text = "Action Description"
-    v_hdr[2].text = "Status / Sign-off"
-
-    for c in v_hdr:
-        set_cell_background(c, COLOR_SECONDARY_HEX)
-        c.paragraphs[0].runs[0].font.bold = True
-        c.paragraphs[0].runs[0].font.color.rgb = RGB_WHITE
-        c.paragraphs[0].runs[0].font.size = Pt(8.0)
-        set_cell_margins(c, top=60, bottom=60, left=80, right=80)
-
-    for item in checklist_items:
-        dim_name = item.split(":")[0].strip() if ":" in item else item
-        row = val_table.add_row().cells
-        set_cell_background(row[0], COLOR_BG_LIGHT_HEX)
-        for c in row:
-            set_cell_margins(c, top=50, bottom=50, left=80, right=80)
-
-        p0 = row[0].paragraphs[0]
-        p0.add_run(dim_name).bold = True
-        p0.runs[0].font.size = Pt(8.0)
-
-        p1 = row[1].paragraphs[0]
-        p1.add_run(f"Confirm and validate {dim_name.lower()} with designated business owner")
-        p1.runs[0].font.size = Pt(8.0)
-
-        p2 = row[2].paragraphs[0]
-        p2.add_run("[  ] Pending Validation")
-        p2.runs[0].font.size = Pt(8.0)
-        p2.runs[0].font.color.rgb = RGB_MUTED
-
     doc.add_paragraph().paragraph_format.space_after = Pt(16)
 
     # =============================================================
-    # SECTION 2: VISUAL WORKFLOW GRAPH (DAG)
+    # SECTION 5: VISUAL WORKFLOW GRAPH (DAG ARCHITECTURE)
     # =============================================================
-    h2 = doc.add_heading("2. Visual Workflow Graph (DAG Architecture)", level=1)
-    h2.paragraph_format.space_before = Pt(16)
-    h2.paragraph_format.space_after = Pt(6)
+    h5 = doc.add_heading("5. Visual Workflow Graph (DAG Architecture)", level=1)
+    h5.paragraph_format.space_before = Pt(16)
+    h5.paragraph_format.space_after = Pt(6)
 
     doc.add_paragraph(
         "The following diagram illustrates the complete directed acyclic graph (DAG) representing all "
@@ -661,11 +580,11 @@ def generate_docx(
     doc.add_paragraph().paragraph_format.space_after = Pt(16)
 
     # =============================================================
-    # SECTION 3: STEP-BY-STEP TOOL SPECIFICATIONS
+    # SECTION 6: STEP-BY-STEP TOOL SPECIFICATIONS
     # =============================================================
-    h3 = doc.add_heading("3. Step-by-Step Tool Specifications", level=1)
-    h3.paragraph_format.space_before = Pt(16)
-    h3.paragraph_format.space_after = Pt(6)
+    h6 = doc.add_heading("6. Step-by-Step Tool Specifications", level=1)
+    h6.paragraph_format.space_before = Pt(16)
+    h6.paragraph_format.space_after = Pt(6)
 
     doc.add_paragraph(
         "This section documents each workflow execution step in topological sequence, detailing the "
@@ -726,11 +645,11 @@ def generate_docx(
     doc.add_paragraph().paragraph_format.space_after = Pt(16)
 
     # =============================================================
-    # SECTION 4: TECHNICAL CONFIGURATION APPENDIX
+    # SECTION 7: TECHNICAL CONFIGURATION APPENDIX
     # =============================================================
-    h4 = doc.add_heading("4. Technical Configuration Appendix", level=1)
-    h4.paragraph_format.space_before = Pt(16)
-    h4.paragraph_format.space_after = Pt(6)
+    h7 = doc.add_heading("7. Technical Configuration Appendix", level=1)
+    h7.paragraph_format.space_before = Pt(16)
+    h7.paragraph_format.space_after = Pt(6)
 
     doc.add_paragraph(
         "This appendix documents the parsed configuration parameters and connection strings for each workflow tool for engineering review:"
