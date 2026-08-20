@@ -27,9 +27,11 @@ class NodeDocEntry:
     configuration: dict[str, Any] = dc_field(default_factory=dict)
     input_variables: list[str] = dc_field(default_factory=list)
     output_variables: dict[str, str] = dc_field(default_factory=dict)
+    container_id: int | None = None
+    container_name: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "tool_id": self.tool_id,
             "tool_type": self.tool_type,
             "name": self.name,
@@ -41,6 +43,11 @@ class NodeDocEntry:
             "input_variables": self.input_variables,
             "output_variables": self.output_variables,
         }
+        if self.container_id is not None:
+            d["container_id"] = self.container_id
+        if self.container_name is not None:
+            d["container_name"] = self.container_name
+        return d
 
 
 @dataclass
@@ -52,9 +59,11 @@ class ExecutionStepDocEntry:
     name: str
     visual_category: str
     summary: str = ""
+    container_id: int | None = None
+    container_name: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "step_number": self.step_number,
             "tool_id": self.tool_id,
             "tool_type": self.tool_type,
@@ -62,6 +71,11 @@ class ExecutionStepDocEntry:
             "visual_category": self.visual_category,
             "summary": self.summary,
         }
+        if self.container_id is not None:
+            d["container_id"] = self.container_id
+        if self.container_name is not None:
+            d["container_name"] = self.container_name
+        return d
 
 
 @dataclass

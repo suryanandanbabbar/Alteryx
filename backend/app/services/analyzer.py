@@ -70,6 +70,8 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
         total_connections=res.metrics.total_connections,
         input_count=res.metrics.input_count,
         output_count=res.metrics.output_count,
+        container_count=res.metrics.container_count,
+        annotation_count=res.metrics.annotation_count,
         input_node_ids=res.metrics.input_node_ids,
         output_node_ids=res.metrics.output_node_ids,
         support_summary=res.metrics.support_summary,
@@ -81,6 +83,8 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
         ttype = tool.tool_type if tool else "Unknown"
         name = (tool.name if tool and tool.name else ttype)
         summary = get_tool_summary(tool.plugin or ttype) if tool else get_tool_summary(ttype)
+        container_id = tool.container_id if tool else None
+        container_name = tool.container_name if tool else None
         exec_steps.append(
             ExecutionStepDTO(
                 step_number=idx,
@@ -89,6 +93,8 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
                 name=name,
                 visual_category=get_visual_category(ttype),
                 summary=summary,
+                container_id=container_id,
+                container_name=container_name,
             )
         )
 
@@ -158,6 +164,8 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
                 output_fields=fields_dto,
                 engine_settings=tool.engine_settings,
                 visual_category=get_visual_category(tool.tool_type),
+                container_id=tool.container_id,
+                container_name=tool.container_name,
             )
         )
 

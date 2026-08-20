@@ -145,6 +145,19 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({ overview, onSelectTo
                     <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
                       #{step.tool_id}
                     </span>
+                    {step.container_name && (
+                      <span style={{
+                        fontSize: '10.5px',
+                        fontWeight: '500',
+                        color: 'var(--color-text-muted)',
+                        background: 'var(--color-surface-secondary)',
+                        border: '1px solid var(--color-border)',
+                        padding: '1px 6px',
+                        borderRadius: 'var(--radius-sm)',
+                      }}>
+                        📁 {step.container_name}
+                      </span>
+                    )}
                   </div>
 
                   {/* Business Summary */}

@@ -6,6 +6,8 @@ from dataclasses import dataclass, field as dc_field
 
 from .tool import Tool
 from .connection import Connection
+from .container import ToolContainer
+from .annotation import TextBoxNode
 from .diagnostic import Diagnostic, Dependency
 
 
@@ -49,14 +51,18 @@ class Workflow:
     
     Attributes:
         metadata: Workflow-level metadata.
-        tools: Tools keyed by tool_id.
+        tools: Executable tools keyed by tool_id.
         connections: Directed connections between tools.
+        containers: ToolContainers keyed by container tool_id.
+        textboxes: TextBoxes / annotations keyed by tool_id.
         dependencies: External dependencies detected.
         diagnostics: Diagnostic messages from analysis.
     """
     metadata: WorkflowMetadata
     tools: dict[int, Tool] = dc_field(default_factory=dict)
     connections: list[Connection] = dc_field(default_factory=list)
+    containers: dict[int, ToolContainer] = dc_field(default_factory=dict)
+    textboxes: dict[int, TextBoxNode] = dc_field(default_factory=dict)
     dependencies: list[Dependency] = dc_field(default_factory=list)
     diagnostics: list[Diagnostic] = dc_field(default_factory=list)
 
@@ -68,6 +74,14 @@ class Workflow:
                 for tid, tool in sorted(self.tools.items())
             },
             "connections": [c.to_dict() for c in self.connections],
+            "containers": {
+                str(cid): cont.to_dict()
+                for cid, cont in sorted(self.containers.items())
+            },
+            "textboxes": {
+                str(tbid): tb.to_dict()
+                for tbid, tb in sorted(self.textboxes.items())
+            },
             "dependencies": [d.to_dict() for d in self.dependencies],
             "diagnostics": [d.to_dict() for d in self.diagnostics],
         }

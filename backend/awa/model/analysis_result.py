@@ -27,6 +27,8 @@ class WorkflowMetrics:
     total_connections: int
     input_count: int
     output_count: int
+    container_count: int = 0
+    annotation_count: int = 0
     input_node_ids: list[int] = dc_field(default_factory=list)
     output_node_ids: list[int] = dc_field(default_factory=list)
     support_summary: dict[str, int] = dc_field(default_factory=dict)
@@ -37,6 +39,8 @@ class WorkflowMetrics:
             "total_connections": self.total_connections,
             "input_count": self.input_count,
             "output_count": self.output_count,
+            "container_count": self.container_count,
+            "annotation_count": self.annotation_count,
             "input_node_ids": self.input_node_ids,
             "output_node_ids": self.output_node_ids,
             "support_summary": self.support_summary,

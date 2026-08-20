@@ -3,6 +3,8 @@
 from .workflow import Workflow, WorkflowMetadata
 from .tool import Tool, ToolConfiguration, Position
 from .connection import Connection
+from .container import ToolContainer
+from .annotation import TextBoxNode
 from .field import Field
 from .diagnostic import Diagnostic, DiagnosticLevel, SupportLevel, Dependency
 from .types import TypeMapping, CanonicalType, TYPE_MAPPING, canonical_to_pandas_dtype, get_type_mapping, alteryx_to_pandas_dtype
@@ -18,6 +20,7 @@ __all__ = [
     "Workflow", "WorkflowMetadata",
     "Tool", "ToolConfiguration", "Position",
     "Connection",
+    "ToolContainer", "TextBoxNode",
     "Field",
     "Diagnostic", "DiagnosticLevel", "SupportLevel", "Dependency",
     "TypeMapping", "CanonicalType", "TYPE_MAPPING", "canonical_to_pandas_dtype", "get_type_mapping", "alteryx_to_pandas_dtype",

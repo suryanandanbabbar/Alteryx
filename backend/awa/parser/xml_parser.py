@@ -1,4 +1,4 @@
-"""AWA XML parser — parses .yxmd files into canonical Workflow IR."""
+"""AWA XML parser — parses .yxmd files into canonical Workflow IR with recursive node traversal."""
 
 from __future__ import annotations
 
@@ -6,7 +6,9 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, ToolConfiguration, Position
+from awa.model.tool import Tool, Position
+from awa.model.container import ToolContainer
+from awa.model.annotation import TextBoxNode
 from awa.model.connection import Connection
 from awa.model.field import Field
 from awa.parser.tool_parser import extract_tool_config
@@ -19,7 +21,7 @@ def parse_workflow(path: str | Path) -> Workflow:
         path: Path to the .yxmd file.
 
     Returns:
-        Parsed Workflow dataclass.
+        Parsed Workflow dataclass with recursive tool discovery and container hierarchy.
 
     Raises:
         FileNotFoundError: If the file does not exist.
@@ -33,13 +35,15 @@ def parse_workflow(path: str | Path) -> Workflow:
     root = tree.getroot()
 
     metadata = _parse_metadata(root, path)
-    tools = _parse_tools(root)
-    connections = _parse_connections(root)
+    tools, containers, textboxes = _parse_all_nodes(root)
+    connections = _parse_connections(root, tools)
 
     return Workflow(
         metadata=metadata,
         tools=tools,
         connections=connections,
+        containers=containers,
+        textboxes=textboxes,
     )
 
 
@@ -100,50 +104,115 @@ def _parse_properties(root: ET.Element) -> dict:
     return props
 
 
-def _parse_tools(root: ET.Element) -> dict[int, Tool]:
-    """Parse all Node elements into Tool dataclasses."""
+def _parse_all_nodes(root: ET.Element) -> tuple[dict[int, Tool], dict[int, ToolContainer], dict[int, TextBoxNode]]:
+    """Recursively traverse all Node elements across container hierarchies."""
     tools: dict[int, Tool] = {}
+    containers: dict[int, ToolContainer] = {}
+    textboxes: dict[int, TextBoxNode] = {}
 
-    for node in root.findall(".//Nodes/Node"):
-        tool_id = int(node.get("ToolID", "0"))
+    def _traverse_node_element(node: ET.Element, parent_container: ToolContainer | None = None) -> None:
+        if node.tag != "Node":
+            return
 
-        # Skip disabled nodes
-        disabled_el = node.find(".//Properties/Disabled")
-        if disabled_el is not None and disabled_el.get("value", "False") == "True":
-            continue
+        tool_id_str = node.get("ToolID", "0")
+        try:
+            tool_id = int(tool_id_str)
+        except ValueError:
+            tool_id = 0
 
-        # Extract plugin from GuiSettings
         gui_settings = node.find("GuiSettings")
         plugin = gui_settings.get("Plugin", "") if gui_settings is not None else ""
 
-        # Skip ToolContainer nodes (visual-only grouping, no data logic)
+        # 1. ToolContainer classification
         if "ToolContainer" in plugin:
-            continue
+            caption = ""
+            disabled = False
+            folded = False
 
-        # Derive tool_type from plugin string
+            cfg_el = node.find(".//Configuration")
+            if cfg_el is not None:
+                cap_el = cfg_el.find("Caption")
+                if cap_el is not None and cap_el.text:
+                    caption = cap_el.text.strip()
+                dis_el = cfg_el.find("Disabled")
+                if dis_el is not None and dis_el.get("value", "False") == "True":
+                    disabled = True
+                fold_el = cfg_el.find("Folded")
+                if fold_el is not None and fold_el.get("value", "False") == "True":
+                    folded = True
+
+            container_obj = ToolContainer(
+                tool_id=tool_id,
+                caption=caption or f"Container #{tool_id}",
+                disabled=disabled or (parent_container.disabled if parent_container else False),
+                folded=folded,
+                parent_container_id=parent_container.tool_id if parent_container else None,
+                position=_extract_position(gui_settings),
+            )
+            containers[tool_id] = container_obj
+
+            # Discover and traverse nested ChildNodes
+            # Check direct ChildNodes and Properties/ChildNodes
+            child_nodes_el = node.find("ChildNodes")
+            if child_nodes_el is None:
+                child_nodes_el = node.find("Properties/ChildNodes")
+            if child_nodes_el is None:
+                child_nodes_el = node.find(".//ChildNodes")
+
+            if child_nodes_el is not None:
+                for child_el in child_nodes_el:
+                    if child_el.tag == "Node":
+                        _traverse_node_element(child_el, parent_container=container_obj)
+            return
+
+        # 2. TextBox classification
+        if "TextBox" in plugin:
+            text = ""
+            cfg_el = node.find(".//Configuration")
+            if cfg_el is not None:
+                text_el = cfg_el.find("Text")
+                if text_el is not None and text_el.text:
+                    text = text_el.text.strip()
+            textboxes[tool_id] = TextBoxNode(
+                tool_id=tool_id,
+                text=text,
+                position=_extract_position(gui_settings),
+            )
+            return
+
+        # 3. Macro / App Questions or non-data visual elements
+        if "Questions" in plugin:
+            return
+
+        # 4. Check if disabled (directly or inherited from parent container)
+        disabled_el = node.find(".//Properties/Disabled")
+        is_node_disabled = disabled_el is not None and disabled_el.get("value", "False") == "True"
+        is_parent_disabled = parent_container.disabled if parent_container else False
+        if is_node_disabled or is_parent_disabled:
+            # If disabled, we still check for any child nodes before returning
+            child_nodes_el = node.find(".//ChildNodes")
+            if child_nodes_el is not None:
+                for child_el in child_nodes_el:
+                    if child_el.tag == "Node":
+                        _traverse_node_element(child_el, parent_container=parent_container)
+            return
+
+        # 5. Executable Tool Node
         tool_type = _derive_tool_type(plugin)
-
-        # Extract position
         position = _extract_position(gui_settings)
-
-        # Extract annotation name
         name = _extract_annotation_name(node)
-
-        # Extract full annotation text
         annotation = _extract_annotation_text(node)
-
-        # Extract configuration
         config_el = node.find(".//Configuration")
         configuration = extract_tool_config(config_el, tool_type)
-
-        # Extract output fields
         output_fields = _extract_fields(node)
 
-        # Extract engine settings
         engine_settings = {}
         engine_el = node.find("EngineSettings")
         if engine_el is not None:
             engine_settings = dict(engine_el.attrib)
+
+        container_id = parent_container.tool_id if parent_container else None
+        container_name = parent_container.caption if parent_container else None
 
         tools[tool_id] = Tool(
             tool_id=tool_id,
@@ -155,9 +224,32 @@ def _parse_tools(root: ET.Element) -> dict[int, Tool]:
             annotation=annotation,
             output_fields=output_fields,
             engine_settings=engine_settings,
+            container_id=container_id,
+            container_name=container_name,
         )
 
-    return tools
+        if parent_container:
+            parent_container.child_tool_ids.append(tool_id)
+
+        # In case an executable tool itself has nested child nodes
+        child_nodes_el = node.find(".//ChildNodes")
+        if child_nodes_el is not None:
+            for child_el in child_nodes_el:
+                if child_el.tag == "Node":
+                    _traverse_node_element(child_el, parent_container=parent_container)
+
+    # Begin traversal from top-level Nodes container
+    nodes_container = root.find("Nodes")
+    if nodes_container is not None:
+        for node in nodes_container:
+            if node.tag == "Node":
+                _traverse_node_element(node)
+    else:
+        # Fallback if no wrapping <Nodes> tag
+        for node in root.findall(".//Node"):
+            _traverse_node_element(node)
+
+    return tools, containers, textboxes
 
 
 def _derive_tool_type(plugin: str) -> str:
@@ -171,7 +263,6 @@ def _derive_tool_type(plugin: str) -> str:
     if not plugin:
         return ""
 
-    # Box-style plugins: last segment is a version digit, keep full string
     last = plugin.rsplit(".", 1)[-1]
     if last.isdigit():
         return plugin
@@ -230,18 +321,21 @@ def _extract_fields(node: ET.Element) -> list[Field]:
     return fields
 
 
-def _parse_connections(root: ET.Element) -> list[Connection]:
-    """Parse all Connection elements into Connection dataclasses."""
+def _parse_connections(root: ET.Element, discovered_tools: dict[int, Tool]) -> list[Connection]:
+    """Parse and validate all Connection elements into Connection dataclasses."""
     connections: list[Connection] = []
 
     for conn in root.findall(".//Connections/Connection"):
         origin = conn.find("Origin")
         dest = conn.find("Destination")
         if origin is not None and dest is not None:
+            origin_id = int(origin.get("ToolID", "0"))
+            dest_id = int(dest.get("ToolID", "0"))
+
             connections.append(Connection(
-                origin_tool_id=int(origin.get("ToolID", "0")),
+                origin_tool_id=origin_id,
                 origin_anchor=origin.get("Connection", ""),
-                destination_tool_id=int(dest.get("ToolID", "0")),
+                destination_tool_id=dest_id,
                 destination_anchor=dest.get("Connection", ""),
             ))
 

@@ -30,6 +30,8 @@ class WorkflowMetricsDTO(BaseModel):
     total_connections: int
     input_count: int
     output_count: int
+    container_count: int = 0
+    annotation_count: int = 0
     input_node_ids: list[int] = Field(default_factory=list)
     output_node_ids: list[int] = Field(default_factory=list)
     support_summary: dict[str, int] = Field(default_factory=dict)
@@ -75,6 +77,8 @@ class NodeDTO(BaseModel):
     output_fields: list[FieldDTO] = Field(default_factory=list)
     engine_settings: dict[str, str] = Field(default_factory=dict)
     visual_category: str
+    container_id: int | None = None
+    container_name: str | None = None
 
 
 class ConnectionDTO(BaseModel):
@@ -91,6 +95,8 @@ class ExecutionStepDTO(BaseModel):
     name: str
     visual_category: str
     summary: str = ""
+    container_id: int | None = None
+    container_name: str | None = None
 
 
 class DagNodeLayoutDTO(BaseModel):

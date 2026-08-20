@@ -49,6 +49,8 @@ class Tool:
         annotation: Full annotation text.
         output_fields: Output field schema from MetaInfo/RecordInfo.
         engine_settings: Engine execution settings (EngineDll, EngineDllEntryPoint, etc.).
+        container_id: Parent ToolContainer ID if nested, else None.
+        container_name: Parent ToolContainer caption if nested, else None.
     """
     tool_id: int
     plugin: str
@@ -59,6 +61,8 @@ class Tool:
     annotation: str = ""
     output_fields: list[Field] = dc_field(default_factory=list)
     engine_settings: dict[str, str] = dc_field(default_factory=dict)
+    container_id: int | None = None
+    container_name: str | None = None
 
     def to_dict(self) -> dict:
         from awa.tools.catalog import get_tool_catalog
@@ -85,4 +89,8 @@ class Tool:
             d["position"] = self.position.to_dict()
         if self.engine_settings:
             d["engine_settings"] = self.engine_settings
+        if self.container_id is not None:
+            d["container_id"] = self.container_id
+        if self.container_name is not None:
+            d["container_name"] = self.container_name
         return d

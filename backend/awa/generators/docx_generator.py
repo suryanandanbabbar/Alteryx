@@ -447,6 +447,12 @@ def generate_docx(
         r_type.font.color.rgb = RGB_MUTED
         r_type.font.size = Pt(10)
 
+        if step.container_name:
+            r_cont = p_step.add_run(f"  [Container: {step.container_name}]")
+            r_cont.font.color.rgb = RGB_MUTED
+            r_cont.font.size = Pt(9)
+            r_cont.font.italic = True
+
         p_desc = doc.add_paragraph()
         p_desc.paragraph_format.left_indent = Inches(0.25)
         p_desc.paragraph_format.space_after = Pt(6)
@@ -553,7 +559,8 @@ def generate_docx(
         p_node_title = doc.add_paragraph()
         p_node_title.paragraph_format.space_before = Pt(10)
         p_node_title.paragraph_format.space_after = Pt(4)
-        r_nh = p_node_title.add_run(f"Tool #{node.tool_id} — {node.name} ({node.tool_type})")
+        cont_str = f" [Container: {node.container_name}]" if node.container_name else ""
+        r_nh = p_node_title.add_run(f"Tool #{node.tool_id} — {node.name} ({node.tool_type}){cont_str}")
         r_nh.bold = True
         r_nh.font.size = Pt(10.5)
         r_nh.font.color.rgb = RGB_NAVY

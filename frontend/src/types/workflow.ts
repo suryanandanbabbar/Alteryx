@@ -26,6 +26,8 @@ export interface WorkflowMetricsDTO {
   total_connections: number;
   input_count: number;
   output_count: number;
+  container_count?: number;
+  annotation_count?: number;
   input_node_ids: number[];
   output_node_ids: number[];
   support_summary: Record<string, number>;
@@ -64,6 +66,8 @@ export interface NodeDTO {
   output_fields: FieldDTO[];
   engine_settings?: Record<string, string>;
   visual_category: string;
+  container_id?: number | null;
+  container_name?: string | null;
 }
 
 export interface ConnectionDTO {
@@ -80,6 +84,8 @@ export interface ExecutionStepDTO {
   name: string;
   visual_category: string;
   summary?: string;
+  container_id?: number | null;
+  container_name?: string | null;
 }
 
 export interface DagNodeLayoutDTO {

@@ -137,9 +137,17 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
                         </td>
                       </tr>
                     )}
+                    {node.container_name && (
+                      <tr style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
+                        <td style={{ padding: '6px 0', width: '150px', color: 'var(--color-text-muted)', fontWeight: '500' }}>Tool Container</td>
+                        <td style={{ padding: '6px 0', color: 'var(--color-text)', fontWeight: '600' }}>
+                          📁 {node.container_name} {node.container_id ? `(#${node.container_id})` : ''}
+                        </td>
+                      </tr>
+                    )}
                     {node.annotation && (
                       <tr style={{ borderBottom: '1px solid var(--color-border-subtle)' }}>
-                        <td style={{ padding: '6px 0', color: 'var(--color-text-muted)', fontWeight: '500' }}>Annotation</td>
+                        <td style={{ padding: '6px 0', width: '150px', color: 'var(--color-text-muted)', fontWeight: '500' }}>Annotation</td>
                         <td style={{ padding: '6px 0', color: 'var(--color-text)' }}>{node.annotation}</td>
                       </tr>
                     )}

@@ -117,6 +117,8 @@ def analyze_canonical(
         total_connections=len(workflow.connections),
         input_count=len(input_node_ids),
         output_count=len(output_node_ids),
+        container_count=len(workflow.containers),
+        annotation_count=len(workflow.textboxes),
         input_node_ids=input_node_ids,
         output_node_ids=output_node_ids,
         support_summary=support_counts,

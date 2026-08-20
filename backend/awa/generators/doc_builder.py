@@ -76,6 +76,8 @@ def build_document_model(
                 name=name,
                 visual_category=vcat,
                 summary=summary,
+                container_id=tool.container_id if tool else None,
+                container_name=tool.container_name if tool else None,
             )
         )
 
@@ -103,6 +105,8 @@ def build_document_model(
                 configuration=humanize_tool_configuration(tool.tool_type, tool.configuration.parsed),
                 input_variables=input_vars,
                 output_variables=output_vars,
+                container_id=tool.container_id,
+                container_name=tool.container_name,
             )
         )
 
