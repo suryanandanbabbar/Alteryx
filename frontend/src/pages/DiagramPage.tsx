@@ -10,10 +10,17 @@ interface DiagramPageProps {
   selectedToolId?: number | null;
 }
 
-export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedToolId }) => {
+export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedToolId: initialSelectedToolId }) => {
   const [diagramData, setDiagramData] = useState<DiagramDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedToolId, setSelectedToolId] = useState<number | null>(initialSelectedToolId ?? null);
+
+  useEffect(() => {
+    if (initialSelectedToolId) {
+      setSelectedToolId(initialSelectedToolId);
+    }
+  }, [initialSelectedToolId]);
 
   useEffect(() => {
     let mounted = true;
@@ -38,6 +45,14 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
 
   const handleDownloadSvg = () => {
     window.location.href = api.getDownloadUrl(analysisId, 'svg');
+  };
+
+  const handleSelectNode = (toolId: number) => {
+    setSelectedToolId(toolId);
+    const detailEl = document.getElementById(`tool-detail-${toolId}`);
+    if (detailEl) {
+      detailEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   };
 
   if (loading) {
@@ -69,7 +84,7 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1000px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
       {/* Section Subtitle */}
       <div>
         <div style={{
@@ -87,10 +102,12 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
         </h2>
       </div>
 
-      {/* DAG Visualization */}
+      {/* Full-Width Interactive DAG Visualization */}
       <DagViewer
         svgContent={diagramData.svg}
         onDownloadSvg={handleDownloadSvg}
+        onSelectNode={handleSelectNode}
+        selectedToolId={selectedToolId}
       />
 
       {/* Node Configurations & Details */}
