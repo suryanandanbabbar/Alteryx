@@ -1,4 +1,4 @@
-"""Tests for deterministic Workflow Intelligence and Business Narrative Engine."""
+"""Tests for deterministic Workflow Intelligence and Executive Business Assessment Engine."""
 
 from pathlib import Path
 import pytest
@@ -13,7 +13,7 @@ from backend.app.services.analyzer import to_overview_dto
 
 
 class TestBusinessIntelligenceEngine:
-    """Test suite validating structured business facts, business rules, assessment, inputs/outputs, and lineage."""
+    """Test suite validating structured facts, executive assessment, inputs/outputs, lineage, gaps, and disposition."""
 
     @pytest.fixture
     def demo_claims_workflow(self):
@@ -28,12 +28,12 @@ class TestBusinessIntelligenceEngine:
 
         bs = generate_business_summary(demo_claims_workflow, graph, exec_order)
 
-        # 1. Business Purpose (1-2 concise sentences, no essays)
+        # 1. Business Purpose (1-3 concise sentences, no technical jargon or tool numbers)
         assert bs.business_purpose != ""
         assert "claims" in bs.business_purpose.lower()
         assert bs.one_line_purpose != ""
 
-        # 2. Source Inputs (4 inputs with concrete business roles)
+        # 2. Source Inputs (4 inputs with concrete business roles & formats)
         assert len(bs.source_inputs) == 4
         input_names = [inp.name for inp in bs.source_inputs]
         assert any("Claims Volume" in name for name in input_names)
@@ -44,6 +44,7 @@ class TestBusinessIntelligenceEngine:
         for inp in bs.source_inputs:
             assert inp.source_type == "Excel Workbook"
             assert inp.business_role != ""
+            assert inp.dependency_significance != ""
             assert len(inp.evidence) > 0
 
         # 3. Business Outputs (5 primary deliverables with business meaning & likely use)
@@ -81,22 +82,31 @@ class TestBusinessIntelligenceEngine:
             assert r.description != ""
             assert r.evidence != ""
 
-        # 6. Source-to-Target Lineage
+        # 6. Source-to-Target Lineage (Impact understanding)
         assert len(bs.lineage) == 5
         for lin in bs.lineage:
             assert lin.source_name != ""
             assert lin.transformation != ""
             assert lin.target_name != ""
 
-        # 7. Initial Business & Governance Assessment
-        assert bs.assessment is not None
-        assert bs.assessment.complexity in ("Low", "Moderate", "High")
-        assert len(bs.assessment.complexity_factors) > 0
-        assert bs.assessment.business_owner == "Not documented"
-        assert bs.assessment.schedule == "Not documented"
-        assert bs.assessment.criticality == "Not documented"
-        assert len(bs.assessment.key_observations) >= 4
-        assert len(bs.assessment.key_activities) >= 4
+        # 7. Executive Business Assessment
+        assessment = bs.assessment
+        assert assessment is not None
+        assert assessment.platform == "Alteryx Designer"
+        assert assessment.complexity in ("Low", "Moderate", "High")
+        assert len(assessment.complexity_factors) > 0
+        assert assessment.business_owner == "Not documented"
+        assert assessment.schedule == "Not documented"
+        assert assessment.criticality == "Not documented"
+        assert assessment.assessment_status == "Automated assessment"
+
+        # 8. Business Role & Value, Key Findings, Gaps, Disposition, Validation
+        assert len(assessment.role_and_value) >= 2
+        assert len(assessment.key_findings) >= 4
+        assert len(assessment.assessment_gaps) >= 6
+        assert assessment.preliminary_disposition == "Further assessment required"
+        assert "stakeholder validation" in assessment.disposition_rationale.lower()
+        assert len(assessment.validation_checklist) >= 6
 
     def test_determinism(self, demo_claims_workflow):
         """Verify that identical inputs produce 100% identical business facts."""
@@ -114,7 +124,7 @@ class TestBusinessIntelligenceEngine:
         assert bs1.assessment.to_dict() == bs2.assessment.to_dict()
 
     def test_synthetic_workflow_without_annotations_or_containers(self, tmp_path: Path):
-        """Verify graceful degradation when metadata, annotations, and containers are missing."""
+        """Verify graceful degradation and proper 'Not documented' markers when metadata is missing."""
         xml_content = """<?xml version="1.0"?>
 <AlteryxDocument yxmdVer="2024.1">
   <Nodes>
@@ -164,6 +174,8 @@ class TestBusinessIntelligenceEngine:
         assert len(bs.processing_stages) > 0
         assert bs.assessment.business_owner == "Not documented"
         assert bs.assessment.schedule == "Not documented"
+        assert bs.assessment.criticality == "Not documented"
+        assert bs.assessment.preliminary_disposition == "Further assessment required"
 
     def test_canonical_analysis_integration(self):
         """Verify CanonicalAnalysisResult and DTOs contain structured business facts."""
@@ -177,6 +189,8 @@ class TestBusinessIntelligenceEngine:
         assert len(overview_dto.business_summary.business_outputs) == 5
         assert len(overview_dto.business_summary.business_rules) >= 5
         assert overview_dto.business_summary.assessment.business_owner == "Not documented"
+        assert overview_dto.business_summary.assessment.preliminary_disposition == "Further assessment required"
+        assert len(overview_dto.business_summary.assessment.key_findings) >= 4
 
     def test_api_upload_endpoint_returns_business_summary(self):
         """Verify the FastAPI /api/upload endpoint returns populated business_summary."""
@@ -200,3 +214,5 @@ class TestBusinessIntelligenceEngine:
         assert "business_rules" in bs
         assert len(bs["business_rules"]) >= 5
         assert bs["assessment"]["business_owner"] == "Not documented"
+        assert bs["assessment"]["preliminary_disposition"] == "Further assessment required"
+        assert len(bs["assessment"]["key_findings"]) >= 4

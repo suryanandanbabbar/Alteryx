@@ -229,12 +229,20 @@ class BusinessAssessmentDTO(BaseModel):
     complexity: str = "Moderate"
     complexity_reason: str = ""
     complexity_factors: list[str] = Field(default_factory=list)
+    platform: str = "Alteryx Designer"
     business_owner: str = "Not documented"
     schedule: str = "Not documented"
     criticality: str = "Not documented"
     documentation_quality: str = "Partially documented"
+    assessment_status: str = "Automated assessment"
     key_observations: list[str] = Field(default_factory=list)
     key_activities: list[str] = Field(default_factory=list)
+    key_findings: list[str] = Field(default_factory=list)
+    role_and_value: list[str] = Field(default_factory=list)
+    assessment_gaps: list[dict[str, str]] = Field(default_factory=list)
+    preliminary_disposition: str = "Further assessment required"
+    disposition_rationale: str = ""
+    validation_checklist: list[str] = Field(default_factory=list)
     why_it_matters: str = ""
 
 

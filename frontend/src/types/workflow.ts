@@ -207,12 +207,20 @@ export interface BusinessAssessmentDTO {
   complexity: string;
   complexity_reason: string;
   complexity_factors: string[];
+  platform?: string;
   business_owner: string;
   schedule: string;
   criticality: string;
   documentation_quality: string;
+  assessment_status?: string;
   key_observations: string[];
   key_activities: string[];
+  key_findings?: string[];
+  role_and_value?: string[];
+  assessment_gaps?: Array<{ dimension: string; status: string; action: string }>;
+  preliminary_disposition?: string;
+  disposition_rationale?: string;
+  validation_checklist?: string[];
   why_it_matters: string;
 }
 

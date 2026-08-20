@@ -758,42 +758,99 @@ def _compute_assessment(
         f"{len(inputs)} upstream data sources ingested",
         "Multiple cross-source enrichment and aggregation paths" if len(inputs) > 1 else "Direct linear transformation path",
         f"{len(outputs)} downstream reporting outputs published",
-        "Business ownership not documented",
+        "Business ownership not documented" if not workflow.metadata.author else f"Documented author: {workflow.metadata.author}",
         "Workflow schedule not documented",
     ]
 
     # Key Activities (4-6 concise bullets)
     activities = [
-        "Claims historical volume reporting",
-        "Team-level examiner and manager reporting",
-        "Policy, payment, and diary record enrichment",
-        "Activity recency and aging duration calculation",
-        "Product, state, and litigation risk export generation",
+        f"Ingests {len(inputs)} source operational dataset{'s' if len(inputs) != 1 else ''}",
+        "Cross-source reference data enrichment and joins" if len(inputs) > 1 else "Direct stream data transformation",
+        f"Multi-dimensional analytical processing across {len(stages)} stage{'s' if len(stages) != 1 else ''}",
+        f"Publishes {len(outputs)} downstream reporting deliverable{'s' if len(outputs) != 1 else ''}",
+    ]
+
+    # Key Findings (3-6 factual bullets)
+    findings = [
+        f"The workflow depends on {len(inputs)} upstream source dataset{'s' if len(inputs) != 1 else ''}.",
+        f"Produces {len(outputs)} distinct reporting deliverable{'s' if len(outputs) != 1 else ''} from the transformed data.",
+        "Joins reference attributes (policy, financial, and diary records) to primary transaction records." if len(inputs) > 1 else "Executes single-source data preparation and transformation.",
+        "Business ownership is not documented in the workflow metadata." if not workflow.metadata.author else f"Documented workflow author: {workflow.metadata.author}.",
+        "Execution schedule and processing frequency are not documented in the workflow definition.",
+        "Downstream business consumers and consumption SLAs are not identified in the workflow metadata.",
+    ]
+
+    # Business Role & Value (2-4 concise evidence-based statements, no buzzwords)
+    role_and_value = [
+        f"Consolidates {len(inputs)} upstream operational dataset{'s' if len(inputs) != 1 else ''} into a unified business process.",
+        f"Produces {len(outputs)} analytical view{'s' if len(outputs) != 1 else ''} and reporting deliverable{'s' if len(outputs) != 1 else ''} from a single processing pipeline.",
+        "Automates cross-source data reconciliation, aggregation, and operational classification rules.",
+    ]
+
+    # Assessment Gaps (What cannot be determined from static workflow analysis)
+    assessment_gaps = [
+        {"dimension": "Business Owner", "status": "Not documented" if not workflow.metadata.author else workflow.metadata.author, "action": "Confirm designated business owner and operational point of contact"},
+        {"dimension": "Execution Schedule", "status": "Not documented", "action": "Confirm production run frequency (e.g., daily, weekly, monthly, ad-hoc)"},
+        {"dimension": "Operational Criticality", "status": "Not documented", "action": "Establish business criticality tier (Tier 1/2/3) and business outage impact"},
+        {"dimension": "Downstream Consumers", "status": "Not documented", "action": "Identify specific teams, systems, or dashboards consuming output deliverables"},
+        {"dimension": "Current Usage", "status": "Not documented", "action": "Verify if the workflow is actively running in production or legacy/dormant"},
+        {"dimension": "Redundancy / Duplicate Flow", "status": "Not documented", "action": "Confirm if parallel reporting pipelines or modern data warehouse views exist"},
+        {"dimension": "Business Value / Impact", "status": "Not documented", "action": "Quantify operational dependency and financial/regulatory importance"},
+        {"dimension": "Upstream / Downstream SLA", "status": "Not documented", "action": "Document upstream data availability timelines and delivery SLAs"},
+    ]
+
+    # Preliminary Disposition (Deterministic and non-speculative)
+    preliminary_disposition = "Further assessment required"
+    disposition_rationale = (
+        f"The workflow has multiple upstream dependencies ({len(inputs)} source{'s' if len(inputs) != 1 else ''}) "
+        f"and generates {len(outputs)} business deliverable{'s' if len(outputs) != 1 else ''}, but current usage, "
+        f"business ownership, downstream consumers, and operational criticality are not documented in the workflow "
+        f"definition. Final disposition requires business and technical stakeholder validation."
+    )
+
+    # Business Validation Checklist
+    validation_checklist = [
+        "Business Owner: Confirm",
+        "Frequency / Schedule: Confirm",
+        "Criticality: Confirm",
+        "Downstream Consumers: Confirm",
+        "Current Usage: Confirm",
+        "Redundancy / Duplicate Flow: Confirm",
+        "Business Value: Confirm",
+        "Final Disposition: Confirm",
     ]
 
     # Why the workflow matters (factual, no buzzwords)
     why_it_matters = (
-        "Consolidates recurring claims operational data, automates cross-source enrichment "
-        "with policy, financial, and adjuster diary records, and delivers multi-dimensional "
-        "reporting across volume, product line, geography, and litigation aging risk."
+        "Consolidates recurring operational data, automates cross-source enrichment "
+        "with reference master data, and delivers multi-dimensional reporting across "
+        "volume, performance, geography, and operational duration risk."
     )
 
     return BusinessAssessment(
         complexity=complexity,
         complexity_reason=reason,
         complexity_factors=factors,
+        platform="Alteryx Designer",
         business_owner=workflow.metadata.author or "Not documented",
         schedule="Not documented",
         criticality="Not documented",
         documentation_quality="Partially documented" if len(workflow.textboxes) > 0 or any(t.annotation for t in workflow.tools.values()) else "Not documented",
+        assessment_status="Automated assessment",
         key_observations=observations,
         key_activities=activities,
+        key_findings=findings,
+        role_and_value=role_and_value,
+        assessment_gaps=assessment_gaps,
+        preliminary_disposition=preliminary_disposition,
+        disposition_rationale=disposition_rationale,
+        validation_checklist=validation_checklist,
         why_it_matters=why_it_matters,
     )
 
 
 # ---------------------------------------------------------------------------
-# Phase 8: Business Purpose Inference (1–2 Concise Sentences)
+# Phase 8: Business Purpose Inference (1–3 Concise Sentences)
 # ---------------------------------------------------------------------------
 
 def _infer_purpose(
@@ -803,14 +860,13 @@ def _infer_purpose(
     stages: list[BusinessStage],
     evidence: list[str],
 ) -> tuple[str, str]:
-    """Derive a concise 1-2 sentence business purpose statement and a one-line title."""
+    """Derive a concise 1-3 sentence business purpose statement and a one-line title."""
     meta_desc = workflow.metadata.description or ""
     textbox_texts = [tb.text.strip() for tb in workflow.textboxes.values() if tb.text and len(tb.text.strip()) > 30]
 
     one_line = "Claims reporting and operational risk analysis workflow"
 
     if meta_desc and len(meta_desc) > 30:
-        # Use first 1-2 sentences of description
         sentences = [s.strip() for s in meta_desc.split(".") if s.strip()]
         purpose = ". ".join(sentences[:2]) + "."
     elif textbox_texts:
@@ -819,6 +875,6 @@ def _infer_purpose(
     else:
         inp_str = ", ".join([i.name for i in inputs[:3]])
         out_str = ", ".join([o.name for o in outputs[:3]])
-        purpose = f"Ingests {inp_str}, applies transformation and enrichment business rules, and publishes {out_str}."
+        purpose = f"The workflow ingests {inp_str}, applies transformation and enrichment business rules, and publishes {out_str}."
 
     return purpose, one_line

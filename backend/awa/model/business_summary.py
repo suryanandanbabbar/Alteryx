@@ -14,11 +14,12 @@ class BusinessInput:
     """An input data source identified in the workflow."""
     tool_id: int
     name: str                       # e.g. "Claims Volume"
-    raw_source: str                 # e.g. ".\Data\Claims_Volume_Extract_Demo.xlsx|||Sheet1$"
+    raw_source: str                 # e.g. ".\\Data\\Claims_Volume_Extract_Demo.xlsx|||Sheet1$"
     source_type: str                # e.g. "Excel Workbook", "CSV Data File"
     sheet_or_table: str | None = None
     container_name: str | None = None
     business_role: str = ""         # e.g. "Primary claims dataset"
+    dependency_significance: str = "Primary source input required for downstream processing"
     description: str = ""
     evidence: list[str] = dc_field(default_factory=list)
 
@@ -31,6 +32,7 @@ class BusinessInput:
             "sheet_or_table": self.sheet_or_table,
             "container_name": self.container_name,
             "business_role": self.business_role,
+            "dependency_significance": self.dependency_significance,
             "description": self.description,
             "evidence": self.evidence,
         }
@@ -45,7 +47,7 @@ class BusinessOutput:
     destination_type: str           # e.g. "Excel Workbook", "Alteryx Database"
     sheet_or_table: str | None = None
     business_meaning: str = ""      # e.g. "Claim-level historical reporting"
-    likely_use: str = ""            # e.g. "Operational historical reporting" or "Use not documented"
+    likely_use: str = ""            # e.g. "Quarterly claims volume reporting" or "Use not documented"
     business_purpose: str = ""      # Deprecated alias kept for backward compatibility
     container_name: str | None = None
     upstream_sources: list[str] = dc_field(default_factory=list)
@@ -171,16 +173,24 @@ class BusinessLineageEntry:
 
 @dataclass
 class BusinessAssessment:
-    """Governance, complexity, and initial assessment facts."""
+    """Governance, complexity, findings, gaps, disposition, and validation requirements."""
     complexity: str                 # "Low", "Moderate", "High", "Very High"
     complexity_reason: str
     complexity_factors: list[str] = dc_field(default_factory=list)
+    platform: str = "Alteryx Designer"
     business_owner: str = "Not documented"
     schedule: str = "Not documented"
     criticality: str = "Not documented"
     documentation_quality: str = "Partially documented"
+    assessment_status: str = "Automated assessment"
     key_observations: list[str] = dc_field(default_factory=list)
     key_activities: list[str] = dc_field(default_factory=list)
+    key_findings: list[str] = dc_field(default_factory=list)
+    role_and_value: list[str] = dc_field(default_factory=list)
+    assessment_gaps: list[dict[str, str]] = dc_field(default_factory=list)
+    preliminary_disposition: str = "Further assessment required"
+    disposition_rationale: str = ""
+    validation_checklist: list[str] = dc_field(default_factory=list)
     why_it_matters: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -188,12 +198,20 @@ class BusinessAssessment:
             "complexity": self.complexity,
             "complexity_reason": self.complexity_reason,
             "complexity_factors": self.complexity_factors,
+            "platform": self.platform,
             "business_owner": self.business_owner,
             "schedule": self.schedule,
             "criticality": self.criticality,
             "documentation_quality": self.documentation_quality,
+            "assessment_status": self.assessment_status,
             "key_observations": self.key_observations,
             "key_activities": self.key_activities,
+            "key_findings": self.key_findings,
+            "role_and_value": self.role_and_value,
+            "assessment_gaps": self.assessment_gaps,
+            "preliminary_disposition": self.preliminary_disposition,
+            "disposition_rationale": self.disposition_rationale,
+            "validation_checklist": self.validation_checklist,
             "why_it_matters": self.why_it_matters,
         }
 
@@ -201,7 +219,7 @@ class BusinessAssessment:
 @dataclass
 class WorkflowBusinessSummary:
     """The authoritative, deterministic business intelligence summary for the workflow."""
-    business_purpose: str           # 1-2 concise sentences answering "Why does this workflow exist?"
+    business_purpose: str           # 1-3 concise sentences answering "Why does this workflow exist?"
     one_line_purpose: str           # e.g. "Claims reporting and enrichment workflow"
     why_it_matters: str             # Factual business value summary
     source_inputs: list[BusinessInput] = dc_field(default_factory=list)
