@@ -41,6 +41,7 @@ def download_docx(analysis_id: str):
         res.translations,
         res.dag_layout,
         res.lineage_paths,
+        business_summary=res.business_summary,
     )
     svg_str = generate_svg(res.dag_layout)
 
@@ -142,6 +143,7 @@ def download_zip(analysis_id: str):
         res.translations,
         res.dag_layout,
         res.lineage_paths,
+        business_summary=res.business_summary,
     )
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tf:
         tmp_path = Path(tf.name)

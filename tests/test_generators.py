@@ -30,7 +30,10 @@ def test_docx_generation(tmp_path: Path):
     layout = compute_dag_layout(g, wf, order)
     lineage = compute_lineage_paths(wf, g)
 
-    doc_model = build_document_model(wf, order, translations, layout, lineage)
+    from awa.analysis.business_intelligence import generate_business_summary
+
+    bs = generate_business_summary(wf, g, order)
+    doc_model = build_document_model(wf, order, translations, layout, lineage, business_summary=bs)
     assert "join_workflow" in doc_model.title
     assert len(doc_model.nodes) == 6
     assert len(doc_model.execution_order) == 6

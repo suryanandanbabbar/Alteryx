@@ -108,21 +108,26 @@ class TestBusinessIntelligenceEngine:
         assert "stakeholder validation" in assessment.disposition_rationale.lower()
         assert len(assessment.validation_checklist) >= 6
 
-        # 9. Structured Executive Summary (Report Writing Standard)
+        # 9. Structured Executive Summary (Business Analysis Standard)
         exec_sum = bs.executive_summary
         assert exec_sum is not None
         assert exec_sum.subject_and_purpose != ""
-        assert exec_sum.method_and_scope != ""
-        assert len(exec_sum.key_findings) >= 4
-        assert exec_sum.conclusion != ""
-        assert len(exec_sum.recommendations) >= 3
+        assert exec_sum.methods_and_process != ""
+        assert len(exec_sum.findings) >= 3
+        assert exec_sum.conclusions != ""
+        assert len(exec_sum.recommendations) >= 2
         assert len(exec_sum.limitations) >= 2
 
         # Verify no tool IDs in executive summary
-        for fnd in exec_sum.key_findings:
-            assert "#" not in fnd
         assert "#" not in exec_sum.subject_and_purpose
-        assert "#" not in exec_sum.conclusion
+        assert "#" not in exec_sum.methods_and_process
+        for fnd in exec_sum.findings:
+            assert "#" not in fnd
+        assert "#" not in exec_sum.conclusions
+        for r in exec_sum.recommendations:
+            assert "#" not in r
+        for lim in exec_sum.limitations:
+            assert "#" not in lim
 
     def test_determinism(self, demo_claims_workflow):
         """Verify that identical inputs produce 100% identical business facts."""

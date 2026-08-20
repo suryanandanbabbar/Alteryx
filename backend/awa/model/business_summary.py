@@ -172,21 +172,38 @@ class BusinessLineageEntry:
 
 
 @dataclass
+class ExecutiveBusinessRule:
+    """A business-significant rule with its operational meaning."""
+    rule: str           # What the rule does in business terms
+    meaning: str        # Why the rule matters to the resulting information
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "rule": self.rule,
+            "meaning": self.meaning,
+        }
+
+
+@dataclass
 class ExecutiveSummaryContent:
-    """Structured, professional Executive Summary content following the report writing standard."""
-    subject_and_purpose: str        # 2-4 sentences: subject, purpose, process supported
-    method_and_scope: str           # 1-2 sentences: static analysis & lineage reconstruction
-    key_findings: list[str] = dc_field(default_factory=list)      # 3-5 synthesized material findings
-    conclusion: str = ""            # 1-2 sentences: business interpretation / process role
-    recommendations: list[str] = dc_field(default_factory=list)   # 2-4 actionable items based on evidence
-    limitations: list[str] = dc_field(default_factory=list)       # 2-3 material limitations of static analysis
+    """Structured Executive Summary conforming to the business analysis report standard."""
+    subject_and_purpose: str = ""                       # 1. Subject matter / business purpose paragraph
+    methods_and_process: str = ""                       # 2. Methods / workflow process flow paragraph
+    findings: list[str] = dc_field(default_factory=list) # 3. Objective structural and operational findings
+    conclusions: str = ""                               # 4. Short business interpretation of the process
+    recommendations: list[str] = dc_field(default_factory=list) # 5. Actionable next steps for business/migration teams
+    limitations: list[str] = dc_field(default_factory=list)     # 6. Material boundaries of static analysis
+
+    @property
+    def purpose(self) -> str:
+        return self.subject_and_purpose
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "subject_and_purpose": self.subject_and_purpose,
-            "method_and_scope": self.method_and_scope,
-            "key_findings": self.key_findings,
-            "conclusion": self.conclusion,
+            "methods_and_process": self.methods_and_process,
+            "findings": self.findings,
+            "conclusions": self.conclusions,
             "recommendations": self.recommendations,
             "limitations": self.limitations,
         }
