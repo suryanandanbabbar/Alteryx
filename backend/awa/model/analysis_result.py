@@ -48,6 +48,7 @@ class WorkflowMetrics:
 
 
 from awa.model.business_summary import WorkflowBusinessSummary
+from awa.model.sttm import STTMDocument
 
 
 @dataclass
@@ -71,6 +72,7 @@ class CanonicalAnalysisResult:
     required_libraries: list[str]
     diagnostics: list[Diagnostic]
     business_summary: WorkflowBusinessSummary | None = None
+    sttm: STTMDocument | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the entire canonical result to a comprehensive dictionary."""
@@ -91,4 +93,6 @@ class CanonicalAnalysisResult:
         }
         if self.business_summary is not None:
             d["business_summary"] = self.business_summary.to_dict()
+        if self.sttm is not None:
+            d["sttm"] = self.sttm.to_dict()
         return d

@@ -15,6 +15,8 @@ from awa.generators.svg_generator import generate_svg
 from awa.generators.docx_generator import generate_docx
 from awa.generators.doc_builder import build_document_model
 from awa.generators.python_generator import generate_python_code
+from awa.generators.sttm_generator import generate_sttm_excel
+from awa.analysis.sttm_extractor import extract_sttm
 from backend.app.services.storage import get_storage
 
 router = APIRouter(prefix="/download", tags=["Download"])
@@ -29,6 +31,30 @@ def _get_result_or_404(analysis_id: str):
             detail=f"Analysis with ID '{analysis_id}' not found or session has expired.",
         )
     return result
+
+
+@router.get("/{analysis_id}/sttm")
+def download_sttm(analysis_id: str):
+    """Download the Source-to-Target Mapping (.xlsx) workbook for the workflow."""
+    res = _get_result_or_404(analysis_id)
+    sttm_doc = res.sttm or extract_sttm(res.workflow, res.graph, res.business_summary)
+
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tf:
+        tmp_path = Path(tf.name)
+
+    try:
+        generate_sttm_excel(sttm_doc, tmp_path)
+        xlsx_bytes = tmp_path.read_bytes()
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+    filename = f"{res.workflow.metadata.name or 'workflow'}_STTM.xlsx"
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{analysis_id}/docx")
@@ -154,6 +180,17 @@ def download_zip(analysis_id: str):
         if tmp_path.exists():
             tmp_path.unlink()
 
+    # 6. STTM XLSX
+    sttm_doc = res.sttm or extract_sttm(res.workflow, res.graph, res.business_summary)
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tf_xlsx:
+        tmp_xlsx_path = Path(tf_xlsx.name)
+    try:
+        generate_sttm_excel(sttm_doc, tmp_xlsx_path)
+        sttm_bytes = tmp_xlsx_path.read_bytes()
+    finally:
+        if tmp_xlsx_path.exists():
+            tmp_xlsx_path.unlink()
+
     # Build in-memory ZIP
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -161,6 +198,7 @@ def download_zip(analysis_id: str):
         zf.writestr(f"{base_name}/workflow.py", py_bytes)
         zf.writestr(f"{base_name}/workflow.svg", svg_bytes)
         zf.writestr(f"{base_name}/workflow.docx", docx_bytes)
+        zf.writestr(f"{base_name}/{base_name}_STTM.xlsx", sttm_bytes)
         zf.writestr(f"{base_name}/diagnostics.json", diags_bytes)
 
     zip_bytes = zip_buffer.getvalue()

@@ -521,7 +521,7 @@ def _detect_business_rules(workflow: Workflow, exec_order: list[int], evidence: 
         cfg = tool.configuration.parsed
 
         # Rule: Payment zero-filling
-        if tool.tool_type == "Formula" and ("zero" in ann.lower() or "isnull" in str(cfg).lower()):
+        if tool.tool_type == "Formula" and ("zero" in ann.lower() or "payment" in ann.lower() or "total paid" in str(cfg).lower()):
             rules.append(
                 BusinessRule(
                     rule_name="Payment Defaulting",

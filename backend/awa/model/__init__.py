@@ -27,6 +27,7 @@ from .business_summary import (
     ExecutiveSummaryContent,
     WorkflowBusinessSummary,
 )
+from .sttm import STTMMapping, STTMDocument
 
 __all__ = [
     "Workflow", "WorkflowMetadata",
@@ -45,4 +46,5 @@ __all__ = [
     "CanonicalAnalysisResult", "WorkflowMetrics",
     "BusinessInput", "BusinessOutput", "BusinessStage", "BusinessTransformation",
     "BusinessRule", "BusinessLineageEntry", "BusinessAssessment", "ExecutiveBusinessRule", "ExecutiveSummaryContent", "WorkflowBusinessSummary",
+    "STTMMapping", "STTMDocument",
 ]

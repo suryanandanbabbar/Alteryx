@@ -1,14 +1,14 @@
 import React from 'react';
 import { api } from '../api/client';
 import { DownloadCard } from '../components/DownloadCard';
-import { FileText, FileCode2, Terminal, GitFork, Archive } from 'lucide-react';
+import { FileText, FileCode2, Terminal, GitFork, Archive, Table } from 'lucide-react';
 
 interface DownloadPageProps {
   analysisId: string;
 }
 
 export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
-  const triggerDownload = (type: 'docx' | 'json' | 'python' | 'svg' | 'zip') => {
+  const triggerDownload = (type: 'docx' | 'json' | 'python' | 'svg' | 'zip' | 'sttm') => {
     window.location.href = api.getDownloadUrl(analysisId, type);
   };
 
@@ -35,7 +35,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
       <DownloadCard
         icon={Archive}
         title="Complete bundle"
-        subtitle="All generated artifacts (JSON, Python, SVG, Word Doc, Diagnostics) in a single ZIP"
+        subtitle="All generated artifacts (JSON, Python, SVG, Word Doc, STTM Excel, Diagnostics) in a single ZIP"
         formatBadge=".zip"
         isPrimary={true}
         onDownload={() => triggerDownload('zip')}
@@ -55,11 +55,19 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <DownloadCard
-          icon={FileCode2}
-          title="Workflow JSON"
-          subtitle="Machine-readable workflow representation with metadata and graph topology"
-          formatBadge=".json"
-          onDownload={() => triggerDownload('json')}
+          icon={Table}
+          title="Source-to-Target Mapping"
+          subtitle="Field-level data lineage workbook mapping source attributes and transformations to targets"
+          formatBadge=".xlsx"
+          onDownload={() => triggerDownload('sttm')}
+        />
+
+        <DownloadCard
+          icon={FileText}
+          title="Word document"
+          subtitle="Comprehensive workflow documentation report with embedded visual DAG"
+          formatBadge=".docx"
+          onDownload={() => triggerDownload('docx')}
         />
 
         <DownloadCard
@@ -71,11 +79,11 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
         />
 
         <DownloadCard
-          icon={FileText}
-          title="Word document"
-          subtitle="Comprehensive workflow documentation report with embedded visual DAG"
-          formatBadge=".docx"
-          onDownload={() => triggerDownload('docx')}
+          icon={FileCode2}
+          title="Workflow JSON"
+          subtitle="Machine-readable workflow representation with metadata and graph topology"
+          formatBadge=".json"
+          onDownload={() => triggerDownload('json')}
         />
 
         <DownloadCard

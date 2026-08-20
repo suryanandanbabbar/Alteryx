@@ -198,6 +198,24 @@ def _extract_formula_config(config_el: ET.Element) -> dict:
             "type": formula_field.get("type", ""),
             "size": formula_field.get("size", ""),
         })
+
+    if not fields:
+        # Fallback for text-formatted FormulaFields: "Field1=expr1;Field2=expr2"
+        ff_el = config_el.find(".//FormulaFields")
+        if ff_el is not None and ff_el.text and ff_el.text.strip():
+            raw_text = ff_el.text.strip()
+            # Split on semicolons that separate field assignments
+            for chunk in re.split(r";(?=[a-zA-Z0-9_\s]+=)", raw_text):
+                chunk = chunk.strip()
+                if "=" in chunk:
+                    fname, fexpr = chunk.split("=", 1)
+                    fields.append({
+                        "field": fname.strip(),
+                        "expression": fexpr.strip(),
+                        "type": "",
+                        "size": "",
+                    })
+
     config: dict = {}
     if fields:
         config["formula_fields"] = fields
@@ -215,6 +233,33 @@ def _extract_select_config(config_el: ET.Element) -> dict:
             "type": sf.get("type", ""),
             "size": sf.get("size", ""),
         })
+
+    if not fields:
+        # Fallback for text-formatted SelectFields: "Field1;Field2;Field3" or "Old:New;F2"
+        sf_el = config_el.find(".//SelectFields")
+        if sf_el is not None and sf_el.text and sf_el.text.strip():
+            for item in sf_el.text.strip().split(";"):
+                item = item.strip()
+                if not item:
+                    continue
+                if ":" in item:
+                    orig, ren = item.split(":", 1)
+                    fields.append({
+                        "field": orig.strip(),
+                        "selected": "True",
+                        "rename": ren.strip(),
+                        "type": "",
+                        "size": "",
+                    })
+                else:
+                    fields.append({
+                        "field": item,
+                        "selected": "True",
+                        "rename": "",
+                        "type": "",
+                        "size": "",
+                    })
+
     config: dict = {}
     if fields:
         config["select_fields"] = fields
@@ -234,6 +279,14 @@ def _extract_join_config(config_el: ET.Element) -> dict:
                 join_fields.append({"left": left, "right": right})
         if connection:
             config["join_connection"] = connection
+
+    if not join_fields:
+        # Fallback for direct LeftField / RightField tags
+        left_el = config_el.find(".//LeftField")
+        right_el = config_el.find(".//RightField")
+        if left_el is not None and right_el is not None and left_el.text and right_el.text:
+            join_fields.append({"left": left_el.text.strip(), "right": right_el.text.strip()})
+
     if join_fields:
         config["join_fields"] = join_fields
 
@@ -254,6 +307,10 @@ def _extract_union_config(config_el: ET.Element) -> dict:
     """Extract Union configuration."""
     config: dict = {}
     mode = config_el.get("Mode", "")
+    if not mode:
+        mode_el = config_el.find("Mode")
+        if mode_el is not None and mode_el.text:
+            mode = mode_el.text.strip()
     if mode:
         config["mode"] = mode
 
@@ -273,6 +330,23 @@ def _extract_summarize_config(config_el: ET.Element) -> dict:
             "action": sf.get("action", ""),
             "rename": sf.get("rename", ""),
         })
+
+    if not fields:
+        # Fallback for text-formatted SummarizeFields: "Field1:Action:Rename;Field2:GroupBy"
+        sf_el = config_el.find(".//SummarizeFields")
+        if sf_el is not None and sf_el.text and sf_el.text.strip():
+            for item in sf_el.text.strip().split(";"):
+                item = item.strip()
+                if not item:
+                    continue
+                parts = [p.strip() for p in item.split(":")]
+                if len(parts) == 1:
+                    fields.append({"field": parts[0], "action": "GroupBy", "rename": ""})
+                elif len(parts) == 2:
+                    fields.append({"field": parts[0], "action": parts[1], "rename": ""})
+                elif len(parts) >= 3:
+                    fields.append({"field": parts[0], "action": parts[1], "rename": parts[2]})
+
     config: dict = {}
     if fields:
         config["summarize_fields"] = fields
@@ -289,6 +363,17 @@ def _extract_sort_config(config_el: ET.Element) -> dict:
                 "field": sf.get("field", ""),
                 "order": sf.get("order", "Ascending"),
             })
+        if not fields and sort_info.text and sort_info.text.strip():
+            for item in sort_info.text.strip().split(";"):
+                item = item.strip()
+                if not item:
+                    continue
+                parts = item.split()
+                if len(parts) >= 2 and parts[-1].lower() in ("ascending", "descending"):
+                    fields.append({"field": " ".join(parts[:-1]), "order": parts[-1].capitalize()})
+                else:
+                    fields.append({"field": item, "order": "Ascending"})
+
     config: dict = {}
     if fields:
         config["sort_fields"] = fields
@@ -404,6 +489,10 @@ def _extract_cross_tab_config(config_el: ET.Element) -> dict:
         fname = field_el.get("field", "")
         if fname:
             group_fields.append(fname)
+    if not group_fields:
+        gf_el = config_el.find("GroupField")
+        if gf_el is not None and gf_el.text and gf_el.text.strip():
+            group_fields = [f.strip() for f in gf_el.text.strip().split(";") if f.strip()]
     if group_fields:
         config["group_fields"] = group_fields
 

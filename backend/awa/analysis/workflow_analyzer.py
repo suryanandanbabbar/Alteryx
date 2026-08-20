@@ -24,6 +24,9 @@ from awa.generators.diagnostics_generator import generate_diagnostics
 from awa.generators.svg_generator import generate_svg
 from awa.generators.docx_generator import generate_docx
 from awa.generators.doc_builder import build_document_model
+from awa.generators.sttm_generator import generate_sttm_excel
+from awa.analysis.business_intelligence import generate_business_summary
+from awa.analysis.sttm_extractor import extract_sttm
 
 
 @dataclass
@@ -130,6 +133,9 @@ def analyze_canonical(
     # 9. Derive deterministic Business Intelligence Summary
     business_summary = generate_business_summary(workflow, graph, exec_order)
 
+    # 10. Extract deterministic Source-to-Target Mapping (STTM)
+    sttm = extract_sttm(workflow, graph, business_summary=business_summary)
+
     return CanonicalAnalysisResult(
         analysis_id=aid,
         source=sinfo,
@@ -146,6 +152,7 @@ def analyze_canonical(
         required_libraries=required_libs,
         diagnostics=all_diags,
         business_summary=business_summary,
+        sttm=sttm,
     )
 
 
@@ -204,6 +211,10 @@ def analyze_workflow(
         business_summary=canonical.business_summary,
     )
     generate_docx(doc_model, output_dir / "workflow.docx", svg_content=svg_str)
+
+    # 6. sttm.xlsx (Source-to-Target Mapping)
+    if canonical.sttm:
+        generate_sttm_excel(canonical.sttm, output_dir / "sttm.xlsx")
 
     return AnalysisResult(
         workflow=workflow,
