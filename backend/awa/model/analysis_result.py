@@ -47,6 +47,9 @@ class WorkflowMetrics:
         }
 
 
+from awa.model.business_summary import WorkflowBusinessSummary
+
+
 @dataclass
 class CanonicalAnalysisResult:
     """The authoritative result of an Alteryx workflow analysis.
@@ -67,10 +70,11 @@ class CanonicalAnalysisResult:
     tool_explanations: dict[int, ToolExplanation]
     required_libraries: list[str]
     diagnostics: list[Diagnostic]
+    business_summary: WorkflowBusinessSummary | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the entire canonical result to a comprehensive dictionary."""
-        return {
+        d: dict[str, Any] = {
             "analysis_id": self.analysis_id,
             "source": self.source.to_dict(),
             "workflow": self.workflow.to_dict(),
@@ -85,3 +89,6 @@ class CanonicalAnalysisResult:
             "diagnostics": [d.to_dict() for d in self.diagnostics],
             "lineage_paths": [lp.to_dict() for lp in self.lineage_paths],
         }
+        if self.business_summary is not None:
+            d["business_summary"] = self.business_summary.to_dict()
+        return d

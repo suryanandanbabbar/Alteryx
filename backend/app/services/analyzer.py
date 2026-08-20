@@ -27,8 +27,14 @@ from backend.app.models.schemas import (
     DagLayoutDTO,
     DagNodeLayoutDTO,
     DagEdgeLayoutDTO,
-    PythonOutputDTO,
-    PythonTraceDTO,
+    WorkflowBusinessSummaryDTO,
+    BusinessInputDTO,
+    BusinessOutputDTO,
+    BusinessStageDTO,
+    BusinessTransformationDTO,
+    BusinessRuleDTO,
+    BusinessLineageDTO,
+    BusinessAssessmentDTO,
 )
 from awa.generators.svg_generator import generate_svg
 
@@ -120,6 +126,110 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
         for d in res.diagnostics
     ]
 
+    # Map Business Summary
+    bs_dto = None
+    if res.business_summary:
+        bs = res.business_summary
+        bs_dto = WorkflowBusinessSummaryDTO(
+            business_purpose=bs.business_purpose,
+            one_line_purpose=bs.one_line_purpose,
+            why_it_matters=bs.why_it_matters,
+            source_inputs=[
+                BusinessInputDTO(
+                    tool_id=inp.tool_id,
+                    name=inp.name,
+                    raw_source=inp.raw_source,
+                    source_type=inp.source_type,
+                    sheet_or_table=inp.sheet_or_table,
+                    container_name=inp.container_name,
+                    business_role=inp.business_role,
+                    description=inp.description,
+                )
+                for inp in bs.source_inputs
+            ],
+            processing_stages=[
+                BusinessStageDTO(
+                    stage_number=stg.stage_number,
+                    name=stg.name,
+                    short_title=stg.short_title,
+                    summary=stg.summary,
+                    description=stg.description,
+                    business_purpose=stg.business_purpose,
+                    major_transformation=stg.major_transformation,
+                    tool_ids=stg.tool_ids,
+                    input_ids=stg.input_ids,
+                    output_ids=stg.output_ids,
+                    tool_count=stg.tool_count,
+                    container_name=stg.container_name,
+                    annotations=stg.annotations,
+                    transformations=stg.transformations,
+                )
+                for stg in bs.processing_stages
+            ],
+            transformations=[
+                BusinessTransformationDTO(
+                    category=tr.category,
+                    description=tr.description,
+                    affected_fields=tr.affected_fields,
+                    tool_ids=tr.tool_ids,
+                )
+                for tr in bs.transformations
+            ],
+            business_rules=[
+                BusinessRuleDTO(
+                    rule_name=br.rule_name,
+                    category=br.category,
+                    description=br.description,
+                    tool_ids=br.tool_ids,
+                    evidence=br.evidence,
+                )
+                for br in bs.business_rules
+            ],
+            lineage=[
+                BusinessLineageDTO(
+                    source_name=lin.source_name,
+                    transformation=lin.transformation,
+                    target_name=lin.target_name,
+                    intermediate_stages=lin.intermediate_stages,
+                    transformation_summary=lin.transformation_summary,
+                    source_tool_id=lin.source_tool_id,
+                    target_tool_id=lin.target_tool_id,
+                )
+                for lin in bs.lineage
+            ],
+            business_outputs=[
+                BusinessOutputDTO(
+                    tool_id=out.tool_id,
+                    name=out.name,
+                    raw_destination=out.raw_destination,
+                    destination_type=out.destination_type,
+                    sheet_or_table=out.sheet_or_table,
+                    business_meaning=out.business_meaning,
+                    likely_use=out.likely_use,
+                    business_purpose=out.business_purpose,
+                    container_name=out.container_name,
+                    upstream_sources=out.upstream_sources,
+                )
+                for out in bs.business_outputs
+            ],
+            assessment=BusinessAssessmentDTO(
+                complexity=bs.assessment.complexity,
+                complexity_reason=bs.assessment.complexity_reason,
+                complexity_factors=bs.assessment.complexity_factors,
+                business_owner=bs.assessment.business_owner,
+                schedule=bs.assessment.schedule,
+                criticality=bs.assessment.criticality,
+                documentation_quality=bs.assessment.documentation_quality,
+                key_observations=bs.assessment.key_observations,
+                key_activities=bs.assessment.key_activities,
+                why_it_matters=bs.assessment.why_it_matters,
+            ) if bs.assessment else BusinessAssessmentDTO(),
+            process_overview=bs.process_overview,
+            information_flow=bs.information_flow,
+            overall_interpretation=bs.overall_interpretation,
+            confidence_level=bs.confidence_level,
+        )
+
     return AnalysisOverviewDTO(
         analysis_id=res.analysis_id,
         source=source_dto,
@@ -128,6 +238,7 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
         execution_order=exec_steps,
         connections=conns_dto,
         diagnostics=diags_dto,
+        business_summary=bs_dto,
     )
 
 

@@ -1,0 +1,1955 @@
+{
+  "metadata": {
+    "name": "Demo Claims Volume Extract",
+    "version": "2021.3",
+    "description": "Sample workflow for claims historical volume extraction and downstream enrichment. Reads Excel inputs, creates quarterly and team summaries, enriches claim detail with policy, payment and diary data, and produces product type, state, and aging/litigation risk exports.",
+    "properties": {
+      "Memory": {
+        "default": "True"
+      },
+      "GlobalRecordLimit": {
+        "value": "0"
+      },
+      "TempFiles": {
+        "default": "True"
+      },
+      "Annotation": {
+        "value": "True",
+        "includeToolName": "False"
+      },
+      "ConvErrorLimit": {
+        "value": "10"
+      },
+      "ConvErrorLimitStop": {
+        "value": "False"
+      },
+      "CancelOnError": {
+        "value": "False"
+      },
+      "DisableBrowse": {
+        "value": "False"
+      },
+      "EnablePerformanceProfiling": {
+        "value": "False"
+      },
+      "DisableAllOutput": {
+        "value": "False"
+      },
+      "ShowAllMacroMessages": {
+        "value": "False"
+      },
+      "ShowConnectionStatusOn": {
+        "value": "True"
+      },
+      "ShowConnectionStatusOnlyWhenRunning": {
+        "value": "True"
+      },
+      "ZoomLevel": {
+        "value": "0"
+      },
+      "LayoutType": {
+        "value": "Horizontal"
+      },
+      "MetaInfo": {
+        "NameIsFileName": "True",
+        "Name": "Demo Claims Volume Extract",
+        "Description": "Sample workflow for claims historical volume extraction and downstream enrichment. Reads Excel inputs, creates quarterly and team summaries, enriches claim detail with policy, payment and diary data, and produces product type, state, and aging/litigation risk exports.",
+        "ToolName": "",
+        "ToolVersion": "False",
+        "CategoryName": "",
+        "SearchTags": "",
+        "Author": "",
+        "Company": "",
+        "Copyright": "",
+        "DescriptionLink": ""
+      }
+    }
+  },
+  "tools": [
+    {
+      "tool_id": 1,
+      "id": "1",
+      "tool_name": "Input Data",
+      "xml_name": "AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+      "plugin": "AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+      "tool_type": "DbFileInput",
+      "name": "",
+      "category": "In/Out",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "InputDataTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><File>.\\Data\\Claims_Volume_Extract_Demo.xlsx|||Sheet1$</File></Configuration>",
+        "parsed": {
+          "file_path": ".\\Data\\Claims_Volume_Extract_Demo.xlsx|||Sheet1$"
+        }
+      },
+      "annotation": "Reads the claims volume Excel workbook.",
+      "output_fields": [],
+      "position": {
+        "x": 99,
+        "y": 270
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxDbFileInput"
+      },
+      "container_id": 210,
+      "container_name": "Extract Claims Data"
+    },
+    {
+      "tool_id": 101,
+      "id": "101",
+      "tool_name": "Input Data",
+      "xml_name": "AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+      "plugin": "AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+      "tool_type": "DbFileInput",
+      "name": "",
+      "category": "In/Out",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "InputDataTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><File>.\\Data\\Policy_Master_Demo.xlsx|||Sheet1$</File></Configuration>",
+        "parsed": {
+          "file_path": ".\\Data\\Policy_Master_Demo.xlsx|||Sheet1$"
+        }
+      },
+      "annotation": "Reads Policy Master attributes.",
+      "output_fields": [],
+      "position": {
+        "x": 90,
+        "y": 680
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxDbFileInput"
+      },
+      "container_id": 300,
+      "container_name": "Additional Claims Data Sources"
+    },
+    {
+      "tool_id": 102,
+      "id": "102",
+      "tool_name": "Input Data",
+      "xml_name": "AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+      "plugin": "AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+      "tool_type": "DbFileInput",
+      "name": "",
+      "category": "In/Out",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "InputDataTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><File>.\\Data\\Claim_Payments_Demo.xlsx|||Sheet1$</File></Configuration>",
+        "parsed": {
+          "file_path": ".\\Data\\Claim_Payments_Demo.xlsx|||Sheet1$"
+        }
+      },
+      "annotation": "Reads claim payment transaction history.",
+      "output_fields": [],
+      "position": {
+        "x": 90,
+        "y": 760
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxDbFileInput"
+      },
+      "container_id": 300,
+      "container_name": "Additional Claims Data Sources"
+    },
+    {
+      "tool_id": 103,
+      "id": "103",
+      "tool_name": "Input Data",
+      "xml_name": "AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+      "plugin": "AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+      "tool_type": "DbFileInput",
+      "name": "",
+      "category": "In/Out",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "InputDataTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><File>.\\Data\\Claim_Diary_Notes_Demo.xlsx|||Sheet1$</File></Configuration>",
+        "parsed": {
+          "file_path": ".\\Data\\Claim_Diary_Notes_Demo.xlsx|||Sheet1$"
+        }
+      },
+      "annotation": "Reads Adjuster Diary notes.",
+      "output_fields": [],
+      "position": {
+        "x": 90,
+        "y": 840
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxDbFileInput"
+      },
+      "container_id": 300,
+      "container_name": "Additional Claims Data Sources"
+    },
+    {
+      "tool_id": 2,
+      "id": "2",
+      "tool_name": "Block Until Done",
+      "xml_name": "AlteryxBasePluginsGui.BlockUntilDone.BlockUntilDone",
+      "plugin": "AlteryxBasePluginsGui.BlockUntilDone.BlockUntilDone",
+      "tool_type": "BlockUntilDone",
+      "name": "",
+      "category": "Developer",
+      "support": {
+        "level": "pass_through",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": false,
+        "documentation": true
+      },
+      "support_level": "pass_through",
+      "translator": "PassThroughTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration />",
+        "parsed": {}
+      },
+      "annotation": "Reads the workbook once, then fans out to downstream branches.",
+      "output_fields": [],
+      "position": {
+        "x": 200,
+        "y": 270
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxBlockUntilDone"
+      },
+      "container_id": 210,
+      "container_name": "Extract Claims Data"
+    },
+    {
+      "tool_id": 104,
+      "id": "104",
+      "tool_name": "Summarize",
+      "xml_name": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "plugin": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "tool_type": "Summarize",
+      "name": "",
+      "category": "Transform",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SummarizeTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SummarizeFields>Payment Amount:Sum:Total Paid;Payment Amount:Count:Payment Count;Claim Number:GroupBy:Claim Number</SummarizeFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Rolls payment transactions up to one row per claim.",
+      "output_fields": [],
+      "position": {
+        "x": 230,
+        "y": 760
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSummarize"
+      },
+      "container_id": 300,
+      "container_name": "Additional Claims Data Sources"
+    },
+    {
+      "tool_id": 3,
+      "id": "3",
+      "tool_name": "Summarize",
+      "xml_name": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "plugin": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "tool_type": "Summarize",
+      "name": "",
+      "category": "Transform",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SummarizeTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SummarizeFields>Quarter End Date:GroupBy;Claim Status:GroupBy;Claim Number:CountDistinct</SummarizeFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Claims volume by quarter and status.",
+      "output_fields": [],
+      "position": {
+        "x": 360,
+        "y": 160
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSummarize"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 8,
+      "id": "8",
+      "tool_name": "Summarize",
+      "xml_name": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "plugin": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "tool_type": "Summarize",
+      "name": "",
+      "category": "Transform",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SummarizeTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SummarizeFields>Quarter End Date:GroupBy;Claim Status:GroupBy;Manager:GroupBy;Examiner:GroupBy;Claim Number:CountDistinct</SummarizeFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Claims volume by manager and examiner.",
+      "output_fields": [],
+      "position": {
+        "x": 360,
+        "y": 320
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSummarize"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 15,
+      "id": "15",
+      "tool_name": "Select",
+      "xml_name": "AlteryxBasePluginsGui.AlteryxSelect.AlteryxSelect",
+      "plugin": "AlteryxBasePluginsGui.AlteryxSelect.AlteryxSelect",
+      "tool_type": "AlteryxSelect",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SelectTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SelectFields>Quarter End Date;Claim Number;Policy Number;Team;Manager;Examiner;Claim Status;Disability Date;ICD1Code;ICD1Description;ICD1GroupName</SelectFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Selects claim-level detail fields.",
+      "output_fields": [],
+      "position": {
+        "x": 1300,
+        "y": 270
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSelect"
+      },
+      "container_id": 230,
+      "container_name": "Final Output"
+    },
+    {
+      "tool_id": 111,
+      "id": "111",
+      "tool_name": "Join",
+      "xml_name": "AlteryxBasePluginsGui.Join.Join",
+      "plugin": "AlteryxBasePluginsGui.Join.Join",
+      "tool_type": "Join",
+      "name": "",
+      "category": "Join",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "JoinTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><LeftField>Policy Number</LeftField><RightField>Policy Number</RightField></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Enriches claims with Policy attributes.",
+      "output_fields": [],
+      "position": {
+        "x": 500,
+        "y": 660
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxJoin"
+      },
+      "container_id": 310,
+      "container_name": "Enrich Claim Detail (Policy + Payments + Diary)"
+    },
+    {
+      "tool_id": 4,
+      "id": "4",
+      "tool_name": "Cross Tab",
+      "xml_name": "AlteryxBasePluginsGui.CrossTab.CrossTab",
+      "plugin": "AlteryxBasePluginsGui.CrossTab.CrossTab",
+      "tool_type": "CrossTab",
+      "name": "",
+      "category": "Transform",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "CrossTabTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><GroupField>Quarter End Date</GroupField><HeaderField>Claim Status</HeaderField><DataField>CountDistinct_Claim Number</DataField><Method>Sum</Method></Configuration>",
+        "parsed": {
+          "header_field": "Claim Status",
+          "data_field": "CountDistinct_Claim Number",
+          "method": "Sum"
+        }
+      },
+      "annotation": "Pivots claim status counts by quarter.",
+      "output_fields": [],
+      "position": {
+        "x": 444,
+        "y": 160
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxCrossTab"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 9,
+      "id": "9",
+      "tool_name": "Summarize",
+      "xml_name": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "plugin": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "tool_type": "Summarize",
+      "name": "",
+      "category": "Transform",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SummarizeTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SummarizeFields>Quarter End Date:Max</SummarizeFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Finds the most recent quarter end date.",
+      "output_fields": [],
+      "position": {
+        "x": 444,
+        "y": 400
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSummarize"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 16,
+      "id": "16",
+      "tool_name": "Sort",
+      "xml_name": "AlteryxBasePluginsGui.Sort.Sort",
+      "plugin": "AlteryxBasePluginsGui.Sort.Sort",
+      "tool_type": "Sort",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SortTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SortInfo>Quarter End Date Descending</SortInfo></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Sorts claim-level detail by quarter.",
+      "output_fields": [],
+      "position": {
+        "x": 1384,
+        "y": 270
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSort"
+      },
+      "container_id": 230,
+      "container_name": "Final Output"
+    },
+    {
+      "tool_id": 112,
+      "id": "112",
+      "tool_name": "Join",
+      "xml_name": "AlteryxBasePluginsGui.Join.Join",
+      "plugin": "AlteryxBasePluginsGui.Join.Join",
+      "tool_type": "Join",
+      "name": "",
+      "category": "Join",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "JoinTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><LeftField>Claim Number</LeftField><RightField>Claim Number</RightField></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Enriches claims with payment summary.",
+      "output_fields": [],
+      "position": {
+        "x": 620,
+        "y": 660
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxJoin"
+      },
+      "container_id": 310,
+      "container_name": "Enrich Claim Detail (Policy + Payments + Diary)"
+    },
+    {
+      "tool_id": 5,
+      "id": "5",
+      "tool_name": "Select",
+      "xml_name": "AlteryxBasePluginsGui.AlteryxSelect.AlteryxSelect",
+      "plugin": "AlteryxBasePluginsGui.AlteryxSelect.AlteryxSelect",
+      "tool_type": "AlteryxSelect",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SelectTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SelectFields>Quarter End Date;Preclaim;Active_Pending;Approved;Stable_and_Mature</SelectFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Selects the required historical summary fields.",
+      "output_fields": [],
+      "position": {
+        "x": 528,
+        "y": 160
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSelect"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 10,
+      "id": "10",
+      "tool_name": "Join",
+      "xml_name": "AlteryxBasePluginsGui.Join.Join",
+      "plugin": "AlteryxBasePluginsGui.Join.Join",
+      "tool_type": "Join",
+      "name": "",
+      "category": "Join",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "JoinTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><LeftField>Quarter End Date</LeftField><RightField>Last Quarter</RightField></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Keeps records matching the most recent quarter.",
+      "output_fields": [],
+      "position": {
+        "x": 528,
+        "y": 360
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxJoin"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 17,
+      "id": "17",
+      "tool_name": "Output Data",
+      "xml_name": "AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+      "plugin": "AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+      "tool_type": "DbFileOutput",
+      "name": "",
+      "category": "In/Out",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "OutputDataTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><File>Claims_Historical_Extract_Demo_Output.xlsx|||Detail</File></Configuration>",
+        "parsed": {
+          "file_path": "Claims_Historical_Extract_Demo_Output.xlsx|||Detail"
+        }
+      },
+      "annotation": "Writes claim-level detail to Excel.",
+      "output_fields": [],
+      "position": {
+        "x": 1468,
+        "y": 270
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxDbFileOutput"
+      },
+      "container_id": 230,
+      "container_name": "Final Output"
+    },
+    {
+      "tool_id": 113,
+      "id": "113",
+      "tool_name": "Union",
+      "xml_name": "AlteryxBasePluginsGui.Union.Union",
+      "plugin": "AlteryxBasePluginsGui.Union.Union",
+      "tool_type": "Union",
+      "name": "",
+      "category": "Join",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "UnionTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><Mode>Auto Config by Name</Mode></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Combines matched and unmatched claim records.",
+      "output_fields": [],
+      "position": {
+        "x": 740,
+        "y": 660
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxUnion"
+      },
+      "container_id": 310,
+      "container_name": "Enrich Claim Detail (Policy + Payments + Diary)"
+    },
+    {
+      "tool_id": 6,
+      "id": "6",
+      "tool_name": "Sort",
+      "xml_name": "AlteryxBasePluginsGui.Sort.Sort",
+      "plugin": "AlteryxBasePluginsGui.Sort.Sort",
+      "tool_type": "Sort",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SortTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SortInfo>Quarter End Date Descending</SortInfo></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Sorts quarters in descending order.",
+      "output_fields": [],
+      "position": {
+        "x": 612,
+        "y": 160
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSort"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 11,
+      "id": "11",
+      "tool_name": "Cross Tab",
+      "xml_name": "AlteryxBasePluginsGui.CrossTab.CrossTab",
+      "plugin": "AlteryxBasePluginsGui.CrossTab.CrossTab",
+      "tool_type": "CrossTab",
+      "name": "",
+      "category": "Transform",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "CrossTabTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><GroupField>Quarter End Date;Manager;Examiner</GroupField><HeaderField>Claim Status</HeaderField><DataField>CountDistinct_Claim Number</DataField><Method>Sum</Method></Configuration>",
+        "parsed": {
+          "header_field": "Claim Status",
+          "data_field": "CountDistinct_Claim Number",
+          "method": "Sum"
+        }
+      },
+      "annotation": "Creates manager/examiner status columns.",
+      "output_fields": [],
+      "position": {
+        "x": 612,
+        "y": 360
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxCrossTab"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 114,
+      "id": "114",
+      "tool_name": "Formula",
+      "xml_name": "AlteryxBasePluginsGui.Formula.Formula",
+      "plugin": "AlteryxBasePluginsGui.Formula.Formula",
+      "tool_type": "Formula",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "FormulaTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><FormulaFields>Total Paid=if isnull([Total Paid]) then 0 else [Total Paid] endif;Payment Count=if isnull([Payment Count]) then 0 else [Payment Count] endif</FormulaFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Fills missing payment values with zero.",
+      "output_fields": [],
+      "position": {
+        "x": 860,
+        "y": 660
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxFormula"
+      },
+      "container_id": 310,
+      "container_name": "Enrich Claim Detail (Policy + Payments + Diary)"
+    },
+    {
+      "tool_id": 7,
+      "id": "7",
+      "tool_name": "Browse",
+      "xml_name": "AlteryxBasePluginsGui.BrowseV2.BrowseV2",
+      "plugin": "AlteryxBasePluginsGui.BrowseV2.BrowseV2",
+      "tool_type": "BrowseV2",
+      "name": "",
+      "category": "In/Out",
+      "support": {
+        "level": "pass_through",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": false,
+        "documentation": true
+      },
+      "support_level": "pass_through",
+      "translator": "PassThroughTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><TempFile>Temp\\Demo_Claims_Quarter_Summary.yxdb</TempFile></Configuration>",
+        "parsed": {
+          "TempFile": {
+            "value": "Temp\\Demo_Claims_Quarter_Summary.yxdb"
+          }
+        }
+      },
+      "annotation": "Previews the quarterly claims summary.",
+      "output_fields": [],
+      "position": {
+        "x": 696,
+        "y": 160
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxBrowseV2"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 18,
+      "id": "18",
+      "tool_name": "Output Data",
+      "xml_name": "AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+      "plugin": "AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+      "tool_type": "DbFileOutput",
+      "name": "",
+      "category": "In/Out",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "OutputDataTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><File>Claims_Historical_Extract_Demo_Output.xlsx|||QuarterSummary</File></Configuration>",
+        "parsed": {
+          "file_path": "Claims_Historical_Extract_Demo_Output.xlsx|||QuarterSummary"
+        }
+      },
+      "annotation": "Writes the quarter/status summary to Excel.",
+      "output_fields": [],
+      "position": {
+        "x": 1540,
+        "y": 370
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxDbFileOutput"
+      },
+      "container_id": 230,
+      "container_name": "Final Output"
+    },
+    {
+      "tool_id": 12,
+      "id": "12",
+      "tool_name": "Select",
+      "xml_name": "AlteryxBasePluginsGui.AlteryxSelect.AlteryxSelect",
+      "plugin": "AlteryxBasePluginsGui.AlteryxSelect.AlteryxSelect",
+      "tool_type": "AlteryxSelect",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SelectTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SelectFields>Quarter End Date;Manager;Examiner;Preclaim;Active_Pending;Approved;Stable_and_Mature</SelectFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Selects final manager/examiner summary fields.",
+      "output_fields": [],
+      "position": {
+        "x": 696,
+        "y": 360
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSelect"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 115,
+      "id": "115",
+      "tool_name": "Join",
+      "xml_name": "AlteryxBasePluginsGui.Join.Join",
+      "plugin": "AlteryxBasePluginsGui.Join.Join",
+      "tool_type": "Join",
+      "name": "",
+      "category": "Join",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "JoinTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><LeftField>Claim Number</LeftField><RightField>Claim Number</RightField></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Attaches Adjuster Diary notes to claims.",
+      "output_fields": [],
+      "position": {
+        "x": 500,
+        "y": 800
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxJoin"
+      },
+      "container_id": 310,
+      "container_name": "Enrich Claim Detail (Policy + Payments + Diary)"
+    },
+    {
+      "tool_id": 13,
+      "id": "13",
+      "tool_name": "Sort",
+      "xml_name": "AlteryxBasePluginsGui.Sort.Sort",
+      "plugin": "AlteryxBasePluginsGui.Sort.Sort",
+      "tool_type": "Sort",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SortTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SortInfo>Quarter End Date Descending</SortInfo></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Sorts the manager/examiner output by quarter.",
+      "output_fields": [],
+      "position": {
+        "x": 780,
+        "y": 360
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSort"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 116,
+      "id": "116",
+      "tool_name": "Union",
+      "xml_name": "AlteryxBasePluginsGui.Union.Union",
+      "plugin": "AlteryxBasePluginsGui.Union.Union",
+      "tool_type": "Union",
+      "name": "",
+      "category": "Join",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "UnionTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><Mode>Auto Config by Name</Mode></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Combines claims with and without diary entries.",
+      "output_fields": [],
+      "position": {
+        "x": 620,
+        "y": 800
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxUnion"
+      },
+      "container_id": 310,
+      "container_name": "Enrich Claim Detail (Policy + Payments + Diary)"
+    },
+    {
+      "tool_id": 14,
+      "id": "14",
+      "tool_name": "Browse",
+      "xml_name": "AlteryxBasePluginsGui.BrowseV2.BrowseV2",
+      "plugin": "AlteryxBasePluginsGui.BrowseV2.BrowseV2",
+      "tool_type": "BrowseV2",
+      "name": "",
+      "category": "In/Out",
+      "support": {
+        "level": "pass_through",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": false,
+        "documentation": true
+      },
+      "support_level": "pass_through",
+      "translator": "PassThroughTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><TempFile>Temp\\Demo_Claims_Team_LastQuarter.yxdb</TempFile></Configuration>",
+        "parsed": {
+          "TempFile": {
+            "value": "Temp\\Demo_Claims_Team_LastQuarter.yxdb"
+          }
+        }
+      },
+      "annotation": "Previews the latest-quarter team summary.",
+      "output_fields": [],
+      "position": {
+        "x": 864,
+        "y": 360
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxBrowseV2"
+      },
+      "container_id": 220,
+      "container_name": "Create Summarizations"
+    },
+    {
+      "tool_id": 117,
+      "id": "117",
+      "tool_name": "Formula",
+      "xml_name": "AlteryxBasePluginsGui.Formula.Formula",
+      "plugin": "AlteryxBasePluginsGui.Formula.Formula",
+      "tool_type": "Formula",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "FormulaTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><FormulaFields>Litigation Flag=if isnull([Litigation Flag]) then 'N' else [Litigation Flag] endif;Reopened Flag=if isnull([Reopened Flag]) then 'N' else [Reopened Flag] endif;Days Since Last Activity=if isnull([Last Activity Date]) then Null() else DateTimeDiff(DateTimeToday(),[Last Activity Date],'days') endif</FormulaFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Normalizes litigation/reopened flags and calculates days since activity.",
+      "output_fields": [],
+      "position": {
+        "x": 740,
+        "y": 800
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxFormula"
+      },
+      "container_id": 310,
+      "container_name": "Enrich Claim Detail (Policy + Payments + Diary)"
+    },
+    {
+      "tool_id": 118,
+      "id": "118",
+      "tool_name": "Formula",
+      "xml_name": "AlteryxBasePluginsGui.Formula.Formula",
+      "plugin": "AlteryxBasePluginsGui.Formula.Formula",
+      "tool_type": "Formula",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "FormulaTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><FormulaFields>Aging Bucket=if isnull([Days Since Last Activity]) then 'No Diary Activity' elseif [Days Since Last Activity] &gt; 90 then '90+ Days' elseif [Days Since Last Activity] &gt; 30 then '31-90 Days' else '0-30 Days' endif</FormulaFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Assigns an aging bucket based on days since last activity.",
+      "output_fields": [],
+      "position": {
+        "x": 860,
+        "y": 800
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxFormula"
+      },
+      "container_id": 310,
+      "container_name": "Enrich Claim Detail (Policy + Payments + Diary)"
+    },
+    {
+      "tool_id": 130,
+      "id": "130",
+      "tool_name": "Summarize",
+      "xml_name": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "plugin": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "tool_type": "Summarize",
+      "name": "",
+      "category": "Transform",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SummarizeTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SummarizeFields>Quarter End Date:GroupBy;Product Type:GroupBy;Claim Number:CountDistinct:Claim Count;Total Paid:Sum:Total Paid Amount</SummarizeFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Summarizes claims by product type and quarter.",
+      "output_fields": [],
+      "position": {
+        "x": 1340,
+        "y": 660
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSummarize"
+      },
+      "container_id": 320,
+      "container_name": "Product Type Analysis Outputs"
+    },
+    {
+      "tool_id": 140,
+      "id": "140",
+      "tool_name": "Summarize",
+      "xml_name": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "plugin": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "tool_type": "Summarize",
+      "name": "",
+      "category": "Transform",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SummarizeTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SummarizeFields>Quarter End Date:GroupBy;State:GroupBy;Claim Number:CountDistinct:Claim Count;Total Paid:Sum:Total Paid</SummarizeFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Summarizes claims by state and quarter.",
+      "output_fields": [],
+      "position": {
+        "x": 1340,
+        "y": 900
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSummarize"
+      },
+      "container_id": 330,
+      "container_name": "State Analysis Outputs"
+    },
+    {
+      "tool_id": 150,
+      "id": "150",
+      "tool_name": "Summarize",
+      "xml_name": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "plugin": "AlteryxSpatialPluginsGui.Summarize.Summarize",
+      "tool_type": "Summarize",
+      "name": "",
+      "category": "Transform",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SummarizeTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SummarizeFields>Aging Bucket:GroupBy;Litigation Flag:GroupBy;Claim Number:CountDistinct:Claim Count</SummarizeFields></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Counts claims by aging bucket and litigation status.",
+      "output_fields": [],
+      "position": {
+        "x": 1710,
+        "y": 660
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSummarize"
+      },
+      "container_id": 340,
+      "container_name": "Aging & Litigation Risk Outputs"
+    },
+    {
+      "tool_id": 131,
+      "id": "131",
+      "tool_name": "Sort",
+      "xml_name": "AlteryxBasePluginsGui.Sort.Sort",
+      "plugin": "AlteryxBasePluginsGui.Sort.Sort",
+      "tool_type": "Sort",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SortTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SortInfo>Quarter End Date Descending;Product Type Ascending</SortInfo></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Sorts product type results.",
+      "output_fields": [],
+      "position": {
+        "x": 1340,
+        "y": 720
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSort"
+      },
+      "container_id": 320,
+      "container_name": "Product Type Analysis Outputs"
+    },
+    {
+      "tool_id": 141,
+      "id": "141",
+      "tool_name": "Sort",
+      "xml_name": "AlteryxBasePluginsGui.Sort.Sort",
+      "plugin": "AlteryxBasePluginsGui.Sort.Sort",
+      "tool_type": "Sort",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SortTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SortInfo>Quarter End Date Descending;State Ascending</SortInfo></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Sorts state results.",
+      "output_fields": [],
+      "position": {
+        "x": 1340,
+        "y": 960
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSort"
+      },
+      "container_id": 330,
+      "container_name": "State Analysis Outputs"
+    },
+    {
+      "tool_id": 151,
+      "id": "151",
+      "tool_name": "Sort",
+      "xml_name": "AlteryxBasePluginsGui.Sort.Sort",
+      "plugin": "AlteryxBasePluginsGui.Sort.Sort",
+      "tool_type": "Sort",
+      "name": "",
+      "category": "Preparation",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "SortTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><SortInfo>Aging Bucket Ascending;Litigation Flag Ascending</SortInfo></Configuration>",
+        "parsed": {}
+      },
+      "annotation": "Sorts aging and litigation results.",
+      "output_fields": [],
+      "position": {
+        "x": 1710,
+        "y": 720
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxSort"
+      },
+      "container_id": 340,
+      "container_name": "Aging & Litigation Risk Outputs"
+    },
+    {
+      "tool_id": 132,
+      "id": "132",
+      "tool_name": "Output Data",
+      "xml_name": "AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+      "plugin": "AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+      "tool_type": "DbFileOutput",
+      "name": "",
+      "category": "In/Out",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "OutputDataTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><File>Claims_By_Product_Type_Demo_Output.xlsx|||ProductTypeSummary</File></Configuration>",
+        "parsed": {
+          "file_path": "Claims_By_Product_Type_Demo_Output.xlsx|||ProductTypeSummary"
+        }
+      },
+      "annotation": "Writes product type analysis to Excel.",
+      "output_fields": [],
+      "position": {
+        "x": 1340,
+        "y": 780
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxDbFileOutput"
+      },
+      "container_id": 320,
+      "container_name": "Product Type Analysis Outputs"
+    },
+    {
+      "tool_id": 142,
+      "id": "142",
+      "tool_name": "Output Data",
+      "xml_name": "AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+      "plugin": "AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+      "tool_type": "DbFileOutput",
+      "name": "",
+      "category": "In/Out",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "OutputDataTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><File>Claims_By_State_Demo_Output.xlsx|||StateSummary</File></Configuration>",
+        "parsed": {
+          "file_path": "Claims_By_State_Demo_Output.xlsx|||StateSummary"
+        }
+      },
+      "annotation": "Writes state analysis to Excel.",
+      "output_fields": [],
+      "position": {
+        "x": 1340,
+        "y": 1020
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxDbFileOutput"
+      },
+      "container_id": 330,
+      "container_name": "State Analysis Outputs"
+    },
+    {
+      "tool_id": 152,
+      "id": "152",
+      "tool_name": "Output Data",
+      "xml_name": "AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+      "plugin": "AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+      "tool_type": "DbFileOutput",
+      "name": "",
+      "category": "In/Out",
+      "support": {
+        "level": "full",
+        "parsed": true,
+        "configuration": true,
+        "graph": true,
+        "python": true,
+        "documentation": true
+      },
+      "support_level": "full",
+      "translator": "OutputDataTranslator",
+      "configuration": {
+        "raw_xml": "<Configuration><File>Claims_Aging_Risk_Demo_Output.xlsx|||AgingRiskSummary</File></Configuration>",
+        "parsed": {
+          "file_path": "Claims_Aging_Risk_Demo_Output.xlsx|||AgingRiskSummary"
+        }
+      },
+      "annotation": "Writes aging/litigation risk analysis to Excel.",
+      "output_fields": [],
+      "position": {
+        "x": 1710,
+        "y": 780
+      },
+      "engine_settings": {
+        "EngineDll": "AlteryxBasePluginsEngine.dll",
+        "EngineDllEntryPoint": "AlteryxDbFileOutput"
+      },
+      "container_id": 340,
+      "container_name": "Aging & Litigation Risk Outputs"
+    }
+  ],
+  "connections": [
+    {
+      "origin_tool_id": 1,
+      "origin_anchor": "Output",
+      "destination_tool_id": 2,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 2,
+      "origin_anchor": "Output",
+      "destination_tool_id": 3,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 2,
+      "origin_anchor": "Output2",
+      "destination_tool_id": 8,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 2,
+      "origin_anchor": "Output3",
+      "destination_tool_id": 15,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 3,
+      "origin_anchor": "Output",
+      "destination_tool_id": 4,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 4,
+      "origin_anchor": "Output",
+      "destination_tool_id": 5,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 5,
+      "origin_anchor": "Output",
+      "destination_tool_id": 6,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 6,
+      "origin_anchor": "Output",
+      "destination_tool_id": 7,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 6,
+      "origin_anchor": "Output",
+      "destination_tool_id": 18,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 8,
+      "origin_anchor": "Output",
+      "destination_tool_id": 9,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 8,
+      "origin_anchor": "Output",
+      "destination_tool_id": 10,
+      "destination_anchor": "Left"
+    },
+    {
+      "origin_tool_id": 9,
+      "origin_anchor": "Output",
+      "destination_tool_id": 10,
+      "destination_anchor": "Right"
+    },
+    {
+      "origin_tool_id": 10,
+      "origin_anchor": "Join",
+      "destination_tool_id": 11,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 11,
+      "origin_anchor": "Output",
+      "destination_tool_id": 12,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 12,
+      "origin_anchor": "Output",
+      "destination_tool_id": 13,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 13,
+      "origin_anchor": "Output",
+      "destination_tool_id": 14,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 15,
+      "origin_anchor": "Output",
+      "destination_tool_id": 16,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 16,
+      "origin_anchor": "Output",
+      "destination_tool_id": 17,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 2,
+      "origin_anchor": "Output3",
+      "destination_tool_id": 111,
+      "destination_anchor": "Left"
+    },
+    {
+      "origin_tool_id": 101,
+      "origin_anchor": "Output",
+      "destination_tool_id": 111,
+      "destination_anchor": "Right"
+    },
+    {
+      "origin_tool_id": 111,
+      "origin_anchor": "Join",
+      "destination_tool_id": 112,
+      "destination_anchor": "Left"
+    },
+    {
+      "origin_tool_id": 104,
+      "origin_anchor": "Output",
+      "destination_tool_id": 112,
+      "destination_anchor": "Right"
+    },
+    {
+      "origin_tool_id": 102,
+      "origin_anchor": "Output",
+      "destination_tool_id": 104,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 112,
+      "origin_anchor": "Join",
+      "destination_tool_id": 113,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 112,
+      "origin_anchor": "Left",
+      "destination_tool_id": 113,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 113,
+      "origin_anchor": "Output",
+      "destination_tool_id": 114,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 114,
+      "origin_anchor": "Output",
+      "destination_tool_id": 115,
+      "destination_anchor": "Left"
+    },
+    {
+      "origin_tool_id": 103,
+      "origin_anchor": "Output",
+      "destination_tool_id": 115,
+      "destination_anchor": "Right"
+    },
+    {
+      "origin_tool_id": 115,
+      "origin_anchor": "Join",
+      "destination_tool_id": 116,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 115,
+      "origin_anchor": "Left",
+      "destination_tool_id": 116,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 116,
+      "origin_anchor": "Output",
+      "destination_tool_id": 117,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 117,
+      "origin_anchor": "Output",
+      "destination_tool_id": 118,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 118,
+      "origin_anchor": "Output",
+      "destination_tool_id": 130,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 130,
+      "origin_anchor": "Output",
+      "destination_tool_id": 131,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 131,
+      "origin_anchor": "Output",
+      "destination_tool_id": 132,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 118,
+      "origin_anchor": "Output",
+      "destination_tool_id": 140,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 140,
+      "origin_anchor": "Output",
+      "destination_tool_id": 141,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 141,
+      "origin_anchor": "Output",
+      "destination_tool_id": 142,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 118,
+      "origin_anchor": "Output",
+      "destination_tool_id": 150,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 150,
+      "origin_anchor": "Output",
+      "destination_tool_id": 151,
+      "destination_anchor": "Input"
+    },
+    {
+      "origin_tool_id": 151,
+      "origin_anchor": "Output",
+      "destination_tool_id": 152,
+      "destination_anchor": "Input"
+    }
+  ],
+  "execution_order": [
+    1,
+    101,
+    102,
+    103,
+    2,
+    104,
+    3,
+    8,
+    15,
+    111,
+    4,
+    9,
+    16,
+    112,
+    5,
+    10,
+    17,
+    113,
+    6,
+    11,
+    114,
+    7,
+    18,
+    12,
+    115,
+    13,
+    116,
+    14,
+    117,
+    118,
+    130,
+    140,
+    150,
+    131,
+    141,
+    151,
+    132,
+    142,
+    152
+  ],
+  "dependencies": [
+    {
+      "type": "file",
+      "reference": ".\\Data\\Claims_Volume_Extract_Demo.xlsx|||Sheet1$",
+      "resolved": false,
+      "tool_id": 1
+    },
+    {
+      "type": "file",
+      "reference": ".\\Data\\Policy_Master_Demo.xlsx|||Sheet1$",
+      "resolved": false,
+      "tool_id": 101
+    },
+    {
+      "type": "file",
+      "reference": ".\\Data\\Claim_Payments_Demo.xlsx|||Sheet1$",
+      "resolved": false,
+      "tool_id": 102
+    },
+    {
+      "type": "file",
+      "reference": ".\\Data\\Claim_Diary_Notes_Demo.xlsx|||Sheet1$",
+      "resolved": false,
+      "tool_id": 103
+    },
+    {
+      "type": "file",
+      "reference": "Claims_Historical_Extract_Demo_Output.xlsx|||Detail",
+      "resolved": false,
+      "tool_id": 17
+    },
+    {
+      "type": "file",
+      "reference": "Claims_Historical_Extract_Demo_Output.xlsx|||QuarterSummary",
+      "resolved": false,
+      "tool_id": 18
+    },
+    {
+      "type": "file",
+      "reference": "Claims_By_Product_Type_Demo_Output.xlsx|||ProductTypeSummary",
+      "resolved": false,
+      "tool_id": 132
+    },
+    {
+      "type": "file",
+      "reference": "Claims_By_State_Demo_Output.xlsx|||StateSummary",
+      "resolved": false,
+      "tool_id": 142
+    },
+    {
+      "type": "file",
+      "reference": "Claims_Aging_Risk_Demo_Output.xlsx|||AgingRiskSummary",
+      "resolved": false,
+      "tool_id": 152
+    }
+  ],
+  "diagnostics": [
+    {
+      "level": "info",
+      "category": "external_dependency",
+      "message": "External file dependency: '.\\Data\\Claims_Volume_Extract_Demo.xlsx|||Sheet1$' is referenced by Tool #1",
+      "tool_id": 1,
+      "tool_type": "DbFileInput",
+      "detail": "Translation logic is fully supported (FULL), but runtime execution requires the external source file to be accessible."
+    },
+    {
+      "level": "info",
+      "category": "external_dependency",
+      "message": "External file dependency: '.\\Data\\Policy_Master_Demo.xlsx|||Sheet1$' is referenced by Tool #101",
+      "tool_id": 101,
+      "tool_type": "DbFileInput",
+      "detail": "Translation logic is fully supported (FULL), but runtime execution requires the external source file to be accessible."
+    },
+    {
+      "level": "info",
+      "category": "external_dependency",
+      "message": "External file dependency: '.\\Data\\Claim_Payments_Demo.xlsx|||Sheet1$' is referenced by Tool #102",
+      "tool_id": 102,
+      "tool_type": "DbFileInput",
+      "detail": "Translation logic is fully supported (FULL), but runtime execution requires the external source file to be accessible."
+    },
+    {
+      "level": "info",
+      "category": "external_dependency",
+      "message": "External file dependency: '.\\Data\\Claim_Diary_Notes_Demo.xlsx|||Sheet1$' is referenced by Tool #103",
+      "tool_id": 103,
+      "tool_type": "DbFileInput",
+      "detail": "Translation logic is fully supported (FULL), but runtime execution requires the external source file to be accessible."
+    },
+    {
+      "level": "info",
+      "category": "external_dependency",
+      "message": "External file destination: 'Claims_Historical_Extract_Demo_Output.xlsx|||Detail' is referenced by Tool #17",
+      "tool_id": 17,
+      "tool_type": "DbFileOutput",
+      "detail": "Translation logic is fully supported (FULL), but runtime execution requires write access to the target path."
+    },
+    {
+      "level": "warning",
+      "category": "missing_configuration",
+      "message": "Formula has no formula fields",
+      "tool_id": 114,
+      "tool_type": "Formula"
+    },
+    {
+      "level": "info",
+      "category": "external_dependency",
+      "message": "External file destination: 'Claims_Historical_Extract_Demo_Output.xlsx|||QuarterSummary' is referenced by Tool #18",
+      "tool_id": 18,
+      "tool_type": "DbFileOutput",
+      "detail": "Translation logic is fully supported (FULL), but runtime execution requires write access to the target path."
+    },
+    {
+      "level": "warning",
+      "category": "missing_configuration",
+      "message": "Formula has no formula fields",
+      "tool_id": 117,
+      "tool_type": "Formula"
+    },
+    {
+      "level": "warning",
+      "category": "missing_configuration",
+      "message": "Formula has no formula fields",
+      "tool_id": 118,
+      "tool_type": "Formula"
+    },
+    {
+      "level": "info",
+      "category": "external_dependency",
+      "message": "External file destination: 'Claims_By_Product_Type_Demo_Output.xlsx|||ProductTypeSummary' is referenced by Tool #132",
+      "tool_id": 132,
+      "tool_type": "DbFileOutput",
+      "detail": "Translation logic is fully supported (FULL), but runtime execution requires write access to the target path."
+    },
+    {
+      "level": "info",
+      "category": "external_dependency",
+      "message": "External file destination: 'Claims_By_State_Demo_Output.xlsx|||StateSummary' is referenced by Tool #142",
+      "tool_id": 142,
+      "tool_type": "DbFileOutput",
+      "detail": "Translation logic is fully supported (FULL), but runtime execution requires write access to the target path."
+    },
+    {
+      "level": "info",
+      "category": "external_dependency",
+      "message": "External file destination: 'Claims_Aging_Risk_Demo_Output.xlsx|||AgingRiskSummary' is referenced by Tool #152",
+      "tool_id": 152,
+      "tool_type": "DbFileOutput",
+      "detail": "Translation logic is fully supported (FULL), but runtime execution requires write access to the target path."
+    }
+  ],
+  "analysis": {
+    "total_tools": 39,
+    "support_summary": {
+      "full": 36,
+      "pass_through": 3
+    }
+  }
+}

@@ -1,7 +1,3 @@
-/**
- * TypeScript contracts corresponding exactly to FastAPI Pydantic DTOs.
- */
-
 export interface PackageMetadataDTO {
   primary_workflow: string;
   contained_files: string[];
@@ -9,7 +5,7 @@ export interface PackageMetadataDTO {
 }
 
 export interface SourceInfoDTO {
-  source_format: 'yxmd' | 'yxwz' | 'xml' | string;
+  source_format: string;
   original_filename: string;
   package_metadata?: PackageMetadataDTO | null;
 }
@@ -105,7 +101,7 @@ export interface DagEdgeLayoutDTO {
   target_id: number;
   source_anchor: string;
   target_anchor: string;
-  path_points: { x: number; y: number }[];
+  path_points?: Array<{ x: number; y: number }>;
 }
 
 export interface DagLayoutDTO {
@@ -141,6 +137,102 @@ export interface PythonOutputDTO {
   total_lines: number;
 }
 
+export interface BusinessInputDTO {
+  tool_id: number;
+  name: string;
+  raw_source: string;
+  source_type: string;
+  sheet_or_table?: string | null;
+  container_name?: string | null;
+  business_role?: string;
+  description?: string;
+}
+
+export interface BusinessOutputDTO {
+  tool_id: number;
+  name: string;
+  raw_destination: string;
+  destination_type: string;
+  sheet_or_table?: string | null;
+  business_meaning?: string;
+  likely_use?: string;
+  business_purpose?: string;
+  container_name?: string | null;
+  upstream_sources?: string[];
+}
+
+export interface BusinessStageDTO {
+  stage_number: number;
+  name: string;
+  short_title?: string;
+  summary?: string;
+  description: string;
+  business_purpose?: string;
+  major_transformation?: string;
+  tool_ids: number[];
+  input_ids?: number[];
+  output_ids?: number[];
+  tool_count: number;
+  container_name?: string | null;
+  annotations?: string[];
+  transformations?: string[];
+}
+
+export interface BusinessTransformationDTO {
+  category: string;
+  description: string;
+  affected_fields?: string[];
+  tool_ids?: number[];
+}
+
+export interface BusinessRuleDTO {
+  rule_name: string;
+  category: string;
+  description: string;
+  tool_ids: number[];
+  evidence?: string;
+}
+
+export interface BusinessLineageDTO {
+  source_name: string;
+  transformation?: string;
+  target_name: string;
+  intermediate_stages: string[];
+  transformation_summary: string;
+  source_tool_id: number;
+  target_tool_id: number;
+}
+
+export interface BusinessAssessmentDTO {
+  complexity: string;
+  complexity_reason: string;
+  complexity_factors: string[];
+  business_owner: string;
+  schedule: string;
+  criticality: string;
+  documentation_quality: string;
+  key_observations: string[];
+  key_activities: string[];
+  why_it_matters: string;
+}
+
+export interface WorkflowBusinessSummaryDTO {
+  business_purpose: string;
+  one_line_purpose?: string;
+  why_it_matters?: string;
+  source_inputs: BusinessInputDTO[];
+  processing_stages: BusinessStageDTO[];
+  transformations: BusinessTransformationDTO[];
+  business_rules?: BusinessRuleDTO[];
+  lineage: BusinessLineageDTO[];
+  business_outputs: BusinessOutputDTO[];
+  assessment?: BusinessAssessmentDTO;
+  process_overview: string;
+  information_flow: string[];
+  overall_interpretation?: string;
+  confidence_level?: string;
+}
+
 export interface AnalysisOverviewDTO {
   analysis_id: string;
   source: SourceInfoDTO;
@@ -149,4 +241,5 @@ export interface AnalysisOverviewDTO {
   execution_order: ExecutionStepDTO[];
   connections: ConnectionDTO[];
   diagnostics: DiagnosticDTO[];
+  business_summary?: WorkflowBusinessSummaryDTO | null;
 }

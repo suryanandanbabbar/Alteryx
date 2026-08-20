@@ -15,12 +15,16 @@ from awa.graph.lineage import LineagePath
 from awa.tools import get_tool_summary, humanize_tool_configuration
 
 
+from awa.model.business_summary import WorkflowBusinessSummary
+
+
 def build_document_model(
     workflow: Workflow,
     execution_order: list[int],
     translations: dict[int, TranslationResult],
     dag_layout: DagLayout,
     lineage_paths: list[LineagePath],
+    business_summary: WorkflowBusinessSummary | None = None,
 ) -> DocumentModel:
     """Build the canonical DocumentModel from workflow analysis data.
 
@@ -30,6 +34,7 @@ def build_document_model(
         translations: Tool translations keyed by tool_id.
         dag_layout: Computed DAG layout model.
         lineage_paths: Computed source-to-sink data lineage paths.
+        business_summary: Optional canonical business intelligence summary.
 
     Returns:
         Format-independent DocumentModel.
@@ -132,4 +137,5 @@ def build_document_model(
         python_summary=python_summary,
         dependencies=workflow.dependencies,
         diagnostics=all_diags,
+        business_summary=business_summary,
     )

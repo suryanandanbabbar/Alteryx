@@ -78,6 +78,9 @@ class ExecutionStepDocEntry:
         return d
 
 
+from awa.model.business_summary import WorkflowBusinessSummary
+
+
 @dataclass
 class DocumentModel:
     """Complete format-independent documentation model.
@@ -95,9 +98,10 @@ class DocumentModel:
     python_summary: str
     dependencies: list[Dependency]
     diagnostics: list[Diagnostic] = dc_field(default_factory=list)
+    business_summary: WorkflowBusinessSummary | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "title": self.title,
             "metadata": self.metadata,
             "metrics": self.metrics,
@@ -109,3 +113,6 @@ class DocumentModel:
             "dependencies": [d.to_dict() for d in self.dependencies],
             "diagnostics": [d.to_dict() for d in self.diagnostics],
         }
+        if self.business_summary is not None:
+            d["business_summary"] = self.business_summary.to_dict()
+        return d

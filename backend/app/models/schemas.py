@@ -158,6 +158,103 @@ class PythonOutputDTO(BaseModel):
     total_lines: int
 
 
+# Business Intelligence DTOs
+class BusinessInputDTO(BaseModel):
+    tool_id: int
+    name: str
+    raw_source: str
+    source_type: str
+    sheet_or_table: str | None = None
+    container_name: str | None = None
+    business_role: str = ""
+    description: str = ""
+
+
+class BusinessOutputDTO(BaseModel):
+    tool_id: int
+    name: str
+    raw_destination: str
+    destination_type: str
+    sheet_or_table: str | None = None
+    business_meaning: str = ""
+    likely_use: str = "Use not documented"
+    business_purpose: str = ""
+    container_name: str | None = None
+    upstream_sources: list[str] = Field(default_factory=list)
+
+
+class BusinessStageDTO(BaseModel):
+    stage_number: int
+    name: str
+    short_title: str = ""
+    summary: str = ""
+    description: str = ""
+    business_purpose: str = ""
+    major_transformation: str = ""
+    tool_ids: list[int] = Field(default_factory=list)
+    input_ids: list[int] = Field(default_factory=list)
+    output_ids: list[int] = Field(default_factory=list)
+    tool_count: int = 0
+    container_name: str | None = None
+    annotations: list[str] = Field(default_factory=list)
+    transformations: list[str] = Field(default_factory=list)
+
+
+class BusinessTransformationDTO(BaseModel):
+    category: str
+    description: str
+    affected_fields: list[str] = Field(default_factory=list)
+    tool_ids: list[int] = Field(default_factory=list)
+
+
+class BusinessRuleDTO(BaseModel):
+    rule_name: str
+    category: str
+    description: str
+    tool_ids: list[int] = Field(default_factory=list)
+    evidence: str = ""
+
+
+class BusinessLineageDTO(BaseModel):
+    source_name: str
+    transformation: str = ""
+    target_name: str
+    intermediate_stages: list[str] = Field(default_factory=list)
+    transformation_summary: str = ""
+    source_tool_id: int = 0
+    target_tool_id: int = 0
+
+
+class BusinessAssessmentDTO(BaseModel):
+    complexity: str = "Moderate"
+    complexity_reason: str = ""
+    complexity_factors: list[str] = Field(default_factory=list)
+    business_owner: str = "Not documented"
+    schedule: str = "Not documented"
+    criticality: str = "Not documented"
+    documentation_quality: str = "Partially documented"
+    key_observations: list[str] = Field(default_factory=list)
+    key_activities: list[str] = Field(default_factory=list)
+    why_it_matters: str = ""
+
+
+class WorkflowBusinessSummaryDTO(BaseModel):
+    business_purpose: str
+    one_line_purpose: str = ""
+    why_it_matters: str = ""
+    source_inputs: list[BusinessInputDTO] = Field(default_factory=list)
+    processing_stages: list[BusinessStageDTO] = Field(default_factory=list)
+    transformations: list[BusinessTransformationDTO] = Field(default_factory=list)
+    business_rules: list[BusinessRuleDTO] = Field(default_factory=list)
+    lineage: list[BusinessLineageDTO] = Field(default_factory=list)
+    business_outputs: list[BusinessOutputDTO] = Field(default_factory=list)
+    assessment: BusinessAssessmentDTO = Field(default_factory=BusinessAssessmentDTO)
+    process_overview: str = ""
+    information_flow: list[str] = Field(default_factory=list)
+    overall_interpretation: str = ""
+    confidence_level: str = "High"
+
+
 class AnalysisOverviewDTO(BaseModel):
     analysis_id: str
     source: SourceInfoDTO
@@ -166,3 +263,4 @@ class AnalysisOverviewDTO(BaseModel):
     execution_order: list[ExecutionStepDTO]
     connections: list[ConnectionDTO]
     diagnostics: list[DiagnosticDTO]
+    business_summary: WorkflowBusinessSummaryDTO | None = None

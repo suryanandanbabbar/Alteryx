@@ -15,6 +15,16 @@ from .python_trace import PythonTraceEntry, PythonTraceMap, ToolExplanation
 from .dag_layout import DagNodeLayout, DagEdgeLayout, DagLayout
 from .doc_model import NodeDocEntry, ExecutionStepDocEntry, DocumentModel
 from .analysis_result import CanonicalAnalysisResult, WorkflowMetrics
+from .business_summary import (
+    BusinessInput,
+    BusinessOutput,
+    BusinessStage,
+    BusinessTransformation,
+    BusinessRule,
+    BusinessLineageEntry,
+    BusinessAssessment,
+    WorkflowBusinessSummary,
+)
 
 __all__ = [
     "Workflow", "WorkflowMetadata",
@@ -31,4 +41,6 @@ __all__ = [
     "DagNodeLayout", "DagEdgeLayout", "DagLayout",
     "NodeDocEntry", "ExecutionStepDocEntry", "DocumentModel",
     "CanonicalAnalysisResult", "WorkflowMetrics",
+    "BusinessInput", "BusinessOutput", "BusinessStage", "BusinessTransformation",
+    "BusinessRule", "BusinessLineageEntry", "BusinessAssessment", "WorkflowBusinessSummary",
 ]

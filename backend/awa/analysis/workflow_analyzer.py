@@ -35,6 +35,9 @@ class AnalysisResult:
     output_dir: Path
 
 
+from awa.analysis.business_intelligence import generate_business_summary
+
+
 def analyze_canonical(
     workflow_path: str | Path,
     source_info: SourceInfo | None = None,
@@ -124,6 +127,9 @@ def analyze_canonical(
         support_summary=support_counts,
     )
 
+    # 9. Derive deterministic Business Intelligence Summary
+    business_summary = generate_business_summary(workflow, graph, exec_order)
+
     return CanonicalAnalysisResult(
         analysis_id=aid,
         source=sinfo,
@@ -139,6 +145,7 @@ def analyze_canonical(
         tool_explanations=tool_explanations,
         required_libraries=required_libs,
         diagnostics=all_diags,
+        business_summary=business_summary,
     )
 
 
@@ -193,7 +200,8 @@ def analyze_workflow(
 
     # 5. workflow.docx
     doc_model = build_document_model(
-        workflow, exec_order, translations, canonical.dag_layout, lineage_paths
+        workflow, exec_order, translations, canonical.dag_layout, lineage_paths,
+        business_summary=canonical.business_summary,
     )
     generate_docx(doc_model, output_dir / "workflow.docx", svg_content=svg_str)
 

@@ -78,7 +78,11 @@ export const App: React.FC = () => {
           boxSizing: 'border-box',
         }}>
           {activeSection === 'overview' && (
-            <OverviewPage overview={overview} onSelectTool={handleSelectTool} />
+            <OverviewPage
+              overview={overview}
+              onSelectTool={handleSelectTool}
+              onNavigateToDiagram={() => setActiveSection('diagram')}
+            />
           )}
           {activeSection === 'diagram' && (
             <DiagramPage
