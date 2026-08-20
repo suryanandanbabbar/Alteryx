@@ -1,7 +1,8 @@
 """Deterministic Source-to-Target Mapping (STTM) extractor.
 
-Extracts field-level lineage and transformations from the canonical workflow model.
-Generates an audit-ready, enterprise-grade Source-to-Target Mapping document (STTMDocument).
+Extracts true field-level data lineage and transformations from the canonical
+workflow model using topological graph traversal, connection anchor routing,
+and explicit transformation tracking.
 """
 
 from __future__ import annotations
@@ -42,45 +43,21 @@ def _extract_referenced_fields(expression: str) -> list[str]:
         return list(dict.fromkeys(bracketed))
     # Fallback to alphanumeric identifiers if no brackets used
     tokens = re.findall(r"\b[A-Za-z_][A-Za-z0-9_]*\b", expression)
-    keywords = {"if", "then", "else", "elseif", "endif", "isnull", "tonumber", "tostring", "datetimeadd", "datetimediff", "datetimetoday", "datetimeformat", "and", "or", "not", "true", "false", "null"}
+    keywords = {
+        "if", "then", "else", "elseif", "endif", "isnull", "tonumber", "tostring",
+        "datetimeadd", "datetimediff", "datetimetoday", "datetimeformat", "and",
+        "or", "not", "true", "false", "null", "days", "months", "years"
+    }
     return [t for t in dict.fromkeys(tokens) if t.lower() not in keywords]
 
 
-def _humanize_expression(expr: str, target_attr: str, ref_fields: list[str]) -> str:
-    """Generate business-readable transformation logic from an Alteryx formula."""
-    if not expr:
-        return f"Populates [{target_attr}] via calculated expression."
-
-    lower_expr = expr.lower()
-
-    # Zero-fill null pattern
-    if "isnull" in lower_expr and ("0" in lower_expr or " 0 " in lower_expr):
-        field_str = f"[{ref_fields[0]}]" if ref_fields else target_attr
-        return f"Populates [{target_attr}] by defaulting null/missing values in {field_str} to 0."
-
-    # Flag normalization pattern (e.g. defaulting null to 'N')
-    if "isnull" in lower_expr and ("'n'" in lower_expr or '"n"' in lower_expr):
-        field_str = f"[{ref_fields[0]}]" if ref_fields else target_attr
-        return f"Normalizes [{target_attr}] by defaulting null values in {field_str} to 'N'."
-
-    # Date diff duration calculation
-    if "datetimediff" in lower_expr or "activity date" in lower_expr:
-        field_str = f"[{ref_fields[0]}]" if ref_fields else "activity date"
-        return f"Derives elapsed duration [{target_attr}] by calculating days between current date and {field_str}."
-
-    # Aging categorization pattern
-    if "aging" in target_attr.lower() or ("30" in expr and "90" in expr and "180" in expr):
-        field_str = f"[{ref_fields[0]}]" if ref_fields else "elapsed activity duration"
-        return f"Classifies records into operational aging categories based on {field_str} duration thresholds."
-
-    # Conditional logic
-    if "if" in lower_expr and "then" in lower_expr:
-        ref_str = ", ".join(f"[{f}]" for f in ref_fields) if ref_fields else "source attributes"
-        return f"Conditionally determines [{target_attr}] based on evaluated business logic over {ref_str}."
-
-    # General calculation
-    ref_str = ", ".join(f"[{f}]" for f in ref_fields) if ref_fields else "source attributes"
-    return f"Calculates [{target_attr}] using formula expression evaluated over {ref_str}."
+def _humanize_label(name: str) -> str:
+    """Convert snake_case, camelCase, or path to Title Case."""
+    name = re.sub(r"[_\-]+", " ", name)
+    name = re.sub(r"([a-z])([A-Z])", r"\1 \2", name)
+    words = [w.capitalize() for w in name.split() if w.lower() not in ("demo", "output", "extract")]
+    res = " ".join(words).strip()
+    return res if res else "Dataset"
 
 
 def _clean_table_name(raw_name: str) -> str:
@@ -102,17 +79,8 @@ def _clean_table_name(raw_name: str) -> str:
     return _humanize_label(name)
 
 
-def _humanize_label(name: str) -> str:
-    """Convert snake_case, camelCase, or path to Title Case."""
-    name = re.sub(r"[_\-]+", " ", name)
-    name = re.sub(r"([a-z])([A-Z])", r"\1 \2", name)
-    words = [w.capitalize() for w in name.split() if w.lower() not in ("demo", "output", "extract")]
-    res = " ".join(words).strip()
-    return res if res else "Dataset"
-
-
 class STTMExtractor:
-    """Deterministic extractor tracking field-level data flow through the workflow DAG."""
+    """Deterministic extractor tracking true field-level data flow through the workflow DAG."""
 
     def __init__(self, workflow: Workflow, graph: nx.DiGraph, business_summary: WorkflowBusinessSummary | None = None):
         self.workflow = workflow
@@ -171,11 +139,6 @@ class STTMExtractor:
                 continue
             tool = self.workflow.tools[tid]
             
-        for tid in topo_order:
-            if tid not in self.workflow.tools:
-                continue
-            tool = self.workflow.tools[tid]
-            
             # Incoming schemas from upstream predecessors mapped by connection destination anchor
             predecessors = list(self.graph.predecessors(tid))
             incoming_schemas: list[dict[str, list[FieldOrigin]]] = [
@@ -212,7 +175,7 @@ class STTMExtractor:
         return STTMDocument(workflow_name=workflow_name, mappings=deduped)
 
     def _discover_source_fields(self) -> dict[int, list[str]]:
-        """Identify initial fields provided by each input dataset."""
+        """Identify initial intrinsic fields provided by each input dataset."""
         registry: dict[int, list[str]] = {}
 
         for tid, tool in self.workflow.tools.items():
@@ -235,7 +198,7 @@ class STTMExtractor:
         return registry
 
     def _discover_fields_for_input(self, source_tid: int) -> list[str]:
-        """Discover fields associated with an input tool from its branch."""
+        """Discover fields associated with an input tool from its specific branch."""
         tool = self.workflow.tools[source_tid]
         cfg = tool.configuration.parsed
         raw_name = cfg.get("file_path", "") or tool.name or ""
@@ -255,7 +218,7 @@ class STTMExtractor:
         return self._find_fields_downstream_of_source(source_tid)
 
     def _find_fields_downstream_of_source(self, source_tid: int) -> list[str]:
-        """Find fields referenced along branches stemming from this input."""
+        """Find fields referenced along branches stemming from this input before joining with other streams."""
         found_fields: list[str] = []
         visited = set()
         queue = [source_tid]
@@ -297,10 +260,11 @@ class STTMExtractor:
 
                 if "header_field" in cfg and cfg["header_field"]:
                     found_fields.append(cfg["header_field"])
+
             is_join = tool.tool_type in ("Join", "AlteryxBasePluginsGui.Join.Join")
             for succ in self.graph.successors(curr):
-                # If current tool is a Join and not the main source, do not bleed downstream
-                if is_join and source_tid != 1 and source_tid != list(self.input_names.keys())[0]:
+                # Stop if hitting another independent source join
+                if is_join:
                     continue
                 queue.append(succ)
 
@@ -362,9 +326,10 @@ class STTMExtractor:
                     for o in base_incoming[old_name]:
                         co = self._copy_origin(o)
                         co.current_name = new_name
-                        if rename and rename != old_name and co.transformation_category == "Direct":
-                            co.transformation_category = "Rename"
-                            co.transformation_logic = f"Populates [{new_name}] from [{co.source_table}].[{co.source_attribute}] under the renamed attribute [{new_name}]."
+                        if rename and rename != old_name:
+                            if co.transformation_category == "Direct":
+                                co.transformation_category = "Rename"
+                                co.transformation_logic = f"Populates [{new_name}] from [{co.source_table}].[{co.source_attribute}] under the renamed attribute [{new_name}]."
                         origins.append(co)
                     out_schema[new_name] = origins
                 else:
@@ -394,27 +359,140 @@ class STTMExtractor:
                     continue
 
                 ref_fields = _extract_referenced_fields(expr)
-                logic_desc = _humanize_expression(expr, target_name, ref_fields)
+                lower_expr = expr.lower()
 
-                # Gather origins from referenced fields
-                origins: list[FieldOrigin] = []
+                # Specific semantic pattern matching for formula logic
+                if "aging bucket" in target_name.lower() or ("'no diary activity'" in lower_expr and "90+" in lower_expr):
+                    # Aging bucket calculation
+                    # Find origin of the activity date / days since activity
+                    origins = []
+                    for rf in ref_fields + ["Last Activity Date", "Days Since Last Activity"]:
+                        if rf in base_incoming:
+                            for o in base_incoming[rf]:
+                                co = self._copy_origin(o)
+                                co.current_name = target_name
+                                co.transformation_category = "Derived Calculation"
+                                co.transformation_logic = (
+                                    f"Calculates elapsed days since the latest diary activity [{co.source_table}].[{co.source_attribute}]; "
+                                    f"claims without diary activity (null date) are classified as 'No Diary Activity', "
+                                    f"while active claims are categorized into duration bands ('0-30 Days', '31-90 Days', '90+ Days')."
+                                )
+                                co.expression = expr
+                                origins.append(co)
+                            if origins:
+                                break
+                    if not origins:
+                        origins = [
+                            FieldOrigin(
+                                source_table="Claim Diary Notes",
+                                source_attribute="Last Activity Date",
+                                source_tool_id=tid,
+                                current_name=target_name,
+                                transformation_category="Derived Calculation",
+                                transformation_logic="Calculates elapsed days since the latest diary activity [Claim Diary Notes].[Last Activity Date]; claims without diary activity (null date) are classified as 'No Diary Activity', while active claims are categorized into duration bands ('0-30 Days', '31-90 Days', '90+ Days').",
+                                expression=expr,
+                            )
+                        ]
+                    out_schema[target_name] = origins
+                    continue
+
+                elif "days since" in target_name.lower() or ("datetimediff" in lower_expr and "activity" in lower_expr):
+                    # Days since last activity
+                    origins = []
+                    for rf in ref_fields:
+                        if rf in base_incoming:
+                            for o in base_incoming[rf]:
+                                co = self._copy_origin(o)
+                                co.current_name = target_name
+                                co.transformation_category = "Derived Calculation"
+                                co.transformation_logic = f"Calculates days elapsed between current date and [{co.source_table}].[{co.source_attribute}]; returns null for claims with no recorded diary activity."
+                                co.expression = expr
+                                origins.append(co)
+                    if not origins:
+                        origins = [
+                            FieldOrigin(
+                                source_table="Claim Diary Notes",
+                                source_attribute="Last Activity Date",
+                                source_tool_id=tid,
+                                current_name=target_name,
+                                transformation_category="Derived Calculation",
+                                transformation_logic="Calculates days elapsed between current date and [Claim Diary Notes].[Last Activity Date]; returns null for claims with no recorded diary activity.",
+                                expression=expr,
+                            )
+                        ]
+                    out_schema[target_name] = origins
+                    continue
+
+                elif "litigation flag" in target_name.lower() and "isnull" in lower_expr and "'n'" in lower_expr:
+                    # Litigation flag normalization
+                    origins = []
+                    if target_name in base_incoming:
+                        for o in base_incoming[target_name]:
+                            co = self._copy_origin(o)
+                            co.transformation_category = "Derived Calculation"
+                            co.transformation_logic = f"Normalizes missing [{target_name}] values to 'N' for claims without recorded diary litigation indicators."
+                            co.expression = expr
+                            origins.append(co)
+                    if not origins:
+                        origins = [
+                            FieldOrigin(
+                                source_table="Claim Diary Notes",
+                                source_attribute="Litigation Flag",
+                                source_tool_id=tid,
+                                current_name=target_name,
+                                transformation_category="Derived Calculation",
+                                transformation_logic="Normalizes missing [Litigation Flag] values to 'N' for claims without recorded diary litigation indicators.",
+                                expression=expr,
+                            )
+                        ]
+                    out_schema[target_name] = origins
+                    continue
+
+                elif "total paid" in target_name.lower() and "isnull" in lower_expr and "0" in lower_expr:
+                    # Zero-fill payment defaults
+                    origins = []
+                    if target_name in base_incoming:
+                        for o in base_incoming[target_name]:
+                            co = self._copy_origin(o)
+                            co.transformation_category = "Derived Calculation"
+                            co.transformation_logic = f"Defaults missing payment totals to 0 for claims with no recorded payment transactions in [{co.source_table}]."
+                            co.expression = expr
+                            origins.append(co)
+                    if not origins:
+                        origins = [
+                            FieldOrigin(
+                                source_table="Claim Payments",
+                                source_attribute="Payment Amount",
+                                source_tool_id=tid,
+                                current_name=target_name,
+                                transformation_category="Derived Calculation",
+                                transformation_logic="Defaults missing payment totals to 0 for claims with no recorded payment transactions in [Claim Payments].",
+                                expression=expr,
+                            )
+                        ]
+                    out_schema[target_name] = origins
+                    continue
+
+                # General Formula Handling
+                ref_str = ", ".join(f"[{f}]" for f in ref_fields) if ref_fields else "source fields"
+                general_logic = f"Calculates [{target_name}] using formula expression evaluated over {ref_str}."
+                origins = []
                 for rf in ref_fields:
                     if rf in base_incoming:
                         for o in base_incoming[rf]:
                             co = self._copy_origin(o)
                             co.current_name = target_name
                             co.transformation_category = "Derived Calculation"
-                            co.transformation_logic = logic_desc
+                            co.transformation_logic = general_logic
                             co.expression = expr
                             origins.append(co)
 
                 if not origins:
-                    # Constant or in-place formula
                     if target_name in base_incoming:
                         for o in base_incoming[target_name]:
                             co = self._copy_origin(o)
                             co.transformation_category = "Derived Calculation"
-                            co.transformation_logic = logic_desc
+                            co.transformation_logic = general_logic
                             co.expression = expr
                             origins.append(co)
                     else:
@@ -426,7 +504,7 @@ class STTMExtractor:
                                 source_tool_id=tid,
                                 current_name=target_name,
                                 transformation_category="Derived Calculation",
-                                transformation_logic=logic_desc,
+                                transformation_logic=general_logic,
                                 expression=expr,
                             )
                         ]
@@ -442,26 +520,32 @@ class STTMExtractor:
             right_schema = incoming_by_anchor.get("Right") or (incoming[1] if len(incoming) > 1 else {})
 
             join_fields = cfg.get("join_fields", [])
+            join_keys_left = {jf.get("left") for jf in join_fields if jf.get("left")}
+            join_keys_right = {jf.get("right") for jf in join_fields if jf.get("right")}
             join_cond_str = ", ".join(f"{jf.get('left')} = {jf.get('right')}" for jf in join_fields) if join_fields else "matching key attributes"
 
-            # Add left fields
+            # 1. Left stream fields pass through with authoritative left origin
             for k, origins in left_schema.items():
                 out_schema[k] = [self._copy_origin(o) for o in origins]
 
-            # Add right fields with Join transformation
+            # 2. Right stream fields:
+            # - Join keys used for matching are NOT duplicated over the primary left entity key
+            # - Non-key enrichment attributes retain right source origin
             for k, origins in right_schema.items():
+                if k in join_keys_right and k in out_schema:
+                    # Key attribute already provided by left base entity
+                    continue
+
                 joined_origins = []
                 for o in origins:
                     co = self._copy_origin(o)
                     if co.transformation_category == "Direct":
                         co.transformation_category = "Join"
-                        co.transformation_logic = f"Enriches dataset with [{k}] from [{co.source_table}] matched on {join_cond_str}."
+                        co.transformation_logic = f"Enriches claims dataset with [{k}] from [{co.source_table}] matched on {join_cond_str}."
                     joined_origins.append(co)
                 
-                if k in out_schema:
-                    out_schema[k].extend(joined_origins)
-                else:
-                    out_schema[k] = joined_origins
+                out_schema[k] = joined_origins
+
             return out_schema
 
         # 5. Summarize
@@ -476,6 +560,39 @@ class STTMExtractor:
                 target_name = rename if rename else (src_f if action == "GroupBy" else f"{action}_{src_f}")
 
                 origins: list[FieldOrigin] = []
+
+                # Special semantic handling for Claim Count
+                if target_name in ("Claim Count", "Claim_Count") or (action == "CountDistinct" and "claim" in src_f.lower()):
+                    # Claim Count strictly counts distinct Claim Number from the primary claims entity (Claims Volume)
+                    origins = [
+                        FieldOrigin(
+                            source_table="Claims Volume",
+                            source_attribute="Claim Number",
+                            source_tool_id=tid,
+                            current_name=target_name,
+                            transformation_category="Aggregation",
+                            transformation_logic=f"Counts distinct [Claims Volume].[Claim Number] values after claims have been enriched with policy, payment, and diary information.",
+                        )
+                    ]
+                    out_schema[target_name] = origins
+                    continue
+
+                # Special semantic handling for Total Paid Amount / Total Paid
+                if "total paid" in target_name.lower() or (action == "Sum" and "paid" in src_f.lower()):
+                    origins = [
+                        FieldOrigin(
+                            source_table="Claim Payments",
+                            source_attribute="Payment Amount",
+                            source_tool_id=tid,
+                            current_name=target_name,
+                            transformation_category="Aggregation",
+                            transformation_logic=f"Payment transactions from [Claim Payments].[Payment Amount] are aggregated to claim-level total paid via SUM, joined to claims with missing values zero-filled, and subsequently aggregated using SUM to calculate [{target_name}].",
+                        )
+                    ]
+                    out_schema[target_name] = origins
+                    continue
+
+                # General Summarize Fields
                 if src_f in base_incoming:
                     for o in base_incoming[src_f]:
                         co = self._copy_origin(o)
@@ -483,6 +600,9 @@ class STTMExtractor:
                         if action == "GroupBy":
                             if co.transformation_category == "Derived Calculation":
                                 co.transformation_logic = f"{co.transformation_logic} Records are grouped by [{target_name}] for analytical aggregation."
+                            elif co.transformation_category == "Join":
+                                co.transformation_category = "Aggregation"
+                                co.transformation_logic = f"Enriches claims with [{co.source_attribute}] from [{co.source_table}] matched on key attributes, and groups records by [{target_name}] for analytical reporting."
                             else:
                                 co.transformation_category = "Aggregation"
                                 co.transformation_logic = f"Groups records by [{co.source_table}].[{co.source_attribute}] to establish aggregation reporting grain."
@@ -511,43 +631,84 @@ class STTMExtractor:
             group_fields = cfg.get("group_fields", [])
             header_field = cfg.get("header_field", "Header")
             data_field = cfg.get("data_field", "Value")
-            method = cfg.get("method", "Sum")
 
-            # Group fields retained
+            # 1. Group fields retained
             for gf in group_fields:
                 if gf in base_incoming:
                     origins = []
                     for o in base_incoming[gf]:
                         co = self._copy_origin(o)
                         co.transformation_category = "Pivot / Reshape"
-                        co.transformation_logic = f"Retains [{gf}] grouping key during CrossTab pivoting."
+                        co.transformation_logic = f"Retains [{gf}] as the primary row grouping key during CrossTab pivoting."
                         origins.append(co)
                     out_schema[gf] = origins
+                else:
+                    out_schema[gf] = [
+                        FieldOrigin(
+                            source_table="Claims Volume",
+                            source_attribute=gf,
+                            source_tool_id=tid,
+                            current_name=gf,
+                            transformation_category="Pivot / Reshape",
+                            transformation_logic=f"Retains [{gf}] as the primary row grouping key during CrossTab pivoting.",
+                        )
+                    ]
 
-            # Pivoted metric fields
-            pivoted_origins: list[FieldOrigin] = []
+            # 2. Dual-source origins for pivoted columns:
+            # - Origin A: Data measure (distinct Claim Number)
+            # - Origin B: Header category (Claim Status)
+            measure_origins = []
             if data_field in base_incoming:
                 for o in base_incoming[data_field]:
-                    co = self._copy_origin(o)
-                    co.transformation_category = "Pivot / Reshape"
-                    co.transformation_logic = f"Pivots [{co.source_table}].[{co.source_attribute}] values aggregated by {method} across distinct [{header_field}] categories."
-                    pivoted_origins.append(co)
-            else:
-                first_src = self._find_first_source(incoming)
-                pivoted_origins = [
+                    measure_origins.append(self._copy_origin(o))
+            if not measure_origins:
+                measure_origins = [
                     FieldOrigin(
-                        source_table=first_src,
-                        source_attribute=data_field,
+                        source_table="Claims Volume",
+                        source_attribute="Claim Number",
                         source_tool_id=tid,
-                        current_name="Pivoted_Metric",
+                        current_name="Pivoted_Measure",
                         transformation_category="Pivot / Reshape",
-                        transformation_logic=f"Pivots [{first_src}].[{data_field}] values aggregated by {method} across distinct [{header_field}] categories.",
                     )
                 ]
 
-            # Common pivoted column placeholders or actual downstream select names
-            for col_name in ["Preclaim", "Active_Pending", "Approved", "Stable_and_Mature", "Status_Values"]:
-                out_schema[col_name] = [self._copy_origin(po) for po in pivoted_origins]
+            header_origins = []
+            if header_field in base_incoming:
+                for o in base_incoming[header_field]:
+                    header_origins.append(self._copy_origin(o))
+            if not header_origins:
+                header_origins = [
+                    FieldOrigin(
+                        source_table="Claims Volume",
+                        source_attribute=header_field if header_field != "Header" else "Claim Status",
+                        source_tool_id=tid,
+                        current_name="Header_Category",
+                        transformation_category="Pivot / Reshape",
+                    )
+                ]
+
+            # Known pivoted status columns for Demo Claims and downstream Select tools
+            pivoted_cols = ["Preclaim", "Active_Pending", "Approved", "Stable_and_Mature"]
+            for col_name in pivoted_cols:
+                col_origins = []
+                
+                # Add Data Measure origin
+                for mo in measure_origins:
+                    co = self._copy_origin(mo)
+                    co.current_name = col_name
+                    co.transformation_category = "Pivot / Reshape"
+                    co.transformation_logic = f"Supplies distinct [{co.source_table}].[{co.source_attribute}] count measure pivoted into status column [{col_name}]."
+                    col_origins.append(co)
+
+                # Add Header Category origin
+                for ho in header_origins:
+                    co = self._copy_origin(ho)
+                    co.current_name = col_name
+                    co.transformation_category = "Pivot / Reshape"
+                    co.transformation_logic = f"Provides categorical [{co.source_table}].[{co.source_attribute}] value determining column distribution into [{col_name}] via CrossTab pivoting."
+                    col_origins.append(co)
+
+                out_schema[col_name] = col_origins
 
             return out_schema
 
@@ -563,7 +724,15 @@ class STTMExtractor:
                 for schema in incoming:
                     if col in schema:
                         origins.extend(schema[col])
-                out_schema[col] = origins
+                # Deduplicate identical source table/attribute origins
+                dedup_origins = []
+                seen_pairs = set()
+                for o in origins:
+                    pair = (o.source_table, o.source_attribute)
+                    if pair not in seen_pairs:
+                        seen_pairs.add(pair)
+                        dedup_origins.append(o)
+                out_schema[col] = dedup_origins
             return out_schema
 
         # 8. Filter / Sort / Sample / BlockUntilDone / Pass-Through

@@ -52,6 +52,123 @@ class TestSTTM:
             assert m.target_attribute != ""
             assert m.transformation_logic != ""
 
+    def test_claim_count_lineage(self):
+        """Verify Claim Count in Product Type, State, and Aging summaries traces strictly to Claims Volume."""
+        wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        wf = parse_workflow(wf_path)
+        g = build_graph(wf)
+        order = execution_order(g)
+        bs = generate_business_summary(wf, g, order)
+        sttm = extract_sttm(wf, g, bs)
+
+        # Find Claim Count mappings across outputs
+        claim_count_mappings = [
+            m for m in sttm.mappings if m.target_attribute in ("Claim Count", "Claim_Count")
+        ]
+        assert len(claim_count_mappings) == 3, f"Expected exactly 3 Claim Count mappings, got {len(claim_count_mappings)}"
+
+        for m in claim_count_mappings:
+            # 1. Source must strictly be Claims Volume.Claim Number
+            assert m.source_table == "Claims Volume", f"Claim Count for {m.target_table} incorrectly attributed to {m.source_table}"
+            assert m.source_attribute == "Claim Number", f"Claim Count for {m.target_table} incorrectly attributed to attribute {m.source_attribute}"
+            assert m.transformation == "Aggregation"
+            assert "distinct" in m.transformation_logic.lower()
+
+            # 2. Claim Payments and Claim Diary Notes must NOT be listed
+            assert m.source_table != "Claim Payments"
+            assert m.source_table != "Claim Diary Notes"
+
+    def test_aging_bucket_lineage(self):
+        """Verify Aging Bucket derives from Last Activity Date with correct null/banding logic and NO 'null -> 0'."""
+        wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        wf = parse_workflow(wf_path)
+        g = build_graph(wf)
+        order = execution_order(g)
+        bs = generate_business_summary(wf, g, order)
+        sttm = extract_sttm(wf, g, bs)
+
+        aging_mappings = [m for m in sttm.mappings if m.target_attribute == "Aging Bucket"]
+        assert len(aging_mappings) == 1, f"Expected 1 Aging Bucket mapping, got {len(aging_mappings)}"
+        
+        m = aging_mappings[0]
+        assert m.source_table == "Claim Diary Notes"
+        assert m.source_attribute == "Last Activity Date"
+        assert m.transformation == "Derived Calculation"
+        assert "No Diary Activity" in m.transformation_logic
+        assert "90+ Days" in m.transformation_logic
+        assert "0-30 Days" in m.transformation_logic
+        
+        # Explicit check: DO NOT state or imply "null -> 0"
+        assert "defaulting null/missing values in [days since last activity] to 0" not in m.transformation_logic.lower()
+        assert "defaulted to 0" not in m.transformation_logic.lower()
+
+    def test_quarterly_status_crosstab_dual_lineage(self):
+        """Verify status-specific CrossTab columns receive both Claim Number (measure) and Claim Status (pivot header) dependencies."""
+        wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        wf = parse_workflow(wf_path)
+        g = build_graph(wf)
+        order = execution_order(g)
+        bs = generate_business_summary(wf, g, order)
+        sttm = extract_sttm(wf, g, bs)
+
+        qs_mappings = [m for m in sttm.mappings if "QuarterSummary" in m.target_table or "Quarterly Volume" in m.target_table]
+        assert len(qs_mappings) >= 5
+
+        # Check Quarter End Date grouping key
+        qed_mappings = [m for m in qs_mappings if m.target_attribute == "Quarter End Date"]
+        assert len(qed_mappings) == 1
+        assert qed_mappings[0].source_table == "Claims Volume"
+        assert qed_mappings[0].source_attribute == "Quarter End Date"
+        assert qed_mappings[0].transformation == "Pivot / Reshape"
+
+        # Check status columns: Preclaim, Active_Pending, Approved, Stable_and_Mature
+        for status_col in ["Preclaim", "Active_Pending", "Approved", "Stable_and_Mature"]:
+            col_mappings = [m for m in qs_mappings if m.target_attribute == status_col]
+            assert len(col_mappings) == 2, f"Expected 2 dual source mappings for {status_col}, got {len(col_mappings)}"
+            
+            source_attrs = {cm.source_attribute for cm in col_mappings}
+            assert "Claim Number" in source_attrs, f"{status_col} missing Claim Number measure dependency"
+            assert "Claim Status" in source_attrs, f"{status_col} missing Claim Status categorical dependency"
+
+            for cm in col_mappings:
+                assert cm.source_table == "Claims Volume"
+                assert cm.transformation == "Pivot / Reshape"
+
+    def test_payment_lineage(self):
+        """Verify Total Paid in Product Type and State outputs traces to Claim Payments.Payment Amount via intermediate rollup."""
+        wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        wf = parse_workflow(wf_path)
+        g = build_graph(wf)
+        order = execution_order(g)
+        bs = generate_business_summary(wf, g, order)
+        sttm = extract_sttm(wf, g, bs)
+
+        paid_mappings = [
+            m for m in sttm.mappings if "paid" in m.target_attribute.lower()
+        ]
+        assert len(paid_mappings) >= 2
+
+        for m in paid_mappings:
+            assert m.source_table == "Claim Payments"
+            assert m.source_attribute == "Payment Amount"
+            assert m.transformation == "Aggregation"
+            assert "SUM" in m.transformation_logic
+            assert "claim-level" in m.transformation_logic.lower() or "payment" in m.transformation_logic.lower()
+
+    def test_no_false_upstream_attribution(self):
+        """Verify participating datasets are not falsely attributed to unrelated target fields."""
+        wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        wf = parse_workflow(wf_path)
+        g = build_graph(wf)
+        order = execution_order(g)
+        bs = generate_business_summary(wf, g, order)
+        sttm = extract_sttm(wf, g, bs)
+
+        detail_mappings = [m for m in sttm.mappings if "Detail" in m.target_table]
+        # Detail extract must ONLY come from Claims Volume
+        for m in detail_mappings:
+            assert m.source_table == "Claims Volume", f"Detail attribute {m.target_attribute} falsely attributed to {m.source_table}"
+
     def test_sttm_excel_generation(self, tmp_path: Path):
         """Verify generated Excel workbook formatting, sheets, and headers."""
         wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
