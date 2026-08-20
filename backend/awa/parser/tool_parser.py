@@ -270,15 +270,25 @@ def _extract_join_config(config_el: ET.Element) -> dict:
     """Extract Join configuration."""
     config: dict = {}
     join_fields = []
-    for join_el in config_el.findall(".//JoinInfo"):
-        connection = join_el.get("connection", "")
-        for field_el in join_el.findall("Field"):
-            left = field_el.get("left", "")
-            right = field_el.get("right", "")
-            if left and right:
-                join_fields.append({"left": left, "right": right})
-        if connection:
-            config["join_connection"] = connection
+
+    left_join_info = config_el.find(".//JoinInfo[@connection='Left']")
+    right_join_info = config_el.find(".//JoinInfo[@connection='Right']")
+
+    if left_join_info is not None and right_join_info is not None:
+        left_fields = [f.get("field", "") for f in left_join_info.findall("Field") if f.get("field")]
+        right_fields = [f.get("field", "") for f in right_join_info.findall("Field") if f.get("field")]
+        for l, r in zip(left_fields, right_fields):
+            join_fields.append({"left": l, "right": r})
+    else:
+        for join_el in config_el.findall(".//JoinInfo"):
+            connection = join_el.get("connection", "")
+            for field_el in join_el.findall("Field"):
+                left = field_el.get("left", "")
+                right = field_el.get("right", "")
+                if left and right:
+                    join_fields.append({"left": left, "right": right})
+            if connection:
+                config["join_connection"] = connection
 
     if not join_fields:
         # Fallback for direct LeftField / RightField tags
@@ -497,16 +507,22 @@ def _extract_cross_tab_config(config_el: ET.Element) -> dict:
         config["group_fields"] = group_fields
 
     header_el = config_el.find("HeaderField")
-    if header_el is not None and header_el.text:
-        config["header_field"] = header_el.text
+    if header_el is not None:
+        val = header_el.get("field", "") or (header_el.text.strip() if header_el.text else "")
+        if val:
+            config["header_field"] = val
 
     data_el = config_el.find("DataField")
-    if data_el is not None and data_el.text:
-        config["data_field"] = data_el.text
+    if data_el is not None:
+        val = data_el.get("field", "") or (data_el.text.strip() if data_el.text else "")
+        if val:
+            config["data_field"] = val
 
     method_el = config_el.find("Method")
-    if method_el is not None and method_el.text:
-        config["method"] = method_el.text
+    if method_el is not None:
+        val = method_el.get("method", "") or (method_el.text.strip() if method_el.text else "")
+        if val:
+            config["method"] = val
 
     return config
 
