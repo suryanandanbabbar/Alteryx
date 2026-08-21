@@ -112,11 +112,11 @@ class TestDocxBusinessReport:
         assert "Findings" in exec_text
         assert "Conclusions" in exec_text
         assert "Recommendations" in exec_text
-        assert "Limitations" in exec_text
+        assert "Limitations" not in exec_text
 
-        # Word count check (~150-300 words)
+        # Word count check (~100-350 words)
         words = len(exec_text.split())
-        assert 150 <= words <= 350, f"Demo claims executive summary word count: {words}"
+        assert 100 <= words <= 350, f"Demo claims executive summary word count: {words}"
 
         # No raw tool IDs in Executive Summary
         assert "#1" not in exec_text
@@ -218,9 +218,9 @@ class TestDocxBusinessReport:
                 exec_lines.append(p.text)
 
         exec_text = "\n".join(exec_lines)
-        assert len(exec_text.split()) >= 150
+        assert len(exec_text.split()) >= 100
         assert "Methods of Analysis" in exec_text
         assert "Findings" in exec_text
         assert "Conclusions" in exec_text
         assert "Recommendations" in exec_text
-        assert "Limitations" in exec_text
+        assert "Limitations" not in exec_text

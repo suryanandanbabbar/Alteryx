@@ -289,26 +289,6 @@ def generate_docx(
             r_r = p_r.add_run(rec)
             r_r.font.size = Pt(9.0)
 
-        doc.add_paragraph().paragraph_format.space_after = Pt(4)
-
-    # 1.6 Limitations (Conditional)
-    if exec_summary and exec_summary.limitations:
-        p_lim_hdr = doc.add_paragraph()
-        p_lim_hdr.paragraph_format.space_before = Pt(4)
-        p_lim_hdr.paragraph_format.space_after = Pt(2)
-        r_lh = p_lim_hdr.add_run("Limitations")
-        r_lh.bold = True
-        r_lh.font.color.rgb = RGB_NAVY
-        r_lh.font.size = Pt(10)
-
-        for lim in exec_summary.limitations:
-            p_l = doc.add_paragraph(style='List Bullet')
-            p_l.paragraph_format.space_after = Pt(2)
-            r_l = p_l.add_run(lim)
-            r_l.font.size = Pt(9.0)
-
-        doc.add_paragraph().paragraph_format.space_after = Pt(16)
-
     # =============================================================
     # SECTION 2: BUSINESS PROCESS & OPERATIONAL DELIVERABLES
     # =============================================================
