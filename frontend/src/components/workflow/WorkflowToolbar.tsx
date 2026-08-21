@@ -8,7 +8,6 @@ import {
   Download,
   Camera,
   Loader2,
-  FileJson,
   ChevronLeft,
   ChevronRight,
   ArrowRight,
@@ -34,7 +33,6 @@ interface WorkflowToolbarProps {
   onDownloadSvg?: () => void;
   onDownloadView?: () => void;
   isCapturing?: boolean;
-  onDownloadJson?: () => void;
 }
 
 export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
@@ -55,7 +53,6 @@ export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
   onDownloadSvg,
   onDownloadView,
   isCapturing,
-  onDownloadJson,
 }) => {
   return (
     <div
@@ -353,29 +350,6 @@ export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
               <Camera size={12} />
             )}
             <span>{isCapturing ? 'Capturing…' : 'View'}</span>
-          </button>
-        )}
-
-        {onDownloadJson && (
-          <button
-            onClick={onDownloadJson}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              background: 'var(--color-surface-secondary)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-sm, 4px)',
-              padding: '4px 8px',
-              fontSize: '11px',
-              fontWeight: 600,
-              color: 'var(--color-text)',
-              cursor: 'pointer',
-            }}
-            title="Download workflow JSON"
-          >
-            <FileJson size={12} />
-            <span>JSON</span>
           </button>
         )}
       </div>

@@ -500,17 +500,6 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     }
   }, [diagramData.dag_layout?.title]);
 
-  const handleDownloadJson = () => {
-    const jsonStr = JSON.stringify(diagramData, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'workflow_diagram.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   // Data for Inspector
   const selectedNodeDto = selectedToolId !== null ? nodeMap.get(selectedToolId) || null : null;
   const upstreamNodes = useMemo(() => {
@@ -569,7 +558,6 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         onDownloadSvg={onDownloadSvg}
         onDownloadView={handleDownloadView}
         isCapturing={isCapturing}
-        onDownloadJson={handleDownloadJson}
       />
 
       {/* Main Canvas & Inspector Split View */}
