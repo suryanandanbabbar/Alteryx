@@ -59,6 +59,9 @@ class TestNestedContainersAndNodeDiscovery:
         assert canonical.metrics.annotation_count == 2
         assert canonical.metrics.input_count == 4
         assert canonical.metrics.output_count == 7
+        assert canonical.metrics.terminal_node_count == 7
+        assert canonical.metrics.business_output_count == 5
+        assert canonical.metrics.business_output_node_ids == [17, 18, 132, 142, 152]
 
         # Check execution order length and step numbering independence
         assert len(canonical.execution_order) == 39

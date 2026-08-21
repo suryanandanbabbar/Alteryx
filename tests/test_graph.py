@@ -115,3 +115,65 @@ class TestResolveOutputVariable:
 
     def test_duplicates(self):
         assert resolve_output_variable(10, "Duplicates") == "df_10_duplicates"
+
+
+class TestExecutionOrderAndOutputClassification:
+    """Validate topological execution ordering, cycle detection, and terminal/business outputs."""
+
+    def test_deterministic_kahn_topological_sort_repeatability(self):
+        """Topological execution order must be 100% deterministic across repeated runs."""
+        wf = parse_workflow("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        g = build_graph(wf)
+
+        orders = [execution_order(g) for _ in range(10)]
+        for o in orders[1:]:
+            assert o == orders[0], "Topological order is not deterministic across runs!"
+
+    def test_all_edges_dependency_ordering(self):
+        """Every edge A -> B must satisfy position(A) < position(B) in execution_order."""
+        wf = parse_workflow("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        g = build_graph(wf)
+        order = execution_order(g)
+        pos_map = {node: idx for idx, node in enumerate(order)}
+
+        for u, v in g.edges():
+            assert pos_map[u] < pos_map[v], f"Dependency violation: {u} (pos {pos_map[u]}) is not before {v} (pos {pos_map[v]})"
+
+        # Explicitly verify required examples: 102 -> 104, 2 -> 111, 101 -> 111
+        assert pos_map[102] < pos_map[104]
+        assert pos_map[2] < pos_map[111]
+        assert pos_map[101] < pos_map[111]
+
+    def test_cyclic_workflow_error_detection(self):
+        """Cycle in workflow graph raises CyclicWorkflowError."""
+        import networkx as nx
+        from awa.graph.builder import CyclicWorkflowError
+
+        cyclic_g = nx.DiGraph()
+        cyclic_g.add_edge(1, 2)
+        cyclic_g.add_edge(2, 3)
+        cyclic_g.add_edge(3, 1)
+
+        with pytest.raises(CyclicWorkflowError):
+            execution_order(cyclic_g)
+
+    def test_terminal_vs_business_outputs_separation(self):
+        """Terminal nodes (7) and Business Outputs (5) are explicitly separated on Demo Claims."""
+        from awa.analysis.workflow_analyzer import analyze_canonical
+
+        canonical = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        metrics = canonical.metrics
+
+        # 1. Total counts
+        assert metrics.terminal_node_count == 7
+        assert metrics.business_output_count == 5
+        assert metrics.output_count == 7
+
+        # 2. Business output node IDs
+        assert metrics.business_output_node_ids == [17, 18, 132, 142, 152]
+
+        # 3. BrowseV2 nodes #7 and #14 are in terminal_node_ids but excluded from business outputs
+        assert 7 in metrics.terminal_node_ids
+        assert 14 in metrics.terminal_node_ids
+        assert 7 not in metrics.business_output_node_ids
+        assert 14 not in metrics.business_output_node_ids

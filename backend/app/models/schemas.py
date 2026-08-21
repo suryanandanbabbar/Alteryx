@@ -30,6 +30,10 @@ class WorkflowMetricsDTO(BaseModel):
     total_connections: int
     input_count: int
     output_count: int
+    terminal_node_count: int = 0
+    terminal_node_ids: list[int] = Field(default_factory=list)
+    business_output_count: int = 0
+    business_output_node_ids: list[int] = Field(default_factory=list)
     container_count: int = 0
     annotation_count: int = 0
     input_node_ids: list[int] = Field(default_factory=list)

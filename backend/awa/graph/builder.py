@@ -54,13 +54,36 @@ def build_graph(workflow: Workflow) -> nx.DiGraph:
     return g
 
 
-def execution_order(g: nx.DiGraph) -> list[int]:
-    """Return tool IDs in topological (execution) order.
+import heapq
 
-    This is the correct data-flow order derived from graph connectivity.
-    Tool IDs are NOT execution order.
+def execution_order(g: nx.DiGraph) -> list[int]:
+    """Return tool IDs in deterministic topological (execution) order.
+
+    Every upstream dependency appears before its downstream node.
+    Independent branches are ordered deterministically by tool ID using Kahn's algorithm.
+    Explicitly detects cycles.
     """
-    return list(nx.topological_sort(g))
+    if not nx.is_directed_acyclic_graph(g):
+        cycles = list(nx.simple_cycles(g))
+        raise CyclicWorkflowError(f"Workflow contains cycles: {cycles}")
+
+    in_degree = dict(g.in_degree())
+    ready: list[int] = [n for n, deg in in_degree.items() if deg == 0]
+    heapq.heapify(ready)
+
+    order: list[int] = []
+    while ready:
+        node = heapq.heappop(ready)
+        order.append(node)
+        for succ in sorted(g.successors(node)):
+            in_degree[succ] -= 1
+            if in_degree[succ] == 0:
+                heapq.heappush(ready, succ)
+
+    if len(order) != len(g.nodes):
+        raise CyclicWorkflowError("Cycle detected during topological sort")
+
+    return order
 
 
 def consumed_anchors(workflow: Workflow) -> dict[int, set[str]]:

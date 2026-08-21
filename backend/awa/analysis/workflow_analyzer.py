@@ -441,16 +441,24 @@ def analyze_canonical(
         all_diags.extend(tr.diagnostics)
 
     # 8. Compute workflow metrics using Tool Registry catalog
-    input_node_ids = []
-    output_node_ids = []
+    input_node_ids: list[int] = []
+    terminal_node_ids: list[int] = []
+    business_output_node_ids: list[int] = []
+    preview_tool_types = {"Browse", "BrowseV2", "Message", "Test"}
+
+    sink_tids = set(n for n in graph.nodes() if graph.out_degree(n) == 0)
+
     for tid in exec_order:
         if tid in workflow.tools:
             tool = workflow.tools[tid]
             tdef = catalog.resolve(tool.plugin or tool.tool_type)
             if not tdef.input_anchors or tool.tool_type in ("DbFileInput", "InputData", "TextInput", "DynamicInput", "Directory", "DateTimeNow"):
                 input_node_ids.append(tid)
-            if not tdef.output_anchors or tool.tool_type in ("DbFileOutput", "OutputData", "Browse", "BrowseV2", "Render"):
-                output_node_ids.append(tid)
+            if tid in sink_tids or not tdef.output_anchors or tool.tool_type in ("DbFileOutput", "OutputData", "Browse", "BrowseV2", "Render"):
+                if tid not in terminal_node_ids:
+                    terminal_node_ids.append(tid)
+                if tool.tool_type not in preview_tool_types and tid not in business_output_node_ids:
+                    business_output_node_ids.append(tid)
 
     support_counts: dict[str, int] = {}
     for tr in translations.values():
@@ -461,11 +469,15 @@ def analyze_canonical(
         total_nodes=len(workflow.tools),
         total_connections=len(workflow.connections),
         input_count=len(input_node_ids),
-        output_count=len(output_node_ids),
+        output_count=len(terminal_node_ids),
+        terminal_node_count=len(terminal_node_ids),
+        terminal_node_ids=terminal_node_ids,
+        business_output_count=len(business_output_node_ids),
+        business_output_node_ids=business_output_node_ids,
         container_count=len(workflow.containers),
         annotation_count=len(workflow.textboxes),
         input_node_ids=input_node_ids,
-        output_node_ids=output_node_ids,
+        output_node_ids=terminal_node_ids,
         support_summary=support_counts,
     )
 
@@ -525,6 +537,7 @@ def analyze_workflow(
     generate_json(
         workflow, exec_order, translations,
         output_dir / "workflow.json",
+        metrics=canonical.metrics,
     )
 
     # 2. workflow.py
