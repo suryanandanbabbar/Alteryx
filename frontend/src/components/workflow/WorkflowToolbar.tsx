@@ -6,6 +6,8 @@ import {
   ZoomIn,
   ZoomOut,
   Download,
+  Camera,
+  Loader2,
   FileJson,
   ChevronLeft,
   ChevronRight,
@@ -30,6 +32,8 @@ interface WorkflowToolbarProps {
   direction: 'LR' | 'TB';
   onToggleDirection: () => void;
   onDownloadSvg?: () => void;
+  onDownloadView?: () => void;
+  isCapturing?: boolean;
   onDownloadJson?: () => void;
 }
 
@@ -49,6 +53,8 @@ export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
   direction,
   onToggleDirection,
   onDownloadSvg,
+  onDownloadView,
+  isCapturing,
   onDownloadJson,
 }) => {
   return (
@@ -186,19 +192,10 @@ export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
             color: 'var(--color-text)',
             cursor: 'pointer',
           }}
-          title={`Scan direction ${direction === 'LR' ? 'Horizontal (Left-to-Right)' : 'Vertical (Top-to-Bottom)'}`}
+          title={`Switch layout direction (current: ${direction === 'LR' ? 'Left to Right' : 'Top to Bottom'})`}
         >
-          {direction === 'LR' ? (
-            <>
-              <ArrowRight size={12} />
-              <span>LR Layout</span>
-            </>
-          ) : (
-            <>
-              <ArrowDown size={12} />
-              <span>TB Layout</span>
-            </>
-          )}
+          {direction === 'LR' ? <ArrowRight size={13} /> : <ArrowDown size={13} />}
+          <span>{direction}</span>
         </button>
 
         {/* Reset Layout */}
@@ -217,13 +214,13 @@ export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
             color: 'var(--color-text)',
             cursor: 'pointer',
           }}
-          title="Reset node positions to auto-layout"
+          title="Reset layout positions"
         >
           <RotateCcw size={12} />
           <span>Reset</span>
         </button>
 
-        {/* Fit to Screen */}
+        {/* Fit View */}
         <button
           onClick={onFitView}
           style={{
@@ -239,7 +236,7 @@ export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
             color: 'var(--color-text)',
             cursor: 'pointer',
           }}
-          title="Fit diagram to screen"
+          title="Fit workflow to view"
         >
           <Maximize2 size={12} />
           <span>Fit</span>
@@ -250,12 +247,12 @@ export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
         {/* Zoom Controls */}
         <div
           style={{
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
             background: 'var(--color-surface-secondary)',
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-sm, 4px)',
-            padding: '2px',
+            overflow: 'hidden',
           }}
         >
           <button
@@ -326,6 +323,36 @@ export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
           >
             <Download size={12} />
             <span>SVG</span>
+          </button>
+        )}
+
+        {/* Download View (PNG) */}
+        {onDownloadView && (
+          <button
+            onClick={onDownloadView}
+            disabled={isCapturing}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'var(--color-surface-secondary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm, 4px)',
+              padding: '4px 8px',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: 'var(--color-text)',
+              cursor: isCapturing ? 'wait' : 'pointer',
+              opacity: isCapturing ? 0.7 : 1,
+            }}
+            title="Download current workflow view"
+          >
+            {isCapturing ? (
+              <Loader2 size={12} className="animate-spin" color="var(--color-primary)" />
+            ) : (
+              <Camera size={12} />
+            )}
+            <span>{isCapturing ? 'Capturing…' : 'View'}</span>
           </button>
         )}
 

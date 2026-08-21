@@ -12,6 +12,7 @@ import {
   EdgeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { toPng } from 'html-to-image';
 
 import { DiagramDTO, NodeDTO, ConnectionDTO, DiagnosticDTO } from '../../types/workflow';
 import { WorkflowNode } from './WorkflowNode';
@@ -44,6 +45,8 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
   onDownloadSvg,
 }) => {
   const reactFlow = useReactFlow();
+  const reactFlowWrapperRef = useRef<HTMLDivElement>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   const [direction, setDirection] = useState<'LR' | 'TB'>('LR');
   const [selectedToolId, setSelectedToolId] = useState<number | null>(externalSelectedToolId ?? null);
@@ -432,6 +435,48 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     reactFlow.zoomOut({ duration: 200 });
   };
 
+  const handleDownloadView = useCallback(async () => {
+    if (!reactFlowWrapperRef.current) return;
+    try {
+      setIsCapturing(true);
+      const reactFlowElement = reactFlowWrapperRef.current.querySelector('.react-flow') as HTMLElement;
+      if (!reactFlowElement) return;
+
+      const backgroundColor = getComputedStyle(document.body).getPropertyValue('--color-surface').trim() || '#0f172a';
+
+      const dataUrl = await toPng(reactFlowElement, {
+        backgroundColor,
+        pixelRatio: 2,
+        filter: (node: HTMLElement) => {
+          const classList = node.classList;
+          if (classList) {
+            if (
+              classList.contains('react-flow__minimap') ||
+              classList.contains('react-flow__controls') ||
+              classList.contains('react-flow__panel')
+            ) {
+              return false;
+            }
+          }
+          return true;
+        },
+      });
+
+      const rawTitle = diagramData.dag_layout?.title || 'workflow';
+      const cleanTitle = rawTitle.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
+      const filename = `${cleanTitle}_view.png`;
+
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Failed to capture workflow view:', err);
+    } finally {
+      setIsCapturing(false);
+    }
+  }, [diagramData.dag_layout?.title]);
+
   const handleDownloadJson = () => {
     const jsonStr = JSON.stringify(diagramData, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -498,6 +543,8 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         direction={direction}
         onToggleDirection={handleToggleDirection}
         onDownloadSvg={onDownloadSvg}
+        onDownloadView={handleDownloadView}
+        isCapturing={isCapturing}
         onDownloadJson={handleDownloadJson}
       />
 
@@ -514,7 +561,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         }}
       >
         {/* React Flow Graph Area */}
-        <div style={{ flex: 1, height: '100%', position: 'relative' }}>
+        <div ref={reactFlowWrapperRef} style={{ flex: 1, height: '100%', position: 'relative' }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
