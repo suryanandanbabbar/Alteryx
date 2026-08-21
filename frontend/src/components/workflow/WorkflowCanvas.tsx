@@ -3,7 +3,6 @@ import {
   ReactFlow,
   ReactFlowProvider,
   Background,
-  MiniMap,
   useNodesState,
   useEdgesState,
   useReactFlow,
@@ -20,8 +19,7 @@ import { WorkflowEdge } from './WorkflowEdge';
 import { WorkflowToolbar } from './WorkflowToolbar';
 import { WorkflowInspector } from './WorkflowInspector';
 import { getLayoutedElements, getWorkflowBounds, NODE_WIDTH, NODE_HEIGHT } from './layout';
-import { WorkflowNodeType, WorkflowEdgeType, WorkflowNodeData, WorkflowEdgeData } from './types';
-import { getCategoryColor } from '../../theme/palette';
+import { WorkflowNodeType, WorkflowEdgeType, WorkflowEdgeData } from './types';
 
 const nodeTypes: NodeTypes = {
   workflowNode: WorkflowNode as any,
@@ -252,7 +250,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
 
   // Helper to frame the viewport tightly around the actual workflow bounding rectangle
   const fitWorkflowBounds = useCallback(
-    (targetNodes: WorkflowNodeType[], customPadding = 40, duration = 300) => {
+    (targetNodes: WorkflowNodeType[], customPadding = 24, duration = 300) => {
       if (targetNodes.length === 0) return;
       const bounds = getWorkflowBounds(targetNodes);
       reactFlow.fitBounds(
@@ -273,7 +271,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
   useEffect(() => {
     if (!isInitialFitRef.current && nodes.length > 0) {
       setTimeout(() => {
-        fitWorkflowBounds(nodes, 40, 250);
+        fitWorkflowBounds(nodes, 24, 250);
         isInitialFitRef.current = true;
       }, 50);
     }
@@ -430,7 +428,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
 
   // Zoom and Fit handlers
   const handleFitView = () => {
-    fitWorkflowBounds(nodes, 40, 300);
+    fitWorkflowBounds(nodes, 24, 300);
   };
 
   const handleResetLayout = () => {
@@ -438,7 +436,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     setNodes(layouted.nodes);
     setEdges(layouted.edges);
     setTimeout(() => {
-      fitWorkflowBounds(layouted.nodes, 40, 300);
+      fitWorkflowBounds(layouted.nodes, 24, 300);
     }, 50);
   };
 
@@ -449,7 +447,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     setNodes(layouted.nodes);
     setEdges(layouted.edges);
     setTimeout(() => {
-      fitWorkflowBounds(layouted.nodes, 40, 300);
+      fitWorkflowBounds(layouted.nodes, 24, 300);
     }, 50);
   };
 
@@ -477,7 +475,6 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
           const classList = node.classList;
           if (classList) {
             if (
-              classList.contains('react-flow__minimap') ||
               classList.contains('react-flow__controls') ||
               classList.contains('react-flow__panel')
             ) {
@@ -548,7 +545,8 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         flexDirection: 'column',
         gap: '10px',
         width: '100%',
-        height: '740px',
+        height: 'min(640px, 72vh)',
+        minHeight: '480px',
         position: 'relative',
       }}
     >
@@ -613,21 +611,6 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
             proOptions={{ hideAttribution: true }}
           >
             <Background gap={18} size={1} color="var(--color-border)" />
-            <MiniMap
-              nodeColor={(node) => {
-                const nd = node.data as WorkflowNodeData;
-                const color = getCategoryColor(nd.visualCategory || nd.toolType.toLowerCase());
-                return color.stroke || '#94a3b8';
-              }}
-              nodeStrokeWidth={2}
-              style={{
-                background: 'var(--color-surface)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-sm, 4px)',
-                width: 140,
-                height: 90,
-              }}
-            />
           </ReactFlow>
         </div>
 
