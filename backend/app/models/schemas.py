@@ -135,6 +135,9 @@ class DiagramDTO(BaseModel):
     svg: str
     nodes: list[NodeDTO]
     dag_layout: DagLayoutDTO
+    connections: list[ConnectionDTO] = Field(default_factory=list)
+    diagnostics: list[DiagnosticDTO] = Field(default_factory=list)
+    metrics: WorkflowMetricsDTO | None = None
 
 
 class LibraryDTO(BaseModel):

@@ -22,6 +22,10 @@ export interface WorkflowMetricsDTO {
   total_connections: number;
   input_count: number;
   output_count: number;
+  terminal_node_count?: number;
+  terminal_node_ids?: number[];
+  business_output_count?: number;
+  business_output_node_ids?: number[];
   container_count?: number;
   annotation_count?: number;
   input_node_ids: number[];
@@ -116,6 +120,9 @@ export interface DiagramDTO {
   svg: string;
   nodes: NodeDTO[];
   dag_layout: DagLayoutDTO;
+  connections?: ConnectionDTO[];
+  diagnostics?: DiagnosticDTO[];
+  metrics?: WorkflowMetricsDTO | null;
 }
 
 export interface PythonTraceDTO {

@@ -328,10 +328,51 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
         title=res.dag_layout.title,
     )
 
+    conns_dto = [
+        ConnectionDTO(
+            origin_tool_id=c.origin_tool_id,
+            origin_anchor=c.origin_anchor,
+            destination_tool_id=c.destination_tool_id,
+            destination_anchor=c.destination_anchor,
+        )
+        for c in res.workflow.connections
+    ]
+
+    diags_dto = [
+        DiagnosticDTO(
+            level=d.level.value,
+            category=d.category,
+            tool_id=d.tool_id,
+            tool_type=d.tool_type,
+            message=d.message,
+            detail=d.detail,
+        )
+        for d in res.diagnostics
+    ]
+
+    metrics_dto = WorkflowMetricsDTO(
+        total_nodes=res.metrics.total_nodes,
+        total_connections=res.metrics.total_connections,
+        input_count=res.metrics.input_count,
+        output_count=res.metrics.output_count,
+        terminal_node_count=res.metrics.terminal_node_count,
+        terminal_node_ids=res.metrics.terminal_node_ids,
+        business_output_count=res.metrics.business_output_count,
+        business_output_node_ids=res.metrics.business_output_node_ids,
+        container_count=res.metrics.container_count,
+        annotation_count=res.metrics.annotation_count,
+        input_node_ids=res.metrics.input_node_ids,
+        output_node_ids=res.metrics.output_node_ids,
+        support_summary=res.metrics.support_summary,
+    )
+
     return DiagramDTO(
         svg=svg_str,
         nodes=nodes_dto,
         dag_layout=layout_dto,
+        connections=conns_dto,
+        diagnostics=diags_dto,
+        metrics=metrics_dto,
     )
 
 

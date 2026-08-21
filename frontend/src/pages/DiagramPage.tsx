@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { DiagramDTO } from '../types/workflow';
-import { DagViewer } from '../components/DagViewer';
+import { WorkflowCanvas } from '../components/workflow/WorkflowCanvas';
 import { NodeDetails } from '../components/NodeDetails';
 import { Loader2, AlertCircle } from 'lucide-react';
 
@@ -47,19 +47,15 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
     window.location.href = api.getDownloadUrl(analysisId, 'svg');
   };
 
-  const handleSelectNode = (toolId: number) => {
+  const handleSelectTool = (toolId: number | null) => {
     setSelectedToolId(toolId);
-    const detailEl = document.getElementById(`tool-detail-${toolId}`);
-    if (detailEl) {
-      detailEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
   };
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '300px', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px', gap: '12px' }}>
         <Loader2 size={24} color="var(--color-primary)" className="animate-spin" />
-        <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Loading workflow diagram...</span>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Loading interactive workflow DAG...</span>
       </div>
     );
   }
@@ -84,7 +80,7 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
       {/* Section Subtitle */}
       <div>
         <div style={{
@@ -95,7 +91,7 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
           textTransform: 'uppercase',
           marginBottom: '4px',
         }}>
-          02 Workflow Diagram
+          02 Interactive Workflow DAG
         </div>
         <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', margin: 0 }}>
           Interactive DAG & Tool Configurations
@@ -103,14 +99,14 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
       </div>
 
       {/* Full-Width Interactive DAG Visualization */}
-      <DagViewer
-        svgContent={diagramData.svg}
-        onDownloadSvg={handleDownloadSvg}
-        onSelectNode={handleSelectNode}
+      <WorkflowCanvas
+        diagramData={diagramData}
         selectedToolId={selectedToolId}
+        onSelectTool={handleSelectTool}
+        onDownloadSvg={handleDownloadSvg}
       />
 
-      {/* Node Configurations & Details */}
+      {/* Node Configurations & Detailed Tables */}
       <NodeDetails
         nodes={diagramData.nodes}
         selectedToolId={selectedToolId}
