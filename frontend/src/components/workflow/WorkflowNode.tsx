@@ -25,6 +25,7 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
     isHighlighted,
     isDimmed,
     isSearchMatch,
+    isActiveSearchMatch,
     isUpstream,
     isDownstream,
   } = nodeData;
@@ -47,9 +48,12 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
   if (isSelected) {
     borderColor = 'var(--color-primary)';
     boxShadow = '0 0 0 2px var(--color-primary-border), 0 4px 12px rgba(251, 78, 11, 0.15)';
-  } else if (isSearchMatch) {
+  } else if (isActiveSearchMatch) {
     borderColor = '#f59e0b';
-    boxShadow = '0 0 0 2px rgba(245, 158, 11, 0.4), 0 2px 8px rgba(245, 158, 11, 0.2)';
+    boxShadow = '0 0 0 2.5px rgba(245, 158, 11, 0.75), 0 4px 16px rgba(245, 158, 11, 0.4)';
+  } else if (isSearchMatch) {
+    borderColor = 'rgba(245, 158, 11, 0.6)';
+    boxShadow = '0 0 0 1.5px rgba(245, 158, 11, 0.25)';
   } else if (isUpstream) {
     borderColor = '#0284c7';
     boxShadow = '0 0 0 1.5px rgba(2, 132, 199, 0.35)';

@@ -19,7 +19,7 @@ import { WorkflowNode } from './WorkflowNode';
 import { WorkflowEdge } from './WorkflowEdge';
 import { WorkflowToolbar } from './WorkflowToolbar';
 import { WorkflowInspector } from './WorkflowInspector';
-import { getLayoutedElements, NODE_WIDTH, NODE_HEIGHT } from './layout';
+import { getLayoutedElements, getWorkflowBounds, NODE_WIDTH, NODE_HEIGHT } from './layout';
 import { WorkflowNodeType, WorkflowEdgeType, WorkflowNodeData, WorkflowEdgeData } from './types';
 import { getCategoryColor } from '../../theme/palette';
 
@@ -30,6 +30,8 @@ const nodeTypes: NodeTypes = {
 const edgeTypes: EdgeTypes = {
   workflowEdge: WorkflowEdge as any,
 };
+
+const SEARCH_ZOOM = 1.25;
 
 interface WorkflowCanvasInternalProps {
   diagramData: DiagramDTO;
@@ -162,13 +164,13 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     };
   }, [selectedToolId, connections]);
 
-  // Search matches
+  // Deterministic search matches calculation
   const matchedToolIds = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase().trim();
     return diagramData.nodes
       .filter((n) => {
-        const idMatch = String(n.tool_id).includes(q) || `#${n.tool_id}`.includes(q);
+        const idMatch = String(n.tool_id) === q || `#${n.tool_id}` === q || String(n.tool_id).includes(q);
         const nameMatch = (n.name || '').toLowerCase().includes(q);
         const typeMatch = (n.tool_type || '').toLowerCase().includes(q);
         const annotMatch = (n.annotation || '').toLowerCase().includes(q);
@@ -205,6 +207,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
           isHighlighted: false,
           isDimmed: false,
           isSearchMatch: false,
+          isActiveSearchMatch: false,
           isUpstream: false,
           isDownstream: false,
         },
@@ -247,8 +250,39 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     setEdges(baseLayout.edges);
   }, [baseLayout, setNodes, setEdges]);
 
+  // Helper to frame the viewport tightly around the actual workflow bounding rectangle
+  const fitWorkflowBounds = useCallback(
+    (targetNodes: WorkflowNodeType[], customPadding = 40, duration = 300) => {
+      if (targetNodes.length === 0) return;
+      const bounds = getWorkflowBounds(targetNodes);
+      reactFlow.fitBounds(
+        {
+          x: bounds.minX - customPadding,
+          y: bounds.minY - customPadding,
+          width: bounds.width + customPadding * 2,
+          height: bounds.height + customPadding * 2,
+        },
+        { duration }
+      );
+    },
+    [reactFlow]
+  );
+
+  // Initial tight framing on load
+  const isInitialFitRef = useRef(false);
+  useEffect(() => {
+    if (!isInitialFitRef.current && nodes.length > 0) {
+      setTimeout(() => {
+        fitWorkflowBounds(nodes, 40, 250);
+        isInitialFitRef.current = true;
+      }, 50);
+    }
+  }, [nodes, fitWorkflowBounds]);
+
   // Update dynamic visual highlighting without moving node positions or resetting zoom/pan
   useEffect(() => {
+    const activeMatchToolId = matchedToolIds.length > 0 ? matchedToolIds[activeMatchIndex] : null;
+
     setNodes((prevNodes) =>
       prevNodes.map((node) => {
         const toolId = Number(node.id);
@@ -257,6 +291,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         const isDownstream = lineage.downstreamToolIds.has(toolId);
         const isHighlighted = isSelected || isUpstream || isDownstream;
         const isSearchMatch = matchedToolIds.includes(toolId);
+        const isActiveSearchMatch = activeMatchToolId === toolId;
         const hasActiveSelection = selectedToolId !== null;
         const isDimmed =
           (hasActiveSelection && !isHighlighted) ||
@@ -268,6 +303,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
           currentData.isHighlighted === isHighlighted &&
           currentData.isDimmed === isDimmed &&
           currentData.isSearchMatch === isSearchMatch &&
+          currentData.isActiveSearchMatch === isActiveSearchMatch &&
           currentData.isUpstream === isUpstream &&
           currentData.isDownstream === isDownstream
         ) {
@@ -282,6 +318,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
             isHighlighted,
             isDimmed,
             isSearchMatch,
+            isActiveSearchMatch,
             isUpstream,
             isDownstream,
           },
@@ -319,18 +356,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         };
       })
     );
-  }, [selectedToolId, selectedEdgeId, lineage, matchedToolIds, setNodes, setEdges]);
-
-  // Initial fit view on load
-  const isInitialFitRef = useRef(false);
-  useEffect(() => {
-    if (!isInitialFitRef.current && nodes.length > 0) {
-      setTimeout(() => {
-        reactFlow.fitView({ padding: 0.15, duration: 250 });
-        isInitialFitRef.current = true;
-      }, 50);
-    }
-  }, [nodes, reactFlow]);
+  }, [selectedToolId, selectedEdgeId, lineage, matchedToolIds, activeMatchIndex, setNodes, setEdges]);
 
   // Handle node selection
   const handleSelectNode = useCallback(
@@ -344,14 +370,13 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     [externalOnSelectTool]
   );
 
-  // Center on a specific tool node preserving current zoom level
-  const centerOnNode = useCallback(
-    (toolId: number) => {
-      const node = nodes.find((n) => n.id === String(toolId));
+  // Navigate & zoom specifically to a search match node
+  const navigateToSearchMatch = useCallback(
+    (targetToolId: number) => {
+      const node = nodes.find((n) => n.id === String(targetToolId));
       if (node) {
-        const currentZoom = reactFlow.getViewport().zoom;
         reactFlow.setCenter(node.position.x + NODE_WIDTH / 2, node.position.y + NODE_HEIGHT / 2, {
-          zoom: currentZoom,
+          zoom: SEARCH_ZOOM,
           duration: 350,
         });
       }
@@ -359,44 +384,45 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     [nodes, reactFlow]
   );
 
-  // Search Navigation
+  // When user types a search query and matches change, automatically navigate to the 1st match
+  const lastNavigatedQueryRef = useRef('');
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed && matchedToolIds.length > 0) {
+      if (lastNavigatedQueryRef.current !== trimmed) {
+        lastNavigatedQueryRef.current = trimmed;
+        setActiveMatchIndex(0);
+        navigateToSearchMatch(matchedToolIds[0]);
+      }
+    } else {
+      lastNavigatedQueryRef.current = '';
+    }
+  }, [searchQuery, matchedToolIds, navigateToSearchMatch]);
+
+  // Search Prev/Next Navigation
   const handleNextMatch = useCallback(() => {
     if (matchedToolIds.length === 0) return;
     const nextIdx = (activeMatchIndex + 1) % matchedToolIds.length;
     setActiveMatchIndex(nextIdx);
     const targetId = matchedToolIds[nextIdx];
-    handleSelectNode(targetId);
-    centerOnNode(targetId);
-  }, [matchedToolIds, activeMatchIndex, handleSelectNode, centerOnNode]);
+    navigateToSearchMatch(targetId);
+  }, [matchedToolIds, activeMatchIndex, navigateToSearchMatch]);
 
   const handlePrevMatch = useCallback(() => {
     if (matchedToolIds.length === 0) return;
     const prevIdx = (activeMatchIndex - 1 + matchedToolIds.length) % matchedToolIds.length;
     setActiveMatchIndex(prevIdx);
     const targetId = matchedToolIds[prevIdx];
-    handleSelectNode(targetId);
-    centerOnNode(targetId);
-  }, [matchedToolIds, activeMatchIndex, handleSelectNode, centerOnNode]);
+    navigateToSearchMatch(targetId);
+  }, [matchedToolIds, activeMatchIndex, navigateToSearchMatch]);
 
   // Handle search text changes
   const handleSearchChange = (q: string) => {
     setSearchQuery(q);
     setActiveMatchIndex(0);
-    if (q.trim()) {
-      const qLower = q.toLowerCase().trim();
-      const firstMatch = diagramData.nodes.find(
-        (n) =>
-          String(n.tool_id).includes(qLower) ||
-          `#${n.tool_id}`.includes(qLower) ||
-          (n.name || '').toLowerCase().includes(qLower) ||
-          (n.tool_type || '').toLowerCase().includes(qLower)
-      );
-      if (firstMatch) {
-        centerOnNode(firstMatch.tool_id);
-      }
-    }
   };
 
+  // Clear search preserves the user's current viewport
   const handleClearSearch = () => {
     setSearchQuery('');
     setActiveMatchIndex(0);
@@ -404,7 +430,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
 
   // Zoom and Fit handlers
   const handleFitView = () => {
-    reactFlow.fitView({ padding: 0.15, duration: 300 });
+    fitWorkflowBounds(nodes, 40, 300);
   };
 
   const handleResetLayout = () => {
@@ -412,7 +438,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     setNodes(layouted.nodes);
     setEdges(layouted.edges);
     setTimeout(() => {
-      reactFlow.fitView({ padding: 0.15, duration: 300 });
+      fitWorkflowBounds(layouted.nodes, 40, 300);
     }, 50);
   };
 
@@ -423,7 +449,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     setNodes(layouted.nodes);
     setEdges(layouted.edges);
     setTimeout(() => {
-      reactFlow.fitView({ padding: 0.15, duration: 300 });
+      fitWorkflowBounds(layouted.nodes, 40, 300);
     }, 50);
   };
 

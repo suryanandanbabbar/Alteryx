@@ -66,3 +66,54 @@ export function getLayoutedElements(
 
   return { nodes: layoutedNodes, edges };
 }
+
+export interface WorkflowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+/**
+ * Calculates the bounding rectangle across all workflow nodes.
+ */
+export function getWorkflowBounds(
+  nodes: WorkflowNodeType[],
+  nodeWidth = NODE_WIDTH,
+  nodeHeight = NODE_HEIGHT
+): WorkflowBounds {
+  if (nodes.length === 0) {
+    return { x: 0, y: 0, width: 800, height: 600, minX: 0, minY: 0, maxX: 800, maxY: 600 };
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const node of nodes) {
+    const x = node.position.x;
+    const y = node.position.y;
+    const w = node.measured?.width || nodeWidth;
+    const h = node.measured?.height || nodeHeight;
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x + w > maxX) maxX = x + w;
+    if (y + h > maxY) maxY = y + h;
+  }
+
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+    minX,
+    minY,
+    maxX,
+    maxY,
+  };
+}

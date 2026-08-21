@@ -21,6 +21,7 @@ export interface WorkflowNodeData extends Record<string, unknown> {
   isHighlighted?: boolean;
   isDimmed?: boolean;
   isSearchMatch?: boolean;
+  isActiveSearchMatch?: boolean;
   isUpstream?: boolean;
   isDownstream?: boolean;
 }
