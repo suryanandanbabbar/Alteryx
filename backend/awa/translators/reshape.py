@@ -5,7 +5,7 @@ from __future__ import annotations
 from awa.model.tool import Tool
 from awa.model.workflow import Workflow
 from awa.model.translation import TranslationResult
-from awa.model.diagnostic import SupportLevel
+from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -201,28 +201,65 @@ class CrossTabTranslator(ToolTranslator):
         method = config.get("method", "Sum").lower()
 
         agg_map = {
-            "sum": "sum",
-            "avg": "mean",
-            "mean": "mean",
-            "count": "count",
-            "min": "min",
-            "max": "max",
-            "first": "first",
-            "last": "last",
+            "sum": "'sum'",
+            "avg": "'mean'",
+            "mean": "'mean'",
+            "count": "'count'",
+            "countdistinct": "'nunique'",
+            "min": "'min'",
+            "max": "'max'",
+            "first": "'first'",
+            "last": "'last'",
             "concat": "lambda x: ', '.join(str(v) for v in x)",
         }
-        aggfunc = agg_map.get(method, "sum")
+        aggfunc_code = agg_map.get(method, "'sum'")
 
         input_var = input_variables[0] if input_variables else "df_unknown"
         output_var = f"df_{tool.tool_id}"
+        index_code = repr(group_fields) if group_fields else "None"
+        diagnostics: list[Diagnostic] = []
+
+        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+        if upstream_schema is not None:
+            for gf in group_fields:
+                if gf not in upstream_schema:
+                    diagnostics.append(
+                        Diagnostic(
+                            level=DiagnosticLevel.WARNING,
+                            category="unresolved_field",
+                            tool_id=tool.tool_id,
+                            tool_type=tool.tool_type,
+                            message=f"Tool #{tool.tool_id} (CrossTab) references missing group field '{gf}'. Available fields: {upstream_schema}",
+                        )
+                    )
+            if header_field and header_field not in upstream_schema:
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.WARNING,
+                        category="unresolved_field",
+                        tool_id=tool.tool_id,
+                        tool_type=tool.tool_type,
+                        message=f"Tool #{tool.tool_id} (CrossTab) references missing header field '{header_field}'. Available fields: {upstream_schema}",
+                    )
+                )
+            if data_field and data_field not in upstream_schema:
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.WARNING,
+                        category="unresolved_field",
+                        tool_id=tool.tool_id,
+                        tool_type=tool.tool_type,
+                        message=f"Tool #{tool.tool_id} (CrossTab) references missing data field '{data_field}'. Available fields: {upstream_schema}",
+                    )
+                )
 
         code = (
             f"{output_var} = pd.pivot_table(\n"
             f"    {input_var},\n"
-            f"    index={repr(group_fields)},\n"
+            f"    index={index_code},\n"
             f"    columns={repr(header_field)},\n"
             f"    values={repr(data_field)},\n"
-            f"    aggfunc={repr(aggfunc)},\n"
+            f"    aggfunc={aggfunc_code},\n"
             f").reset_index()\n"
             f"{output_var}.columns.name = None"
         )
@@ -235,7 +272,7 @@ class CrossTabTranslator(ToolTranslator):
             imports={"import pandas as pd"},
             input_variables=[input_var],
             output_map={"Output": output_var},
-            diagnostics=[],
+            diagnostics=diagnostics,
             description=f"CrossTab: pivot on '{header_field}' with values='{data_field}' ({method})",
         )
 

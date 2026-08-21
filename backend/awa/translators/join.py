@@ -46,19 +46,60 @@ class JoinTranslator(ToolTranslator):
             left_on = [jf["left"] for jf in join_fields]
             right_on = [jf["right"] for jf in join_fields]
 
-            left_on_repr = repr(left_on[0]) if len(left_on) == 1 else repr(left_on)
-            right_on_repr = repr(right_on[0]) if len(right_on) == 1 else repr(right_on)
+            # Validate join fields against known upstream stream schemas
+            stream_schemas = getattr(workflow, "_stream_schemas", {})
+            left_schema = stream_schemas.get(left_var)
+            right_schema = stream_schemas.get(right_var)
 
-            code = (
-                f"# Inner join (J anchor)\n"
-                f"{joined_var} = pd.merge({left_var}, {right_var}, left_on={left_on_repr}, right_on={right_on_repr}, how='inner')\n"
-                f"# Left unjoined (L anchor)\n"
-                f"_merged_l = pd.merge({left_var}, {right_var}, left_on={left_on_repr}, right_on={right_on_repr}, how='left', indicator=True)\n"
-                f"{left_only_var} = _merged_l[_merged_l['_merge'] == 'left_only'].drop(columns=['_merge'])\n"
-                f"# Right unjoined (R anchor)\n"
-                f"_merged_r = pd.merge({left_var}, {right_var}, left_on={left_on_repr}, right_on={right_on_repr}, how='right', indicator=True)\n"
-                f"{right_only_var} = _merged_r[_merged_r['_merge'] == 'right_only'].drop(columns=['_merge'])"
-            )
+            if left_schema is not None:
+                for k in left_on:
+                    if k not in left_schema:
+                        diagnostics.append(
+                            Diagnostic(
+                                level=DiagnosticLevel.WARNING,
+                                category="unresolved_field",
+                                tool_id=tool.tool_id,
+                                tool_type=tool.tool_type,
+                                message=f"Tool #{tool.tool_id} references left field '{k}', but upstream stream does not expose that field. Available fields: {left_schema}",
+                            )
+                        )
+
+            if right_schema is not None:
+                for k in right_on:
+                    if k not in right_schema:
+                        diagnostics.append(
+                            Diagnostic(
+                                level=DiagnosticLevel.WARNING,
+                                category="unresolved_field",
+                                tool_id=tool.tool_id,
+                                tool_type=tool.tool_type,
+                                message=f"Tool #{tool.tool_id} references right field '{k}', but upstream stream does not expose that field. Available fields: {right_schema}",
+                            )
+                        )
+
+            if left_on == right_on:
+                code = (
+                    f"# Inner join (J anchor)\n"
+                    f"{joined_var} = pd.merge({left_var}, {right_var}, on={repr(left_on)}, how='inner', suffixes=('', '_right'))\n"
+                    f"# Left unjoined (L anchor)\n"
+                    f"_merged_l = pd.merge({left_var}, {right_var}, on={repr(left_on)}, how='left', indicator=True, suffixes=('', '_right'))\n"
+                    f"{left_only_var} = _merged_l[_merged_l['_merge'] == 'left_only'].drop(columns=['_merge'])\n"
+                    f"# Right unjoined (R anchor)\n"
+                    f"_merged_r = pd.merge({left_var}, {right_var}, on={repr(left_on)}, how='right', indicator=True, suffixes=('', '_right'))\n"
+                    f"{right_only_var} = _merged_r[_merged_r['_merge'] == 'right_only'].drop(columns=['_merge'])"
+                )
+            else:
+                code = (
+                    f"# Inner join (J anchor)\n"
+                    f"{joined_var} = pd.merge({left_var}, {right_var}, left_on={repr(left_on)}, right_on={repr(right_on)}, how='inner', suffixes=('', '_right'))\n"
+                    f"# Left unjoined (L anchor)\n"
+                    f"_merged_l = pd.merge({left_var}, {right_var}, left_on={repr(left_on)}, right_on={repr(right_on)}, how='left', indicator=True, suffixes=('', '_right'))\n"
+                    f"{left_only_var} = _merged_l[_merged_l['_merge'] == 'left_only'].drop(columns=['_merge'])\n"
+                    f"# Right unjoined (R anchor)\n"
+                    f"_merged_r = pd.merge({left_var}, {right_var}, left_on={repr(left_on)}, right_on={repr(right_on)}, how='right', indicator=True, suffixes=('', '_right'))\n"
+                    f"{right_only_var} = _merged_r[_merged_r['_merge'] == 'right_only'].drop(columns=['_merge'])"
+                )
+
             desc = f"Join on Left={left_on} = Right={right_on}"
         else:
             code = (

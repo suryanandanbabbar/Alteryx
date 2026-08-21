@@ -78,11 +78,18 @@ def consumed_anchors(workflow: Workflow) -> dict[int, set[str]]:
     return consumed
 
 
-def build_input_map(workflow: Workflow) -> dict[int, list[str]]:
+def build_input_map(
+    workflow: Workflow,
+    stream_env: dict[tuple[int, str], str] | None = None,
+) -> dict[int, list[str]]:
     """For each tool, compute which DataFrame variable names feed into it.
 
     For dual-input tools (Join), inputs are ordered [left, right]
     based on destination_anchor.
+
+    Args:
+        workflow: Parsed Workflow IR.
+        stream_env: Optional mapping of (origin_tool_id, origin_anchor) -> dataframe_variable.
 
     Returns:
         dict mapping tool_id to list of input variable names.
@@ -90,12 +97,23 @@ def build_input_map(workflow: Workflow) -> dict[int, list[str]]:
     _LEFT_ANCHORS = {"left", "find", "targets", "f", "#1"}
     _RIGHT_ANCHORS = {"right", "replace", "source", "r", "s", "#2"}
 
+    env = stream_env or {}
+
     # First pass: collect inputs with anchor info
     raw_inputs: dict[int, list[tuple[str, str]]] = {}
     for conn in workflow.connections:
-        df_name = resolve_output_variable(conn.origin_tool_id, conn.origin_anchor)
+        orig_tid = conn.origin_tool_id
+        orig_anchor = (conn.origin_anchor or "").lower()
+        
+        # Look up variable in stream_env, falling back to resolve_output_variable
+        df_name = (
+            env.get((orig_tid, orig_anchor))
+            or env.get((orig_tid, "output"))
+            or env.get((orig_tid, ""))
+            or resolve_output_variable(orig_tid, conn.origin_anchor)
+        )
         raw_inputs.setdefault(conn.destination_tool_id, []).append(
-            (df_name, conn.destination_anchor)
+            (df_name, (conn.destination_anchor or "").lower())
         )
 
     # Second pass: order inputs for dual-input tools
@@ -103,12 +121,12 @@ def build_input_map(workflow: Workflow) -> dict[int, list[str]]:
     for tool_id, inputs in raw_inputs.items():
         tool = workflow.tools.get(tool_id)
         if tool and tool.tool_type in ("Join", "FindReplace", "AppendFields") and len(inputs) >= 2:
-            left_dfs = [df for df, anchor in inputs if anchor.lower() in _LEFT_ANCHORS]
-            right_dfs = [df for df, anchor in inputs if anchor.lower() in _RIGHT_ANCHORS]
+            left_dfs = [df for df, anchor in inputs if anchor in _LEFT_ANCHORS]
+            right_dfs = [df for df, anchor in inputs if anchor in _RIGHT_ANCHORS]
             other_dfs = [
                 df for df, anchor in inputs
-                if anchor.lower() not in _LEFT_ANCHORS
-                and anchor.lower() not in _RIGHT_ANCHORS
+                if anchor not in _LEFT_ANCHORS
+                and anchor not in _RIGHT_ANCHORS
             ]
             input_map[tool_id] = left_dfs + right_dfs + other_dfs
         else:
@@ -125,10 +143,10 @@ def resolve_output_variable(tool_id: int, anchor: str) -> str:
     - Unique: Unique/Duplicates → _unique/_duplicates
     - Join: Join/Left/Right → _joined/_left_only/_right_only
     """
-    a = anchor.lower()
-    if a in ("true",):
+    a = anchor.lower() if anchor else ""
+    if a in ("true", "t"):
         return f"df_{tool_id}_true"
-    elif a in ("false",):
+    elif a in ("false", "f"):
         return f"df_{tool_id}_false"
     elif a in ("unique", "u"):
         return f"df_{tool_id}_unique"

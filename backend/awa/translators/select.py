@@ -5,7 +5,7 @@ from __future__ import annotations
 from awa.model.tool import Tool
 from awa.model.workflow import Workflow
 from awa.model.translation import TranslationResult
-from awa.model.diagnostic import SupportLevel
+from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
 from awa.model.types import alteryx_to_pandas_dtype
 
 from .base import ToolTranslator
@@ -44,6 +44,9 @@ class SelectTranslator(ToolTranslator):
         selected_cols: list[str] = []
         renames: dict[str, str] = {}
         type_casts: dict[str, str] = {}
+        diagnostics: list[Diagnostic] = []
+
+        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
 
         for sf in select_fields:
             field_name = sf.get("field", "")
@@ -53,6 +56,17 @@ class SelectTranslator(ToolTranslator):
 
             if selected != "True" or field_name.startswith("*"):
                 continue
+
+            if upstream_schema is not None and field_name not in upstream_schema:
+                diagnostics.append(
+                    Diagnostic(
+                        level=DiagnosticLevel.WARNING,
+                        category="unresolved_field",
+                        tool_id=tool.tool_id,
+                        tool_type=tool.tool_type,
+                        message=f"Tool #{tool.tool_id} (Select) references configured field '{field_name}', but upstream stream does not expose that field. Available fields: {upstream_schema}",
+                    )
+                )
 
             selected_cols.append(field_name)
 
@@ -89,7 +103,7 @@ class SelectTranslator(ToolTranslator):
             imports={"import pandas as pd"},
             input_variables=[input_var],
             output_map={"Output": output_var},
-            diagnostics=[],
+            diagnostics=diagnostics,
             description=f"Select {len(selected_cols)} columns" + (f", rename {len(renames)}" if renames else ""),
         )
 

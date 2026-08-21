@@ -20,16 +20,40 @@ _FILE_FORMAT_MAP = {
 }
 
 
-def _infer_output_format(file_path: str, file_format_code: str) -> str:
-    """Infer output file format from path or code."""
-    if file_format_code:
-        fmt = _FILE_FORMAT_MAP.get(file_format_code)
-        if fmt:
-            return fmt
+def _parse_output_path(raw_path: str, file_format_code: str) -> tuple[str, str, str]:
+    """Parse Alteryx output connection string into (clean_path, sheet_name, format)."""
+    if not raw_path:
+        return ("output.csv", "", "csv")
 
-    ext = os.path.splitext(file_path)[1].lower()
-    ext_map = {".csv": "csv", ".xlsx": "xlsx", ".json": "json", ".parquet": "parquet"}
-    return ext_map.get(ext, "csv")
+    sheet_name = ""
+    file_path = raw_path
+    if "|||" in raw_path:
+        file_path, sheet_name = raw_path.split("|||", 1)
+        sheet_name = sheet_name.replace("$", "").strip()
+
+    file_path = file_path.strip()
+    if not file_path.startswith(("\\\\", "//")):
+        file_path = file_path.replace("\\", "/")
+
+    fmt = ""
+    if file_format_code:
+        fmt = _FILE_FORMAT_MAP.get(str(file_format_code), "")
+
+    if not fmt:
+        ext = os.path.splitext(file_path)[1].lower()
+        ext_map = {
+            ".csv": "csv",
+            ".tsv": "csv",
+            ".txt": "csv",
+            ".xlsx": "xlsx",
+            ".xls": "xlsx",
+            ".xlsm": "xlsx",
+            ".json": "json",
+            ".parquet": "parquet",
+        }
+        fmt = ext_map.get(ext, "csv")
+
+    return (file_path, sheet_name, fmt)
 
 
 class OutputDataTranslator(ToolTranslator):
@@ -42,11 +66,11 @@ class OutputDataTranslator(ToolTranslator):
         workflow: Workflow,
     ) -> TranslationResult:
         config = tool.configuration.parsed
-        file_path = config.get("file_path", "output.csv")
+        raw_path = config.get("file_path", "output.csv")
         file_format_code = config.get("file_format", "")
         input_var = input_variables[0] if input_variables else "df_unknown"
 
-        fmt = _infer_output_format(file_path, file_format_code)
+        file_path, sheet_name, fmt = _parse_output_path(raw_path, file_format_code)
         diagnostics: list[Diagnostic] = []
 
         is_unc = file_path.startswith(("\\\\", "//"))
@@ -65,10 +89,21 @@ class OutputDataTranslator(ToolTranslator):
             )
 
         path_repr = repr(file_path)
+        imports = {"import pandas as pd"}
+
         if fmt == "csv":
             code = f'{input_var}.to_csv({path_repr}, index=False)'
         elif fmt == "xlsx":
-            code = f'{input_var}.to_excel({path_repr}, index=False)'
+            imports.add("import openpyxl")
+            s_name = sheet_name or "Sheet1"
+            code = (
+                f'try:\n'
+                f'    with pd.ExcelWriter({path_repr}, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:\n'
+                f'        {input_var}.to_excel(writer, sheet_name={repr(s_name)}, index=False)\n'
+                f'except FileNotFoundError:\n'
+                f'    with pd.ExcelWriter({path_repr}, engine="openpyxl", mode="w") as writer:\n'
+                f'        {input_var}.to_excel(writer, sheet_name={repr(s_name)}, index=False)'
+            )
         elif fmt == "json":
             code = f'{input_var}.to_json({path_repr}, orient="records")'
         elif fmt == "parquet":
@@ -90,7 +125,7 @@ class OutputDataTranslator(ToolTranslator):
             tool_type=tool.tool_type,
             support_level=SupportLevel.FULL,
             python_code=code,
-            imports={"import pandas as pd"},
+            imports=imports,
             input_variables=[input_var],
             output_map={},
             diagnostics=diagnostics,

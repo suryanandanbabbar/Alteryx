@@ -30,6 +30,7 @@ class FilterTranslator(ToolTranslator):
 
         diagnostics: list[Diagnostic] = []
         imports: set[str] = {"import pandas as pd"}
+        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
 
         if not expression:
             code = (
@@ -44,6 +45,21 @@ class FilterTranslator(ToolTranslator):
                 message="Filter has no expression — all records pass to True branch",
             ))
         else:
+            if upstream_schema is not None:
+                import re
+                bracketed = re.findall(r"\[([^\]]+)\]", expression)
+                for ref_field in bracketed:
+                    if ref_field not in upstream_schema:
+                        diagnostics.append(
+                            Diagnostic(
+                                level=DiagnosticLevel.WARNING,
+                                category="unresolved_field",
+                                tool_id=tool.tool_id,
+                                tool_type=tool.tool_type,
+                                message=f"Tool #{tool.tool_id} (Filter) references missing field '{ref_field}'. Available fields: {upstream_schema}",
+                            )
+                        )
+
             try:
                 pandas_expr, expr_imports = emit_pandas(expression, input_var)
                 imports.update(expr_imports)

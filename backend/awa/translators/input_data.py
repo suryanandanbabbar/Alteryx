@@ -21,25 +21,41 @@ _FILE_FORMAT_MAP = {
 }
 
 
-def _infer_format(file_path: str, file_format_code: str) -> str:
-    """Infer file format from the path extension or format code."""
-    if file_format_code:
-        fmt = _FILE_FORMAT_MAP.get(file_format_code)
-        if fmt:
-            return fmt
+def _parse_input_path(raw_path: str, file_format_code: str) -> tuple[str, str, str]:
+    """Parse Alteryx connection string into (clean_path, sheet_name, format)."""
+    if not raw_path:
+        return ("input.csv", "", "csv")
 
-    ext = os.path.splitext(file_path)[1].lower()
-    ext_map = {
-        ".csv": "csv",
-        ".tsv": "csv",
-        ".txt": "csv",
-        ".xlsx": "xlsx",
-        ".xls": "xlsx",
-        ".json": "json",
-        ".parquet": "parquet",
-        ".yxdb": "yxdb",
-    }
-    return ext_map.get(ext, "csv")
+    sheet_name = ""
+    file_path = raw_path
+    if "|||" in raw_path:
+        file_path, sheet_name = raw_path.split("|||", 1)
+        sheet_name = sheet_name.replace("$", "").strip()
+
+    file_path = file_path.strip()
+    if not file_path.startswith(("\\\\", "//")):
+        file_path = file_path.replace("\\", "/")
+
+    fmt = ""
+    if file_format_code:
+        fmt = _FILE_FORMAT_MAP.get(str(file_format_code), "")
+
+    if not fmt:
+        ext = os.path.splitext(file_path)[1].lower()
+        ext_map = {
+            ".csv": "csv",
+            ".tsv": "csv",
+            ".txt": "csv",
+            ".xlsx": "xlsx",
+            ".xls": "xlsx",
+            ".xlsm": "xlsx",
+            ".json": "json",
+            ".parquet": "parquet",
+            ".yxdb": "yxdb",
+        }
+        fmt = ext_map.get(ext, "csv")
+
+    return (file_path, sheet_name, fmt)
 
 
 class InputDataTranslator(ToolTranslator):
@@ -52,10 +68,10 @@ class InputDataTranslator(ToolTranslator):
         workflow: Workflow,
     ) -> TranslationResult:
         config = tool.configuration.parsed
-        file_path = config.get("file_path", "input.csv")
+        raw_path = config.get("file_path", "input.csv")
         file_format_code = config.get("file_format", "")
 
-        fmt = _infer_format(file_path, file_format_code)
+        file_path, sheet_name, fmt = _parse_input_path(raw_path, file_format_code)
         output_var = f"df_{tool.tool_id}"
         diagnostics: list[Diagnostic] = []
 
@@ -75,10 +91,16 @@ class InputDataTranslator(ToolTranslator):
             )
 
         path_repr = repr(file_path)
+        imports = {"import pandas as pd"}
+
         if fmt == "csv":
             code = f'{output_var} = pd.read_csv({path_repr})'
         elif fmt == "xlsx":
-            code = f'{output_var} = pd.read_excel({path_repr})'
+            imports.add("import openpyxl")
+            if sheet_name:
+                code = f'{output_var} = pd.read_excel({path_repr}, sheet_name={repr(sheet_name)})'
+            else:
+                code = f'{output_var} = pd.read_excel({path_repr})'
         elif fmt == "json":
             code = f'{output_var} = pd.read_json({path_repr})'
         elif fmt == "parquet":
@@ -95,7 +117,7 @@ class InputDataTranslator(ToolTranslator):
                 category="external_dependency",
                 tool_id=tool.tool_id,
                 tool_type=tool.tool_type,
-                message=f"File format .yxdb requires conversion before execution",
+                message="File format .yxdb requires conversion before execution",
                 detail=f"Original path: {file_path}",
             ))
         else:
@@ -120,7 +142,7 @@ class InputDataTranslator(ToolTranslator):
             tool_type=tool.tool_type,
             support_level=SupportLevel.FULL,
             python_code=code,
-            imports={"import pandas as pd"},
+            imports=imports,
             input_variables=[],
             output_map={"Output": output_var},
             diagnostics=diagnostics,

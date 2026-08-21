@@ -5,7 +5,7 @@ from __future__ import annotations
 from awa.model.tool import Tool
 from awa.model.workflow import Workflow
 from awa.model.translation import TranslationResult
-from awa.model.diagnostic import SupportLevel
+from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -25,12 +25,28 @@ class SortTranslator(ToolTranslator):
         input_var = input_variables[0] if input_variables else "df_unknown"
         output_var = f"df_{tool.tool_id}"
 
+        diagnostics: list[Diagnostic] = []
+        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+
         if not sort_fields:
             code = f"{output_var} = {input_var}.copy()"
             desc = "Sort: passthrough"
         else:
             by_cols = [sf.get("field", "") for sf in sort_fields if sf.get("field")]
             ascending = [sf.get("order", "Ascending").lower() != "descending" for sf in sort_fields if sf.get("field")]
+
+            if upstream_schema is not None:
+                for col in by_cols:
+                    if col not in upstream_schema:
+                        diagnostics.append(
+                            Diagnostic(
+                                level=DiagnosticLevel.WARNING,
+                                category="unresolved_field",
+                                tool_id=tool.tool_id,
+                                tool_type=tool.tool_type,
+                                message=f"Tool #{tool.tool_id} (Sort) references missing field '{col}'. Available fields: {upstream_schema}",
+                            )
+                        )
 
             by_repr = repr(by_cols) if len(by_cols) > 1 else repr(by_cols[0])
             asc_repr = repr(ascending) if len(ascending) > 1 else repr(ascending[0])
@@ -46,7 +62,7 @@ class SortTranslator(ToolTranslator):
             imports={"import pandas as pd"},
             input_variables=[input_var],
             output_map={"Output": output_var},
-            diagnostics=[],
+            diagnostics=diagnostics,
             description=desc,
         )
 

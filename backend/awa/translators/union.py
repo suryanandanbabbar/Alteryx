@@ -21,7 +21,7 @@ class UnionTranslator(ToolTranslator):
         workflow: Workflow,
     ) -> TranslationResult:
         output_var = f"df_{tool.tool_id}"
-        config = tool.configuration.parsed
+        config = tool.configuration.parsed or {}
         by_name_or_pos = config.get("by_name_or_pos", "ByName")
 
         if not input_variables:
@@ -30,8 +30,13 @@ class UnionTranslator(ToolTranslator):
             code = f"{output_var} = {input_variables[0]}.copy()"
         else:
             inputs_list = ", ".join(input_variables)
-            if by_name_or_pos.lower() == "bypos":
-                code = f"{output_var} = pd.concat([{inputs_list}], ignore_index=True, axis=0)"
+            if by_name_or_pos.lower() in ("bypos", "byposition", "position"):
+                first_var = input_variables[0]
+                code = (
+                    f"# Union by position (align columns to first stream ordinal positions)\n"
+                    f"_aligned = [v if i == 0 else v.set_axis({first_var}.columns[:len(v.columns)], axis=1) for i, v in enumerate([{inputs_list}])]\n"
+                    f"{output_var} = pd.concat(_aligned, ignore_index=True, sort=False)"
+                )
             else:
                 code = f"{output_var} = pd.concat([{inputs_list}], ignore_index=True, sort=False)"
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import uuid
+import re
+import networkx as nx
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,7 +40,292 @@ class AnalysisResult:
     output_dir: Path
 
 
-from awa.analysis.business_intelligence import generate_business_summary
+def _extract_referenced_fields(expression: str) -> list[str]:
+    """Extract column names enclosed in brackets or matched from an expression."""
+    if not expression:
+        return []
+    bracketed = re.findall(r"\[([^\]]+)\]", expression)
+    if bracketed:
+        return list(dict.fromkeys(bracketed))
+    tokens = re.findall(r"\b[A-Za-z_][A-Za-z0-9_]*\b", expression)
+    keywords = {
+        "if", "then", "else", "elseif", "endif", "isnull", "tonumber", "tostring",
+        "datetimeadd", "datetimediff", "datetimetoday", "datetimeformat", "datetimenow",
+        "and", "or", "not", "true", "false", "null", "days", "months", "years",
+        "min", "max", "sum", "avg", "abs", "round", "trim", "left", "right", "length"
+    }
+    return [t for t in dict.fromkeys(tokens) if t.lower() not in keywords]
+
+
+def discover_source_fields(workflow: Workflow, graph: nx.DiGraph) -> dict[int, list[str]]:
+    """Identify initial intrinsic fields provided by each input dataset via generic DAG analysis."""
+    input_tids = [
+        tid for tid, t in workflow.tools.items()
+        if t.tool_type in ("DbFileInput", "InputData", "TextInput", "Directory", "DynamicInput") or graph.in_degree(tid) == 0
+    ]
+
+    input_fields: dict[int, list[str]] = {tid: [] for tid in input_tids}
+
+    has_explicit_schema = set()
+
+    # 1. Level 1: Explicit XML RecordInfo or TextInput fields
+    for tid in input_tids:
+        tool = workflow.tools[tid]
+        cfg = tool.configuration.parsed or {}
+        xml_f = [f.name for f in tool.output_fields if f.name]
+        if xml_f:
+            input_fields[tid].extend(xml_f)
+            has_explicit_schema.add(tid)
+        elif "fields" in cfg:
+            input_fields[tid].extend(cfg["fields"])
+            has_explicit_schema.add(tid)
+
+    # 2. Level 2: Subgraph analysis along isolated branch prior to joining
+    for tid in input_tids:
+        if tid in has_explicit_schema:
+            continue
+        visited = set()
+        queue = [tid]
+        while queue:
+            curr = queue.pop(0)
+            if curr in visited:
+                continue
+            visited.add(curr)
+
+            tool = workflow.tools.get(curr)
+            if not tool:
+                continue
+            cfg = tool.configuration.parsed or {}
+
+            if "select_fields" in cfg:
+                for sf in cfg["select_fields"]:
+                    f = sf.get("field")
+                    if f and f != "*Unknown" and not f.startswith("Right_"):
+                        input_fields[tid].append(f)
+
+            if "formula_fields" in cfg:
+                for ff in cfg["formula_fields"]:
+                    input_fields[tid].extend(_extract_referenced_fields(ff.get("expression", "")))
+
+            if "summarize_fields" in cfg:
+                for sf in cfg["summarize_fields"]:
+                    if sf.get("field"):
+                        input_fields[tid].append(sf["field"])
+
+            if "group_fields" in cfg:
+                input_fields[tid].extend(cfg["group_fields"])
+
+            if "header_field" in cfg and cfg["header_field"]:
+                input_fields[tid].append(cfg["header_field"])
+
+            if "data_field" in cfg and cfg["data_field"]:
+                input_fields[tid].append(cfg["data_field"])
+
+            if "sort_fields" in cfg:
+                for sf in cfg["sort_fields"]:
+                    if sf.get("field"):
+                        input_fields[tid].append(sf["field"])
+
+            # If current tool is a Join, do not expand beyond it for primary branch
+            if tool.tool_type not in ("Join", "AlteryxBasePluginsGui.Join.Join"):
+                for succ in graph.successors(curr):
+                    queue.append(succ)
+
+    # 3. Level 3: Inputs entering Left and Right side of Joins
+    join_right_inputs: dict[int, int] = {}
+    for conn in workflow.connections:
+        join_tid = conn.destination_tool_id
+        origin_tid = conn.origin_tool_id
+        join_tool = workflow.tools.get(join_tid)
+        if not join_tool or join_tool.tool_type not in ("Join", "AlteryxBasePluginsGui.Join.Join"):
+            continue
+
+        root_inputs = [inp for inp in input_tids if nx.has_path(graph, inp, origin_tid) or inp == origin_tid]
+        if not root_inputs:
+            continue
+        root_tid = root_inputs[0]
+
+        jcfg = join_tool.configuration.parsed or {}
+        if conn.destination_anchor == "Left":
+            if root_tid not in has_explicit_schema:
+                for jf in jcfg.get("join_fields", []):
+                    if jf.get("left"):
+                        input_fields[root_tid].append(jf["left"])
+        elif conn.destination_anchor == "Right":
+            join_right_inputs[join_tid] = root_tid
+            if root_tid not in has_explicit_schema:
+                for jf in jcfg.get("join_fields", []):
+                    if jf.get("right"):
+                        input_fields[root_tid].append(jf["right"])
+
+    # 4. Immediate downstream consumers for each join
+    for join_tid, root_tid in join_right_inputs.items():
+        if root_tid in has_explicit_schema:
+            continue
+        j_visited = set()
+        j_queue = list(graph.successors(join_tid))
+        while j_queue:
+            j_curr = j_queue.pop(0)
+            if j_curr in j_visited:
+                continue
+            j_visited.add(j_curr)
+
+            j_tool = workflow.tools.get(j_curr)
+            if not j_tool:
+                continue
+            j_cfg = j_tool.configuration.parsed or {}
+
+            if j_tool.tool_type in ("Formula", "MultiFieldFormula"):
+                for ff in j_cfg.get("formula_fields", []):
+                    refs = _extract_referenced_fields(ff.get("expression", ""))
+                    for rf in refs:
+                        if rf not in input_fields[input_tids[0]] and rf not in input_fields[root_tid]:
+                            input_fields[root_tid].append(rf)
+
+            if j_tool.tool_type in ("Union", "BlockUntilDone", "Filter"):
+                for succ in graph.successors(j_curr):
+                    j_queue.append(succ)
+
+    # 5. Generic placement for remaining unplaced fields
+    all_known_fields = set()
+    for tid, flds in input_fields.items():
+        all_known_fields.update(flds)
+
+    all_wf_fields = set()
+    for tid, tool in workflow.tools.items():
+        cfg = tool.configuration.parsed or {}
+        if "summarize_fields" in cfg:
+            for sf in cfg["summarize_fields"]:
+                if sf.get("field"):
+                    all_wf_fields.add(sf["field"])
+
+    unplaced = all_wf_fields - all_known_fields
+    if unplaced and len(input_tids) > 1:
+        target_tid = input_tids[1]
+        if target_tid not in has_explicit_schema:
+            input_fields[target_tid].extend(sorted(unplaced))
+
+    # 6. Final registry consolidation
+    registry = {}
+    for tid in input_tids:
+        flds = list(dict.fromkeys(input_fields[tid]))
+        registry[tid] = flds if flds else ["Record_Data"]
+
+    return registry
+
+
+def compute_tool_output_schema(
+    tool: Tool,
+    input_vars: list[str],
+    stream_schemas: dict[str, list[str]],
+    source_registry: dict[int, list[str]] | None = None,
+    graph: nx.DiGraph | None = None,
+    workflow: Workflow | None = None,
+) -> dict[str, list[str]]:
+    """Compute schema (list of column names) per output anchor of a tool."""
+    cfg = tool.configuration.parsed or {}
+    ttype = tool.tool_type
+    primary_in = input_vars[0] if input_vars else None
+    in_cols = list(stream_schemas.get(primary_in, [])) if primary_in else []
+
+    # Source input data tools
+    if source_registry is not None and tool.tool_id in source_registry:
+        src_cols = list(source_registry[tool.tool_id])
+        for f in tool.output_fields:
+            if f.name and f.name not in src_cols:
+                src_cols.append(f.name)
+        for f in cfg.get("fields", []):
+            if f and f not in src_cols:
+                src_cols.append(f)
+        return {"Output": src_cols}
+    elif ttype in ("TextInput", "TextInputTranslator"):
+        return {"Output": list(cfg.get("fields", []))}
+    elif ttype in ("DateTimeNow", "DateTimeNowTranslator"):
+        return {"Output": ["DateTimeNow"]}
+    elif ttype in ("DbFileInput", "InputData", "Directory", "DynamicInput"):
+        cols = [f.name for f in tool.output_fields if f.name] or list(cfg.get("fields", []))
+        return {"Output": cols}
+    elif ttype in ("Summarize", "SummarizeTranslator"):
+        sfs = cfg.get("summarize_fields", [])
+        out_cols = []
+        for sf in sfs:
+            act = sf.get("action", "").lower()
+            ren = sf.get("rename", "")
+            fld = sf.get("field", "")
+            if act == "groupby":
+                out_cols.append(ren if ren else fld)
+            else:
+                out_cols.append(ren if ren else f"{sf.get('action')}_{fld}")
+        return {"Output": out_cols}
+    elif ttype in ("AlteryxSelect", "Select", "SelectTranslator"):
+        sfs = cfg.get("select_fields", [])
+        if not sfs:
+            return {"Output": in_cols}
+        out_cols = []
+        for sf in sfs:
+            if sf.get("selected", "True") == "True" and not sf.get("field", "").startswith("*"):
+                fld = sf.get("field", "")
+                ren = sf.get("rename", "")
+                out_cols.append(ren if ren else fld)
+        return {"Output": out_cols}
+    elif ttype in ("Formula", "FormulaTranslator"):
+        ffs = cfg.get("formula_fields", [])
+        out_cols = list(in_cols)
+        for ff in ffs:
+            fld = ff.get("field", "")
+            if fld and fld not in out_cols:
+                out_cols.append(fld)
+        return {"Output": out_cols}
+    elif ttype in ("Filter", "FilterTranslator"):
+        return {"True": in_cols, "False": in_cols, "Output": in_cols}
+    elif ttype in ("Sort", "SortTranslator", "Sample", "SampleTranslator", "Unique", "UniqueTranslator", "BlockUntilDone", "BrowseV2", "Browse", "Message"):
+        return {"Output": in_cols, "Unique": in_cols, "Duplicates": in_cols, "Output1": in_cols, "Output2": in_cols, "Output3": in_cols}
+    elif ttype in ("Join", "JoinTranslator"):
+        left_in = input_vars[0] if len(input_vars) > 0 else None
+        right_in = input_vars[1] if len(input_vars) > 1 else None
+        left_cols = stream_schemas.get(left_in, []) if left_in else []
+        right_cols = stream_schemas.get(right_in, []) if right_in else []
+
+        joined_cols = list(left_cols)
+        for rc in right_cols:
+            if rc in left_cols:
+                joined_cols.append(f"{rc}_right")
+            else:
+                joined_cols.append(rc)
+        return {
+            "Join": joined_cols,
+            "Left": list(left_cols),
+            "Right": list(right_cols),
+        }
+    elif ttype in ("Union", "UnionTranslator"):
+        all_cols = []
+        for iv in input_vars:
+            for c in stream_schemas.get(iv, []):
+                if c not in all_cols:
+                    all_cols.append(c)
+        return {"Output": all_cols}
+    elif ttype in ("CrossTab", "CrossTabTranslator"):
+        group_fields = list(cfg.get("group_fields", []))
+        header_field = cfg.get("header_field", "")
+        discovered_pivoted_cols = []
+        if graph and workflow:
+            for succ_tid in graph.successors(tool.tool_id):
+                succ_tool = workflow.tools.get(succ_tid)
+                if not succ_tool:
+                    continue
+                succ_cfg = succ_tool.configuration.parsed or {}
+                if "select_fields" in succ_cfg:
+                    for sf in succ_cfg["select_fields"]:
+                        f_name = sf.get("rename") or sf.get("field")
+                        if f_name and f_name not in group_fields and f_name != "*Unknown" and sf.get("selected", "True") != "False":
+                            discovered_pivoted_cols.append(f_name)
+        if not discovered_pivoted_cols:
+            discovered_pivoted_cols = [f.name for f in tool.output_fields if f.name and f.name not in group_fields]
+        if not discovered_pivoted_cols and header_field:
+            discovered_pivoted_cols = [f"{header_field}_Values"]
+        return {"Output": group_fields + discovered_pivoted_cols}
+    else:
+        return {"Output": in_cols}
 
 
 def analyze_canonical(
@@ -71,19 +358,71 @@ def analyze_canonical(
     graph = build_graph(workflow)
     exec_order = execution_order(graph)
     consumed = consumed_anchors(workflow)
-    input_map = build_input_map(workflow)
 
-    # 3. Translate tools and collect explanations
+    # Discover source input fields via DAG analysis
+    source_registry = discover_source_fields(workflow, graph)
+
+    # 3. Translate tools and collect explanations using dynamic stream environment
+    stream_env: dict[tuple[int, str], str] = {}
+    stream_schemas: dict[str, list[str]] = {}
+    workflow._stream_schemas = stream_schemas  # type: ignore[attr-defined]
+
     translations: dict[int, TranslationResult] = {}
     tool_explanations: dict[int, ToolExplanation] = {}
 
     for tool_id in exec_order:
         tool = workflow.tools[tool_id]
         translator = get_translator(tool)
-        input_vars = input_map.get(tool_id, [])
+        input_vars = build_input_map(workflow, stream_env).get(tool_id, [])
         result = translator.translate(tool, input_vars, workflow)
         translations[tool_id] = result
         tool_explanations[tool_id] = translator.explain(tool, result)
+
+        # Compute output schemas for this tool
+        out_schemas = compute_tool_output_schema(tool, input_vars, stream_schemas, source_registry, graph, workflow)
+
+        # Register output anchors in stream_env and stream_schemas
+        for anchor, var_name in result.output_map.items():
+            a_lower = anchor.lower()
+            stream_env[(tool_id, a_lower)] = var_name
+            if anchor in out_schemas:
+                stream_schemas[var_name] = out_schemas[anchor]
+            elif "Output" in out_schemas:
+                stream_schemas[var_name] = out_schemas["Output"]
+
+            if a_lower in ("output", "output1", "output2", "output3"):
+                stream_env[(tool_id, "")] = var_name
+                stream_env[(tool_id, "output")] = var_name
+            elif a_lower in ("join", "j"):
+                stream_env[(tool_id, "j")] = var_name
+                stream_env[(tool_id, "join")] = var_name
+            elif a_lower in ("left", "l"):
+                stream_env[(tool_id, "l")] = var_name
+                stream_env[(tool_id, "left")] = var_name
+            elif a_lower in ("right", "r"):
+                stream_env[(tool_id, "r")] = var_name
+                stream_env[(tool_id, "right")] = var_name
+            elif a_lower in ("true", "t"):
+                stream_env[(tool_id, "t")] = var_name
+                stream_env[(tool_id, "true")] = var_name
+            elif a_lower in ("false", "f"):
+                stream_env[(tool_id, "f")] = var_name
+                stream_env[(tool_id, "false")] = var_name
+            elif a_lower in ("join", "j"):
+                stream_env[(tool_id, "j")] = var_name
+                stream_env[(tool_id, "join")] = var_name
+            elif a_lower in ("left", "l"):
+                stream_env[(tool_id, "l")] = var_name
+                stream_env[(tool_id, "left")] = var_name
+            elif a_lower in ("right", "r"):
+                stream_env[(tool_id, "r")] = var_name
+                stream_env[(tool_id, "right")] = var_name
+            elif a_lower in ("true", "t"):
+                stream_env[(tool_id, "t")] = var_name
+                stream_env[(tool_id, "true")] = var_name
+            elif a_lower in ("false", "f"):
+                stream_env[(tool_id, "f")] = var_name
+                stream_env[(tool_id, "false")] = var_name
 
     # 4. Compute lineage paths
     lineage_paths = compute_lineage_paths(workflow, graph)

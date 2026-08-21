@@ -5,7 +5,7 @@ from __future__ import annotations
 from awa.model.tool import Tool
 from awa.model.workflow import Workflow
 from awa.model.translation import TranslationResult
-from awa.model.diagnostic import SupportLevel
+from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -30,11 +30,27 @@ class DataCleansingTranslator(ToolTranslator):
         input_var = input_variables[0] if input_variables else "df_unknown"
         output_var = f"df_{tool.tool_id}"
 
+        diagnostics: list[Diagnostic] = []
+        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+
         lines = [f"{output_var} = {input_var}.copy()"]
 
         target_cols = fields if fields else []
 
         if target_cols:
+            if upstream_schema is not None:
+                for col in target_cols:
+                    if col not in upstream_schema:
+                        diagnostics.append(
+                            Diagnostic(
+                                level=DiagnosticLevel.WARNING,
+                                category="unresolved_field",
+                                tool_id=tool.tool_id,
+                                tool_type=tool.tool_type,
+                                message=f"Tool #{tool.tool_id} (DataCleansing) references missing field '{col}'. Available fields: {upstream_schema}",
+                            )
+                        )
+
             for col in target_cols:
                 col_repr = repr(col)
                 if trim_ws:
@@ -72,8 +88,8 @@ class DataCleansingTranslator(ToolTranslator):
             imports={"import pandas as pd"},
             input_variables=[input_var],
             output_map={"Output": output_var},
-            diagnostics=[],
-            description=f"DataCleansing: trim={trim_ws}, remove_null={remove_null}",
+            diagnostics=diagnostics,
+            description="Data cleansing (nulls, whitespace, case)",
         )
 
 

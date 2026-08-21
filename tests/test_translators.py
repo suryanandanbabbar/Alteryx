@@ -75,7 +75,7 @@ class TestTranslators:
         translator = get_translator(tool)
         res = translator.translate(tool, ["df_input"], empty_workflow)
         assert "groupby(['region'], as_index=False)" in res.python_code
-        assert 'total_sales=("sales", "sum")' in res.python_code
+        assert "'total_sales': ('sales', 'sum')" in res.python_code
 
     def test_sort_translator(self, empty_workflow):
         tool = Tool(

@@ -124,6 +124,14 @@ def generate_python_code(
 
     # Ensure single trailing newline
     full_code = "\n".join(lines).rstrip() + "\n"
+    
+    # Strictly validate that the emitted Python is 100% syntactically valid
+    import ast
+    try:
+        ast.parse(full_code)
+    except SyntaxError as e:
+        raise SyntaxError(f"Generated Python contains syntax error at line {e.lineno}: {e.msg}\nCode snippet:\n{e.text}") from e
+
     # Calculate exact total_lines from final string
     total_lines = len(full_code.splitlines())
     trace_map = PythonTraceMap(entries=trace_entries, total_lines=total_lines)

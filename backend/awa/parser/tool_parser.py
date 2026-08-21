@@ -321,12 +321,17 @@ def _extract_union_config(config_el: ET.Element) -> dict:
         mode_el = config_el.find("Mode")
         if mode_el is not None and mode_el.text:
             mode = mode_el.text.strip()
-    if mode:
-        config["mode"] = mode
+    for tag in ("ByName_or_ByPos", "ByNameOrPos", "ByName_or_Pos"):
+        el = config_el.find(f".//{tag}")
+        if el is not None and el.text:
+            config["by_name_or_pos"] = el.text.strip()
+            break
+        if tag in config_el.attrib:
+            config["by_name_or_pos"] = config_el.attrib[tag].strip()
+            break
 
-    by_name = config_el.find("ByName_or_ByPos")
-    if by_name is not None and by_name.text:
-        config["by_name_or_pos"] = by_name.text
+    if "by_name_or_pos" not in config and mode:
+        config["by_name_or_pos"] = mode
 
     return config
 

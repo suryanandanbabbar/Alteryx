@@ -44,34 +44,55 @@ class SummarizeTranslator(ToolTranslator):
 
         diagnostics: list[Diagnostic] = []
         group_by_cols: list[str] = []
+        group_by_renames: dict[str, str] = {}
         agg_specs: list[tuple[str, str, str]] = []
+
+        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+        if upstream_schema is not None:
+            for sf in summarize_fields:
+                field = sf.get("field", "")
+                if field and field not in upstream_schema:
+                    diagnostics.append(
+                        Diagnostic(
+                            level=DiagnosticLevel.WARNING,
+                            category="unresolved_field",
+                            tool_id=tool.tool_id,
+                            tool_type=tool.tool_type,
+                            message=f"Tool #{tool.tool_id} (Summarize) references missing field '{field}'. Available fields: {upstream_schema}",
+                        )
+                    )
 
         for sf in summarize_fields:
             field = sf.get("field", "")
             action = sf.get("action", "")
-            rename = sf.get("rename", "") or f"{action}_{field}"
+            rename = sf.get("rename", "")
             action_lower = action.lower()
 
             if action_lower == "groupby":
                 group_by_cols.append(field)
+                if rename and rename != field:
+                    group_by_renames[field] = rename
             else:
+                out_name = rename or f"{action}_{field}"
                 agg_func = _ACTION_MAP.get(action_lower, "first")
-                agg_specs.append((rename, field, agg_func))
+                agg_specs.append((out_name, field, agg_func))
+
+        rename_suffix = f".rename(columns={repr(group_by_renames)})" if group_by_renames else ""
 
         if not summarize_fields:
             code = f"{output_var} = {input_var}.copy()"
             desc = "Summarize (empty)"
         elif group_by_cols and agg_specs:
-            agg_kwargs = ", ".join(f'{out_col}=("{in_col}", "{func}")' for out_col, in_col, func in agg_specs)
+            agg_entries = ", ".join(f'{repr(out_col)}: ({repr(in_col)}, {repr(func)})' for out_col, in_col, func in agg_specs)
             grp_repr = repr(group_by_cols)
-            code = f"{output_var} = {input_var}.groupby({grp_repr}, as_index=False).agg({agg_kwargs})"
+            code = f"{output_var} = {input_var}.groupby({grp_repr}, as_index=False).agg(**{{{agg_entries}}}){rename_suffix}"
             desc = f"Summarize: Group by {group_by_cols} with {len(agg_specs)} aggregation(s)"
         elif group_by_cols and not agg_specs:
             grp_repr = repr(group_by_cols)
-            code = f"{output_var} = {input_var}[{grp_repr}].drop_duplicates().reset_index(drop=True)"
+            code = f"{output_var} = {input_var}[{grp_repr}].drop_duplicates().reset_index(drop=True){rename_suffix}"
             desc = f"Summarize: Distinct on {group_by_cols}"
         elif not group_by_cols and agg_specs:
-            dict_entries = ", ".join(f'"{out_col}": [{input_var}["{in_col}"].{func}()]' for out_col, in_col, func in agg_specs)
+            dict_entries = ", ".join(f'{repr(out_col)}: [{input_var}[{repr(in_col)}].{func}()]' for out_col, in_col, func in agg_specs)
             code = f"{output_var} = pd.DataFrame({{{dict_entries}}})"
             desc = f"Summarize: Global aggregation ({len(agg_specs)} metric(s))"
         else:

@@ -30,6 +30,9 @@ class FormulaTranslator(ToolTranslator):
         imports: set[str] = {"import pandas as pd"}
         lines: list[str] = [f"{output_var} = {input_var}.copy()"]
 
+        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+        created_in_step: set[str] = set()
+
         if not formula_fields:
             diagnostics.append(Diagnostic(
                 level=DiagnosticLevel.WARNING,
@@ -52,6 +55,24 @@ class FormulaTranslator(ToolTranslator):
                         message=f"Empty field or expression in formula: field='{field_name}'",
                     ))
                     continue
+
+                if upstream_schema is not None:
+                    import re
+                    bracketed = re.findall(r"\[([^\]]+)\]", expression)
+                    available = set(upstream_schema) | created_in_step
+                    for ref_field in bracketed:
+                        if ref_field not in available:
+                            diagnostics.append(
+                                Diagnostic(
+                                    level=DiagnosticLevel.WARNING,
+                                    category="unresolved_field",
+                                    tool_id=tool.tool_id,
+                                    tool_type=tool.tool_type,
+                                    message=f"Tool #{tool.tool_id} (Formula) references missing field '{ref_field}' in formula for '{field_name}'. Available fields: {sorted(available)}",
+                                )
+                            )
+
+                created_in_step.add(field_name)
 
                 try:
                     expr_code, expr_imports = emit_pandas(expression, output_var)

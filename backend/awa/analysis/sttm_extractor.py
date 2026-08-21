@@ -148,7 +148,7 @@ class STTMExtractor:
 
         # Fallback for any tool not in business_summary
         for tid, tool in self.workflow.tools.items():
-            cfg = tool.configuration.parsed
+            cfg = tool.configuration.parsed or {}
             file_path = cfg.get("file_path", "") or cfg.get("File", "")
             
             if tid not in self.input_names:
@@ -228,7 +228,7 @@ class STTMExtractor:
         # 1. Level 1: Explicit XML RecordInfo or TextInput fields
         for tid in input_tids:
             tool = self.workflow.tools[tid]
-            cfg = tool.configuration.parsed
+            cfg = tool.configuration.parsed or {}
             xml_f = [f.name for f in tool.output_fields if f.name]
             if xml_f:
                 input_fields[tid].extend(xml_f)
@@ -248,7 +248,7 @@ class STTMExtractor:
                 tool = self.workflow.tools.get(curr)
                 if not tool:
                     continue
-                cfg = tool.configuration.parsed
+                cfg = tool.configuration.parsed or {}
 
                 if "select_fields" in cfg:
                     for sf in cfg["select_fields"]:
@@ -298,7 +298,7 @@ class STTMExtractor:
                 continue
             root_tid = root_inputs[0]
 
-            jcfg = join_tool.configuration.parsed
+            jcfg = join_tool.configuration.parsed or {}
             if conn.destination_anchor == "Left":
                 for jf in jcfg.get("join_fields", []):
                     if jf.get("left"):
@@ -322,7 +322,7 @@ class STTMExtractor:
                 j_tool = self.workflow.tools.get(j_curr)
                 if not j_tool:
                     continue
-                j_cfg = j_tool.configuration.parsed
+                j_cfg = j_tool.configuration.parsed or {}
 
                 if j_tool.tool_type in ("Formula", "MultiFieldFormula"):
                     for ff in j_cfg.get("formula_fields", []):
@@ -342,7 +342,7 @@ class STTMExtractor:
 
         all_wf_fields = set()
         for tid, tool in self.workflow.tools.items():
-            cfg = tool.configuration.parsed
+            cfg = tool.configuration.parsed or {}
             if "summarize_fields" in cfg:
                 for sf in cfg["summarize_fields"]:
                     if sf.get("field"):
@@ -371,7 +371,7 @@ class STTMExtractor:
         """Compute the output field schema and lineage transformations for a tool."""
         tid = tool.tool_id
         ttype = tool.tool_type
-        cfg = tool.configuration.parsed
+        cfg = tool.configuration.parsed or {}
 
         # 1. Source Input Tools
         if tid in self.input_names:
@@ -639,7 +639,7 @@ class STTMExtractor:
                 succ_tool = self.workflow.tools.get(succ_tid)
                 if not succ_tool:
                     continue
-                succ_cfg = succ_tool.configuration.parsed
+                succ_cfg = succ_tool.configuration.parsed or {}
                 if "select_fields" in succ_cfg:
                     for sf in succ_cfg["select_fields"]:
                         f_name = sf.get("rename") or sf.get("field")

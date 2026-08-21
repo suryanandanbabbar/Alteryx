@@ -278,13 +278,51 @@ class PandasEmitter(Transformer):
                 return f"np.maximum({args[0]}, {args[1]})"
             return args[0] if args else "0"
 
+        # Date / Time functions
+        if func_lower == "datetimetoday":
+            self._imports.add("import pandas as pd")
+            return "pd.Timestamp.today().normalize()"
+        if func_lower == "datetimenow":
+            self._imports.add("import pandas as pd")
+            return "pd.Timestamp.now()"
+        if func_lower == "datetimediff":
+            self._imports.add("import pandas as pd")
+            unit = str(args[2]).strip("\"'").lower() if len(args) > 2 else "days"
+            d1 = f"pd.to_datetime({args[0]})"
+            d2 = f"pd.to_datetime({args[1]})"
+            if unit in ("days", "d", "day"):
+                return f"({d1} - {d2}).dt.days"
+            elif unit in ("hours", "h", "hour"):
+                return f"({d1} - {d2}).dt.total_seconds() / 3600"
+            elif unit in ("minutes", "m", "minute"):
+                return f"({d1} - {d2}).dt.total_seconds() / 60"
+            elif unit in ("seconds", "s", "second"):
+                return f"({d1} - {d2}).dt.total_seconds()"
+            elif unit in ("years", "y", "year"):
+                return f"({d1} - {d2}).dt.days / 365.25"
+            elif unit in ("months", "month"):
+                return f"({d1} - {d2}).dt.days / 30.4375"
+            else:
+                return f"({d1} - {d2}).dt.days"
+        if func_lower == "datetimeadd":
+            self._imports.add("import pandas as pd")
+            amt = args[1] if len(args) > 1 else "0"
+            unit = str(args[2]).strip("\"'").lower() if len(args) > 2 else "days"
+            unit_map = {"days": "D", "hours": "h", "minutes": "m", "seconds": "s"}
+            pd_unit = unit_map.get(unit, "D")
+            return f"(pd.to_datetime({args[0]}) + pd.to_timedelta({amt}, unit='{pd_unit}'))"
+        if func_lower == "datetimeformat":
+            self._imports.add("import pandas as pd")
+            fmt = args[1] if len(args) > 1 else "'%Y-%m-%d'"
+            return f"pd.to_datetime({args[0]}).dt.strftime({fmt})"
+
         # Direct map check
         if func_lower in _DIRECT_MAP:
             return f"{args[0]}{_DIRECT_MAP[func_lower]}"
 
-        # Unknown function — comment fallback
+        # Unknown function — valid Python fallback
         args_str = ", ".join(str(a) for a in args)
-        return f"/* UNSUPPORTED: {func_name}({args_str}) */"
+        return f"None  # Unsupported Alteryx function: {func_name}({args_str})"
 
     def func_args(self, children):
         return list(children)
