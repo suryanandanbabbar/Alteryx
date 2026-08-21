@@ -1018,18 +1018,11 @@ def _build_executive_summary(
     if inputs and any(i.source_type == "Excel Workbook" for i in inputs):
         recommendations.append("Validate external file path dependencies and source system stability prior to platform migration or automated scheduling.")
 
-    # 6. Limitations (Explicit boundaries of static analysis)
-    limitations = [
-        "Operational execution frequency, run duration, and resource performance cannot be established from static workflow analysis.",
-        "Downstream report consumers and business usage distribution are not documented in the workflow definition.",
-        "Source data availability, upstream SLAs, and data quality controls outside the workflow cannot be validated statically.",
-    ]
-
     return ExecutiveSummaryContent(
         subject_and_purpose=subject_and_purpose,
         methods_and_process=methods_and_process,
         findings=findings,
         conclusions=conclusions,
         recommendations=recommendations,
-        limitations=limitations,
+        limitations=[],
     )
