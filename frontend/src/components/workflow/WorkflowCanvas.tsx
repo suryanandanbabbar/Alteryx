@@ -18,6 +18,7 @@ import { WorkflowToolbar } from './WorkflowToolbar';
 import { WorkflowInspector } from './WorkflowInspector';
 import { getLayoutedElements, getWorkflowBounds, NODE_WIDTH, NODE_HEIGHT } from './layout';
 import { WorkflowNodeType, WorkflowEdgeType, WorkflowEdgeData } from './types';
+import { getWorkflowRole, getWorkflowRoleColor } from '../../theme/palette';
 
 const nodeTypes: NodeTypes = {
   workflowNode: WorkflowNode as any,
@@ -121,6 +122,23 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     });
     return outputs;
   }, [diagramData, connections]);
+
+  const uniqueWorkflowRoles = useMemo(() => {
+    const seen = new Set<string>();
+    const roles: { role: string; color: string }[] = [];
+    for (const node of diagramData.nodes) {
+      const isOut = businessOutputIds.has(node.tool_id);
+      const role = getWorkflowRole(node.tool_type, node.visual_category, isOut);
+      if (!seen.has(role)) {
+        seen.add(role);
+        roles.push({
+          role,
+          color: getWorkflowRoleColor(role),
+        });
+      }
+    }
+    return roles;
+  }, [diagramData.nodes, businessOutputIds]);
 
   // Input and output counts per tool ID
   const portCounts = useMemo(() => {
@@ -678,40 +696,20 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
                 gap: '10px',
                 fontSize: '10.5px',
                 pointerEvents: 'auto',
+                maxWidth: 'calc(100% - 24px)',
+                overflowX: 'auto',
               }}
             >
-              <span style={{ fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', fontSize: '9.5px', letterSpacing: '0.5px' }}>
+              <span style={{ fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', fontSize: '9.5px', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
                 Legend:
               </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#0284c7' }} />
-                  <span style={{ color: 'var(--color-text-secondary)' }}>Input</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#0d9488' }} />
-                  <span style={{ color: 'var(--color-text-secondary)' }}>Join</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#ea580c' }} />
-                  <span style={{ color: 'var(--color-text-secondary)' }}>Formula</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#d97706' }} />
-                  <span style={{ color: 'var(--color-text-secondary)' }}>Filter</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#16a34a' }} />
-                  <span style={{ color: 'var(--color-text-secondary)' }}>Summarize</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#64748b' }} />
-                  <span style={{ color: 'var(--color-text-secondary)' }}>Transform</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#9333ea' }} />
-                  <span style={{ color: 'var(--color-text-secondary)' }}>Output</span>
-                </div>
+                {uniqueWorkflowRoles.map(({ role, color }) => (
+                  <div key={role} style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+                    <span style={{ color: 'var(--color-text-secondary)', fontSize: '10.5px', fontWeight: 500 }}>{role}</span>
+                  </div>
+                ))}
               </div>
               <button
                 onClick={() => setShowLegend(false)}

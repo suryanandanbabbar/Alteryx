@@ -144,3 +144,30 @@ export const getWorkflowRole = (toolType: string, visualCategory?: string, isBus
 
   return 'Tool Operation';
 };
+
+export const WORKFLOW_ROLE_COLORS: Record<string, string> = {
+  'Data Input': '#0284c7',
+  'Data Output': '#9333ea',
+  'Deliverable Output': '#9333ea',
+  'Data Filtering': '#d97706',
+  'Data Transformation': '#ea580c',
+  'Aggregation': '#16a34a',
+  'Reshaping': '#64748b',
+  'Ordering': '#0891b2',
+  'Data Integration': '#0d9488',
+  'Data Consolidation': '#059669',
+  'Field Selection': '#64748b',
+  'Deduplication': '#059669',
+  'Sampling': '#8b5cf6',
+  'Temporal Formatting': '#7c3aed',
+  'Data Parsing': '#0891b2',
+  'Execution Control': '#475569',
+  'Macro Interface': '#6366f1',
+  'Spatial Processing': '#2563eb',
+  'Reporting': '#db2777',
+  'Tool Operation': '#64748b',
+};
+
+export const getWorkflowRoleColor = (role: string): string => {
+  return WORKFLOW_ROLE_COLORS[role] || '#64748b';
+};

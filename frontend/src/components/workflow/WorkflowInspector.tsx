@@ -10,8 +10,9 @@ import {
   Check,
 } from 'lucide-react';
 import { NodeDTO, ConnectionDTO } from '../../types/workflow';
-import { getCategoryColor, getWorkflowRole } from '../../theme/palette';
+import { getCategoryColor, getWorkflowRole, getWorkflowRoleColor } from '../../theme/palette';
 import { resolveXmlToolName } from '../../utils/toolRegistry';
+import { formatXmlForDisplay } from '../../utils/xmlFormatter';
 
 interface WorkflowInspectorProps {
   selectedNode: NodeDTO | null;
@@ -165,11 +166,15 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   const node = selectedNode!;
   const categoryColor = getCategoryColor(node.visual_category || node.tool_type.toLowerCase());
   const workflowRole = getWorkflowRole(node.tool_type, node.visual_category, isBusinessOutput);
+  const roleColor = getWorkflowRoleColor(workflowRole);
   const xmlToolName = resolveXmlToolName(node);
 
   // Technical Details values
   const containerIdDisplay = node.container_id != null ? `#${node.container_id}` : 'Not assigned';
   const rawNodeXml = node.raw_node_xml && node.raw_node_xml.trim().length > 0 ? node.raw_node_xml.trim() : 'Source Node unavailable';
+  const formattedNodeXml = React.useMemo(() => {
+    return formatXmlForDisplay(rawNodeXml);
+  }, [rawNodeXml]);
 
   const handleCopyXml = () => {
     if (rawNodeXml && rawNodeXml !== 'Source Node unavailable') {
@@ -317,7 +322,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
               gap: '8px',
             }}
           >
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: categoryColor.stroke || 'var(--color-primary)', flexShrink: 0 }} />
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: roleColor, flexShrink: 0 }} />
             <span>{workflowRole}</span>
           </div>
         </div>
@@ -549,17 +554,17 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                     border: '1px solid var(--color-border)',
                     borderRadius: '4px',
                     padding: '8px 10px',
-                    maxHeight: '220px',
+                    maxHeight: '260px',
                     overflowX: 'auto',
                     overflowY: 'auto',
                     fontFamily: 'var(--font-mono)',
-                    fontSize: '10px',
-                    lineHeight: '1.45',
+                    fontSize: '10.5px',
+                    lineHeight: '1.5',
                     color: '#e2e8f0',
                     whiteSpace: 'pre',
                   }}
                 >
-                  <code>{rawNodeXml}</code>
+                  <code>{formattedNodeXml}</code>
                 </div>
               </div>
 
