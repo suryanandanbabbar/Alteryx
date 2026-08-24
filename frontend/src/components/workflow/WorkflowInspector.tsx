@@ -6,10 +6,12 @@ import {
   Layers,
   ChevronRight,
   ChevronDown,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { NodeDTO, ConnectionDTO } from '../../types/workflow';
 import { getCategoryColor, getWorkflowRole } from '../../theme/palette';
-import { resolveToolContainer } from '../../utils/containerResolver';
+import { resolveXmlToolName } from '../../utils/toolRegistry';
 
 interface WorkflowInspectorProps {
   selectedNode: NodeDTO | null;
@@ -35,6 +37,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   onClose,
 }) => {
   const [showTechDetails, setShowTechDetails] = useState(false);
+  const [copiedXml, setCopiedXml] = useState(false);
 
   if (!selectedNode && !selectedConnection) {
     return null;
@@ -162,10 +165,19 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   const node = selectedNode!;
   const categoryColor = getCategoryColor(node.visual_category || node.tool_type.toLowerCase());
   const workflowRole = getWorkflowRole(node.tool_type, node.visual_category, isBusinessOutput);
-  const resolvedContainer = resolveToolContainer(node);
+  const xmlToolName = resolveXmlToolName(node);
 
-  // Determine evidence-based annotation context
-  const hasAnnotation = Boolean(node.annotation && node.annotation.trim().length > 0);
+  // Technical Details values
+  const containerIdDisplay = node.container_id != null ? `#${node.container_id}` : 'Not assigned';
+  const rawNodeXml = node.raw_node_xml && node.raw_node_xml.trim().length > 0 ? node.raw_node_xml.trim() : 'Source Node unavailable';
+
+  const handleCopyXml = () => {
+    if (rawNodeXml && rawNodeXml !== 'Source Node unavailable') {
+      navigator.clipboard.writeText(rawNodeXml);
+      setCopiedXml(true);
+      setTimeout(() => setCopiedXml(false), 2000);
+    }
+  };
 
   return (
     <div
@@ -310,65 +322,9 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
           </div>
         </div>
 
-        {/* 4. WORKFLOW CONTEXT (Evidence-based only) */}
-        <div>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-            Workflow Context
-          </div>
-          <div
-            style={{
-              padding: '10px 12px',
-              background: 'var(--color-surface-secondary)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-sm, 4px)',
-              fontSize: '11.5px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '4px',
-              color: 'var(--color-text)',
-            }}
-          >
-            {hasAnnotation ? (
-              <div>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '10px', fontWeight: 700, display: 'block', marginBottom: '2px' }}>
-                  Annotation:
-                </span>
-                <span style={{ fontStyle: 'italic', color: 'var(--color-text)', lineHeight: '1.45' }}>
-                  "{node.annotation}"
-                </span>
-              </div>
-            ) : (
-              <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                No additional workflow context available.
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* 5. CONTAINER (Deterministic resolution via fallback chain) */}
-        <div>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-            Container
-          </div>
-          <div
-            style={{
-              padding: '8px 12px',
-              background: 'var(--color-surface-secondary)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-sm, 4px)',
-              fontSize: '12px',
-              fontWeight: 600,
-              color: resolvedContainer !== 'Not specified' ? 'var(--color-text)' : 'var(--color-text-muted)',
-              fontStyle: resolvedContainer !== 'Not specified' ? 'normal' : 'italic',
-            }}
-          >
-            {resolvedContainer}
-          </div>
-        </div>
-
         <div style={{ height: '1px', background: 'var(--color-border)' }} />
 
-        {/* 6. DATA FLOW (Unified inputs/outputs with clickable focus navigation) */}
+        {/* 4. DATA FLOW (Unified inputs/outputs with clickable focus navigation) */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
             <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -491,7 +447,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
 
         <div style={{ height: '1px', background: 'var(--color-border)' }} />
 
-        {/* 7. TECHNICAL DETAILS (Collapsible, collapsed by default) */}
+        {/* 5. TECHNICAL DETAILS (Collapsible, collapsed by default) */}
         <div>
           <button
             onClick={() => setShowTechDetails((prev) => !prev)}
@@ -522,82 +478,91 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                 background: 'var(--color-surface-secondary)',
                 borderRadius: 'var(--radius-sm, 4px)',
                 border: '1px solid var(--color-border)',
-                padding: '10px 12px',
+                padding: '12px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '8px',
+                gap: '12px',
                 fontSize: '11px',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Category:</span>
-                <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{node.visual_category || 'General'}</span>
+              {/* 1. CONTAINER ID */}
+              <div>
+                <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                  Container ID
+                </div>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: node.container_id != null ? 'var(--color-text)' : 'var(--color-text-muted)', fontStyle: node.container_id != null ? 'normal' : 'italic' }}>
+                  {containerIdDisplay}
+                </div>
               </div>
-              {node.position && (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--color-text-muted)' }}>Canvas Position:</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text)' }}>x={node.position.x}, y={node.position.y}</span>
+
+              {/* 2. XML TOOL NAME (Deterministic registry mapping) */}
+              <div>
+                <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                  XML Tool Name
                 </div>
-              )}
-              {node.container_id && (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--color-text-muted)' }}>Container ID:</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text)' }}>#{node.container_id}</span>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    fontFamily: 'var(--font-mono)',
+                    color: xmlToolName !== 'Not available in tool registry' ? 'var(--color-text)' : 'var(--color-text-muted)',
+                    fontStyle: xmlToolName !== 'Not available in tool registry' ? 'normal' : 'italic',
+                    wordBreak: 'break-all',
+                  }}
+                >
+                  {xmlToolName}
                 </div>
-              )}
-              {node.plugin && (
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--color-text-muted)' }}>Plugin / DLL:</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--color-text)' }}>{node.plugin}</span>
-                </div>
-              )}
-              {node.output_fields && node.output_fields.length > 0 && (
-                <div style={{ borderTop: '1px solid var(--color-border-subtle)', paddingTop: '6px' }}>
-                  <div style={{ color: 'var(--color-text-muted)', fontSize: '10px', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase' }}>
-                    Output Fields ({node.output_fields.length})
+              </div>
+
+              {/* 3. WORKFLOW CONTEXT (Exact source <Node>...</Node> snippet) */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Workflow Context
                   </div>
-                  <div
-                    style={{
-                      maxHeight: '120px',
-                      overflowY: 'auto',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '3px',
-                    }}
-                  >
-                    {node.output_fields.map((f, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          fontSize: '10.5px',
-                          padding: '1px 2px',
-                        }}
-                      >
-                        <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{f.name}</span>
-                        <span style={{ fontSize: '9.5px', fontFamily: 'var(--font-mono)', color: 'var(--color-text-muted)' }}>
-                          {f.type}{f.size ? `(${f.size})` : ''}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  {rawNodeXml !== 'Source Node unavailable' && (
+                    <button
+                      onClick={handleCopyXml}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: 'transparent',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '3px',
+                        padding: '2px 6px',
+                        fontSize: '9.5px',
+                        color: copiedXml ? 'var(--color-success)' : 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      title="Copy exact Node XML to clipboard"
+                    >
+                      {copiedXml ? <Check size={11} color="var(--color-success)" /> : <Copy size={11} />}
+                      <span>{copiedXml ? 'Copied' : 'Copy XML'}</span>
+                    </button>
+                  )}
                 </div>
-              )}
-              {node.engine_settings && Object.keys(node.engine_settings).length > 0 && (
-                <div style={{ borderTop: '1px solid var(--color-border-subtle)', paddingTop: '6px' }}>
-                  <div style={{ color: 'var(--color-text-muted)', fontSize: '10px', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase' }}>
-                    Engine Settings
-                  </div>
-                  {Object.entries(node.engine_settings).map(([k, v]) => (
-                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
-                      <span style={{ color: 'var(--color-text-muted)' }}>{k}:</span>
-                      <span style={{ color: 'var(--color-text)' }}>{v}</span>
-                    </div>
-                  ))}
+                <div
+                  style={{
+                    background: '#090d16',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '4px',
+                    padding: '8px 10px',
+                    maxHeight: '220px',
+                    overflowX: 'auto',
+                    overflowY: 'auto',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '10px',
+                    lineHeight: '1.45',
+                    color: '#e2e8f0',
+                    whiteSpace: 'pre',
+                  }}
+                >
+                  <code>{rawNodeXml}</code>
                 </div>
-              )}
+              </div>
+
             </div>
           )}
         </div>
@@ -606,4 +571,3 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
     </div>
   );
 };
-

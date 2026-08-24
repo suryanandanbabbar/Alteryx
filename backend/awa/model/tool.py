@@ -63,6 +63,7 @@ class Tool:
     engine_settings: dict[str, str] = dc_field(default_factory=dict)
     container_id: int | None = None
     container_name: str | None = None
+    raw_node_xml: str = ""
 
     def to_dict(self) -> dict:
         from awa.tools.catalog import get_tool_catalog
@@ -84,6 +85,7 @@ class Tool:
             "configuration": self.configuration.to_dict(),
             "annotation": self.annotation,
             "output_fields": [f.to_dict() for f in self.output_fields],
+            "raw_node_xml": self.raw_node_xml,
         }
         if self.position is not None:
             d["position"] = self.position.to_dict()

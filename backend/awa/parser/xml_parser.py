@@ -1,9 +1,8 @@
-"""AWA XML parser — parses .yxmd files into canonical Workflow IR with recursive node traversal."""
-
-from __future__ import annotations
-
+import re
 import xml.etree.ElementTree as ET
+import xml.parsers.expat
 from pathlib import Path
+from typing import Any
 
 from awa.model.workflow import Workflow, WorkflowMetadata
 from awa.model.tool import Tool, Position
@@ -11,7 +10,109 @@ from awa.model.container import ToolContainer
 from awa.model.annotation import TextBoxNode
 from awa.model.connection import Connection
 from awa.model.field import Field
-from awa.parser.tool_parser import extract_tool_config
+from awa.parser.tool_parser import extract_tool_config, redact_sensitive_xml
+
+
+def _extract_all_node_source_spans(raw_bytes: bytes) -> dict[str, dict[str, Any]]:
+    """Extract exact raw source XML substrings and container ancestry for all ToolIDs using expat position tracking."""
+    if not raw_bytes:
+        return {}
+
+    node_data: dict[str, dict[str, Any]] = {}
+    container_stack: list[int] = []
+    node_stack: list[dict[str, Any]] = []
+
+    def start_element(name: str, attrs: dict[str, str]) -> None:
+        pos = p.CurrentByteIndex
+        if name == "Node":
+            tool_id_str = attrs.get("ToolID")
+            parent_container = container_stack[-1] if container_stack else None
+            node_stack.append({
+                "tool_id_str": tool_id_str,
+                "start": pos,
+                "parent_container": parent_container,
+                "is_container": False,
+            })
+        elif name == "GuiSettings":
+            plugin = attrs.get("Plugin", "")
+            if node_stack:
+                if "ToolContainer" in plugin:
+                    node_stack[-1]["is_container"] = True
+                    tool_id_str = node_stack[-1]["tool_id_str"]
+                    if tool_id_str:
+                        try:
+                            container_stack.append(int(tool_id_str))
+                        except ValueError:
+                            pass
+
+    def end_element(name: str) -> None:
+        pos = p.CurrentByteIndex
+        if name == "Node" and node_stack:
+            info = node_stack.pop()
+            tool_id_str = info["tool_id_str"]
+            if info["is_container"] and tool_id_str:
+                try:
+                    cid = int(tool_id_str)
+                    if container_stack and container_stack[-1] == cid:
+                        container_stack.pop()
+                except ValueError:
+                    pass
+
+            if tool_id_str:
+                start_pos = info["start"]
+                end_pos = raw_bytes.find(b">", pos)
+                if end_pos != -1:
+                    end_pos += 1
+                else:
+                    end_pos = pos + 7
+                snippet = raw_bytes[start_pos:end_pos].decode("utf-8", errors="replace")
+                node_data[tool_id_str] = {
+                    "raw_xml": snippet,
+                    "container_id": info["parent_container"],
+                }
+
+    try:
+        p = xml.parsers.expat.ParserCreate()
+        p.StartElementHandler = start_element
+        p.EndElementHandler = end_element
+        p.Parse(raw_bytes)
+    except Exception:
+        pass
+
+    return node_data
+
+
+def _extract_node_xml_snippet(raw_xml: str, tool_id: int) -> str:
+    """Extract exact source <Node>...</Node> snippet for a ToolID from raw .yxmd text."""
+    if not raw_xml:
+        return ""
+    pattern = re.compile(rf'<Node\b(?=[^>]*\bToolID\s*=\s*["\']{tool_id}["\'])[^>]*>', re.IGNORECASE | re.DOTALL)
+    match = pattern.search(raw_xml)
+    if not match:
+        return ""
+    start_pos = match.start()
+    opening_tag = match.group(0).rstrip()
+    if opening_tag.endswith("/>"):
+        return raw_xml[start_pos:match.end()].strip()
+
+    pos = match.end()
+    depth = 1
+    token_pattern = re.compile(r'<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\s*(/)?\s*Node\b([^>]*)>', re.IGNORECASE | re.DOTALL)
+    for m in token_pattern.finditer(raw_xml, pos):
+        full_match = m.group(0)
+        if full_match.startswith("<!--") or full_match.startswith("<!["):
+            continue
+        is_closing = m.group(1)
+        attrs = m.group(2) or ""
+        if is_closing:
+            depth -= 1
+            if depth == 0:
+                end_pos = m.end()
+                return raw_xml[start_pos:end_pos].strip()
+        else:
+            if not attrs.rstrip().endswith("/"):
+                depth += 1
+    return ""
 
 
 def parse_workflow(path: str | Path) -> Workflow:
@@ -31,11 +132,15 @@ def parse_workflow(path: str | Path) -> Workflow:
     if not path.exists():
         raise FileNotFoundError(f"Workflow file not found: {path}")
 
+    raw_bytes = path.read_bytes()
+    raw_xml_text = raw_bytes.decode("utf-8", errors="replace")
+    source_spans = _extract_all_node_source_spans(raw_bytes)
+
     tree = ET.parse(str(path))
     root = tree.getroot()
 
     metadata = _parse_metadata(root, path)
-    tools, containers, textboxes = _parse_all_nodes(root)
+    tools, containers, textboxes = _parse_all_nodes(root, raw_xml_text=raw_xml_text, source_spans=source_spans)
     connections = _parse_connections(root, tools)
 
     return Workflow(
@@ -104,11 +209,12 @@ def _parse_properties(root: ET.Element) -> dict:
     return props
 
 
-def _parse_all_nodes(root: ET.Element) -> tuple[dict[int, Tool], dict[int, ToolContainer], dict[int, TextBoxNode]]:
+def _parse_all_nodes(root: ET.Element, raw_xml_text: str = "", source_spans: dict[str, dict[str, Any]] | None = None) -> tuple[dict[int, Tool], dict[int, ToolContainer], dict[int, TextBoxNode]]:
     """Recursively traverse all Node elements across container hierarchies."""
     tools: dict[int, Tool] = {}
     containers: dict[int, ToolContainer] = {}
     textboxes: dict[int, TextBoxNode] = {}
+    spans_map = source_spans or {}
 
     def _traverse_node_element(node: ET.Element, parent_container: ToolContainer | None = None) -> None:
         if node.tag != "Node":
@@ -211,8 +317,14 @@ def _parse_all_nodes(root: ET.Element) -> tuple[dict[int, Tool], dict[int, ToolC
         if engine_el is not None:
             engine_settings = dict(engine_el.attrib)
 
-        container_id = parent_container.tool_id if parent_container else None
+        tool_span_info = spans_map.get(str(tool_id), {})
+        container_id = parent_container.tool_id if parent_container else tool_span_info.get("container_id")
         container_name = parent_container.caption if parent_container else None
+
+        raw_node_snippet = tool_span_info.get("raw_xml") or _extract_node_xml_snippet(raw_xml_text, tool_id)
+        if not raw_node_snippet:
+            raw_node_snippet = ET.tostring(node, encoding="unicode").strip()
+        raw_node_snippet = redact_sensitive_xml(raw_node_snippet)
 
         tools[tool_id] = Tool(
             tool_id=tool_id,
@@ -226,6 +338,7 @@ def _parse_all_nodes(root: ET.Element) -> tuple[dict[int, Tool], dict[int, ToolC
             engine_settings=engine_settings,
             container_id=container_id,
             container_name=container_name,
+            raw_node_xml=raw_node_snippet,
         )
 
         if parent_container:

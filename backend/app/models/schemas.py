@@ -83,6 +83,8 @@ class NodeDTO(BaseModel):
     visual_category: str
     container_id: int | None = None
     container_name: str | None = None
+    raw_node_xml: str = ""
+    xml_tool_name: str = ""
 
 
 class ConnectionDTO(BaseModel):

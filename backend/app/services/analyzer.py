@@ -261,6 +261,9 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
     svg_str = generate_svg(res.dag_layout)
 
     nodes_dto: list[NodeDTO] = []
+    from awa.tools.catalog import get_tool_catalog
+    catalog = get_tool_catalog()
+
     for tid in res.execution_order:
         tool = res.workflow.tools.get(tid)
         if not tool:
@@ -268,6 +271,8 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
         tr = res.translations.get(tid)
         support = tr.support_level.value if tr else "unknown"
         summary = get_tool_summary(tool.plugin or tool.tool_type)
+        tool_def = catalog.get(tool.plugin or tool.tool_type)
+        xml_tool_name = tool_def.xml_name if tool_def else (tool.plugin or "")
 
         pos_dto = PositionDTO(x=tool.position.x, y=tool.position.y) if tool.position else None
         fields_dto = [
@@ -291,6 +296,8 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
                 visual_category=get_visual_category(tool.tool_type),
                 container_id=tool.container_id,
                 container_name=tool.container_name,
+                raw_node_xml=tool.raw_node_xml,
+                xml_tool_name=xml_tool_name,
             )
         )
 

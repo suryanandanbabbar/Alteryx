@@ -68,6 +68,8 @@ export interface NodeDTO {
   visual_category: string;
   container_id?: number | null;
   container_name?: string | null;
+  raw_node_xml?: string | null;
+  xml_tool_name?: string | null;
 }
 
 export interface ConnectionDTO {
