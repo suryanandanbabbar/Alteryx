@@ -29,16 +29,16 @@ export const WorkflowEdgeComponent: React.FC<EdgeProps<any>> = ({
     borderRadius: 8,
   });
 
-  let stroke = 'var(--color-border)';
-  let strokeWidth = 1.5;
-  let opacity = 0.8;
+  let stroke = '#64748b';
+  let strokeWidth = 1.75;
+  let opacity = 0.85;
 
   if (isHighlighted) {
     stroke = 'var(--color-primary)';
     strokeWidth = 2.5;
     opacity = 1;
   } else if (isDimmed) {
-    opacity = 0.2;
+    opacity = 0.15;
   }
 
   const anchorLabel =

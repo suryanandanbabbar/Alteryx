@@ -156,20 +156,23 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   return (
     <div
       style={{
-        width: '340px',
+        width: 'min(380px, 35vw)',
+        minWidth: '320px',
+        maxWidth: '420px',
         height: '100%',
         background: 'var(--color-surface)',
         borderLeft: '1px solid var(--color-border)',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.04)',
+        boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.08)',
         overflowY: 'auto',
+        flexShrink: 0,
       }}
     >
       {/* Header */}
       <div
         style={{
-          padding: '12px 16px',
+          padding: '14px 16px',
           borderBottom: '1px solid var(--color-border)',
           display: 'flex',
           alignItems: 'flex-start',
@@ -182,9 +185,13 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             <span
               style={{
                 fontSize: '11px',
-                fontWeight: 700,
+                fontWeight: 800,
                 fontFamily: 'var(--font-mono)',
-                color: 'var(--color-text-muted)',
+                color: 'var(--color-text-secondary)',
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                padding: '1px 5px',
+                borderRadius: '3px',
               }}
             >
               #{node.tool_id}
@@ -192,7 +199,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             <span
               style={{
                 fontSize: '11px',
-                fontWeight: 700,
+                fontWeight: 800,
                 color: categoryColor.text || 'var(--color-text)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.4px',
@@ -204,25 +211,27 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
               <span
                 style={{
                   fontSize: '9px',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   padding: '1px 5px',
                   borderRadius: '3px',
-                  background: 'rgba(147, 51, 234, 0.15)',
-                  color: '#7e22ce',
+                  background: 'rgba(147, 51, 234, 0.2)',
+                  color: '#9333ea',
                   textTransform: 'uppercase',
+                  border: '1px solid rgba(147, 51, 234, 0.4)',
                 }}
               >
                 Output Deliverable
               </span>
             )}
           </div>
-          <h3 style={{ fontSize: '15px', fontWeight: 800, margin: 0, color: 'var(--color-text)' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: 800, margin: '4px 0 0 0', color: 'var(--color-text)' }}>
             {node.name}
           </h3>
         </div>
 
         <button
           onClick={onClose}
+          aria-label="Close tool inspector"
           style={{
             background: 'transparent',
             border: 'none',
@@ -232,7 +241,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             display: 'flex',
             alignItems: 'center',
           }}
-          title="Close Inspector"
+          title="Close Inspector (Esc)"
         >
           <X size={16} />
         </button>
@@ -240,6 +249,24 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
 
       {/* Content body */}
       <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+        {/* Section: Function / Summary (if present) */}
+        {node.summary && (
+          <div
+            style={{
+              padding: '10px 12px',
+              background: 'var(--color-surface-secondary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm, 4px)',
+              fontSize: '12px',
+              color: 'var(--color-text)',
+              lineHeight: '1.45',
+            }}
+          >
+            <span style={{ fontWeight: 700, color: 'var(--color-text-muted)', marginRight: '6px' }}>Function:</span>
+            {node.summary}
+          </div>
+        )}
 
         {/* Section A: Tool Information */}
         <div>
@@ -266,10 +293,16 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
               <span style={{ color: 'var(--color-text-muted)' }}>Category:</span>
               <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{node.visual_category || 'General'}</span>
             </div>
+            {node.position && (
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--color-text-muted)' }}>Canvas Position:</span>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text)' }}>x={node.position.x}, y={node.position.y}</span>
+              </div>
+            )}
             {node.container_name && (
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--color-text-muted)' }}>Container:</span>
-                <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{node.container_name}</span>
+                <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>📁 {node.container_name}</span>
               </div>
             )}
             {node.annotation && (

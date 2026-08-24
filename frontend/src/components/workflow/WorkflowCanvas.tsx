@@ -27,8 +27,6 @@ const edgeTypes: EdgeTypes = {
   workflowEdge: WorkflowEdge as any,
 };
 
-const SEARCH_ZOOM = 1.25;
-
 interface WorkflowCanvasInternalProps {
   diagramData: DiagramDTO;
   selectedToolId?: number | null;
@@ -48,6 +46,8 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
   const [direction, setDirection] = useState<'LR' | 'TB'>('LR');
   const [selectedToolId, setSelectedToolId] = useState<number | null>(externalSelectedToolId ?? null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showLegend, setShowLegend] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
@@ -59,6 +59,22 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
       setSelectedToolId(externalSelectedToolId);
     }
   }, [externalSelectedToolId]);
+
+  // Handle Escape key to close inspector or exit fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedToolId !== null || selectedEdgeId !== null) {
+          setSelectedToolId(null);
+          setSelectedEdgeId(null);
+        } else if (isFullscreen) {
+          setIsFullscreen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, selectedToolId, selectedEdgeId]);
 
   // Extract connections and diagnostics
   const connections: ConnectionDTO[] = useMemo(() => {
@@ -353,30 +369,57 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     );
   }, [selectedToolId, selectedEdgeId, lineage, matchedToolIds, activeMatchIndex, setNodes, setEdges]);
 
-  // Handle node selection
+  // Helper to focus and zoom specifically onto a selected node with surrounding lineage context
+  const focusNode = useCallback(
+    (targetToolId: number, duration = 400) => {
+      const node = nodes.find((n) => n.id === String(targetToolId));
+      if (!node) return;
+
+      const nodeCenterX = node.position.x + NODE_WIDTH / 2;
+      const nodeCenterY = node.position.y + NODE_HEIGHT / 2;
+
+      // Calculate intelligent zoom level based on available canvas viewport
+      let targetZoom = 1.0;
+      if (reactFlowWrapperRef.current) {
+        const availableWidth = reactFlowWrapperRef.current.clientWidth || 800;
+        // Node width is 220px, target node occupancy is ~20-25% of visible viewport width
+        targetZoom = Math.min(1.25, Math.max(0.75, (availableWidth * 0.22) / NODE_WIDTH));
+      }
+
+      reactFlow.setCenter(nodeCenterX, nodeCenterY, {
+        zoom: targetZoom,
+        duration,
+      });
+    },
+    [nodes, reactFlow]
+  );
+
+  // Sync external selected tool ID
+  useEffect(() => {
+    if (externalSelectedToolId !== undefined && externalSelectedToolId !== null) {
+      setSelectedToolId(externalSelectedToolId);
+      setTimeout(() => {
+        focusNode(externalSelectedToolId, 400);
+      }, 80);
+    }
+  }, [externalSelectedToolId, focusNode]);
+
+  // Handle node selection: select, highlight lineage, and auto-focus camera
   const handleSelectNode = useCallback(
     (toolId: number | null) => {
       setSelectedToolId(toolId);
       setSelectedEdgeId(null);
+      if (toolId !== null) {
+        // Schedule camera transition so DOM flex layout accounts for inspector width
+        setTimeout(() => {
+          focusNode(toolId, 400);
+        }, 50);
+      }
       if (externalOnSelectTool) {
         externalOnSelectTool(toolId);
       }
     },
-    [externalOnSelectTool]
-  );
-
-  // Navigate & zoom specifically to a search match node
-  const navigateToSearchMatch = useCallback(
-    (targetToolId: number) => {
-      const node = nodes.find((n) => n.id === String(targetToolId));
-      if (node) {
-        reactFlow.setCenter(node.position.x + NODE_WIDTH / 2, node.position.y + NODE_HEIGHT / 2, {
-          zoom: SEARCH_ZOOM,
-          duration: 350,
-        });
-      }
-    },
-    [nodes, reactFlow]
+    [externalOnSelectTool, focusNode]
   );
 
   // When user types a search query and matches change, automatically navigate to the 1st match
@@ -387,12 +430,12 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
       if (lastNavigatedQueryRef.current !== trimmed) {
         lastNavigatedQueryRef.current = trimmed;
         setActiveMatchIndex(0);
-        navigateToSearchMatch(matchedToolIds[0]);
+        handleSelectNode(matchedToolIds[0]);
       }
     } else {
       lastNavigatedQueryRef.current = '';
     }
-  }, [searchQuery, matchedToolIds, navigateToSearchMatch]);
+  }, [searchQuery, matchedToolIds, handleSelectNode]);
 
   // Search Prev/Next Navigation
   const handleNextMatch = useCallback(() => {
@@ -400,16 +443,47 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     const nextIdx = (activeMatchIndex + 1) % matchedToolIds.length;
     setActiveMatchIndex(nextIdx);
     const targetId = matchedToolIds[nextIdx];
-    navigateToSearchMatch(targetId);
-  }, [matchedToolIds, activeMatchIndex, navigateToSearchMatch]);
+    handleSelectNode(targetId);
+  }, [matchedToolIds, activeMatchIndex, handleSelectNode]);
 
   const handlePrevMatch = useCallback(() => {
     if (matchedToolIds.length === 0) return;
     const prevIdx = (activeMatchIndex - 1 + matchedToolIds.length) % matchedToolIds.length;
     setActiveMatchIndex(prevIdx);
     const targetId = matchedToolIds[prevIdx];
-    navigateToSearchMatch(targetId);
-  }, [matchedToolIds, activeMatchIndex, navigateToSearchMatch]);
+    handleSelectNode(targetId);
+  }, [matchedToolIds, activeMatchIndex, handleSelectNode]);
+
+  // Centralized helper to clear tool selection, dismiss inspector, remove lineage highlights, and fit entire workflow
+  const resetToOverview = useCallback(
+    (customPadding?: number, duration = 300) => {
+      setSelectedToolId(null);
+      setSelectedEdgeId(null);
+      if (externalOnSelectTool) {
+        externalOnSelectTool(null);
+      }
+      // Allow DOM flex layout to restore available width as inspector unmounts, then smoothly fit the whole workflow
+      setTimeout(() => {
+        fitWorkflowBounds(nodes, customPadding ?? (isFullscreen ? 36 : 24), duration);
+      }, 50);
+    },
+    [externalOnSelectTool, fitWorkflowBounds, nodes, isFullscreen]
+  );
+
+  // Handle Escape key to close inspector or exit fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedToolId !== null || selectedEdgeId !== null) {
+          resetToOverview();
+        } else if (isFullscreen) {
+          setIsFullscreen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, selectedToolId, selectedEdgeId, resetToOverview]);
 
   // Handle search text changes
   const handleSearchChange = (q: string) => {
@@ -425,15 +499,20 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
 
   // Zoom and Fit handlers
   const handleFitView = () => {
-    fitWorkflowBounds(nodes, 24, 300);
+    resetToOverview(isFullscreen ? 36 : 24, 300);
   };
 
   const handleResetLayout = () => {
     const layouted = getLayoutedElements(nodes, edges, { direction });
     setNodes(layouted.nodes);
     setEdges(layouted.edges);
+    setSelectedToolId(null);
+    setSelectedEdgeId(null);
+    if (externalOnSelectTool) {
+      externalOnSelectTool(null);
+    }
     setTimeout(() => {
-      fitWorkflowBounds(layouted.nodes, 24, 300);
+      fitWorkflowBounds(layouted.nodes, isFullscreen ? 36 : 24, 300);
     }, 50);
   };
 
@@ -483,16 +562,40 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     };
   }, [selectedEdgeId, connections, nodeMap]);
 
+  const handleToggleFullscreen = () => {
+    setIsFullscreen((prev) => !prev);
+  };
+
+  // Keep focused node centered when entering/exiting fullscreen or re-fit if no tool is selected
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (selectedToolId !== null) {
+        focusNode(selectedToolId, 300);
+      } else if (nodes.length > 0) {
+        fitWorkflowBounds(nodes, isFullscreen ? 36 : 24, 250);
+      }
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [isFullscreen, fitWorkflowBounds, focusNode, nodes, selectedToolId]);
+
   return (
     <div
       style={{
+        position: isFullscreen ? 'fixed' : 'relative',
+        top: isFullscreen ? 0 : undefined,
+        left: isFullscreen ? 0 : undefined,
+        right: isFullscreen ? 0 : undefined,
+        bottom: isFullscreen ? 0 : undefined,
+        width: isFullscreen ? '100vw' : '100%',
+        height: isFullscreen ? '100vh' : 'min(640px, 72vh)',
+        minHeight: isFullscreen ? '100vh' : '480px',
+        zIndex: isFullscreen ? 9999 : 'auto',
+        background: isFullscreen ? 'var(--color-bg)' : 'transparent',
+        padding: isFullscreen ? '16px 20px' : 0,
+        boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',
-        width: '100%',
-        height: 'min(640px, 72vh)',
-        minHeight: '480px',
-        position: 'relative',
       }}
     >
       {/* Top Controls Toolbar */}
@@ -512,6 +615,8 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         direction={direction}
         onToggleDirection={handleToggleDirection}
         onDownloadSvg={onDownloadSvg}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={handleToggleFullscreen}
       />
 
       {/* Main Canvas & Inspector Split View */}
@@ -524,10 +629,11 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
           borderRadius: 'var(--radius-md, 6px)',
           overflow: 'hidden',
           position: 'relative',
+          minHeight: 0,
         }}
       >
         {/* React Flow Graph Area */}
-        <div ref={reactFlowWrapperRef} style={{ flex: 1, height: '100%', position: 'relative' }}>
+        <div ref={reactFlowWrapperRef} style={{ flex: 1, height: '100%', position: 'relative', minWidth: 0 }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -541,22 +647,116 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
               setSelectedToolId(null);
             }}
             onPaneClick={() => {
-              setSelectedToolId(null);
-              setSelectedEdgeId(null);
+              resetToOverview();
             }}
             onMove={(_, viewport) => {
               setZoomLevel(viewport.zoom);
             }}
-            minZoom={0.15}
+            minZoom={0.12}
             maxZoom={2.5}
             fitView
             proOptions={{ hideAttribution: true }}
           >
             <Background gap={18} size={1} color="var(--color-border)" />
           </ReactFlow>
+
+          {/* Floating Compact DAG Legend */}
+          {showLegend ? (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '12px',
+                left: '12px',
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm, 4px)',
+                padding: '6px 10px',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+                zIndex: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                fontSize: '10.5px',
+                pointerEvents: 'auto',
+              }}
+            >
+              <span style={{ fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', fontSize: '9.5px', letterSpacing: '0.5px' }}>
+                Legend:
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#0284c7' }} />
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Input</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#0d9488' }} />
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Join</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#ea580c' }} />
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Formula</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#d97706' }} />
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Filter</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#16a34a' }} />
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Summarize</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#64748b' }} />
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Transform</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#9333ea' }} />
+                  <span style={{ color: 'var(--color-text-secondary)' }}>Output</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowLegend(false)}
+                title="Hide Legend"
+                aria-label="Hide Legend"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--color-text-muted)',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginLeft: '4px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowLegend(true)}
+              style={{
+                position: 'absolute',
+                bottom: '12px',
+                left: '12px',
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm, 4px)',
+                padding: '4px 8px',
+                fontSize: '10.5px',
+                fontWeight: 600,
+                color: 'var(--color-text-secondary)',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
+                cursor: 'pointer',
+                zIndex: 10,
+              }}
+              title="Show Legend"
+            >
+              Legend
+            </button>
+          )}
         </div>
 
-        {/* Right Inspector Panel */}
+        {/* Right Dedicated Inspector Panel (Non-obstructive Side-by-Side Flex) */}
         {(selectedNodeDto || selectedConnectionObj) && (
           <WorkflowInspector
             selectedNode={selectedNodeDto}
@@ -568,8 +768,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
               handleSelectNode(id);
             }}
             onClose={() => {
-              setSelectedToolId(null);
-              setSelectedEdgeId(null);
+              resetToOverview();
             }}
           />
         )}

@@ -37,29 +37,29 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
   const subtitle = annotation || summary || '';
 
   let borderColor = 'var(--color-border)';
-  let boxShadow = '0 1px 3px rgba(0, 0, 0, 0.06)';
+  let boxShadow = '0 2px 6px rgba(0, 0, 0, 0.15)';
   let bg = 'var(--color-surface)';
   let opacity = 1;
 
   if (isDimmed) {
-    opacity = 0.3;
+    opacity = 0.22;
   }
 
   if (isSelected) {
     borderColor = 'var(--color-primary)';
-    boxShadow = '0 0 0 2px var(--color-primary-border), 0 4px 12px rgba(251, 78, 11, 0.15)';
+    boxShadow = '0 0 0 2.5px var(--color-primary), 0 6px 20px rgba(251, 78, 11, 0.35)';
   } else if (isActiveSearchMatch) {
     borderColor = '#f59e0b';
-    boxShadow = '0 0 0 2.5px rgba(245, 158, 11, 0.75), 0 4px 16px rgba(245, 158, 11, 0.4)';
+    boxShadow = '0 0 0 3px #f59e0b, 0 6px 20px rgba(245, 158, 11, 0.45)';
   } else if (isSearchMatch) {
-    borderColor = 'rgba(245, 158, 11, 0.6)';
-    boxShadow = '0 0 0 1.5px rgba(245, 158, 11, 0.25)';
+    borderColor = '#f59e0b';
+    boxShadow = '0 0 0 2px rgba(245, 158, 11, 0.5)';
   } else if (isUpstream) {
     borderColor = '#0284c7';
-    boxShadow = '0 0 0 1.5px rgba(2, 132, 199, 0.35)';
+    boxShadow = '0 0 0 2px #0284c7, 0 4px 16px rgba(2, 132, 199, 0.35)';
   } else if (isDownstream) {
     borderColor = '#16a34a';
-    boxShadow = '0 0 0 1.5px rgba(22, 163, 74, 0.35)';
+    boxShadow = '0 0 0 2px #16a34a, 0 4px 16px rgba(22, 163, 74, 0.35)';
   } else if (isHighlighted) {
     borderColor = 'var(--color-primary-border)';
   }
@@ -68,7 +68,7 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
     <div
       style={{
         width: '220px',
-        minHeight: '84px',
+        minHeight: '86px',
         background: bg,
         border: `1.5px solid ${borderColor}`,
         borderRadius: 'var(--radius-md, 6px)',
@@ -90,12 +90,13 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
         style={{
           width: '8px',
           height: '8px',
-          background: 'var(--color-text-muted)',
+          background: 'var(--color-text-secondary)',
           border: '2px solid var(--color-surface)',
           borderRadius: '50%',
         }}
       />
 
+      {/* Card Header with Category Banner */}
       <div
         style={{
           display: 'flex',
@@ -105,16 +106,20 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
           background: categoryColor.badgeBg || 'var(--color-surface-secondary)',
           borderBottom: '1px solid var(--color-border-subtle)',
           fontSize: '11px',
-          fontWeight: 600,
+          fontWeight: 700,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
           <span
             style={{
-              color: 'var(--color-text-muted)',
-              fontSize: '10px',
+              color: 'var(--color-text-secondary)',
+              fontSize: '10.5px',
               fontFamily: 'var(--font-mono)',
-              fontWeight: 700,
+              fontWeight: 800,
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              padding: '1px 5px',
+              borderRadius: '3px',
             }}
           >
             #{toolId}
@@ -122,7 +127,9 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
           <span
             style={{
               color: categoryColor.text || 'var(--color-text)',
-              fontWeight: 700,
+              fontWeight: 800,
+              fontSize: '11px',
+              letterSpacing: '0.2px',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -137,13 +144,14 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
             <span
               style={{
                 fontSize: '9px',
-                fontWeight: 700,
-                padding: '1px 4px',
+                fontWeight: 800,
+                padding: '1px 5px',
                 borderRadius: '3px',
-                background: 'rgba(147, 51, 234, 0.15)',
-                color: '#7e22ce',
+                background: 'rgba(147, 51, 234, 0.2)',
+                color: '#9333ea',
                 textTransform: 'uppercase',
                 letterSpacing: '0.3px',
+                border: '1px solid rgba(147, 51, 234, 0.4)',
               }}
               title="Business Deliverable Output"
             >
@@ -169,6 +177,7 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
         </div>
       </div>
 
+      {/* Main Tool Name */}
       <div
         style={{
           padding: '8px 10px',
@@ -180,8 +189,8 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
       >
         <div
           style={{
-            fontSize: '12px',
-            fontWeight: 600,
+            fontSize: '12.5px',
+            fontWeight: 700,
             color: 'var(--color-text)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -196,12 +205,12 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
         {subtitle && subtitle !== name && (
           <div
             style={{
-              fontSize: '10px',
-              color: 'var(--color-text-muted)',
+              fontSize: '10.5px',
+              color: 'var(--color-text-secondary)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              marginTop: '2px',
+              marginTop: '3px',
             }}
             title={subtitle}
           >
@@ -210,6 +219,7 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
         )}
       </div>
 
+      {/* Footer Info: Ports */}
       <div
         style={{
           display: 'flex',
@@ -218,9 +228,10 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
           padding: '3px 10px',
           background: 'var(--color-surface-secondary)',
           borderTop: '1px solid var(--color-border-subtle)',
-          fontSize: '9px',
-          color: 'var(--color-text-subtle)',
+          fontSize: '9.5px',
+          color: 'var(--color-text-muted)',
           fontFamily: 'var(--font-mono)',
+          fontWeight: 600,
         }}
       >
         <span>{inputCount > 0 ? `${inputCount} in` : 'source'}</span>

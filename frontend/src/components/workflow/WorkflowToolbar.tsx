@@ -1,7 +1,7 @@
-import React from 'react';
 import {
   Search,
   Maximize2,
+  Minimize2,
   RotateCcw,
   ZoomIn,
   ZoomOut,
@@ -29,6 +29,8 @@ interface WorkflowToolbarProps {
   direction: 'LR' | 'TB';
   onToggleDirection: () => void;
   onDownloadSvg?: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
@@ -47,6 +49,8 @@ export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
   direction,
   onToggleDirection,
   onDownloadSvg,
+  isFullscreen,
+  onToggleFullscreen,
 }) => {
   return (
     <div
@@ -314,6 +318,32 @@ export const WorkflowToolbar: React.FC<WorkflowToolbarProps> = ({
           >
             <Download size={12} />
             <span>SVG</span>
+          </button>
+        )}
+
+        {/* Fullscreen Mode Toggle */}
+        {onToggleFullscreen && (
+          <button
+            onClick={onToggleFullscreen}
+            aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: isFullscreen ? 'var(--color-primary-subtle)' : 'var(--color-surface-secondary)',
+              border: isFullscreen ? '1px solid var(--color-primary-border)' : '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm, 4px)',
+              padding: '4px 8px',
+              fontSize: '11px',
+              fontWeight: 600,
+              color: isFullscreen ? 'var(--color-primary)' : 'var(--color-text)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            title={isFullscreen ? 'Exit Fullscreen (Esc)' : 'Enter Fullscreen Mode'}
+          >
+            {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            <span>{isFullscreen ? 'Exit' : 'Fullscreen'}</span>
           </button>
         )}
       </div>
