@@ -8,7 +8,6 @@ import {
   Download, 
   ArrowLeft, 
   FileText,
-  Check,
   Menu,
   Sliders
 } from 'lucide-react';
@@ -29,17 +28,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [collapsed, setCollapsed] = useState(false);
 
   const navItems = [
-    { id: 'overview', number: '01', label: 'Overview', icon: BarChart2 },
-    { id: 'diagram', number: '02', label: 'Workflow Diagram', icon: GitFork },
-    { id: 'tools', number: '03', label: 'Tools & Configuration', icon: Sliders },
-    { id: 'json', number: '04', label: 'JSON', icon: Code },
-    { id: 'python', number: '05', label: 'Python', icon: Terminal },
-    { id: 'downloads', number: '06', label: 'Download', icon: Download },
+    { id: 'overview', label: 'Overview', icon: BarChart2 },
+    { id: 'diagram', label: 'Workflow Diagram', icon: GitFork },
+    { id: 'tools', label: 'Tools & Configuration', icon: Sliders },
+    { id: 'json', label: 'JSON', icon: Code },
+    { id: 'python', label: 'Python', icon: Terminal },
+    { id: 'downloads', label: 'Download', icon: Download },
   ];
-
-  // Track visited/completed sections
-  const sectionOrder = ['overview', 'diagram', 'tools', 'json', 'python', 'downloads'];
-  const activeIndex = sectionOrder.indexOf(activeSection);
 
   return (
     <aside style={{
@@ -138,17 +133,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Navigation List */}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
-        {navItems.map((item, index) => {
+        {navItems.map((item) => {
           const isActive = activeSection === item.id;
-          const isCompleted = activeIndex > index;
           const Icon = item.icon;
 
           return (
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
-              aria-label={`${item.number} ${item.label}`}
-              title={collapsed ? `${item.number} ${item.label}` : undefined}
+              aria-label={item.label}
+              title={collapsed ? item.label : undefined}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -184,16 +178,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 justifyContent: 'center',
                 overflow: 'hidden',
               }}>
-                {!collapsed && (
-                  <span style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    color: isActive ? 'var(--color-primary)' : 'var(--color-text-subtle)',
-                  }}>
-                    {item.number}
-                  </span>
-                )}
                 <Icon size={16} color={isActive ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
                 {!collapsed && (
                   <span style={{ fontSize: '13px', fontWeight: isActive ? '600' : '500', whiteSpace: 'nowrap' }}>
@@ -202,31 +186,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </div>
 
-              {/* Status Indicator */}
-              {!collapsed ? (
-                <div>
-                  {isCompleted ? (
-                    <Check size={13} color="var(--color-success)" strokeWidth={2.5} />
-                  ) : isActive ? (
-                    <div style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      background: 'var(--color-primary)',
-                    }} />
-                  ) : null}
-                </div>
-              ) : isCompleted ? (
+              {/* Active Dot Indicator */}
+              {!collapsed && isActive && (
                 <div style={{
-                  position: 'absolute',
-                  top: '5px',
-                  right: '6px',
-                  width: '5px',
-                  height: '5px',
+                  width: '6px',
+                  height: '6px',
                   borderRadius: '50%',
-                  background: 'var(--color-success)',
+                  background: 'var(--color-primary)',
                 }} />
-              ) : null}
+              )}
             </button>
           );
         })}
