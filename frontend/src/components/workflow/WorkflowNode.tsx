@@ -2,7 +2,6 @@ import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import { WorkflowNodeData } from './types';
 import { getCategoryColor } from '../../theme/palette';
-import { AlertTriangle } from 'lucide-react';
 
 export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
   data,
@@ -21,7 +20,6 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
     inputCount,
     outputCount,
     isBusinessOutput,
-    diagnostics,
     isHighlighted,
     isDimmed,
     isSearchMatch,
@@ -31,7 +29,6 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
   } = nodeData;
 
   const categoryColor = getCategoryColor(visualCategory || toolType.toLowerCase());
-  const hasDiagnostics = diagnostics && diagnostics.length > 0;
   const isSelected = selected || nodeData.isSelected;
 
   const subtitle = annotation || summary || '';
@@ -156,22 +153,6 @@ export const WorkflowNodeComponent: React.FC<NodeProps<any>> = ({
               title="Business Deliverable Output"
             >
               Output
-            </span>
-          )}
-
-          {hasDiagnostics && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '2px',
-                color: '#d97706',
-                fontSize: '10px',
-                fontWeight: 700,
-              }}
-              title={`${diagnostics.length} diagnostic warning(s)`}
-            >
-              <AlertTriangle size={12} />
             </span>
           )}
         </div>

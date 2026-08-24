@@ -11,12 +11,12 @@ import { PythonPage } from './pages/PythonPage';
 import { DownloadPage } from './pages/DownloadPage';
 
 const SECTION_TITLES: Record<string, string> = {
-  overview: '01 Overview',
-  diagram: '02 Workflow Diagram',
-  tools: '03 Tools & Configuration',
-  json: '04 JSON',
-  python: '05 Python',
-  downloads: '06 Download',
+  overview: 'Overview',
+  diagram: 'Workflow Diagram',
+  tools: 'Tools & Configuration',
+  json: 'JSON',
+  python: 'Python',
+  downloads: 'Download',
 };
 
 export const App: React.FC = () => {

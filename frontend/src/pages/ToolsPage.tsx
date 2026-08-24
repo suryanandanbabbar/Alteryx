@@ -116,7 +116,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ analysisId, selectedToolId
           textTransform: 'uppercase',
           marginBottom: '4px',
         }}>
-          03 Tools &amp; Configuration
+          Tools &amp; Configuration
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
           <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', margin: 0 }}>

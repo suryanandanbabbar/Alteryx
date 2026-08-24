@@ -90,7 +90,7 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
           textTransform: 'uppercase',
           marginBottom: '4px',
         }}>
-          02 Workflow Diagram
+          Workflow Diagram
         </div>
         <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', margin: 0 }}>
           Interactive Workflow DAG

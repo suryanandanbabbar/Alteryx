@@ -142,7 +142,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
         <div className="app-card" style={{ padding: '18px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
             <div style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Information Flow Architecture
+              High Level Lineage
             </div>
             {onNavigateToDiagram && (
               <button
@@ -160,7 +160,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
                   padding: '2px 6px',
                 }}
               >
-                <span>View complete DAG</span>
+                <span>View End-To-End Lineage</span>
                 <ArrowUpRight size={13} />
               </button>
             )}
@@ -258,12 +258,12 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
         </div>
       )}
 
-      {/* 4. Operational Stages (Showing Direct Alteryx Tool Names) */}
+      {/* 4. Process Stages (Showing Direct Alteryx Tool Names) */}
       {bs && bs.processing_stages && bs.processing_stages.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h3 style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.5px', margin: 0 }}>
-              Operational Stages ({bs.processing_stages.length})
+              Process Stages ({bs.processing_stages.length})
             </h3>
             <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
               Click any stage to inspect underlying tools and transformations
@@ -316,12 +316,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
                     <span>{stage.tool_count} steps</span>
-                    {stage.container_name && (
-                      <>
-                        <span>•</span>
-                        <span>📁 {stage.container_name}</span>
-                      </>
-                    )}
                   </div>
 
                   {/* Progressive Disclosure Details */}

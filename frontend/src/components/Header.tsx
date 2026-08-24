@@ -42,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({ sectionTitle, workflowName }) =>
           color: 'var(--color-text)',
           margin: 0,
         }}>
-          {sectionTitle}
+          {(sectionTitle || '').replace(/^\d+\s+/, '')}
         </h1>
       </div>
 
