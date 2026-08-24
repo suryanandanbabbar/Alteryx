@@ -487,6 +487,21 @@ def analyze_canonical(
     # 10. Extract deterministic Source-to-Target Mapping (STTM)
     sttm = extract_sttm(workflow, graph, business_summary=business_summary)
 
+    # 11. Optionally enrich with LLM narratives if configured & available
+    try:
+        from awa.llm import get_default_generator
+        gen = get_default_generator()
+        if gen.client.model_name not in ("NONE", ""):
+            purp_res = gen.generate_business_purpose(workflow, business_summary, workflow_id=aid)
+            if purp_res.source == "llm":
+                business_summary.business_purpose = purp_res.text
+            exec_res = gen.generate_executive_summary(workflow, business_summary, workflow_id=aid)
+            if exec_res.source == "llm" and business_summary.executive_summary:
+                business_summary.executive_summary.subject_and_purpose = exec_res.text
+            gen.generate_all_tool_summaries(workflow, graph, workflow_id=aid)
+    except Exception:
+        pass
+
     return CanonicalAnalysisResult(
         analysis_id=aid,
         source=sinfo,

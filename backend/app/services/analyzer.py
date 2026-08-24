@@ -10,6 +10,7 @@ from awa.analysis.workflow_analyzer import analyze_canonical
 from awa.model.analysis_result import CanonicalAnalysisResult
 from awa.model.visual_category import get_visual_category
 from awa.tools import get_tool_summary, humanize_tool_configuration
+from awa.llm import get_default_generator
 
 from backend.app.models.schemas import (
     AnalysisOverviewDTO,
@@ -89,12 +90,16 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
         support_summary=res.metrics.support_summary,
     )
 
+    generator = get_default_generator()
     exec_steps: list[ExecutionStepDTO] = []
     for idx, tid in enumerate(res.execution_order, start=1):
         tool = res.workflow.tools.get(tid)
         ttype = tool.tool_type if tool else "Unknown"
         name = (tool.name if tool and tool.name else ttype)
-        summary = get_tool_summary(tool.plugin or ttype) if tool else get_tool_summary(ttype)
+        if tool:
+            summary = generator.generate_tool_summary(res.workflow, tool, res.graph, workflow_id=res.analysis_id).text
+        else:
+            summary = get_tool_summary(ttype)
         container_id = tool.container_id if tool else None
         container_name = tool.container_name if tool else None
         exec_steps.append(
@@ -136,8 +141,9 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
     bs_dto = None
     if res.business_summary:
         bs = res.business_summary
+        purpose_narrative = generator.generate_business_purpose(res.workflow, bs, workflow_id=res.analysis_id)
         bs_dto = WorkflowBusinessSummaryDTO(
-            business_purpose=bs.business_purpose,
+            business_purpose=purpose_narrative.text,
             one_line_purpose=bs.one_line_purpose,
             why_it_matters=bs.why_it_matters,
             source_inputs=[
@@ -263,6 +269,7 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
     nodes_dto: list[NodeDTO] = []
     from awa.tools.catalog import get_tool_catalog
     catalog = get_tool_catalog()
+    generator = get_default_generator()
 
     for tid in res.execution_order:
         tool = res.workflow.tools.get(tid)
@@ -270,7 +277,7 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
             continue
         tr = res.translations.get(tid)
         support = tr.support_level.value if tr else "unknown"
-        summary = get_tool_summary(tool.plugin or tool.tool_type)
+        summary = generator.generate_tool_summary(res.workflow, tool, res.graph, workflow_id=res.analysis_id).text
         tool_def = catalog.get(tool.plugin or tool.tool_type)
         xml_tool_name = tool_def.xml_name if tool_def else (tool.plugin or "")
 

@@ -65,6 +65,10 @@ def build_document_model(
         "Data Outputs": output_count,
     }
 
+    from awa.llm import get_default_generator
+    generator = get_default_generator()
+    wf_key = workflow.metadata.name or "default_workflow"
+
     # 3. Execution steps
     exec_steps: list[ExecutionStepDocEntry] = []
     for step_num, tool_id in enumerate(execution_order, start=1):
@@ -72,7 +76,11 @@ def build_document_model(
         tool_type = tool.tool_type if tool else "Unknown"
         name = (tool.name if tool and tool.name else tool_type)
         vcat = get_visual_category(tool_type)
-        summary = get_tool_summary(tool.plugin or tool_type) if tool else get_tool_summary(tool_type)
+        summary = (
+            generator.generate_tool_summary(workflow, tool, workflow_id=wf_key).text
+            if tool
+            else get_tool_summary(tool_type)
+        )
         exec_steps.append(
             ExecutionStepDocEntry(
                 step_number=step_num,
@@ -96,7 +104,7 @@ def build_document_model(
         description = tr.description if tr else ""
         input_vars = tr.input_variables if tr else []
         output_vars = tr.output_map if tr else {}
-        summary = get_tool_summary(tool.plugin or tool.tool_type)
+        summary = generator.generate_tool_summary(workflow, tool, workflow_id=wf_key).text
 
         node_entries.append(
             NodeDocEntry(
