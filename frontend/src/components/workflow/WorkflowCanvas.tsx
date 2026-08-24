@@ -637,11 +637,12 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         onToggleFullscreen={handleToggleFullscreen}
       />
 
-      {/* Main Canvas & Inspector Split View */}
+      {/* Main Canvas & Inspector Container */}
       <div
         style={{
           flex: 1,
           display: 'flex',
+          flexDirection: 'column',
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md, 6px)',
@@ -651,7 +652,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         }}
       >
         {/* React Flow Graph Area */}
-        <div ref={reactFlowWrapperRef} style={{ flex: 1, height: '100%', position: 'relative', minWidth: 0 }}>
+        <div ref={reactFlowWrapperRef} style={{ flex: 1, width: '100%', position: 'relative', minHeight: 0 }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}

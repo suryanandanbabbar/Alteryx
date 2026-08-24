@@ -4,8 +4,6 @@ import {
   ArrowRight,
   ArrowLeft,
   Layers,
-  ChevronRight,
-  ChevronDown,
   Copy,
   Check,
 } from 'lucide-react';
@@ -37,7 +35,6 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   onSelectTool,
   onClose,
 }) => {
-  const [showTechDetails, setShowTechDetails] = useState(false);
   const [copiedXml, setCopiedXml] = useState(false);
 
   if (!selectedNode && !selectedConnection) {
@@ -50,33 +47,35 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
     return (
       <div
         style={{
-          width: 'min(380px, 35vw)',
-          minWidth: '320px',
-          maxWidth: '420px',
-          height: '100%',
+          width: '100%',
+          height: '220px',
+          maxHeight: '30vh',
+          minHeight: '180px',
           background: 'var(--color-surface)',
-          borderLeft: '1px solid var(--color-border)',
+          borderTop: '1px solid var(--color-border)',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.08)',
-          overflowY: 'auto',
+          boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.12)',
           flexShrink: 0,
+          zIndex: 10,
         }}
       >
         {/* Header */}
         <div
           style={{
-            padding: '14px 16px',
+            padding: '8px 16px',
             borderBottom: '1px solid var(--color-border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--color-surface-secondary)',
+            height: '38px',
+            boxSizing: 'border-box',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Layers size={16} color="var(--color-primary)" />
-            <h3 style={{ fontSize: '13px', fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>
+            <Layers size={15} color="var(--color-primary)" />
+            <h3 style={{ fontSize: '12.5px', fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>
               Connection Details
             </h3>
           </div>
@@ -93,11 +92,21 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
               alignItems: 'center',
             }}
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         </div>
 
-        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div
+          style={{
+            flex: 1,
+            padding: '16px 20px',
+            display: 'grid',
+            gridTemplateColumns: '1fr auto 1fr',
+            alignItems: 'center',
+            gap: '24px',
+            overflowY: 'auto',
+          }}
+        >
           {/* Source Tool */}
           <div>
             <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
@@ -106,7 +115,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             <div
               onClick={() => onSelectTool(connection.origin_tool_id)}
               style={{
-                padding: '8px 10px',
+                padding: '10px 12px',
                 background: 'var(--color-surface-secondary)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-sm, 4px)',
@@ -119,7 +128,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)' }}>
                   #{connection.origin_tool_id} {sourceNode?.name || sourceNode?.tool_type || 'Source Tool'}
                 </span>
-                <span style={{ fontSize: '10px', color: 'var(--color-primary)', fontFamily: 'var(--font-mono)' }}>
+                <span style={{ fontSize: '10.5px', color: 'var(--color-primary)', fontFamily: 'var(--font-mono)' }}>
                   Port: {connection.origin_anchor}
                 </span>
               </div>
@@ -127,7 +136,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <ArrowRight size={16} color="var(--color-text-muted)" />
+            <ArrowRight size={20} color="var(--color-text-muted)" />
           </div>
 
           {/* Destination Tool */}
@@ -138,7 +147,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             <div
               onClick={() => onSelectTool(connection.destination_tool_id)}
               style={{
-                padding: '8px 10px',
+                padding: '10px 12px',
                 background: 'var(--color-surface-secondary)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-sm, 4px)',
@@ -151,7 +160,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text)' }}>
                   #{connection.destination_tool_id} {targetNode?.name || targetNode?.tool_type || 'Target Tool'}
                 </span>
-                <span style={{ fontSize: '10px', color: 'var(--color-primary)', fontFamily: 'var(--font-mono)' }}>
+                <span style={{ fontSize: '10.5px', color: 'var(--color-primary)', fontFamily: 'var(--font-mono)' }}>
                   Port: {connection.destination_anchor}
                 </span>
               </div>
@@ -187,77 +196,78 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   return (
     <div
       style={{
-        width: 'min(380px, 35vw)',
-        minWidth: '320px',
-        maxWidth: '420px',
-        height: '100%',
+        width: '100%',
+        height: '240px',
+        maxHeight: '34vh',
+        minHeight: '200px',
         background: 'var(--color-surface)',
-        borderLeft: '1px solid var(--color-border)',
+        borderTop: '1px solid var(--color-border)',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.08)',
-        overflowY: 'auto',
+        boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.12)',
         flexShrink: 0,
+        zIndex: 10,
       }}
     >
-      {/* 1. Header (Preserved Shell) */}
+      {/* 1. Header (Compact Horizontal Banner) */}
       <div
         style={{
-          padding: '14px 16px',
+          padding: '6px 16px',
           borderBottom: '1px solid var(--color-border)',
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           justifyContent: 'space-between',
           background: categoryColor.badgeBg || 'var(--color-surface-secondary)',
+          height: '36px',
+          boxSizing: 'border-box',
+          flexShrink: 0,
         }}
       >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 800,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--color-text)',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              padding: '1px 5px',
+              borderRadius: '3px',
+            }}
+          >
+            #{node.tool_id}
+          </span>
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 800,
+              color: categoryColor.text || 'var(--color-text)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.4px',
+            }}
+          >
+            {node.tool_type}
+          </span>
+          {isBusinessOutput && (
             <span
               style={{
-                fontSize: '11px',
+                fontSize: '9px',
                 fontWeight: 800,
-                fontFamily: 'var(--font-mono)',
-                color: 'var(--color-text)',
-                background: 'var(--color-surface)',
-                border: '1px solid var(--color-border)',
                 padding: '1px 5px',
                 borderRadius: '3px',
-              }}
-            >
-              #{node.tool_id}
-            </span>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: categoryColor.text || 'var(--color-text)',
+                background: 'rgba(147, 51, 234, 0.2)',
+                color: '#9333ea',
                 textTransform: 'uppercase',
-                letterSpacing: '0.4px',
+                border: '1px solid rgba(147, 51, 234, 0.4)',
               }}
             >
-              {node.tool_type}
+              Output Deliverable
             </span>
-            {isBusinessOutput && (
-              <span
-                style={{
-                  fontSize: '9px',
-                  fontWeight: 800,
-                  padding: '1px 5px',
-                  borderRadius: '3px',
-                  background: 'rgba(147, 51, 234, 0.2)',
-                  color: '#9333ea',
-                  textTransform: 'uppercase',
-                  border: '1px solid rgba(147, 51, 234, 0.4)',
-                }}
-              >
-                Output Deliverable
-              </span>
-            )}
-          </div>
-          <h3 style={{ fontSize: '15px', fontWeight: 800, margin: '4px 0 0 0', color: 'var(--color-text)' }}>
+          )}
+          <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-text)', marginLeft: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {node.name}
-          </h3>
+          </span>
         </div>
 
         <button
@@ -274,64 +284,94 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
           }}
           title="Close Inspector (Esc)"
         >
-          <X size={16} />
+          <X size={15} />
         </button>
       </div>
 
-      {/* Content body */}
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-        {/* 2. WHAT IT DOES */}
-        <div>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-            What It Does
+      {/* 2. Content Body: 3 Responsive Columns */}
+      <div
+        style={{
+          flex: 1,
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1.25fr)',
+          minHeight: 0,
+          overflow: 'hidden',
+        }}
+      >
+        {/* ======================================================== */}
+        {/* COLUMN 1: WHAT IT DOES + WORKFLOW ROLE                    */}
+        {/* ======================================================== */}
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRight: '1px solid var(--color-border)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            overflowY: 'auto',
+          }}
+        >
+          {/* What It Does */}
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
+              What It Does
+            </div>
+            <div
+              style={{
+                padding: '8px 10px',
+                background: 'var(--color-surface-secondary)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm, 4px)',
+                fontSize: '11.5px',
+                fontWeight: 500,
+                color: 'var(--color-text)',
+                lineHeight: '1.45',
+                fontStyle: node.summary ? 'normal' : 'italic',
+              }}
+            >
+              {node.summary || 'No functional description available.'}
+            </div>
           </div>
-          <div
-            style={{
-              padding: '10px 12px',
-              background: 'var(--color-surface-secondary)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-sm, 4px)',
-              fontSize: '12px',
-              fontWeight: 500,
-              color: 'var(--color-text)',
-              lineHeight: '1.5',
-              fontStyle: node.summary ? 'normal' : 'italic',
-            }}
-          >
-            {node.summary || 'No functional description available.'}
+
+          {/* Workflow Role */}
+          <div>
+            <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
+              Workflow Role
+            </div>
+            <div
+              style={{
+                padding: '7px 10px',
+                background: 'var(--color-surface-secondary)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm, 4px)',
+                fontSize: '11.5px',
+                fontWeight: 700,
+                color: 'var(--color-text)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: roleColor, flexShrink: 0 }} />
+              <span>{workflowRole}</span>
+            </div>
           </div>
         </div>
 
-        {/* 3. WORKFLOW ROLE */}
-        <div>
-          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-            Workflow Role
-          </div>
-          <div
-            style={{
-              padding: '8px 12px',
-              background: 'var(--color-surface-secondary)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-sm, 4px)',
-              fontSize: '12px',
-              fontWeight: 700,
-              color: 'var(--color-text)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: roleColor, flexShrink: 0 }} />
-            <span>{workflowRole}</span>
-          </div>
-        </div>
-
-        <div style={{ height: '1px', background: 'var(--color-border)' }} />
-
-        {/* 4. DATA FLOW (Unified inputs/outputs with clickable focus navigation) */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        {/* ======================================================== */}
+        {/* COLUMN 2: DATA FLOW                                      */}
+        {/* ======================================================== */}
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRight: '1px solid var(--color-border)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            overflowY: 'auto',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Data Flow
             </span>
@@ -340,10 +380,10 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             {/* Upstream nodes */}
             {upstreamNodes.length === 0 ? (
-              <div style={{ fontSize: '10.5px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '4px 8px' }}>
+              <div style={{ fontSize: '10.5px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '3px 6px' }}>
                 Source tool (no upstream inputs)
               </div>
             ) : (
@@ -352,7 +392,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                   key={up.tool_id}
                   onClick={() => onSelectTool(up.tool_id)}
                   style={{
-                    padding: '6px 10px',
+                    padding: '5px 8px',
                     background: 'var(--color-surface-secondary)',
                     border: '1px solid var(--color-border)',
                     borderRadius: 'var(--radius-sm, 4px)',
@@ -365,22 +405,22 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                   title={`Focus upstream tool #${up.tool_id}`}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                    <ArrowLeft size={12} color="#0284c7" />
-                    <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <ArrowLeft size={11} color="#0284c7" />
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       #{up.tool_id} {up.name}
                     </span>
                   </div>
-                  <span style={{ fontSize: '10.5px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', marginLeft: '6px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', marginLeft: '6px' }}>
                     {up.tool_type}
                   </span>
                 </div>
               ))
             )}
 
-            {/* Current selected node indicator (Fully readable, high contrast) */}
+            {/* Current selected node indicator */}
             <div
               style={{
-                padding: '7px 10px',
+                padding: '6px 8px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -390,19 +430,19 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: categoryColor.stroke || 'var(--color-primary)', flexShrink: 0 }} />
-                <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: roleColor, flexShrink: 0 }} />
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   #{node.tool_id} {node.name}
                 </span>
               </div>
               <span
                 style={{
-                  fontSize: '9.5px',
+                  fontSize: '9px',
                   fontWeight: 800,
                   color: categoryColor.text || 'var(--color-primary)',
                   background: categoryColor.badgeBg || 'var(--color-primary-subtle)',
                   border: '1px solid var(--color-border-subtle)',
-                  padding: '1px 6px',
+                  padding: '1px 5px',
                   borderRadius: '3px',
                   letterSpacing: '0.5px',
                   textTransform: 'uppercase',
@@ -414,7 +454,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
 
             {/* Downstream nodes */}
             {downstreamNodes.length === 0 ? (
-              <div style={{ fontSize: '10.5px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '4px 8px' }}>
+              <div style={{ fontSize: '10.5px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '3px 6px' }}>
                 Terminal tool (no downstream outputs)
               </div>
             ) : (
@@ -423,7 +463,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                   key={down.tool_id}
                   onClick={() => onSelectTool(down.tool_id)}
                   style={{
-                    padding: '6px 10px',
+                    padding: '5px 8px',
                     background: 'var(--color-surface-secondary)',
                     border: '1px solid var(--color-border)',
                     borderRadius: 'var(--radius-sm, 4px)',
@@ -436,12 +476,12 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                   title={`Focus downstream tool #${down.tool_id}`}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
-                    <ArrowRight size={12} color="#16a34a" />
-                    <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <ArrowRight size={11} color="#16a34a" />
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       #{down.tool_id} {down.name}
                     </span>
                   </div>
-                  <span style={{ fontSize: '10.5px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', marginLeft: '6px' }}>
+                  <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', marginLeft: '6px' }}>
                     {down.tool_type}
                   </span>
                 </div>
@@ -450,126 +490,101 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
           </div>
         </div>
 
-        <div style={{ height: '1px', background: 'var(--color-border)' }} />
+        {/* ======================================================== */}
+        {/* COLUMN 3: TECHNICAL DETAILS                              */}
+        {/* ======================================================== */}
+        <div
+          style={{
+            padding: '12px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            overflowY: 'auto',
+          }}
+        >
+          {/* Container ID & XML Tool Name Metadata Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '14px', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
+                Container ID
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: node.container_id != null ? 'var(--color-text)' : 'var(--color-text-muted)', fontStyle: node.container_id != null ? 'normal' : 'italic' }}>
+                {containerIdDisplay}
+              </div>
+            </div>
 
-        {/* 5. TECHNICAL DETAILS (Collapsible, collapsed by default) */}
-        <div>
-          <button
-            onClick={() => setShowTechDetails((prev) => !prev)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              background: 'transparent',
-              border: 'none',
-              padding: '4px 0',
-              cursor: 'pointer',
-              color: 'var(--color-text-muted)',
-              fontSize: '11px',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-            }}
-          >
-            <span>Technical Details</span>
-            {showTechDetails ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          </button>
+            <div style={{ overflow: 'hidden' }}>
+              <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
+                XML Tool Name
+              </div>
+              <div
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  fontFamily: 'var(--font-mono)',
+                  color: xmlToolName !== 'Not available in tool registry' ? 'var(--color-text)' : 'var(--color-text-muted)',
+                  fontStyle: xmlToolName !== 'Not available in tool registry' ? 'normal' : 'italic',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+                title={xmlToolName}
+              >
+                {xmlToolName}
+              </div>
+            </div>
+          </div>
 
-          {showTechDetails && (
+          {/* Workflow Context (Formatted XML Code Viewer) */}
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Workflow Context
+              </div>
+              {rawNodeXml !== 'Source Node unavailable' && (
+                <button
+                  onClick={handleCopyXml}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: 'transparent',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '3px',
+                    padding: '2px 6px',
+                    fontSize: '9.5px',
+                    color: copiedXml ? 'var(--color-success)' : 'var(--color-text-muted)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Copy exact Node XML to clipboard"
+                >
+                  {copiedXml ? <Check size={11} color="var(--color-success)" /> : <Copy size={11} />}
+                  <span>{copiedXml ? 'Copied' : 'Copy XML'}</span>
+                </button>
+              )}
+            </div>
             <div
               style={{
-                marginTop: '8px',
-                background: 'var(--color-surface-secondary)',
-                borderRadius: 'var(--radius-sm, 4px)',
+                background: '#090d16',
                 border: '1px solid var(--color-border)',
-                padding: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                fontSize: '11px',
+                borderRadius: '4px',
+                padding: '6px 8px',
+                height: '100px',
+                maxHeight: '120px',
+                overflowX: 'auto',
+                overflowY: 'auto',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '10px',
+                lineHeight: '1.4',
+                color: '#e2e8f0',
+                whiteSpace: 'pre',
               }}
             >
-              {/* 1. CONTAINER ID */}
-              <div>
-                <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                  Container ID
-                </div>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: node.container_id != null ? 'var(--color-text)' : 'var(--color-text-muted)', fontStyle: node.container_id != null ? 'normal' : 'italic' }}>
-                  {containerIdDisplay}
-                </div>
-              </div>
-
-              {/* 2. XML TOOL NAME (Deterministic registry mapping) */}
-              <div>
-                <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-                  XML Tool Name
-                </div>
-                <div
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    fontFamily: 'var(--font-mono)',
-                    color: xmlToolName !== 'Not available in tool registry' ? 'var(--color-text)' : 'var(--color-text-muted)',
-                    fontStyle: xmlToolName !== 'Not available in tool registry' ? 'normal' : 'italic',
-                    wordBreak: 'break-all',
-                  }}
-                >
-                  {xmlToolName}
-                </div>
-              </div>
-
-              {/* 3. WORKFLOW CONTEXT (Exact source <Node>...</Node> snippet) */}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    Workflow Context
-                  </div>
-                  {rawNodeXml !== 'Source Node unavailable' && (
-                    <button
-                      onClick={handleCopyXml}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        background: 'transparent',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: '3px',
-                        padding: '2px 6px',
-                        fontSize: '9.5px',
-                        color: copiedXml ? 'var(--color-success)' : 'var(--color-text-muted)',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                      title="Copy exact Node XML to clipboard"
-                    >
-                      {copiedXml ? <Check size={11} color="var(--color-success)" /> : <Copy size={11} />}
-                      <span>{copiedXml ? 'Copied' : 'Copy XML'}</span>
-                    </button>
-                  )}
-                </div>
-                <div
-                  style={{
-                    background: '#090d16',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: '4px',
-                    padding: '8px 10px',
-                    maxHeight: '260px',
-                    overflowX: 'auto',
-                    overflowY: 'auto',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '10.5px',
-                    lineHeight: '1.5',
-                    color: '#e2e8f0',
-                    whiteSpace: 'pre',
-                  }}
-                >
-                  <code>{formattedNodeXml}</code>
-                </div>
-              </div>
-
+              <code>{formattedNodeXml}</code>
             </div>
-          )}
+          </div>
+
         </div>
 
       </div>
