@@ -93,3 +93,54 @@ export const CATEGORY_COLORS: Record<string, CategoryColor> = {
 export const getCategoryColor = (category: string): CategoryColor => {
   return CATEGORY_COLORS[category] || CATEGORY_COLORS.transform;
 };
+
+/**
+ * Generic deterministic taxonomy mapping tool types and categories to canonical workflow roles.
+ */
+export const getWorkflowRole = (toolType: string, visualCategory?: string, isBusinessOutput?: boolean): string => {
+  if (isBusinessOutput) {
+    return 'Deliverable Output';
+  }
+
+  const type = (toolType || '').toLowerCase();
+  const category = (visualCategory || '').toLowerCase();
+
+  // Precise Tool Type matching
+  if (type.includes('crosstab') || type.includes('transpose')) return 'Reshaping';
+  if (type.includes('summarize') || type.includes('countrecords')) return 'Aggregation';
+  if (type.includes('formula')) return 'Data Transformation';
+  if (type.includes('filter')) return 'Data Filtering';
+  if (type.includes('join') || type.includes('appendfields') || type.includes('findreplace')) return 'Data Integration';
+  if (type.includes('union')) return 'Data Consolidation';
+  if (type.includes('sort')) return 'Ordering';
+  if (type.includes('select')) return 'Field Selection';
+  if (type.includes('unique')) return 'Deduplication';
+  if (type.includes('sample')) return 'Sampling';
+  if (type.includes('datetime')) return 'Temporal Formatting';
+  if (type.includes('regex') || type.includes('texttocolumns') || type.includes('xmlparse') || type.includes('jsonparse')) return 'Data Parsing';
+  if (type.includes('input') || type.includes('fileinput') || type.includes('directory')) return 'Data Input';
+  if (type.includes('output') || type.includes('browse')) return 'Data Output';
+  if (type.includes('blockuntildone') || type.includes('message') || type.includes('test')) return 'Execution Control';
+  if (type.includes('macro')) return 'Macro Interface';
+
+  // Category fallback matching
+  if (category === 'input') return 'Data Input';
+  if (category === 'output') return 'Data Output';
+  if (category === 'join') return 'Data Integration';
+  if (category === 'union') return 'Data Consolidation';
+  if (category === 'filter') return 'Data Filtering';
+  if (category === 'formula') return 'Data Transformation';
+  if (category === 'summarize') return 'Aggregation';
+  if (category === 'reshape') return 'Reshaping';
+  if (category === 'sort') return 'Ordering';
+  if (category === 'select') return 'Field Selection';
+  if (category === 'unique') return 'Deduplication';
+  if (category === 'datetime') return 'Temporal Formatting';
+  if (category === 'regex' || category === 'parse') return 'Data Parsing';
+  if (category === 'developer') return 'Execution Control';
+  if (category === 'reporting') return 'Reporting';
+  if (category === 'spatial') return 'Spatial Processing';
+  if (category === 'transform' || category === 'preparation') return 'Data Transformation';
+
+  return 'Tool Operation';
+};

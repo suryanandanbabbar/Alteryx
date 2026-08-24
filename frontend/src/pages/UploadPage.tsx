@@ -140,7 +140,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             color: 'var(--color-text)',
             marginBottom: '8px',
           }}>
-            Analyze Alteryx Workflow
+            ETL Intelligence & Migration - Alteryx Workflows
           </h1>
           <p style={{
             fontSize: '14px',
