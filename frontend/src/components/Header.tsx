@@ -31,10 +31,9 @@ export const Header: React.FC<HeaderProps> = ({ sectionTitle, workflowName }) =>
           fontSize: '12px',
           fontWeight: '600',
           color: 'var(--color-text-muted)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.5px',
+          letterSpacing: '0.3px',
         }}>
-          AWA
+          ETL Intelligence & Migration
         </span>
         <span style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>/</span>
         <h1 style={{

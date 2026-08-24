@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AnalysisOverviewDTO } from '../types/workflow';
 import { 
   BarChart2, 
@@ -8,7 +8,8 @@ import {
   Download, 
   ArrowLeft, 
   FileText,
-  Check
+  Check,
+  Menu
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -24,6 +25,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   onReset,
 }) => {
+  const [collapsed, setCollapsed] = useState(false);
+
   const navItems = [
     { id: 'overview', number: '01', label: 'Overview', icon: BarChart2 },
     { id: 'diagram', number: '02', label: 'Workflow Diagram', icon: GitFork },
@@ -38,8 +41,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside style={{
-      width: '260px',
-      minWidth: '260px',
+      width: collapsed ? '64px' : '260px',
+      minWidth: collapsed ? '64px' : '260px',
       height: '100vh',
       position: 'sticky',
       top: 0,
@@ -47,49 +50,89 @@ export const Sidebar: React.FC<SidebarProps> = ({
       borderRight: '1px solid var(--color-border)',
       display: 'flex',
       flexDirection: 'column',
-      padding: '20px 16px',
+      padding: collapsed ? '20px 10px' : '20px 16px',
       boxSizing: 'border-box',
       zIndex: 30,
+      transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.2s cubic-bezier(0.4, 0, 0.2, 1), padding 0.2s ease',
+      overflowX: 'hidden',
     }}>
-      {/* Brand Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px', paddingLeft: '6px' }}>
-        <div style={{
-          width: '28px',
-          height: '28px',
-          borderRadius: 'var(--radius-sm)',
-          background: 'var(--color-primary)',
-          color: '#ffffff',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontWeight: '800',
-          fontSize: '13px',
-          letterSpacing: '-0.5px',
-        }}>
-          A
-        </div>
-        <div>
-          <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', lineHeight: 1.2 }}>
-            AWA
+      {/* Brand Header & Collapse Toggle */}
+      <div style={{
+        display: 'flex',
+        alignItems: collapsed ? 'center' : 'flex-start',
+        justifyContent: collapsed ? 'center' : 'space-between',
+        gap: '8px',
+        marginBottom: '24px',
+        paddingLeft: collapsed ? '0' : '4px',
+      }}>
+        {!collapsed && (
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{
+              fontSize: '13.5px',
+              fontWeight: '800',
+              color: 'var(--color-text)',
+              letterSpacing: '-0.3px',
+              lineHeight: 1.25,
+            }}>
+              ETL Intelligence & Migration
+            </div>
+            <div style={{
+              fontSize: '11.5px',
+              color: 'var(--color-text-muted)',
+              fontWeight: '500',
+              marginTop: '3px',
+            }}>
+              Alteryx workflow
+            </div>
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: '500' }}>
-            Alteryx Workflow Analyzer
-          </div>
-        </div>
+        )}
+
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          style={{
+            background: 'transparent',
+            border: '1px solid transparent',
+            borderRadius: 'var(--radius-sm)',
+            padding: collapsed ? '8px' : '6px',
+            cursor: 'pointer',
+            color: 'var(--color-text-muted)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
+            e.currentTarget.style.color = 'var(--color-text)';
+            e.currentTarget.style.borderColor = 'var(--color-border)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.color = 'var(--color-text-muted)';
+            e.currentTarget.style.borderColor = 'transparent';
+          }}
+        >
+          <Menu size={collapsed ? 18 : 16} />
+        </button>
       </div>
 
       {/* Navigation Label */}
-      <div style={{
-        fontSize: '10px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        color: 'var(--color-text-muted)',
-        marginBottom: '10px',
-        paddingLeft: '8px',
-        textTransform: 'uppercase',
-      }}>
-        Workflow Steps
-      </div>
+      {!collapsed && (
+        <div style={{
+          fontSize: '10px',
+          fontWeight: '700',
+          letterSpacing: '1px',
+          color: 'var(--color-text-muted)',
+          marginBottom: '10px',
+          paddingLeft: '8px',
+          textTransform: 'uppercase',
+        }}>
+          Workflow Steps
+        </div>
+      )}
 
       {/* Navigation List */}
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
@@ -102,11 +145,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
+              aria-label={`${item.number} ${item.label}`}
+              title={collapsed ? `${item.number} ${item.label}` : undefined}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '9px 12px',
+                justifyContent: collapsed ? 'center' : 'space-between',
+                padding: collapsed ? '9px 0' : '9px 12px',
                 borderRadius: 'var(--radius-sm)',
                 border: isActive ? '1px solid var(--color-primary-border)' : '1px solid transparent',
                 background: isActive ? 'var(--color-primary-subtle)' : 'transparent',
@@ -115,6 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 textAlign: 'left',
                 width: '100%',
                 transition: 'all 0.12s ease',
+                position: 'relative',
               }}
               onMouseEnter={(e) => {
                 if (!isActive) {
@@ -129,89 +175,119 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  color: isActive ? 'var(--color-primary)' : 'var(--color-text-subtle)',
-                }}>
-                  {item.number}
-                </span>
-                <Icon size={15} color={isActive ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
-                <span style={{ fontSize: '13px', fontWeight: isActive ? '600' : '500' }}>
-                  {item.label}
-                </span>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: collapsed ? '0' : '10px',
+                justifyContent: 'center',
+                overflow: 'hidden',
+              }}>
+                {!collapsed && (
+                  <span style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    color: isActive ? 'var(--color-primary)' : 'var(--color-text-subtle)',
+                  }}>
+                    {item.number}
+                  </span>
+                )}
+                <Icon size={16} color={isActive ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
+                {!collapsed && (
+                  <span style={{ fontSize: '13px', fontWeight: isActive ? '600' : '500', whiteSpace: 'nowrap' }}>
+                    {item.label}
+                  </span>
+                )}
               </div>
 
               {/* Status Indicator */}
-              <div>
-                {isCompleted ? (
-                  <Check size={13} color="var(--color-success)" strokeWidth={2.5} />
-                ) : isActive ? (
-                  <div style={{
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    background: 'var(--color-primary)',
-                  }} />
-                ) : null}
-              </div>
+              {!collapsed ? (
+                <div>
+                  {isCompleted ? (
+                    <Check size={13} color="var(--color-success)" strokeWidth={2.5} />
+                  ) : isActive ? (
+                    <div style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      background: 'var(--color-primary)',
+                    }} />
+                  ) : null}
+                </div>
+              ) : isCompleted ? (
+                <div style={{
+                  position: 'absolute',
+                  top: '5px',
+                  right: '6px',
+                  width: '5px',
+                  height: '5px',
+                  borderRadius: '50%',
+                  background: 'var(--color-success)',
+                }} />
+              ) : null}
             </button>
           );
         })}
       </nav>
 
-      {/* Active File Card */}
-      <div style={{
-        background: 'var(--color-surface-secondary)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-sm)',
-        padding: '12px',
-        marginBottom: '12px',
-      }}>
+      {/* Active File Card (Expanded only) */}
+      {!collapsed && (
         <div style={{
-          fontSize: '10px',
-          fontWeight: '700',
-          letterSpacing: '0.8px',
-          color: 'var(--color-text-muted)',
-          marginBottom: '6px',
-          textTransform: 'uppercase',
+          background: 'var(--color-surface-secondary)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '12px',
+          marginBottom: '12px',
         }}>
-          Current Workflow
+          <div style={{
+            fontSize: '10px',
+            fontWeight: '700',
+            letterSpacing: '0.8px',
+            color: 'var(--color-text-muted)',
+            marginBottom: '6px',
+            textTransform: 'uppercase',
+          }}>
+            Current Workflow
+          </div>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            color: 'var(--color-text)',
+            fontWeight: '600',
+            fontSize: '12px',
+            marginBottom: '4px',
+            wordBreak: 'break-all',
+          }}>
+            <FileText size={13} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+            <span>{overview.source.original_filename}</span>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <span>{overview.metrics.total_nodes} tools</span>
+            <span>·</span>
+            <span>{overview.metrics.total_connections} edges</span>
+          </div>
         </div>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          color: 'var(--color-text)',
-          fontWeight: '600',
-          fontSize: '12px',
-          marginBottom: '4px',
-          wordBreak: 'break-all',
-        }}>
-          <FileText size={13} color="var(--color-primary)" style={{ flexShrink: 0 }} />
-          <span>{overview.source.original_filename}</span>
-        </div>
-        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <span>{overview.metrics.total_nodes} tools</span>
-          <span>·</span>
-          <span>{overview.metrics.total_connections} edges</span>
-        </div>
-      </div>
+      )}
 
       {/* Convert Another File Button */}
       <button
         onClick={onReset}
         className="btn-secondary"
+        aria-label="Analyze another file"
+        title={collapsed ? `Analyze another file (${overview.source.original_filename})` : undefined}
         style={{
           width: '100%',
-          padding: '8px 12px',
+          padding: collapsed ? '8px 0' : '8px 12px',
           fontSize: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
         }}
       >
-        <ArrowLeft size={13} />
-        <span>Analyze another file</span>
+        <ArrowLeft size={14} />
+        {!collapsed && <span>Analyze another file</span>}
       </button>
     </aside>
   );

@@ -75,6 +75,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
           <div style={{
             width: '28px',
             height: '28px',
+            minWidth: '28px',
             borderRadius: 'var(--radius-sm)',
             background: 'var(--color-primary)',
             color: '#ffffff',
@@ -84,14 +85,10 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             fontWeight: '800',
             fontSize: '13px',
           }}>
-            A
+            E
           </div>
           <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text)' }}>
-            AWA
-          </span>
-          <span style={{ color: 'var(--color-text-subtle)', fontSize: '13px' }}>|</span>
-          <span style={{ fontSize: '13px', color: 'var(--color-text-muted)', fontWeight: '500' }}>
-            Alteryx Workflow Analyzer
+            ETL Intelligence & Migration - Alteryx Workflow
           </span>
         </div>
 

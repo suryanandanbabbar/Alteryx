@@ -88,14 +88,14 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
           </div>
           <span style={{ color: 'var(--color-border)' }}>|</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>
+            <span style={{ fontWeight: '700', color: 'var(--color-text)' }}>
               {bs?.source_inputs.length ?? overview.metrics.input_count}
             </span>
             <span style={{ color: 'var(--color-text-muted)' }}>Inputs</span>
           </div>
           <span style={{ color: 'var(--color-border)' }}>|</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>
+            <span style={{ fontWeight: '700', color: 'var(--color-text)' }}>
               {bs?.business_outputs.length ?? overview.metrics.output_count}
             </span>
             <span style={{ color: 'var(--color-text-muted)' }}>Outputs</span>
@@ -106,8 +106,30 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
       {/* 2. Business Purpose Card (1-2 sentences) */}
       {bs?.business_purpose && (
         <div className="app-card" style={{ padding: '16px 20px', borderLeft: '3px solid var(--color-primary)' }}>
-          <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
-            Business Purpose
+          <div style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: '10px',
+            marginBottom: '4px',
+          }}>
+            <span style={{
+              fontSize: '11px',
+              fontWeight: '700',
+              color: 'var(--color-primary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}>
+              Business Purpose
+            </span>
+            <span style={{
+              fontSize: '11px',
+              fontWeight: '400',
+              color: 'var(--color-text-muted)',
+              textTransform: 'none',
+              letterSpacing: 'normal',
+            }}>
+              Retrieved from Configuration
+            </span>
           </div>
           <p style={{ fontSize: '14px', color: 'var(--color-text)', lineHeight: '1.5', margin: 0, fontWeight: '500' }}>
             {bs.business_purpose}
