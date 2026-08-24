@@ -9,7 +9,8 @@ import {
   ArrowLeft, 
   FileText,
   Check,
-  Menu
+  Menu,
+  Sliders
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -30,13 +31,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: 'overview', number: '01', label: 'Overview', icon: BarChart2 },
     { id: 'diagram', number: '02', label: 'Workflow Diagram', icon: GitFork },
-    { id: 'json', number: '03', label: 'JSON', icon: Code },
-    { id: 'python', number: '04', label: 'Python', icon: Terminal },
-    { id: 'downloads', number: '05', label: 'Download', icon: Download },
+    { id: 'tools', number: '03', label: 'Tools & Configuration', icon: Sliders },
+    { id: 'json', number: '04', label: 'JSON', icon: Code },
+    { id: 'python', number: '05', label: 'Python', icon: Terminal },
+    { id: 'downloads', number: '06', label: 'Download', icon: Download },
   ];
 
   // Track visited/completed sections
-  const sectionOrder = ['overview', 'diagram', 'json', 'python', 'downloads'];
+  const sectionOrder = ['overview', 'diagram', 'tools', 'json', 'python', 'downloads'];
   const activeIndex = sectionOrder.indexOf(activeSection);
 
   return (

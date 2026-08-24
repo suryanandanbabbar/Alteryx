@@ -5,6 +5,7 @@ import { Header } from './components/Header';
 import { UploadPage } from './pages/UploadPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { DiagramPage } from './pages/DiagramPage';
+import { ToolsPage } from './pages/ToolsPage';
 import { JsonPage } from './pages/JsonPage';
 import { PythonPage } from './pages/PythonPage';
 import { DownloadPage } from './pages/DownloadPage';
@@ -12,9 +13,10 @@ import { DownloadPage } from './pages/DownloadPage';
 const SECTION_TITLES: Record<string, string> = {
   overview: '01 Overview',
   diagram: '02 Workflow Diagram',
-  json: '03 JSON',
-  python: '04 Python',
-  downloads: '05 Download',
+  tools: '03 Tools & Configuration',
+  json: '04 JSON',
+  python: '05 Python',
+  downloads: '06 Download',
 };
 
 export const App: React.FC = () => {
@@ -36,7 +38,7 @@ export const App: React.FC = () => {
 
   const handleSelectTool = (toolId: number) => {
     setSelectedToolId(toolId);
-    setActiveSection('diagram');
+    setActiveSection('tools');
   };
 
   // If no active analysis, render upload view
@@ -86,6 +88,12 @@ export const App: React.FC = () => {
           )}
           {activeSection === 'diagram' && (
             <DiagramPage
+              analysisId={overview.analysis_id}
+              selectedToolId={selectedToolId}
+            />
+          )}
+          {activeSection === 'tools' && (
+            <ToolsPage
               analysisId={overview.analysis_id}
               selectedToolId={selectedToolId}
             />

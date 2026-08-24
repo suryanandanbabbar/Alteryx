@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { DiagramDTO } from '../types/workflow';
 import { WorkflowCanvas } from '../components/workflow/WorkflowCanvas';
-import { NodeDetails } from '../components/NodeDetails';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 interface DiagramPageProps {
@@ -91,10 +90,10 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
           textTransform: 'uppercase',
           marginBottom: '4px',
         }}>
-          02 Interactive Workflow DAG
+          02 Workflow Diagram
         </div>
         <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', margin: 0 }}>
-          Interactive DAG & Tool Configurations
+          Interactive Workflow DAG
         </h2>
       </div>
 
@@ -104,12 +103,6 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
         selectedToolId={selectedToolId}
         onSelectTool={handleSelectTool}
         onDownloadSvg={handleDownloadSvg}
-      />
-
-      {/* Node Configurations & Detailed Tables */}
-      <NodeDetails
-        nodes={diagramData.nodes}
-        selectedToolId={selectedToolId}
       />
     </div>
   );

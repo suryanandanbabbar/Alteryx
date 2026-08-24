@@ -6,9 +6,10 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 interface NodeDetailsProps {
   nodes: NodeDTO[];
   selectedToolId?: number | null;
+  hideHeader?: boolean;
 }
 
-export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId }) => {
+export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId, hideHeader = false }) => {
   const [expandedNodes, setExpandedNodes] = useState<Record<number, boolean>>(() => {
     const initial: Record<number, boolean> = {};
     nodes.forEach((n) => {
@@ -17,6 +18,16 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
     });
     return initial;
   });
+
+  // Ensure selected tool is expanded if selectedToolId changes
+  React.useEffect(() => {
+    if (selectedToolId) {
+      setExpandedNodes((prev) => ({
+        ...prev,
+        [selectedToolId]: true,
+      }));
+    }
+  }, [selectedToolId]);
 
   const toggleNode = (toolId: number) => {
     setExpandedNodes((prev) => ({
@@ -27,16 +38,18 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ nodes, selectedToolId 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div style={{
-        fontSize: '11px',
-        fontWeight: '700',
-        letterSpacing: '0.8px',
-        color: 'var(--color-text-muted)',
-        textTransform: 'uppercase',
-        marginBottom: '2px',
-      }}>
-        Tool Specifications & Configuration ({nodes.length} tools)
-      </div>
+      {!hideHeader && (
+        <div style={{
+          fontSize: '11px',
+          fontWeight: '700',
+          letterSpacing: '0.8px',
+          color: 'var(--color-text-muted)',
+          textTransform: 'uppercase',
+          marginBottom: '2px',
+        }}>
+          Tool Specifications & Configuration ({nodes.length} tools)
+        </div>
+      )}
 
       {nodes.map((node) => {
         const isExpanded = !!expandedNodes[node.tool_id];
