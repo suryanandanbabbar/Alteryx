@@ -13,6 +13,7 @@ dist/
 .pytest_cache/
 .coverage
 htmlcov/
+/scripts/
 
 # Analysis & generated outputs
 /analysis/

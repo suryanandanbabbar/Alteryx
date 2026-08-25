@@ -490,17 +490,40 @@ def analyze_canonical(
     # 11. Optionally enrich with LLM narratives if configured & available
     try:
         from awa.llm import get_default_generator
+        import logging as _llm_log
+        _llm_logger = _llm_log.getLogger("awa.llm")
         gen = get_default_generator()
-        if gen.client.model_name not in ("NONE", ""):
+        if gen.client.is_available:
+            _llm_logger.info("LLM enrichment: starting narrative generation for analysis %s", aid)
             purp_res = gen.generate_business_purpose(workflow, business_summary, workflow_id=aid)
             if purp_res.source == "llm":
                 business_summary.business_purpose = purp_res.text
+                _llm_logger.info("LLM enrichment: business_purpose source=llm")
+            else:
+                _llm_logger.info("LLM enrichment: business_purpose source=%s", purp_res.source)
             exec_res = gen.generate_executive_summary(workflow, business_summary, workflow_id=aid)
             if exec_res.source == "llm" and business_summary.executive_summary:
                 business_summary.executive_summary.subject_and_purpose = exec_res.text
-            gen.generate_all_tool_summaries(workflow, graph, workflow_id=aid)
-    except Exception:
-        pass
+                _llm_logger.info("LLM enrichment: executive_summary source=llm")
+            elif exec_res.source == "llm" and not business_summary.executive_summary:
+                _llm_logger.warning("LLM enrichment: executive_summary generated but executive_summary object is None")
+            else:
+                _llm_logger.info("LLM enrichment: executive_summary source=%s", exec_res.source)
+            tool_results = gen.generate_all_tool_summaries(workflow, graph, workflow_id=aid)
+            llm_count = sum(1 for r in tool_results.values() if r.source == "llm")
+            _llm_logger.info(
+                "LLM enrichment: tool summaries generated — %d/%d from LLM",
+                llm_count, len(tool_results),
+            )
+        else:
+            _llm_logger.debug("LLM enrichment: skipped — client not available (no runtime credentials)")
+    except Exception as exc:
+        import logging as _llm_log
+        _llm_logger = _llm_log.getLogger("awa.llm")
+        _llm_logger.warning(
+            "LLM enrichment failed: %s — %s. Deterministic fallback will be used.",
+            type(exc).__name__, str(exc)[:200],
+        )
 
     return CanonicalAnalysisResult(
         analysis_id=aid,
@@ -576,6 +599,8 @@ def analyze_workflow(
     doc_model = build_document_model(
         workflow, exec_order, translations, canonical.dag_layout, lineage_paths,
         business_summary=canonical.business_summary,
+        analysis_id=canonical.analysis_id,
+        graph=canonical.graph,
     )
     generate_docx(doc_model, output_dir / "workflow.docx", svg_content=svg_str)
 

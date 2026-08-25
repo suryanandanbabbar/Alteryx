@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 import networkx as nx
@@ -12,7 +13,6 @@ from awa.model.business_summary import WorkflowBusinessSummary
 from awa.tools.catalog import get_tool_summary
 from awa.tools import humanize_tool_configuration
 
-from .config import LLMConfig
 from .client import LLMClient, get_default_llm_client
 from .schemas import NarrativeResult, ToolFacts, WorkflowFacts
 from .prompts import (
@@ -27,6 +27,8 @@ from .prompts import (
     build_executive_summary_user_prompt,
 )
 from .cache import LLMNarrativeCache, get_global_narrative_cache, compute_cache_key
+
+logger = logging.getLogger("awa.llm")
 
 
 def _clean_narrative_text(raw_text: str | None) -> str:
@@ -48,9 +50,12 @@ def _clean_narrative_text(raw_text: str | None) -> str:
     prefixes_to_strip = [
         r"^what it does:\s*",
         r"^here is the summary:\s*",
+        r"^here is the description:\s*",
+        r"^here is (?:a|the) (?:concise )?(?:one-sentence )?(?:description|summary).*?:\s*",
         r"^business purpose:\s*",
         r"^executive summary:\s*",
         r"^description:\s*",
+        r"^summary:\s*",
     ]
     for pattern in prefixes_to_strip:
         text = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
@@ -89,7 +94,7 @@ def extract_tool_facts(workflow: Workflow, tool: Tool, graph: nx.DiGraph | None 
     raw_cfg = tool.configuration.parsed if tool.configuration else {}
     cleaned_cfg = humanize_tool_configuration(tool.tool_type, raw_cfg)
 
-    # Technical fallback description
+    # Technical fallback description from tool registry
     tech_function = get_tool_summary(tool.plugin or tool.tool_type)
 
     output_flds = [f.name for f in tool.output_fields if f.name]
@@ -164,12 +169,22 @@ def extract_workflow_facts(workflow: Workflow, business_summary: WorkflowBusines
         major_transformations=major_trans,
         business_rules=rules,
         business_outputs=outputs,
+        one_line_purpose=business_summary.one_line_purpose or "",
         why_it_matters=business_summary.why_it_matters or "",
     )
 
 
 class LLMNarrativeGenerator:
-    """High-level orchestration service for narrative generation with caching and fallback."""
+    """High-level orchestration service for narrative generation with caching and fallback.
+    
+    The generator:
+    1. Extracts deterministic facts from the workflow model
+    2. Checks the in-memory cache
+    3. Calls the LLM client if cache miss
+    4. Validates and sanitizes the response
+    5. Falls back to deterministic tool registry summaries on failure
+    6. Logs structured generation status (never secrets)
+    """
 
     def __init__(
         self,
@@ -190,11 +205,15 @@ class LLMNarrativeGenerator:
         graph: nx.DiGraph | None = None,
         workflow_id: str = "",
     ) -> NarrativeResult:
-        """Generate a workflow-specific 'What It Does' summary for a tool."""
-        # 1. Deterministic fallback text
-        fallback_text = tool.annotation.strip() if tool.annotation and len(tool.annotation.strip()) > 10 else get_tool_summary(tool.plugin or tool.tool_type)
+        """Generate a workflow-specific 'What It Does' summary for a tool.
+        
+        Fallback uses the deterministic tool registry summary — never raw annotation.
+        The annotation is input context for the LLM, not the fallback output.
+        """
+        # 1. Deterministic fallback: ALWAYS use tool registry, never raw annotation
+        fallback_text = get_tool_summary(tool.plugin or tool.tool_type)
 
-        # 2. Extract facts
+        # 2. Extract facts (annotation is included as LLM input, not fallback)
         facts = extract_tool_facts(workflow, tool, graph)
         wf_key = workflow_id or workflow.metadata.name or "default_workflow"
         cache_key = compute_cache_key(
@@ -217,7 +236,7 @@ class LLMNarrativeGenerator:
         cleaned = _clean_narrative_text(raw_response)
 
         # 5. Validate output
-        if cleaned and len(cleaned.split()) >= 3 and len(cleaned) <= 350:
+        if cleaned and len(cleaned.split()) >= 3 and len(cleaned) <= 500:
             result = NarrativeResult(
                 text=cleaned,
                 source="llm",
@@ -225,9 +244,18 @@ class LLMNarrativeGenerator:
                 prompt_version=TOOL_PROMPT_VERSION,
             )
             self._cache.set(cache_key, result)
+            logger.debug(
+                "LLM narrative generated: type=tool_summary tool_id=%d source=llm model=%s",
+                tool.tool_id, self.client.model_name,
+            )
             return result
 
-        # 6. Fallback
+        # 6. Fallback with logging
+        logger.debug(
+            "LLM narrative fallback: type=tool_summary tool_id=%d source=deterministic reason=%s",
+            tool.tool_id,
+            "empty_response" if not cleaned else "validation_failed",
+        )
         fallback_result = NarrativeResult(
             text=fallback_text,
             source="deterministic_fallback",
@@ -274,8 +302,16 @@ class LLMNarrativeGenerator:
                 prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
             )
             self._cache.set(cache_key, result)
+            logger.debug(
+                "LLM narrative generated: type=business_purpose source=llm model=%s",
+                self.client.model_name,
+            )
             return result
 
+        logger.debug(
+            "LLM narrative fallback: type=business_purpose source=deterministic reason=%s",
+            "empty_response" if not cleaned else "validation_failed",
+        )
         fallback_result = NarrativeResult(
             text=fallback_text,
             source="deterministic_fallback",
@@ -326,8 +362,16 @@ class LLMNarrativeGenerator:
                 prompt_version=EXEC_SUMMARY_PROMPT_VERSION,
             )
             self._cache.set(cache_key, result)
+            logger.debug(
+                "LLM narrative generated: type=executive_summary source=llm model=%s",
+                self.client.model_name,
+            )
             return result
 
+        logger.debug(
+            "LLM narrative fallback: type=executive_summary source=deterministic reason=%s",
+            "empty_response" if not cleaned else "validation_failed",
+        )
         fallback_result = NarrativeResult(
             text=fallback_text,
             source="deterministic_fallback",

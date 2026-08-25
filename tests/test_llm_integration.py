@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 import pytest
@@ -20,7 +21,7 @@ from awa.model.business_summary import (
 )
 from awa.analysis.workflow_analyzer import analyze_canonical
 from awa.llm.config import LLMConfig
-from awa.llm.client import AzureLlamaClient, FakeLLMClient, set_default_llm_client
+from awa.llm.client import AzureLlamaClient, FakeLLMClient, set_default_llm_client, get_default_llm_client
 from awa.llm.schemas import ToolFacts, WorkflowFacts, NarrativeResult
 from awa.llm.cache import LLMNarrativeCache, compute_cache_key
 from awa.llm.prompts import (
@@ -36,6 +37,7 @@ from awa.llm.generator import (
     extract_tool_facts,
     extract_workflow_facts,
     set_default_generator,
+    get_default_generator,
 )
 from awa.generators.docx_generator import generate_docx
 from awa.generators.doc_builder import build_document_model
@@ -89,6 +91,22 @@ def test_llm_config_missing_credentials(monkeypatch):
     assert "NOT SET" in safe_str
 
 
+def test_missing_one_required_credential(monkeypatch):
+    # Has endpoint and deployment, but missing key
+    monkeypatch.setenv("AZURE_ENDPOINT", "https://my-resource.services.ai.azure.com/models")
+    monkeypatch.delenv("AZURE_LLAMAKEY", raising=False)
+    monkeypatch.setenv("AZURE_DEPLOYMENT", "Llama-3.3-70B-Instruct")
+
+    cfg = LLMConfig.from_env()
+    assert cfg.is_available() is False
+
+    # Has key and deployment, but missing endpoint
+    monkeypatch.delenv("AZURE_ENDPOINT", raising=False)
+    monkeypatch.setenv("AZURE_LLAMAKEY", "some-key")
+    cfg2 = LLMConfig.from_env()
+    assert cfg2.is_available() is False
+
+
 def test_azure_client_url_resolution():
     cfg_maas = LLMConfig(
         endpoint="https://my-resource.services.ai.azure.com/models",
@@ -120,8 +138,39 @@ def test_azure_client_graceful_failure_on_network_error():
     assert res is None
 
 
+def test_api_key_never_appears_in_logs(monkeypatch, caplog):
+    secret_key = "sk-super-secret-production-key-99999"
+    monkeypatch.setenv("AZURE_ENDPOINT", "https://my-resource.services.ai.azure.com/models")
+    monkeypatch.setenv("AZURE_LLAMAKEY", secret_key)
+    monkeypatch.setenv("AZURE_DEPLOYMENT", "Llama")
+
+    cfg = LLMConfig.from_env()
+    client = AzureLlamaClient(cfg)
+
+    with caplog.at_level(logging.DEBUG):
+        # Trigger generation failure against bad URL
+        client.generate("test system", "test user")
+        # Check all log text
+        for record in caplog.records:
+            assert secret_key not in record.getMessage()
+
+
+def test_api_key_never_appears_in_api_responses():
+    secret_key = "sk-super-secret-key-12345"
+    cfg = LLMConfig(
+        endpoint="https://my-resource.services.ai.azure.com/models",
+        api_key=secret_key,
+        deployment="Llama",
+    )
+    client = AzureLlamaClient(cfg)
+    diag = client.diagnose()
+    # Diagnose dict must not contain the raw key
+    assert secret_key not in str(diag)
+    assert diag.get("key_configured") is True
+
+
 # ---------------------------------------------------------------------------
-# 2. Fact Extraction Tests
+# 2. Fact Extraction & Prompts Tests
 # ---------------------------------------------------------------------------
 
 def test_extract_tool_facts():
@@ -149,6 +198,41 @@ def test_extract_tool_facts():
     prompt = build_tool_user_prompt(facts)
     assert "Tool #16 (Sort)" in prompt
     assert "Quarter_End_Date" in prompt
+
+
+def test_different_tool_instances_get_different_llm_context():
+    wf = Workflow(metadata=WorkflowMetadata(name="Test Workflow", version="2024.1"))
+    tool8 = Tool(
+        tool_id=8,
+        plugin="AlteryxBasePluginsGui.Summarize.Summarize",
+        tool_type="Summarize",
+        name="Summarize by Department",
+        position=Position(100, 100),
+        configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"summarize_fields": [{"field": "Department", "action": "GroupBy"}]}),
+        annotation="Groups claims by department",
+    )
+    tool9 = Tool(
+        tool_id=9,
+        plugin="AlteryxBasePluginsGui.Summarize.Summarize",
+        tool_type="Summarize",
+        name="Summarize by Max Date",
+        position=Position(200, 100),
+        configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"summarize_fields": [{"field": "Claim_Date", "action": "Max"}]}),
+        annotation="Computes latest claim date",
+    )
+    wf.tools[8] = tool8
+    wf.tools[9] = tool9
+
+    facts8 = extract_tool_facts(wf, tool8)
+    facts9 = extract_tool_facts(wf, tool9)
+
+    assert facts8.tool_id == 8
+    assert facts9.tool_id == 9
+    assert facts8.configuration_summary != facts9.configuration_summary
+
+    prompt8 = build_tool_user_prompt(facts8)
+    prompt9 = build_tool_user_prompt(facts9)
+    assert prompt8 != prompt9
 
 
 def test_extract_workflow_facts():
@@ -192,6 +276,7 @@ def test_extract_workflow_facts():
     assert len(wfacts.source_inputs) == 1
     assert len(wfacts.processing_stages) == 1
     assert len(wfacts.business_outputs) == 1
+    assert wfacts.one_line_purpose == "Quarterly claims volume extract"
 
     p_prompt = build_workflow_purpose_user_prompt(wfacts)
     assert "Claims Ingest" in p_prompt
@@ -202,7 +287,7 @@ def test_extract_workflow_facts():
 
 
 # ---------------------------------------------------------------------------
-# 3. Cache & Workflow Isolation Tests
+# 3. Cache & Caching Guarantees Tests
 # ---------------------------------------------------------------------------
 
 def test_cache_workflow_isolation():
@@ -211,7 +296,6 @@ def test_cache_workflow_isolation():
     key_wf1 = compute_cache_key("wf_claims_1", "tool_8", "1.0", "llama-70b", {"f": 1})
     key_wf2 = compute_cache_key("wf_claims_2", "tool_8", "1.0", "llama-70b", {"f": 2})
 
-    # Keys must be distinct across different workflows even for the same tool ID
     assert key_wf1 != key_wf2
 
     res1 = NarrativeResult(text="Workflow 1 tool description", source="llm", model="llama-70b")
@@ -221,93 +305,98 @@ def test_cache_workflow_isolation():
     assert cache.get(key_wf2) is None
 
 
-# ---------------------------------------------------------------------------
-# 4. Generator & Fallback Tests
-# ---------------------------------------------------------------------------
+def test_llm_is_not_called_again_when_cached():
+    call_count = 0
 
-def test_tool_summary_generation_with_llm():
-    fake_client = FakeLLMClient(
-        response_map={
-            "tool #16": "Sorts claim records chronologically by Quarter End Date descending for reporting."
-        }
-    )
+    def mock_gen(sys_prompt, usr_prompt):
+        nonlocal call_count
+        call_count += 1
+        return "Generates quarterly summary statistics from input claim lines."
+
+    fake_client = FakeLLMClient(generator_fn=mock_gen)
     cache = LLMNarrativeCache()
     generator = LLMNarrativeGenerator(client=fake_client, cache=cache)
 
     wf = Workflow(metadata=WorkflowMetadata(name="Test Workflow", version="2024.1"))
     tool = Tool(
-        tool_id=16,
-        plugin="AlteryxBasePluginsGui.Sort.Sort",
-        tool_type="Sort",
-        name="Sort Claims",
-        position=Position(100, 100),
-        configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"fields": [{"field": "Quarter_End_Date"}]}),
-        annotation="Sorts claims",
-    )
-    wf.tools[16] = tool
-
-    result = generator.generate_tool_summary(wf, tool, workflow_id="test_wf")
-    assert result.source == "llm"
-    assert "Quarter End Date" in result.text
-
-    # Second call should hit the cache
-    cached_result = generator.generate_tool_summary(wf, tool, workflow_id="test_wf")
-    assert cached_result.is_cached is True
-    assert cached_result.text == result.text
-
-
-def test_tool_summary_deterministic_fallback_when_llm_fails():
-    # Client that returns None (simulating API failure or missing keys)
-    failing_client = FakeLLMClient(generator_fn=lambda s, u: None)
-    generator = LLMNarrativeGenerator(client=failing_client, cache=LLMNarrativeCache())
-
-    wf = Workflow(metadata=WorkflowMetadata(name="Test Workflow", version="2024.1"))
-    tool = Tool(
-        tool_id=16,
-        plugin="AlteryxBasePluginsGui.Sort.Sort",
-        tool_type="Sort",
-        name="Sort Claims",
-        position=Position(100, 100),
+        tool_id=1,
+        plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+        tool_type="DbFileInput",
+        name="Input Claims",
+        position=Position(0, 0),
         configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={}),
-        annotation="Sorts claim records",
+        annotation="Reads claims data",
     )
-    wf.tools[16] = tool
+    wf.tools[1] = tool
 
-    result = generator.generate_tool_summary(wf, tool, workflow_id="test_wf")
-    assert result.source == "deterministic_fallback"
-    assert len(result.text) > 0
+    # First call -> invokes generator
+    r1 = generator.generate_tool_summary(wf, tool, workflow_id="wf_cache_test")
+    assert r1.source == "llm"
+    assert call_count == 1
+
+    # Second call -> must return from cache without invoking generator
+    r2 = generator.generate_tool_summary(wf, tool, workflow_id="wf_cache_test")
+    assert r2.is_cached is True
+    assert r2.text == r1.text
+    assert call_count == 1
 
 
-def test_business_purpose_generation_and_fallback():
+# ---------------------------------------------------------------------------
+# 4. Generator & Fallback Tests
+# ---------------------------------------------------------------------------
+
+def test_llm_tool_summary_reaches_diagram_dto():
     fake_client = FakeLLMClient(
         response_map={
-            "business purpose": "Integrates claim data, applies quarterly categorization, and exports executive reports."
+            "tool #16": "Sorts claim records chronologically by Quarter End Date descending for reporting."
         }
     )
     generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+    set_default_generator(generator)
 
-    wf = Workflow(metadata=WorkflowMetadata(name="Test Workflow", version="2024.1"))
-    bs = WorkflowBusinessSummary(
-        business_purpose="Deterministic fallback purpose",
-        one_line_purpose="Claims workflow",
-        why_it_matters="Financial reporting",
-    )
+    sample_file = Path("tests/fixtures/sample_workflows/Demo_Claims_Volume_Extract.yxmd")
+    if not sample_file.exists():
+        sample_file = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
 
-    res = generator.generate_business_purpose(wf, bs, workflow_id="test_wf")
-    assert res.source == "llm"
-    assert "Integrates claim data" in res.text
+    if not sample_file.exists():
+        pytest.skip("Demo workflow fixture not found")
 
-    # Test fallback
-    failing_gen = LLMNarrativeGenerator(client=FakeLLMClient(generator_fn=lambda s, u: None), cache=LLMNarrativeCache())
-    fallback_res = failing_gen.generate_business_purpose(wf, bs, workflow_id="test_wf_2")
-    assert fallback_res.source == "deterministic_fallback"
-    assert fallback_res.text == "Deterministic fallback purpose"
+    res = analyze_canonical(sample_file)
+    dto = to_diagram_dto(res)
+
+    nodes_map = {n.tool_id: n for n in dto.nodes}
+    if 16 in nodes_map:
+        assert "Sorts claim records" in nodes_map[16].summary
 
 
-def test_executive_summary_docx_integration(tmp_path):
+def test_llm_business_purpose_reaches_overview_dto():
     fake_client = FakeLLMClient(
         response_map={
-            "executive summary": "This workflow consolidates multi-source insurance claims data into quarterly reporting matrices, validating policy numbers and computing summary metrics for downstream financial intelligence."
+            "business purpose": "Automates end-to-end ingestion and analysis of insurance claims data across multiple operational reporting tables."
+        }
+    )
+    generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+    set_default_generator(generator)
+
+    sample_file = Path("tests/fixtures/sample_workflows/Demo_Claims_Volume_Extract.yxmd")
+    if not sample_file.exists():
+        sample_file = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+
+    if not sample_file.exists():
+        pytest.skip("Demo workflow fixture not found")
+
+    res = analyze_canonical(sample_file)
+    overview_dto = to_overview_dto(res)
+
+    assert overview_dto.business_summary is not None
+    assert "Automates end-to-end ingestion" in overview_dto.business_summary.business_purpose
+
+
+def test_llm_executive_summary_reaches_docx(tmp_path):
+    exec_text = "This report details the automated processing of insurance claims data across multiple calculation stages, delivering executive-ready volume extracts."
+    fake_client = FakeLLMClient(
+        response_map={
+            "executive summary": exec_text
         }
     )
     generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
@@ -319,7 +408,7 @@ def test_executive_summary_docx_integration(tmp_path):
         one_line_purpose="Quarterly claims processing",
         why_it_matters="Executive reporting",
         executive_summary=ExecutiveSummaryContent(
-            subject_and_purpose="Deterministic executive purpose",
+            subject_and_purpose=exec_text,
             methods_and_process="Standard aggregation methods",
         ),
     )
@@ -331,6 +420,7 @@ def test_executive_summary_docx_integration(tmp_path):
         dag_layout=None,
         lineage_paths=[],
         business_summary=bs,
+        analysis_id="test_analysis_123",
     )
 
     docx_file = tmp_path / "executive_report.docx"
@@ -340,8 +430,47 @@ def test_executive_summary_docx_integration(tmp_path):
     assert docx_file.stat().st_size > 1000
 
 
+def test_llm_failure_uses_deterministic_fallback():
+    failing_client = FakeLLMClient(generator_fn=lambda s, u: None)
+    generator = LLMNarrativeGenerator(client=failing_client, cache=LLMNarrativeCache())
+
+    wf = Workflow(metadata=WorkflowMetadata(name="Test Workflow", version="2024.1"))
+    tool = Tool(
+        tool_id=1,
+        plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+        tool_type="DbFileInput",
+        name="Input Claims",
+        position=Position(0, 0),
+        configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={}),
+        annotation="Claims_Volume_Extract_Demo.xlsx Sheet1",
+    )
+    wf.tools[1] = tool
+
+    # Fallback must use tool registry summary, NOT the raw annotation
+    result = generator.generate_tool_summary(wf, tool, workflow_id="test_wf")
+    assert result.source == "deterministic_fallback"
+    assert "Claims_Volume_Extract_Demo.xlsx Sheet1" not in result.text
+    assert len(result.text) > 0
+
+
+def test_azure_authentication_failure_is_logged_safely(monkeypatch, caplog):
+    # Test that HTTP 401 or auth rejection is handled cleanly and logged safely
+    cfg = LLMConfig(
+        endpoint="https://httpbin.org/status/401",
+        api_key="secret-auth-key-12345",
+        deployment="Llama",
+        timeout=2.0,
+    )
+    client = AzureLlamaClient(cfg)
+    with caplog.at_level(logging.WARNING):
+        res = client.generate("test", "test")
+        assert res is None
+        for record in caplog.records:
+            assert "secret-auth-key-12345" not in record.getMessage()
+
+
 # ---------------------------------------------------------------------------
-# 5. Full End-to-End Test with Real Workflow File
+# 5. Full End-to-End Pipeline Test
 # ---------------------------------------------------------------------------
 
 def test_full_pipeline_with_demo_workflow():
@@ -352,7 +481,6 @@ def test_full_pipeline_with_demo_workflow():
     if not sample_file.exists():
         pytest.skip("Demo workflow fixture not found")
 
-    # Set up mock responses for different summarize tools to verify distinct descriptions
     def mock_generator(system: str, user: str) -> str | None:
         if "Tool #8" in user:
             return "Aggregates initial open claim records by department."

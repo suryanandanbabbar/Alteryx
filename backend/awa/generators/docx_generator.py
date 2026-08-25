@@ -218,18 +218,15 @@ def generate_docx(
     h1.paragraph_format.space_after = Pt(6)
 
     # 1.1 Subject Matter / Business Purpose / Executive Summary Narrative
-    purpose_text = exec_summary.subject_and_purpose if exec_summary and exec_summary.subject_and_purpose else (bs.business_purpose if bs else "")
-    if bs:
-        try:
-            from awa.llm import get_default_generator
-            from awa.model.workflow import Workflow, WorkflowMetadata
-            gen = get_default_generator()
-            wf_dummy = Workflow(metadata=WorkflowMetadata(name=workflow_name, version="2024.1"))
-            exec_res = gen.generate_executive_summary(wf_dummy, bs, workflow_id=workflow_name)
-            if exec_res.text:
-                purpose_text = exec_res.text
-        except Exception:
-            pass
+    # The executive summary is pre-generated during analyze_canonical():
+    # - LLM-enriched when Azure credentials are available at runtime
+    # - Deterministic fallback when credentials are not available
+    # No independent LLM call here — use the pre-generated text.
+    purpose_text = (
+        exec_summary.subject_and_purpose
+        if exec_summary and exec_summary.subject_and_purpose
+        else (bs.business_purpose if bs else "")
+    )
 
     if purpose_text:
         p_purp = doc.add_paragraph()

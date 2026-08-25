@@ -121,15 +121,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
             }}>
               Business Purpose
             </span>
-            <span style={{
-              fontSize: '11px',
-              fontWeight: '400',
-              color: 'var(--color-text-muted)',
-              textTransform: 'none',
-              letterSpacing: 'normal',
-            }}>
-              Retrieved from Configuration
-            </span>
           </div>
           <p style={{ fontSize: '14px', color: 'var(--color-text)', lineHeight: '1.5', margin: 0, fontWeight: '500' }}>
             {bs.business_purpose}

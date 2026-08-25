@@ -28,6 +28,12 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting AWA application service.")
     storage = get_storage()
+    # Initialize LLM subsystem — reads runtime environment for Azure credentials
+    try:
+        from awa.llm.config import initialize_llm
+        initialize_llm()
+    except Exception as e:
+        logger.warning("LLM initialization skipped: %s — %s", type(e).__name__, str(e)[:200])
     yield
     # Shutdown
     logger.info("Shutting down AWA application service.")
