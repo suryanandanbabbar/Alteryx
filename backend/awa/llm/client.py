@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable
 import urllib.request
 import urllib.error
+import urllib.parse
 
 from .config import LLMConfig
 
@@ -49,13 +50,8 @@ class AzureLlamaClient(LLMClient):
     
     Supports:
     - Azure OpenAI endpoints (*.openai.azure.com)
-    - Azure AI Foundry / Model Inference / Serverless MaaS endpoints
+    - Azure AI Foundry / Model Inference / Serverless MaaS endpoints (*.services.ai.azure.com, *.cognitiveservices.azure.com)
     - Direct OpenAI-compatible chat/completions endpoints
-    
-    Authentication is determined by endpoint type:
-    - Azure OpenAI: uses 'api-key' header
-    - Azure AI Foundry / MaaS: uses 'Authorization: Bearer' header
-    - Direct endpoints: uses 'Authorization: Bearer' header
     """
 
     def __init__(self, config: LLMConfig | None = None) -> None:
@@ -69,6 +65,17 @@ class AzureLlamaClient(LLMClient):
     def is_available(self) -> bool:
         return self.config.is_available()
 
+    def classify_endpoint(self) -> str:
+        """Sanitized endpoint classification."""
+        endpoint = self.config.endpoint.strip().lower()
+        if "openai.azure.com" in endpoint:
+            return "Azure OpenAI"
+        if "services.ai.azure.com" in endpoint or "ai.azure.com" in endpoint:
+            return "Azure AI Foundry / MaaS"
+        if "cognitiveservices.azure.com" in endpoint:
+            return "Azure Cognitive Services"
+        return "OpenAI-compatible"
+
     def _resolve_url(self) -> str:
         """Resolve full API URL from Azure endpoint configuration."""
         endpoint = self.config.endpoint.strip()
@@ -79,22 +86,42 @@ class AzureLlamaClient(LLMClient):
         if "/chat/completions" in endpoint:
             return endpoint
 
+        parsed = urllib.parse.urlparse(endpoint)
+        base = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+        path = parsed.path.rstrip("/")
+
+        deployment = self.config.deployment_name or self.config.deployment or "Llama"
+
         # Azure OpenAI style: https://resource.openai.azure.com
-        if "openai.azure.com" in endpoint:
-            deployment = self.config.deployment_name or self.config.deployment or "Llama"
-            base = endpoint.rstrip("/")
+        if "openai.azure.com" in parsed.netloc:
+            # Check if query already has api-version
+            query = f"?{parsed.query}" if parsed.query else "?api-version=2024-06-01"
+            if "/deployments/" in path:
+                return f"{base}{path}/chat/completions{query}"
+            return f"{base}/openai/deployments/{deployment}/chat/completions{query}"
+
+        # Azure AI Foundry / MaaS endpoint (*.services.ai.azure.com, *.ai.azure.com)
+        if "services.ai.azure.com" in parsed.netloc or "ai.azure.com" in parsed.netloc:
+            if path in ("", "/"):
+                return f"{base}/models/chat/completions"
+            if path.endswith("/models"):
+                return f"{base}{path}/chat/completions"
+            if path.endswith("/v1"):
+                return f"{base}{path}/chat/completions"
+            return f"{base}{path}/models/chat/completions"
+
+        # Azure Cognitive Services / Azure Foundry regional endpoint
+        if "cognitiveservices.azure.com" in parsed.netloc:
+            if "/deployments/" in path:
+                return f"{base}{path}/chat/completions?api-version=2024-06-01"
             return f"{base}/openai/deployments/{deployment}/chat/completions?api-version=2024-06-01"
 
-        # Azure AI Foundry / Model Inference / Serverless MaaS endpoint
-        # These typically end with /v1 or /models or just the base URL
-        base = endpoint.rstrip("/")
-        if base.endswith("/v1"):
-            return f"{base}/chat/completions"
-        if base.endswith("/models"):
-            return f"{base}/chat/completions"
-
-        # Default: append /v1/chat/completions for standard inference endpoints
-        return f"{base}/v1/chat/completions"
+        # Standard OpenAI-compatible path
+        if path.endswith("/v1") or path.endswith("/models"):
+            return f"{base}{path}/chat/completions"
+        if path in ("", "/"):
+            return f"{base}/v1/chat/completions"
+        return f"{base}{path}/chat/completions"
 
     def _build_headers(self) -> dict[str, str]:
         """Build request headers with the correct auth scheme for the endpoint type."""
@@ -102,13 +129,17 @@ class AzureLlamaClient(LLMClient):
             "Content-Type": "application/json",
         }
 
-        endpoint = self.config.endpoint.strip()
+        endpoint = self.config.endpoint.strip().lower()
 
         if "openai.azure.com" in endpoint:
-            # Azure OpenAI uses api-key header
             headers["api-key"] = self.config.api_key
+        elif "services.ai.azure.com" in endpoint or "ai.azure.com" in endpoint:
+            # Azure AI Foundry supports api-key and Authorization: Bearer
+            headers["api-key"] = self.config.api_key
+            headers["Authorization"] = f"Bearer {self.config.api_key}"
         else:
-            # Azure AI Foundry / MaaS / standard endpoints use Bearer auth
+            # Standard Bearer auth and api-key for max compatibility
+            headers["api-key"] = self.config.api_key
             headers["Authorization"] = f"Bearer {self.config.api_key}"
 
         return headers
@@ -142,12 +173,19 @@ class AzureLlamaClient(LLMClient):
             "max_tokens": tokens,
         }
 
-        # Include model parameter for endpoints that require it
         model = self.config.deployment_name or self.config.deployment
         if model:
             payload["model"] = model
 
         headers = self._build_headers()
+
+        parsed_url = urllib.parse.urlparse(url)
+        logger.info(
+            "[LLM HTTP] method=POST endpoint_type=%s request_path=%s deployment_configured=%s",
+            self.classify_endpoint(),
+            parsed_url.path,
+            bool(model),
+        )
 
         try:
             req_bytes = json.dumps(payload).encode("utf-8")
@@ -162,7 +200,7 @@ class AzureLlamaClient(LLMClient):
                 status = response.status
                 if status != 200:
                     logger.warning(
-                        "LLM generation failed: HTTP %d from Azure endpoint",
+                        "[LLM] HTTP status=%d response non-200",
                         status,
                     )
                     return None
@@ -172,28 +210,27 @@ class AzureLlamaClient(LLMClient):
             # Parse standard chat completion format
             choices = data.get("choices", [])
             if not choices:
-                logger.warning("LLM generation failed: response contained no choices")
+                logger.warning("[LLM] generation response contained no choices")
                 return None
 
             first_choice = choices[0]
             message = first_choice.get("message", {})
             content = message.get("content") or ""
 
+            logger.info("[LLM] response received HTTP status=200 choices=1")
             return str(content).strip() if content else None
 
         except urllib.error.HTTPError as e:
-            # Read error body for diagnosis but never log secrets
             error_body = ""
             try:
                 error_body = e.read().decode("utf-8", errors="replace")[:500]
             except Exception:
                 pass
-            # Sanitize: remove any potential credential echoes from error body
             sanitized_body = error_body
             if self.config.api_key and len(self.config.api_key) > 8:
                 sanitized_body = sanitized_body.replace(self.config.api_key, "[REDACTED]")
             logger.warning(
-                "LLM generation failed: HTTP %s — %s | body: %s",
+                "[LLM] generation failed error_type=HTTPError status=%s reason=%s | body: %s",
                 getattr(e, "code", "UNKNOWN"),
                 getattr(e, "reason", "UNKNOWN"),
                 sanitized_body[:200] if sanitized_body else "(empty)",
@@ -201,32 +238,34 @@ class AzureLlamaClient(LLMClient):
             return None
         except urllib.error.URLError as e:
             logger.warning(
-                "LLM generation failed: connection error — %s",
+                "[LLM] generation failed error_type=URLError reason=%s",
                 getattr(e, "reason", "Connection failed"),
             )
             return None
         except TimeoutError:
             logger.warning(
-                "LLM generation failed: request timed out after %.1fs",
+                "[LLM] generation failed error_type=TimeoutError timeout=%.1fs",
                 self.config.timeout,
             )
             return None
         except Exception as e:
             logger.warning(
-                "LLM generation failed: unexpected error — %s",
+                "[LLM] generation failed error_type=%s",
                 type(e).__name__,
             )
             return None
 
     def diagnose(self) -> dict[str, Any]:
-        """Return a sanitized diagnostic result for the Azure LLM configuration.
-        
-        Never returns secrets or credentials.
-        """
+        """Return a sanitized diagnostic result for the Azure LLM configuration."""
+        url = self._resolve_url()
+        parsed_url = urllib.parse.urlparse(url) if url else None
+
         result: dict[str, Any] = {
             "endpoint_configured": bool(self.config.endpoint),
             "deployment_configured": bool(self.config.deployment or self.config.deployment_name),
             "key_configured": bool(self.config.api_key),
+            "endpoint_classification": self.classify_endpoint(),
+            "resolved_path": parsed_url.path if parsed_url else "",
             "model": self.config.deployment_name or self.config.deployment or "NONE",
             "enabled": self.config.enabled,
             "available": self.config.is_available(),
@@ -237,16 +276,15 @@ class AzureLlamaClient(LLMClient):
             result["reason"] = "missing_credentials" if not self.config.api_key else "disabled"
             return result
 
-        # Attempt a minimal test request
         try:
             test_response = self.generate(
-                system_prompt="Respond with exactly: OK",
-                user_prompt="Test",
-                max_tokens=5,
+                system_prompt="Respond with exactly: LLM_CONNECTION_OK",
+                user_prompt="Ping",
+                max_tokens=20,
             )
             if test_response:
                 result["status"] = "success"
-                result["response_length"] = len(test_response)
+                result["response"] = test_response
             else:
                 result["status"] = "failed"
                 result["reason"] = "empty_response"
@@ -305,7 +343,6 @@ class FakeLLMClient(LLMClient):
         return self.default_response
 
 
-# Global client instance
 _global_client: LLMClient | None = None
 
 

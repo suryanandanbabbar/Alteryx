@@ -117,7 +117,6 @@ def _clean_narrative_text(raw_text: str | None) -> str:
 
 def extract_tool_facts(workflow: Workflow, tool: Tool, graph: nx.DiGraph | None = None) -> ToolFacts:
     """Extract deterministic facts for a single tool instance from the workflow model and DAG."""
-    # Upstream and downstream tools
     upstreams: list[dict[str, Any]] = []
     downstreams: list[dict[str, Any]] = []
     input_fields: list[str] = []
@@ -133,7 +132,6 @@ def extract_tool_facts(workflow: Workflow, tool: Tool, graph: nx.DiGraph | None 
                         "name": pred_tool.name or pred_tool.tool_type,
                         "annotation": pred_tool.annotation,
                     })
-                    # Collect input fields available from predecessors
                     for f in pred_tool.output_fields:
                         if f.name and f.name not in input_fields:
                             input_fields.append(f.name)
@@ -147,16 +145,10 @@ def extract_tool_facts(workflow: Workflow, tool: Tool, graph: nx.DiGraph | None 
                         "annotation": succ_tool.annotation,
                     })
 
-    # Humanized configuration
     raw_cfg = tool.configuration.parsed if tool.configuration else {}
     cleaned_cfg = humanize_tool_configuration(tool.tool_type, raw_cfg)
-
-    # Generic tool definition from tool registry
     tech_function = get_tool_summary(tool.plugin or tool.tool_type)
-
     output_flds = [f.name for f in tool.output_fields if f.name]
-
-    # Workflow Role & Container Context
     vis_cat = get_visual_category(tool.tool_type)
     role = _get_workflow_role(tool.tool_type, vis_cat)
     container_ctx = tool.container_name if tool.container_name else "Root Level (No Container)"
@@ -263,15 +255,9 @@ class LLMNarrativeGenerator:
         graph: nx.DiGraph | None = None,
         workflow_id: str = "",
     ) -> NarrativeResult:
-        """Generate a workflow-specific 'What It Does' summary for a tool instance.
-        
-        Explains what THIS INSTANCE is doing in THIS WORKFLOW based on configuration,
-        upstream/downstream relationships, and fields.
-        """
-        # 1. Deterministic fallback: tool registry description
+        """Generate a workflow-specific 'What It Does' summary for a tool instance."""
         fallback_text = get_tool_summary(tool.plugin or tool.tool_type)
 
-        # 2. Extract facts
         facts = extract_tool_facts(workflow, tool, graph)
         wf_key = workflow_id or workflow.metadata.name or "default_workflow"
         cache_key = compute_cache_key(
@@ -282,18 +268,24 @@ class LLMNarrativeGenerator:
             facts_payload=facts.to_dict(),
         )
 
-        # 3. Check cache
         cached = self._cache.get(cache_key)
         if cached is not None:
+            logger.info(
+                "[LLM CACHE] type=tool_summary tool_id=%d status=HIT",
+                tool.tool_id,
+            )
             return cached
 
-        # 4. Generate via LLM
+        logger.info(
+            "[LLM CACHE] type=tool_summary tool_id=%d status=MISS",
+            tool.tool_id,
+        )
+
         system_prompt = TOOL_SYSTEM_PROMPT
         user_prompt = build_tool_user_prompt(facts)
         raw_response = self.client.generate(system_prompt, user_prompt)
         cleaned = _clean_narrative_text(raw_response)
 
-        # 5. Validate output: Ensure non-empty, reasonable length
         if cleaned and len(cleaned.split()) >= 3 and len(cleaned) <= 500:
             result = NarrativeResult(
                 text=cleaned,
@@ -302,18 +294,12 @@ class LLMNarrativeGenerator:
                 prompt_version=TOOL_PROMPT_VERSION,
             )
             self._cache.set(cache_key, result)
-            logger.debug(
-                "LLM narrative generated: type=tool_summary tool_id=%d source=llm model=%s",
-                tool.tool_id, self.client.model_name,
+            logger.info(
+                "[LLM] tool_summary stored in cache tool_id=%d text_len=%d",
+                tool.tool_id, len(cleaned),
             )
             return result
 
-        # 6. Fallback with logging
-        logger.debug(
-            "LLM narrative fallback: type=tool_summary tool_id=%d source=deterministic reason=%s",
-            tool.tool_id,
-            "empty_response" if not cleaned else "validation_failed",
-        )
         fallback_result = NarrativeResult(
             text=fallback_text,
             source="deterministic_fallback",
@@ -341,12 +327,13 @@ class LLMNarrativeGenerator:
             facts_payload=facts.to_dict(),
         )
 
-        # Check cache
         cached = self._cache.get(cache_key)
         if cached is not None:
+            logger.info("[LLM CACHE] type=business_purpose status=HIT")
             return cached
 
-        # Generate via LLM
+        logger.info("[LLM CACHE] type=business_purpose status=MISS")
+
         system_prompt = WORKFLOW_PURPOSE_SYSTEM_PROMPT
         user_prompt = build_workflow_purpose_user_prompt(facts)
         raw_response = self.client.generate(system_prompt, user_prompt)
@@ -360,16 +347,9 @@ class LLMNarrativeGenerator:
                 prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
             )
             self._cache.set(cache_key, result)
-            logger.debug(
-                "LLM narrative generated: type=business_purpose source=llm model=%s",
-                self.client.model_name,
-            )
+            logger.info("[LLM] business_purpose stored in cache text_len=%d", len(cleaned))
             return result
 
-        logger.debug(
-            "LLM narrative fallback: type=business_purpose source=deterministic reason=%s",
-            "empty_response" if not cleaned else "validation_failed",
-        )
         fallback_result = NarrativeResult(
             text=fallback_text,
             source="deterministic_fallback",
@@ -401,12 +381,13 @@ class LLMNarrativeGenerator:
             facts_payload=facts.to_dict(),
         )
 
-        # Check cache
         cached = self._cache.get(cache_key)
         if cached is not None:
+            logger.info("[LLM CACHE] type=executive_summary status=HIT")
             return cached
 
-        # Generate via LLM
+        logger.info("[LLM CACHE] type=executive_summary status=MISS")
+
         system_prompt = EXECUTIVE_SUMMARY_SYSTEM_PROMPT
         user_prompt = build_executive_summary_user_prompt(facts)
         raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=600)
@@ -420,16 +401,9 @@ class LLMNarrativeGenerator:
                 prompt_version=EXEC_SUMMARY_PROMPT_VERSION,
             )
             self._cache.set(cache_key, result)
-            logger.debug(
-                "LLM narrative generated: type=executive_summary source=llm model=%s",
-                self.client.model_name,
-            )
+            logger.info("[LLM] executive_summary stored in cache text_len=%d", len(cleaned))
             return result
 
-        logger.debug(
-            "LLM narrative fallback: type=executive_summary source=deterministic reason=%s",
-            "empty_response" if not cleaned else "validation_failed",
-        )
         fallback_result = NarrativeResult(
             text=fallback_text,
             source="deterministic_fallback",
@@ -451,7 +425,6 @@ class LLMNarrativeGenerator:
         return results
 
 
-# Global generator instance
 _global_generator: LLMNarrativeGenerator | None = None
 
 
