@@ -44,6 +44,7 @@ interface WorkflowInspectorProps {
   onSelectTool: (toolId: number) => void;
   onClose: () => void;
   onUpdateNodeSummary?: (toolId: number, summary: string) => void;
+  onDockedHeightChange?: (height: number) => void;
 }
 
 const DEFAULT_PANE_HEIGHT = 240;
@@ -59,6 +60,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   onSelectTool,
   onClose,
   onUpdateNodeSummary,
+  onDockedHeightChange,
 }) => {
   const [copiedXml, setCopiedXml] = useState(false);
   const [llmSummary, setLlmSummary] = useState<string | null>(null);
@@ -862,6 +864,14 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   const isCol2Docked = !detachedColumns.has('DATA_FLOW');
   const isCol3Docked = !detachedColumns.has('TECHNICAL_DETAILS');
   const dockedCount = (isCol1Docked ? 1 : 0) + (isCol2Docked ? 1 : 0) + (isCol3Docked ? 1 : 0);
+
+  // Notify parent of effective docked bottom height (0 if all detached or closed)
+  const effectiveDockedHeight = dockedCount > 0 ? paneHeight : 0;
+  useEffect(() => {
+    if (onDockedHeightChange) {
+      onDockedHeightChange(effectiveDockedHeight);
+    }
+  }, [effectiveDockedHeight, onDockedHeightChange]);
 
   const hasDetachedPanels = detachedColumns.size > 0;
   const isCustomHeight = paneHeight !== DEFAULT_PANE_HEIGHT;

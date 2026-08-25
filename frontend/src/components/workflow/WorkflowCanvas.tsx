@@ -55,6 +55,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [dockedInspectorHeight, setDockedInspectorHeight] = useState<number>(0);
 
   // Sync external selected tool ID
   useEffect(() => {
@@ -389,9 +390,10 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     );
   }, [selectedToolId, selectedEdgeId, lineage, matchedToolIds, activeMatchIndex, setNodes, setEdges]);
 
-  // Helper to focus and zoom specifically onto a selected node with surrounding lineage context
+  // Helper to focus and zoom specifically onto a selected node with surrounding lineage context,
+  // accounting dynamically for any bottom docked inspector height.
   const focusNode = useCallback(
-    (targetToolId: number, duration = 400) => {
+    (targetToolId: number, duration = 400, customDockedHeight?: number) => {
       const node = nodes.find((n) => n.id === String(targetToolId));
       if (!node) return;
 
@@ -400,10 +402,31 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
 
       // Calculate intelligent zoom level based on available canvas viewport
       let targetZoom = 1.0;
+      let effectiveInspectorHeight = customDockedHeight !== undefined ? customDockedHeight : dockedInspectorHeight;
+
       if (reactFlowWrapperRef.current) {
         const availableWidth = reactFlowWrapperRef.current.clientWidth || 800;
-        // Node width is 220px, target node occupancy is ~20-25% of visible viewport width
+        const availableHeight = reactFlowWrapperRef.current.clientHeight || 600;
+
+        // Target node occupancy is ~20-25% of visible viewport width
         targetZoom = Math.min(1.25, Math.max(0.75, (availableWidth * 0.22) / NODE_WIDTH));
+
+        // If a bottom inspector is docked, center the selected node within the upper usable DAG area
+        // Usable DAG area = availableHeight - effectiveInspectorHeight
+        // The midpoint of usable DAG area is at y = (availableHeight - effectiveInspectorHeight) / 2
+        // Full viewport midpoint is at y = availableHeight / 2
+        // Center offset in screen pixels is: effectiveInspectorHeight / 2
+        // In graph/flow coordinates, this translates to: + (effectiveInspectorHeight / (2 * targetZoom))
+        if (effectiveInspectorHeight > 0 && availableHeight > effectiveInspectorHeight) {
+          const graphOffset = effectiveInspectorHeight / (2 * targetZoom);
+          const adjustedCenterY = nodeCenterY + graphOffset;
+
+          reactFlow.setCenter(nodeCenterX, adjustedCenterY, {
+            zoom: targetZoom,
+            duration,
+          });
+          return;
+        }
       }
 
       reactFlow.setCenter(nodeCenterX, nodeCenterY, {
@@ -411,7 +434,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         duration,
       });
     },
-    [nodes, reactFlow]
+    [nodes, reactFlow, dockedInspectorHeight]
   );
 
   // Sync external selected tool ID
@@ -424,22 +447,30 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     }
   }, [externalSelectedToolId, focusNode]);
 
+  // Re-adjust camera when docked inspector height dynamically changes (e.g. resized or detached/docked)
+  useEffect(() => {
+    if (selectedToolId !== null) {
+      focusNode(selectedToolId, 250, dockedInspectorHeight);
+    }
+  }, [dockedInspectorHeight, selectedToolId, focusNode]);
+
   // Handle node selection: select, highlight lineage, and auto-focus camera
   const handleSelectNode = useCallback(
     (toolId: number | null) => {
       setSelectedToolId(toolId);
       setSelectedEdgeId(null);
       if (toolId !== null) {
-        // Schedule camera transition so DOM flex layout accounts for inspector width
+        // If opening inspector for the first time, assume default docked height 240px if not yet measured
+        const anticipatedHeight = dockedInspectorHeight > 0 ? dockedInspectorHeight : 240;
         setTimeout(() => {
-          focusNode(toolId, 400);
+          focusNode(toolId, 400, anticipatedHeight);
         }, 50);
       }
       if (externalOnSelectTool) {
         externalOnSelectTool(toolId);
       }
     },
-    [externalOnSelectTool, focusNode]
+    [externalOnSelectTool, focusNode, dockedInspectorHeight]
   );
 
   // When user types a search query and matches change, automatically navigate to the 1st match
@@ -770,7 +801,11 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
               handleSelectNode(id);
             }}
             onClose={() => {
+              setDockedInspectorHeight(0);
               resetToOverview();
+            }}
+            onDockedHeightChange={(h) => {
+              setDockedInspectorHeight(h);
             }}
           />
         )}
