@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   ArrowRight,
@@ -7,12 +7,14 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
+import { api } from '../../api/client';
 import { NodeDTO, ConnectionDTO } from '../../types/workflow';
 import { getCategoryColor, getWorkflowRole, getWorkflowRoleColor } from '../../theme/palette';
 import { resolveXmlToolName } from '../../utils/toolRegistry';
 import { formatXmlForDisplay } from '../../utils/xmlFormatter';
 
 interface WorkflowInspectorProps {
+  analysisId?: string;
   selectedNode: NodeDTO | null;
   selectedConnection: {
     connection: ConnectionDTO;
@@ -24,9 +26,11 @@ interface WorkflowInspectorProps {
   isBusinessOutput?: boolean;
   onSelectTool: (toolId: number) => void;
   onClose: () => void;
+  onUpdateNodeSummary?: (toolId: number, summary: string) => void;
 }
 
 export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
+  analysisId,
   selectedNode,
   selectedConnection,
   upstreamNodes,
@@ -34,8 +38,44 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   isBusinessOutput,
   onSelectTool,
   onClose,
+  onUpdateNodeSummary,
 }) => {
   const [copiedXml, setCopiedXml] = useState(false);
+  const [llmSummary, setLlmSummary] = useState<string | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
+  // Demand-driven fetch for selected tool's workflow-specific narrative
+  useEffect(() => {
+    if (!selectedNode || !analysisId) {
+      setLlmSummary(null);
+      return;
+    }
+
+    let isMounted = true;
+    setLoadingSummary(true);
+
+    api.getToolSummary(analysisId, selectedNode.tool_id)
+      .then((res) => {
+        if (isMounted && res.summary) {
+          setLlmSummary(res.summary);
+          if (onUpdateNodeSummary) {
+            onUpdateNodeSummary(selectedNode.tool_id, res.summary);
+          }
+        }
+      })
+      .catch(() => {
+        // If on-demand fetch fails, keep existing node.summary fallback
+      })
+      .finally(() => {
+        if (isMounted) {
+          setLoadingSummary(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedNode?.tool_id, analysisId]);
 
   if (!selectedNode && !selectedConnection) {
     return null;
@@ -326,10 +366,12 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                 fontWeight: 500,
                 color: 'var(--color-text)',
                 lineHeight: '1.45',
-                fontStyle: node.summary ? 'normal' : 'italic',
+                fontStyle: (llmSummary || node.summary) ? 'normal' : 'italic',
+                opacity: loadingSummary ? 0.7 : 1,
+                transition: 'opacity 0.2s ease',
               }}
             >
-              {node.summary || 'No functional description available.'}
+              {llmSummary || node.summary || 'No functional description available.'}
             </div>
           </div>
 

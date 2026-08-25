@@ -369,11 +369,21 @@ def test_llm_tool_summary_reaches_diagram_dto():
         pytest.skip("Demo workflow fixture not found")
 
     res = analyze_canonical(sample_file)
-    dto = to_diagram_dto(res)
+    
+    # 1. Before tool selection: initial diagram DTO has fallback summary
+    initial_dto = to_diagram_dto(res)
+    nodes_map = {n.tool_id: n for n in initial_dto.nodes}
+    assert 16 in nodes_map
 
-    nodes_map = {n.tool_id: n for n in dto.nodes}
-    if 16 in nodes_map:
-        assert "Sorts claim records" in nodes_map[16].summary
+    # 2. User selects tool 16 -> on-demand generation occurs
+    t16 = res.workflow.tools[16]
+    narrative = generator.generate_tool_summary(res.workflow, t16, res.graph, workflow_id=res.analysis_id)
+    assert "Sorts claim records" in narrative.text
+
+    # 3. Subsequent diagram DTO accesses return the cached narrative
+    updated_dto = to_diagram_dto(res)
+    updated_map = {n.tool_id: n for n in updated_dto.nodes}
+    assert "Sorts claim records" in updated_map[16].summary
 
 
 def test_llm_business_purpose_reaches_overview_dto():
@@ -519,6 +529,7 @@ def test_full_pipeline_with_demo_workflow():
     gen = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
     set_default_generator(gen)
 
+    # Analysis should only generate business purpose & executive summary eagerly (2 calls), NOT 39+ tool calls
     res = analyze_canonical(sample_file)
     overview_dto = to_overview_dto(res)
     diagram_dto = to_diagram_dto(res)
@@ -527,14 +538,21 @@ def test_full_pipeline_with_demo_workflow():
     assert overview_dto.business_summary is not None
     assert "Automates quarterly insurance claims" in overview_dto.business_summary.business_purpose
 
-    # 2. Tool "What It Does" in Diagram DTO
-    nodes_by_id = {n.tool_id: n for n in diagram_dto.nodes}
+    # 2. Demand-driven Tool "What It Does" generation
+    tool8 = res.workflow.tools[8]
+    tool9 = res.workflow.tools[9]
+    t8_narrative = gen.generate_tool_summary(res.workflow, tool8, res.graph, workflow_id=res.analysis_id)
+    t9_narrative = gen.generate_tool_summary(res.workflow, tool9, res.graph, workflow_id=res.analysis_id)
 
     # Verify tool #8 and #9 received distinct summaries
-    assert 8 in nodes_by_id and 9 in nodes_by_id
-    assert nodes_by_id[8].summary != nodes_by_id[9].summary
-    assert "manager" in nodes_by_id[8].summary.lower()
-    assert "most recent quarter-end date" in nodes_by_id[9].summary.lower()
+    assert t8_narrative.text != t9_narrative.text
+    assert "manager" in t8_narrative.text.lower()
+    assert "most recent quarter-end date" in t9_narrative.text.lower()
+
+    # Second call should be cached (HIT)
+    t8_cached = gen.generate_tool_summary(res.workflow, tool8, res.graph, workflow_id=res.analysis_id)
+    assert t8_cached.is_cached is True
+    assert t8_cached.text == t8_narrative.text
 
     # Verify that the prompts contain actual configuration details (not just generic info)
     assert 8 in captured_prompts
@@ -543,5 +561,6 @@ def test_full_pipeline_with_demo_workflow():
     assert "Examiner" in captured_prompts[8]
 
     # Verify tool #16 sort summary
-    if 16 in nodes_by_id:
-        assert "Sorts quarterly claim metrics" in nodes_by_id[16].summary
+    if 16 in res.workflow.tools:
+        t16_narrative = gen.generate_tool_summary(res.workflow, res.workflow.tools[16], res.graph, workflow_id=res.analysis_id)
+        assert "Sorts quarterly claim metrics" in t16_narrative.text

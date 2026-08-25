@@ -29,6 +29,7 @@ const edgeTypes: EdgeTypes = {
 };
 
 interface WorkflowCanvasInternalProps {
+  analysisId?: string;
   diagramData: DiagramDTO;
   selectedToolId?: number | null;
   onSelectTool?: (toolId: number | null) => void;
@@ -36,6 +37,7 @@ interface WorkflowCanvasInternalProps {
 }
 
 const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
+  analysisId,
   diagramData,
   selectedToolId: externalSelectedToolId,
   onSelectTool: externalOnSelectTool,
@@ -758,6 +760,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         {/* Right Dedicated Inspector Panel (Non-obstructive Side-by-Side Flex) */}
         {(selectedNodeDto || selectedConnectionObj) && (
           <WorkflowInspector
+            analysisId={analysisId}
             selectedNode={selectedNodeDto}
             selectedConnection={selectedConnectionObj}
             upstreamNodes={upstreamNodes}

@@ -99,6 +99,7 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
 
       {/* Full-Width Interactive DAG Visualization */}
       <WorkflowCanvas
+        analysisId={analysisId}
         diagramData={diagramData}
         selectedToolId={selectedToolId}
         onSelectTool={handleSelectTool}

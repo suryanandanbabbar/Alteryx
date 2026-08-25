@@ -70,6 +70,11 @@ export const api = {
     return handleResponse<DiagramDTO>(res);
   },
 
+  async getToolSummary(analysisId: string, toolId: number): Promise<{ tool_id: number; summary: string; source: string; is_cached: boolean; model: string }> {
+    const res = await fetch(`${BASE_URL}/analysis/${analysisId}/tools/${toolId}/summary`);
+    return handleResponse<{ tool_id: number; summary: string; source: string; is_cached: boolean; model: string }>(res);
+  },
+
   async getJson(analysisId: string): Promise<Record<string, any>> {
     const res = await fetch(`${BASE_URL}/analysis/${analysisId}/json`);
     return handleResponse<Record<string, any>>(res);

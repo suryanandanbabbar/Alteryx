@@ -52,6 +52,33 @@ def get_analysis_diagram(analysis_id: str):
     return to_diagram_dto(res)
 
 
+@router.get("/{analysis_id}/tools/{tool_id}/summary")
+def get_tool_summary_narrative(analysis_id: str, tool_id: int):
+    """Retrieve on-demand workflow-specific 'What It Does' summary for a single selected tool."""
+    res = _get_result_or_404(analysis_id)
+    tool = res.workflow.tools.get(tool_id)
+    if not tool:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Tool with ID {tool_id} not found in analysis {analysis_id}",
+        )
+    from awa.llm import get_default_generator
+    generator = get_default_generator()
+    narrative = generator.generate_tool_summary(
+        res.workflow,
+        tool,
+        res.graph,
+        workflow_id=res.analysis_id,
+    )
+    return {
+        "tool_id": tool_id,
+        "summary": narrative.text,
+        "source": narrative.source,
+        "is_cached": narrative.is_cached,
+        "model": narrative.model,
+    }
+
+
 @router.get("/{analysis_id}/json")
 def get_analysis_json(analysis_id: str):
     """Retrieve the complete canonical workflow JSON representation."""

@@ -248,6 +248,25 @@ class LLMNarrativeGenerator:
     def client(self) -> LLMClient:
         return self._client or get_default_llm_client()
 
+    def get_cached_tool_summary(
+        self,
+        workflow: Workflow,
+        tool: Tool,
+        graph: nx.DiGraph | None = None,
+        workflow_id: str = "",
+    ) -> NarrativeResult | None:
+        """Check if a tool summary is already cached without triggering LLM generation."""
+        facts = extract_tool_facts(workflow, tool, graph)
+        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        cache_key = compute_cache_key(
+            workflow_id=wf_key,
+            scope_key=f"tool_{tool.tool_id}",
+            prompt_version=TOOL_PROMPT_VERSION,
+            model_name=self.client.model_name,
+            facts_payload=facts.to_dict(),
+        )
+        return self._cache.get(cache_key)
+
     def generate_tool_summary(
         self,
         workflow: Workflow,

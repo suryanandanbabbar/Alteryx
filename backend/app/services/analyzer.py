@@ -96,10 +96,7 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
         tool = res.workflow.tools.get(tid)
         ttype = tool.tool_type if tool else "Unknown"
         name = (tool.name if tool and tool.name else ttype)
-        if tool:
-            summary = generator.generate_tool_summary(res.workflow, tool, res.graph, workflow_id=res.analysis_id).text
-        else:
-            summary = get_tool_summary(ttype)
+        summary = get_tool_summary(tool.plugin or ttype) if tool else get_tool_summary(ttype)
         container_id = tool.container_id if tool else None
         container_name = tool.container_name if tool else None
         exec_steps.append(
@@ -277,7 +274,8 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
             continue
         tr = res.translations.get(tid)
         support = tr.support_level.value if tr else "unknown"
-        summary = generator.generate_tool_summary(res.workflow, tool, res.graph, workflow_id=res.analysis_id).text
+        cached_summary = generator.get_cached_tool_summary(res.workflow, tool, res.graph, workflow_id=res.analysis_id)
+        summary = cached_summary.text if cached_summary else get_tool_summary(tool.plugin or tool.tool_type)
         tool_def = catalog.get(tool.plugin or tool.tool_type)
         xml_tool_name = tool_def.xml_name if tool_def else (tool.plugin or "")
 

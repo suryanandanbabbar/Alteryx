@@ -509,12 +509,6 @@ def analyze_canonical(
                 _llm_logger.warning("LLM enrichment: executive_summary generated but executive_summary object is None")
             else:
                 _llm_logger.info("LLM enrichment: executive_summary source=%s", exec_res.source)
-            tool_results = gen.generate_all_tool_summaries(workflow, graph, workflow_id=aid)
-            llm_count = sum(1 for r in tool_results.values() if r.source == "llm")
-            _llm_logger.info(
-                "LLM enrichment: tool summaries generated — %d/%d from LLM",
-                llm_count, len(tool_results),
-            )
         else:
             _llm_logger.debug("LLM enrichment: skipped — client not available (no runtime credentials)")
     except Exception as exc:
