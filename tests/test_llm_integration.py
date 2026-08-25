@@ -411,9 +411,24 @@ def test_llm_business_purpose_reaches_overview_dto():
 
 def test_llm_executive_summary_reaches_docx(tmp_path):
     exec_text = "This report details the automated processing of insurance claims data across multiple calculation stages, delivering executive-ready volume extracts."
+    methods_text = "The workflow ingests four source datasets, reconciles transaction records with master policy data, derives elapsed duration, and aggregates volume metrics."
+    findings_list = [
+        "Combines four independent source datasets into a unified reporting base.",
+        "Central enriched dataset serves as the common upstream foundation for multiple independent analytical branches.",
+    ]
+    conclusions_text = "The workflow operates as a centralized data consolidation and multi-dimensional reporting pipeline."
+    recs_list = [
+        "Validate business ownership and operational escalation contacts.",
+        "Confirm production execution schedule and upstream refresh dependencies.",
+    ]
+
     fake_client = FakeLLMClient(
         response_map={
-            "executive summary": exec_text
+            "executive summary": exec_text,
+            "methods of analysis": methods_text,
+            "findings": "- " + "\n- ".join(findings_list),
+            "conclusions": conclusions_text,
+            "recommendations": "- " + "\n- ".join(recs_list),
         }
     )
     generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
@@ -426,7 +441,10 @@ def test_llm_executive_summary_reaches_docx(tmp_path):
         why_it_matters="Executive reporting",
         executive_summary=ExecutiveSummaryContent(
             subject_and_purpose=exec_text,
-            methods_and_process="Standard aggregation methods",
+            methods_and_process=methods_text,
+            findings=findings_list,
+            conclusions=conclusions_text,
+            recommendations=recs_list,
         ),
     )
 
@@ -519,10 +537,18 @@ def test_full_pipeline_with_demo_workflow():
         elif "Tool ID:\n17" in user:
             captured_prompts[17] = user
             return "Exports finalized quarterly claims matrix to Excel deliverable."
-        elif "business purpose" in system.lower() or "business purpose" in user.lower():
+        elif "methods of analysis" in user.lower():
+            return "The workflow ingests four source datasets, reconciles transaction records with master policy and diary reference data, derives elapsed duration, and aggregates volume metrics."
+        elif "findings:" in user.lower():
+            return "- Combines four independent source datasets into a unified reporting base.\n- Central enriched dataset serves as the common upstream foundation for multiple independent analytical branches."
+        elif "conclusions:" in user.lower():
+            return "The workflow operates as a centralized data consolidation and multi-dimensional reporting pipeline, integrating disparate feeds into recurring analytical deliverables."
+        elif "recommendations:" in user.lower():
+            return "- Validate business ownership and operational escalation contacts.\n- Confirm production execution schedule and upstream refresh dependencies."
+        elif "executive summary:" in user.lower():
+            return "This workflow extracts claim volume data, performs multi-level aggregation by quarter and manager, and produces standardized reporting deliverables across historical reporting periods."
+        elif "business purpose:" in user.lower():
             return "Automates quarterly insurance claims volume extraction, summarization, and matrix reporting."
-        elif "executive summary" in system.lower() or "executive summary" in user.lower():
-            return "This workflow extracts claim volume data, performs multi-level aggregation by quarter and manager, and produces standardized reporting deliverables."
         return "Processes and transforms workflow record data."
 
     fake_client = FakeLLMClient(generator_fn=mock_generator)
@@ -537,6 +563,18 @@ def test_full_pipeline_with_demo_workflow():
     # 1. Overview Business Purpose
     assert overview_dto.business_summary is not None
     assert "Automates quarterly insurance claims" in overview_dto.business_summary.business_purpose
+
+    # 1b. Executive Summary Content for DOCX
+    assert res.business_summary is not None
+    assert res.business_summary.executive_summary is not None
+    exec_sum = res.business_summary.executive_summary
+    assert "This workflow extracts claim volume data" in exec_sum.subject_and_purpose
+    assert "reconciles transaction records with master policy" in exec_sum.methods_and_process
+    assert len(exec_sum.findings) == 2
+    assert "unified reporting base" in exec_sum.findings[0]
+    assert "centralized data consolidation" in exec_sum.conclusions
+    assert len(exec_sum.recommendations) == 2
+    assert "Validate business ownership" in exec_sum.recommendations[0]
 
     # 2. Demand-driven Tool "What It Does" generation
     tool8 = res.workflow.tools[8]

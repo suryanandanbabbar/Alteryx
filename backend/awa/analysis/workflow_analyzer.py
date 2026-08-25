@@ -509,6 +509,34 @@ def analyze_canonical(
                 _llm_logger.warning("LLM enrichment: executive_summary generated but executive_summary object is None")
             else:
                 _llm_logger.info("LLM enrichment: executive_summary source=%s", exec_res.source)
+
+            # Methods of Analysis narrative enrichment
+            meth_res = gen.generate_methods_of_analysis(workflow, business_summary, workflow_id=aid)
+            if meth_res.source == "llm" and business_summary.executive_summary:
+                business_summary.executive_summary.methods_and_process = meth_res.text
+                _llm_logger.info("LLM enrichment: methods_of_analysis source=llm")
+            else:
+                _llm_logger.info("LLM enrichment: methods_of_analysis source=%s", meth_res.source)
+
+            # Findings narrative enrichment
+            findings_list = gen.generate_findings(workflow, business_summary, workflow_id=aid)
+            if findings_list and business_summary.executive_summary:
+                business_summary.executive_summary.findings = findings_list
+                _llm_logger.info("LLM enrichment: findings items_count=%d", len(findings_list))
+
+            # Conclusions narrative enrichment
+            conc_res = gen.generate_conclusions(workflow, business_summary, workflow_id=aid)
+            if conc_res.source == "llm" and business_summary.executive_summary:
+                business_summary.executive_summary.conclusions = conc_res.text
+                _llm_logger.info("LLM enrichment: conclusions source=llm")
+            else:
+                _llm_logger.info("LLM enrichment: conclusions source=%s", conc_res.source)
+
+            # Recommendations narrative enrichment
+            recs_list = gen.generate_recommendations(workflow, business_summary, workflow_id=aid)
+            if recs_list and business_summary.executive_summary:
+                business_summary.executive_summary.recommendations = recs_list
+                _llm_logger.info("LLM enrichment: recommendations items_count=%d", len(recs_list))
         else:
             _llm_logger.debug("LLM enrichment: skipped — client not available (no runtime credentials)")
     except Exception as exc:

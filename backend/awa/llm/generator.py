@@ -20,12 +20,24 @@ from .prompts import (
     TOOL_PROMPT_VERSION,
     WORKFLOW_PURPOSE_PROMPT_VERSION,
     EXEC_SUMMARY_PROMPT_VERSION,
+    METHODS_OF_ANALYSIS_PROMPT_VERSION,
+    FINDINGS_PROMPT_VERSION,
+    CONCLUSIONS_PROMPT_VERSION,
+    RECOMMENDATIONS_PROMPT_VERSION,
     TOOL_SYSTEM_PROMPT,
     WORKFLOW_PURPOSE_SYSTEM_PROMPT,
     EXECUTIVE_SUMMARY_SYSTEM_PROMPT,
+    METHODS_OF_ANALYSIS_SYSTEM_PROMPT,
+    FINDINGS_SYSTEM_PROMPT,
+    CONCLUSIONS_SYSTEM_PROMPT,
+    RECOMMENDATIONS_SYSTEM_PROMPT,
     build_tool_user_prompt,
     build_workflow_purpose_user_prompt,
     build_executive_summary_user_prompt,
+    build_methods_of_analysis_user_prompt,
+    build_findings_user_prompt,
+    build_methods_conclusions_user_prompt,
+    build_recommendations_user_prompt,
 )
 from .cache import LLMNarrativeCache, get_global_narrative_cache, compute_cache_key
 
@@ -101,6 +113,10 @@ def _clean_narrative_text(raw_text: str | None) -> str:
         r"^here is (?:a|the) (?:concise )?(?:one-sentence )?(?:description|summary).*?:\s*",
         r"^business purpose:\s*",
         r"^executive summary:\s*",
+        r"^methods of analysis:\s*",
+        r"^findings:\s*",
+        r"^conclusions:\s*",
+        r"^recommendations:\s*",
         r"^description:\s*",
         r"^summary:\s*",
         r"^this tool\s+",
@@ -174,7 +190,7 @@ def extract_tool_facts(workflow: Workflow, tool: Tool, graph: nx.DiGraph | None 
 
 
 def extract_workflow_facts(workflow: Workflow, business_summary: WorkflowBusinessSummary) -> WorkflowFacts:
-    """Extract deterministic workflow facts for business purpose and executive summary generation."""
+    """Extract deterministic workflow facts for business purpose, executive summary, and DOCX sections."""
     source_inputs: list[dict[str, Any]] = [
         {
             "name": inp.name,
@@ -430,6 +446,250 @@ class LLMNarrativeGenerator:
             prompt_version=EXEC_SUMMARY_PROMPT_VERSION,
         )
         return fallback_result
+
+    def generate_methods_of_analysis(
+        self,
+        workflow: Workflow,
+        business_summary: WorkflowBusinessSummary,
+        workflow_id: str = "",
+    ) -> NarrativeResult:
+        """Generate Methods of Analysis methodology narrative for DOCX report."""
+        fallback_text = (
+            business_summary.executive_summary.methods_and_process
+            if business_summary.executive_summary and business_summary.executive_summary.methods_and_process
+            else "The workflow applies sequential data preparation, validation, and calculation rules to produce analysis-ready records."
+        )
+
+        facts = extract_workflow_facts(workflow, business_summary)
+        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        cache_key = compute_cache_key(
+            workflow_id=wf_key,
+            scope_key="methods_of_analysis",
+            prompt_version=METHODS_OF_ANALYSIS_PROMPT_VERSION,
+            model_name=self.client.model_name,
+            facts_payload=facts.to_dict(),
+        )
+
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            logger.info("[LLM CACHE] type=methods_of_analysis status=HIT")
+            return cached
+
+        logger.info("[LLM CACHE] type=methods_of_analysis status=MISS")
+
+        system_prompt = METHODS_OF_ANALYSIS_SYSTEM_PROMPT
+        user_prompt = build_methods_of_analysis_user_prompt(facts)
+        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=500)
+        cleaned = _clean_narrative_text(raw_response)
+
+        if cleaned and len(cleaned.split()) >= 15 and len(cleaned) <= 1200:
+            result = NarrativeResult(
+                text=cleaned,
+                source="llm",
+                model=self.client.model_name,
+                prompt_version=METHODS_OF_ANALYSIS_PROMPT_VERSION,
+            )
+            self._cache.set(cache_key, result)
+            logger.info("[LLM] methods_of_analysis stored in cache text_len=%d", len(cleaned))
+            return result
+
+        fallback_result = NarrativeResult(
+            text=fallback_text,
+            source="deterministic_fallback",
+            model="deterministic",
+            prompt_version=METHODS_OF_ANALYSIS_PROMPT_VERSION,
+        )
+        return fallback_result
+
+    def generate_findings(
+        self,
+        workflow: Workflow,
+        business_summary: WorkflowBusinessSummary,
+        workflow_id: str = "",
+    ) -> list[str]:
+        """Generate 4-6 evidence-based findings for DOCX report."""
+        fallback_findings = (
+            business_summary.executive_summary.findings
+            if business_summary.executive_summary and business_summary.executive_summary.findings
+            else ["The workflow consolidates source data into structured operational deliverables."]
+        )
+
+        facts = extract_workflow_facts(workflow, business_summary)
+        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        cache_key = compute_cache_key(
+            workflow_id=wf_key,
+            scope_key="findings",
+            prompt_version=FINDINGS_PROMPT_VERSION,
+            model_name=self.client.model_name,
+            facts_payload=facts.to_dict(),
+        )
+
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            logger.info("[LLM CACHE] type=findings status=HIT")
+            # Items stored in cached.text as JSON list or newline-separated
+            try:
+                import json
+                return json.loads(cached.text)
+            except Exception:
+                return [line.strip("- *• ") for line in cached.text.split("\n") if line.strip("- *• ")]
+
+        logger.info("[LLM CACHE] type=findings status=MISS")
+
+        system_prompt = FINDINGS_SYSTEM_PROMPT
+        user_prompt = build_findings_user_prompt(facts)
+        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=700)
+        cleaned = _clean_narrative_text(raw_response)
+
+        # Parse bullet points from response
+        bullet_items = []
+        if cleaned:
+            for line in cleaned.split("\n"):
+                stripped = line.strip()
+                if stripped.startswith(("-", "*", "•")):
+                    item_text = re.sub(r"^[-*•]\s*", "", stripped).strip()
+                    if item_text and len(item_text) > 10:
+                        bullet_items.append(item_text)
+                elif re.match(r"^\d+[\.\)]\s+", stripped):
+                    item_text = re.sub(r"^\d+[\.\)]\s+", "", stripped).strip()
+                    if item_text and len(item_text) > 10:
+                        bullet_items.append(item_text)
+
+        if len(bullet_items) >= 2:
+            import json
+            result = NarrativeResult(
+                text=json.dumps(bullet_items),
+                source="llm",
+                model=self.client.model_name,
+                prompt_version=FINDINGS_PROMPT_VERSION,
+            )
+            self._cache.set(cache_key, result)
+            logger.info("[LLM] findings stored in cache items_count=%d", len(bullet_items))
+            return bullet_items
+
+        logger.info("[LLM] findings fallback to deterministic items_count=%d", len(fallback_findings))
+        return fallback_findings
+
+    def generate_conclusions(
+        self,
+        workflow: Workflow,
+        business_summary: WorkflowBusinessSummary,
+        workflow_id: str = "",
+    ) -> NarrativeResult:
+        """Generate Conclusions synthesis narrative for DOCX report."""
+        fallback_text = (
+            business_summary.executive_summary.conclusions
+            if business_summary.executive_summary and business_summary.executive_summary.conclusions
+            else "The workflow operates as a standardized data preparation process transforming source records into structured outputs."
+        )
+
+        facts = extract_workflow_facts(workflow, business_summary)
+        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        cache_key = compute_cache_key(
+            workflow_id=wf_key,
+            scope_key="conclusions",
+            prompt_version=CONCLUSIONS_PROMPT_VERSION,
+            model_name=self.client.model_name,
+            facts_payload=facts.to_dict(),
+        )
+
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            logger.info("[LLM CACHE] type=conclusions status=HIT")
+            return cached
+
+        logger.info("[LLM CACHE] type=conclusions status=MISS")
+
+        system_prompt = CONCLUSIONS_SYSTEM_PROMPT
+        user_prompt = build_methods_conclusions_user_prompt(facts)
+        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=400)
+        cleaned = _clean_narrative_text(raw_response)
+
+        if cleaned and len(cleaned.split()) >= 10 and len(cleaned) <= 800:
+            result = NarrativeResult(
+                text=cleaned,
+                source="llm",
+                model=self.client.model_name,
+                prompt_version=CONCLUSIONS_PROMPT_VERSION,
+            )
+            self._cache.set(cache_key, result)
+            logger.info("[LLM] conclusions stored in cache text_len=%d", len(cleaned))
+            return result
+
+        fallback_result = NarrativeResult(
+            text=fallback_text,
+            source="deterministic_fallback",
+            model="deterministic",
+            prompt_version=CONCLUSIONS_PROMPT_VERSION,
+        )
+        return fallback_result
+
+    def generate_recommendations(
+        self,
+        workflow: Workflow,
+        business_summary: WorkflowBusinessSummary,
+        workflow_id: str = "",
+    ) -> list[str]:
+        """Generate 2-4 actionable recommendations for DOCX report."""
+        fallback_recs = (
+            business_summary.executive_summary.recommendations
+            if business_summary.executive_summary and business_summary.executive_summary.recommendations
+            else ["Validate business ownership and confirm production refresh dependencies with stakeholders."]
+        )
+
+        facts = extract_workflow_facts(workflow, business_summary)
+        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        cache_key = compute_cache_key(
+            workflow_id=wf_key,
+            scope_key="recommendations",
+            prompt_version=RECOMMENDATIONS_PROMPT_VERSION,
+            model_name=self.client.model_name,
+            facts_payload=facts.to_dict(),
+        )
+
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            logger.info("[LLM CACHE] type=recommendations status=HIT")
+            try:
+                import json
+                return json.loads(cached.text)
+            except Exception:
+                return [line.strip("- *• ") for line in cached.text.split("\n") if line.strip("- *• ")]
+
+        logger.info("[LLM CACHE] type=recommendations status=MISS")
+
+        system_prompt = RECOMMENDATIONS_SYSTEM_PROMPT
+        user_prompt = build_recommendations_user_prompt(facts)
+        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=500)
+        cleaned = _clean_narrative_text(raw_response)
+
+        bullet_items = []
+        if cleaned:
+            for line in cleaned.split("\n"):
+                stripped = line.strip()
+                if stripped.startswith(("-", "*", "•")):
+                    item_text = re.sub(r"^[-*•]\s*", "", stripped).strip()
+                    if item_text and len(item_text) > 10:
+                        bullet_items.append(item_text)
+                elif re.match(r"^\d+[\.\)]\s+", stripped):
+                    item_text = re.sub(r"^\d+[\.\)]\s+", "", stripped).strip()
+                    if item_text and len(item_text) > 10:
+                        bullet_items.append(item_text)
+
+        if len(bullet_items) >= 1:
+            import json
+            result = NarrativeResult(
+                text=json.dumps(bullet_items),
+                source="llm",
+                model=self.client.model_name,
+                prompt_version=RECOMMENDATIONS_PROMPT_VERSION,
+            )
+            self._cache.set(cache_key, result)
+            logger.info("[LLM] recommendations stored in cache items_count=%d", len(bullet_items))
+            return bullet_items
+
+        logger.info("[LLM] recommendations fallback to deterministic items_count=%d", len(fallback_recs))
+        return fallback_recs
 
     def generate_all_tool_summaries(
         self,
