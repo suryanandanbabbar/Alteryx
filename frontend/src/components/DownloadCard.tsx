@@ -7,6 +7,7 @@ interface DownloadCardProps {
   subtitle: string;
   formatBadge?: string;
   isPrimary?: boolean;
+  disabled?: boolean;
   onDownload: () => void;
 }
 
@@ -16,11 +17,12 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
   subtitle,
   formatBadge,
   isPrimary = false,
+  disabled = false,
   onDownload,
 }) => {
   return (
     <div
-      className="app-card app-card-hover"
+      className={`app-card ${disabled ? '' : 'app-card-hover'}`}
       style={{
         padding: '16px 20px',
         display: 'flex',
@@ -76,8 +78,9 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 
       <button
         onClick={onDownload}
+        disabled={disabled}
         className={isPrimary ? 'btn-primary' : 'btn-secondary'}
-        style={{ padding: '8px 16px', fontSize: '12px', flexShrink: 0 }}
+        style={{ padding: '8px 16px', fontSize: '12px', flexShrink: 0, opacity: disabled ? 0.6 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
       >
         <Download size={13} />
         <span>{isPrimary ? 'Download all' : 'Download'}</span>

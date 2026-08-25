@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { Upload, AlertCircle, Loader2, Sun, Moon } from 'lucide-react';
+import { Upload, AlertCircle, Sun, Moon } from 'lucide-react';
 import { api } from '../api/client';
 import { AnalysisOverviewDTO } from '../types/workflow';
 import { useTheme } from '../context/ThemeContext';
+import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
 
 interface UploadPageProps {
   onUploadSuccess: (overview: AnalysisOverviewDTO) => void;
@@ -11,12 +12,14 @@ interface UploadPageProps {
 export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [analyzingFileName, setAnalyzingFileName] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { theme, toggleTheme } = useTheme();
 
   const handleFile = async (file: File) => {
     setError(null);
+    setAnalyzingFileName(file.name);
     setLoading(true);
 
     try {
@@ -26,12 +29,15 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
       setError(err.message || 'Workflow could not be analyzed. Please check the file and try again.');
     } finally {
       setLoading(false);
+      setAnalyzingFileName(undefined);
     }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    if (!loading) {
+      setIsDragging(true);
+    }
   };
 
   const handleDragLeave = () => {
@@ -41,6 +47,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    if (loading) return;
     const file = e.dataTransfer.files[0];
     if (file) {
       handleFile(file);
@@ -48,6 +55,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (loading) return;
     const file = e.target.files?.[0];
     if (file) {
       handleFile(file);
@@ -60,7 +68,10 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
       display: 'flex',
       flexDirection: 'column',
       background: 'var(--color-bg)',
+      position: 'relative',
     }}>
+      {/* Full-page Dedicated Loading Screen */}
+      {loading && <AnalysisLoadingScreen fileName={analyzingFileName} />}
       {/* Top Header Bar */}
       <header style={{
         height: '56px',
@@ -192,31 +203,19 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             style={{ display: 'none' }}
           />
 
-          {loading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', padding: '16px 0' }}>
-              <Loader2 size={32} color="var(--color-primary)" className="animate-spin" />
-              <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text)' }}>
-                Analyzing workflow...
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                Parsing graph topology and translating tool operations
-              </div>
-            </div>
-          ) : (
-            <>
-              <div style={{
-                width: '44px',
-                height: '44px',
-                borderRadius: '50%',
-                background: 'var(--color-surface-secondary)',
-                border: '1px solid var(--color-border)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--color-primary)',
-              }}>
-                <Upload size={20} />
-              </div>
+          <div style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '50%',
+            background: 'var(--color-surface-secondary)',
+            border: '1px solid var(--color-border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--color-primary)',
+          }}>
+            <Upload size={20} />
+          </div>
 
               <div>
                 <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-text)', marginBottom: '4px' }}>
@@ -267,8 +266,6 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
                   </span>
                 ))}
               </div>
-            </>
-          )}
         </div>
 
         {/* Error State */}
