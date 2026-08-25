@@ -65,7 +65,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
         <DownloadCard
           icon={FileText}
           title="Business Report"
-          subtitle="Executive business analysis report with business purpose, methodologies, findings, conclusions, lineage, and visual DAG"
+          subtitle="Executive business analysis report with purpose, methodologies, findings, conclusions, lineage, and workflow"
           formatBadge=".docx"
           onDownload={() => triggerDownload('docx')}
         />
@@ -73,7 +73,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
         <DownloadCard
           icon={FileText}
           title="Technical Specifications"
-          subtitle="Engineering specifications report with executive summary, step-by-step tool inventory, and technical configuration appendix"
+          subtitle="Engineering specifications report with summary, step-by-step tool inventory, and technical appendix"
           formatBadge=".docx"
           onDownload={() => triggerDownload('technical-docx')}
         />
