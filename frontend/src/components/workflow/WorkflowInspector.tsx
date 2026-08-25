@@ -353,8 +353,37 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
         >
           {/* What It Does */}
           <div>
-            <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
-              What It Does
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              marginBottom: '6px',
+            }}>
+              <span style={{
+                fontSize: '10px',
+                fontWeight: 700,
+                color: 'var(--color-text-muted)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+              }}>
+                What It Does
+              </span>
+              <span style={{
+                fontSize: '9.5px',
+                fontWeight: '600',
+                padding: '1px 6px',
+                borderRadius: 'var(--radius-sm, 4px)',
+                background: 'var(--color-primary-subtle)',
+                color: 'var(--color-primary)',
+                border: '1px solid var(--color-primary-border)',
+                letterSpacing: '0.3px',
+                textTransform: 'none',
+                lineHeight: '1.4',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}>
+                AI Generated
+              </span>
             </div>
             <div
               style={{

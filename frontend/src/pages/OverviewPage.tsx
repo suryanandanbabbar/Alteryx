@@ -108,9 +108,9 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
         <div className="app-card" style={{ padding: '16px 20px', borderLeft: '3px solid var(--color-primary)' }}>
           <div style={{
             display: 'flex',
-            alignItems: 'baseline',
-            gap: '10px',
-            marginBottom: '4px',
+            alignItems: 'center',
+            gap: '8px',
+            marginBottom: '6px',
           }}>
             <span style={{
               fontSize: '11px',
@@ -120,6 +120,22 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
               letterSpacing: '0.5px',
             }}>
               Business Purpose
+            </span>
+            <span style={{
+              fontSize: '9.5px',
+              fontWeight: '600',
+              padding: '1px 6px',
+              borderRadius: 'var(--radius-sm, 4px)',
+              background: 'var(--color-primary-subtle)',
+              color: 'var(--color-primary)',
+              border: '1px solid var(--color-primary-border)',
+              letterSpacing: '0.3px',
+              textTransform: 'none',
+              lineHeight: '1.4',
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}>
+              AI Generated
             </span>
           </div>
           <p style={{ fontSize: '14px', color: 'var(--color-text)', lineHeight: '1.5', margin: 0, fontWeight: '500' }}>

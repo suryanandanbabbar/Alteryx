@@ -88,7 +88,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             E
           </div>
           <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text)' }}>
-            ETL Intelligence & Migration - Alteryx Workflow
+            ETL Intelligence & Migration - Alteryx Workflows
           </span>
         </div>
 
@@ -138,10 +138,18 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             fontWeight: '800',
             letterSpacing: '-0.5px',
             color: 'var(--color-text)',
-            marginBottom: '8px',
+            marginBottom: '4px',
           }}>
-            ETL Intelligence & Migration - Alteryx Workflows
+            ETL Intelligence & Migration
           </h1>
+          <h2 style={{
+            fontSize: '16px',
+            fontWeight: '600',
+            color: 'var(--color-text-secondary)',
+            marginBottom: '10px',
+          }}>
+            Alteryx workflows
+          </h2>
           <p style={{
             fontSize: '14px',
             color: 'var(--color-text-muted)',
