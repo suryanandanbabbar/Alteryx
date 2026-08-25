@@ -1,16 +1,17 @@
-"""Business-oriented DOCX report generator for Alteryx Workflow Analyser.
+"""Business-oriented and Technical DOCX report generators for Alteryx Workflow Analyser.
 
-Generates a publication-quality Executive Business Report (.docx)
-with a structured Executive Summary answering:
-1. PURPOSE
-2. INPUT -> PROCESS -> OUTPUT
-3. KEY BUSINESS LOGIC
-4. BUSINESS USE / INTERPRETATION
-5. KEY CONSIDERATIONS
-All sections are strictly conditional and never render empty headings.
+Generates two publication-quality Word documents from the canonical DocumentModel:
+1. Business Report (.docx):
+   - Executive Summary (Subject & Purpose, Methods of Analysis, Findings, Conclusions, Recommendations)
+   - Business Process & Operational Deliverables (Inputs, Outputs, Operational Stages)
+   - Key Business Rules & Transformations
+   - Source-to-Target Data Lineage
+   - Visual Workflow Graph (DAG Architecture)
 
-Followed by detailed visual DAG graph, step-by-step tool specifications,
-and technical configuration appendix.
+2. Technical Specifications (.docx):
+   - Executive Summary (Exact reuse from canonical model)
+   - Step-by-Step Tool Specifications
+   - Technical Configuration Appendix
 """
 
 from __future__ import annotations
@@ -101,51 +102,30 @@ def render_dag_to_png(layout: DagLayout, scale: float = 1.0) -> bytes:
 
     # Draw Nodes
     for node in layout.nodes:
-        cat_color = get_category_colors(node.visual_category)
-        nx = int(node.x * scale)
-        ny = int(node.y * scale + y_offset)
-        nw = int(node.width * scale)
-        nh = int(node.height * scale)
+        x0 = int(node.x * scale)
+        y0 = int(node.y * scale + y_offset)
+        x1 = int((node.x + node.width) * scale)
+        y1 = int((node.y + node.height) * scale + y_offset)
 
-        # Card body
+        colors = get_category_colors(node.visual_category)
+        border_hex = colors.get("stroke", "#38bdf8")
+
         draw.rounded_rectangle(
-            [nx, ny, nx + nw, ny + nh],
+            [x0, y0, x1, y1],
             radius=int(6 * scale),
-            fill=cat_color["fill"],
-            outline=cat_color["stroke"],
-            width=max(1, int(1.5 * scale)),
+            fill="#1e293b",
+            outline=border_hex,
+            width=int(1.5 * scale),
         )
 
-        # Badge circle
-        cx = nx + int(20 * scale)
-        cy = ny + int(nh / 2)
-        r = int(10 * scale)
-        draw.ellipse(
-            [cx - r, cy - r, cx + r, cy + r],
-            fill=cat_color["stroke"],
-            outline=cat_color["stroke"],
-        )
-
-        id_str = str(node.tool_id)
         draw.text(
-            (cx - int(4 * scale), cy - int(6 * scale)),
-            id_str,
-            fill="#0a0f1d",
+            (int((node.x + 8) * scale), int((node.y + 6) * scale + y_offset)),
+            f"#{node.tool_id} {node.tool_type}",
+            fill="#f8fafc",
         )
-
-        # Tool Type Text
-        type_display = node.tool_type if len(node.tool_type) <= 16 else node.tool_type[:14] + ".."
         draw.text(
-            (nx + int(36 * scale), cy - int(10 * scale)),
-            type_display,
-            fill=cat_color["text"],
-        )
-
-        # Tool Name Subtitle
-        label_display = node.label if len(node.label) <= 18 else node.label[:16] + ".."
-        draw.text(
-            (nx + int(36 * scale), cy + int(4 * scale)),
-            label_display,
+            (int((node.x + 8) * scale), int((node.y + 20) * scale + y_offset)),
+            node.label[:18],
             fill="#94a3b8",
         )
 
@@ -154,72 +134,16 @@ def render_dag_to_png(layout: DagLayout, scale: float = 1.0) -> bytes:
     return buf.getvalue()
 
 
-def generate_docx(
-    doc_model: DocumentModel,
-    output_path: Path | str,
-    svg_content: str | None = None,
-) -> None:
-    """Generate workflow.docx with a structured, professional Executive Summary.
-
-    Args:
-        doc_model: Canonical format-independent documentation model.
-        output_path: Target path for the .docx file.
-        svg_content: Optional SVG string.
-    """
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    doc = Document()
-
-    # Configure Margins (1 inch all around)
-    for section in doc.sections:
-        section.top_margin = Inches(1.0)
-        section.bottom_margin = Inches(1.0)
-        section.left_margin = Inches(1.0)
-        section.right_margin = Inches(1.0)
-
-    workflow_name = doc_model.metadata.get("Workflow Name", "Alteryx Workflow")
+def _render_executive_summary_section(doc: Document, doc_model: DocumentModel) -> None:
+    """Render Section 1: Executive Summary shared between Business Report and Technical Specifications."""
     bs = doc_model.business_summary
     exec_summary = bs.executive_summary if bs else None
 
-    # -------------------------------------------------------------
-    # Cover Section / Document Header Banner
-    # -------------------------------------------------------------
-    p_brand = doc.add_paragraph()
-    p_brand.paragraph_format.space_before = Pt(0)
-    p_brand.paragraph_format.space_after = Pt(2)
-    run_brand = p_brand.add_run("ETL Intelligence & Migration - Alteryx Workflows")
-    run_brand.font.size = Pt(9)
-    run_brand.font.bold = True
-    run_brand.font.color.rgb = RGB_PRIMARY
-
-    p_title = doc.add_paragraph()
-    p_title.paragraph_format.space_before = Pt(0)
-    p_title.paragraph_format.space_after = Pt(4)
-    run_title = p_title.add_run(f"EXECUTIVE BUSINESS REPORT\n{workflow_name}")
-    run_title.font.size = Pt(20)
-    run_title.font.bold = True
-    run_title.font.color.rgb = RGB_NAVY
-
-    p_subtitle = doc.add_paragraph()
-    p_subtitle.paragraph_format.space_after = Pt(14)
-    one_line = bs.one_line_purpose if bs and bs.one_line_purpose else "Data preparation and business reporting workflow"
-    run_sub = p_subtitle.add_run(one_line)
-    run_sub.font.size = Pt(11)
-    run_sub.font.color.rgb = RGB_MUTED
-
-    # =============================================================
-    # SECTION 1: EXECUTIVE SUMMARY (Business Analysis Assessment)
-    # =============================================================
     h1 = doc.add_heading("1. Executive Summary", level=1)
     h1.paragraph_format.space_before = Pt(8)
     h1.paragraph_format.space_after = Pt(6)
 
     # 1.1 Subject Matter / Business Purpose / Executive Summary Narrative
-    # The executive summary is pre-generated during analyze_canonical():
-    # - LLM-enriched when Azure credentials are available at runtime
-    # - Deterministic fallback when credentials are not available
-    # No independent LLM call here — use the pre-generated text.
     purpose_text = (
         exec_summary.subject_and_purpose
         if exec_summary and exec_summary.subject_and_purpose
@@ -295,6 +219,59 @@ def generate_docx(
             p_r.paragraph_format.space_after = Pt(2)
             r_r = p_r.add_run(rec)
             r_r.font.size = Pt(9.0)
+
+
+def generate_docx(
+    doc_model: DocumentModel,
+    output_path: Path | str,
+    svg_content: str | None = None,
+) -> None:
+    """Generate Business Report (.docx) without technical tool inventory or appendix."""
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    doc = Document()
+
+    # Configure Margins (1 inch all around)
+    for section in doc.sections:
+        section.top_margin = Inches(1.0)
+        section.bottom_margin = Inches(1.0)
+        section.left_margin = Inches(1.0)
+        section.right_margin = Inches(1.0)
+
+    workflow_name = doc_model.metadata.get("Workflow Name", "Alteryx Workflow")
+    bs = doc_model.business_summary
+
+    # -------------------------------------------------------------
+    # Cover Section / Document Header Banner
+    # -------------------------------------------------------------
+    p_brand = doc.add_paragraph()
+    p_brand.paragraph_format.space_before = Pt(0)
+    p_brand.paragraph_format.space_after = Pt(2)
+    run_brand = p_brand.add_run("ETL Intelligence & Migration - Alteryx Workflows")
+    run_brand.font.size = Pt(9)
+    run_brand.font.bold = True
+    run_brand.font.color.rgb = RGB_PRIMARY
+
+    p_title = doc.add_paragraph()
+    p_title.paragraph_format.space_before = Pt(0)
+    p_title.paragraph_format.space_after = Pt(4)
+    run_title = p_title.add_run(f"EXECUTIVE BUSINESS REPORT\n{workflow_name}")
+    run_title.font.size = Pt(20)
+    run_title.font.bold = True
+    run_title.font.color.rgb = RGB_NAVY
+
+    p_subtitle = doc.add_paragraph()
+    p_subtitle.paragraph_format.space_after = Pt(14)
+    one_line = bs.one_line_purpose if bs and bs.one_line_purpose else "Data preparation and business reporting workflow"
+    run_sub = p_subtitle.add_run(one_line)
+    run_sub.font.size = Pt(11)
+    run_sub.font.color.rgb = RGB_MUTED
+
+    # =============================================================
+    # SECTION 1: EXECUTIVE SUMMARY (Business Analysis Assessment)
+    # =============================================================
+    _render_executive_summary_section(doc, doc_model)
 
     # =============================================================
     # SECTION 2: BUSINESS PROCESS & OPERATIONAL DELIVERABLES
@@ -548,12 +525,65 @@ def generate_docx(
 
     doc.add_paragraph().paragraph_format.space_after = Pt(16)
 
+    doc.save(str(output_path))
+
+
+def generate_technical_specifications_docx(
+    doc_model: DocumentModel,
+    output_path: Path | str,
+) -> None:
+    """Generate Technical Specifications (.docx) containing Executive Summary, Tool Specifications, and Appendix."""
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    doc = Document()
+
+    # Configure Margins (1 inch all around)
+    for section in doc.sections:
+        section.top_margin = Inches(1.0)
+        section.bottom_margin = Inches(1.0)
+        section.left_margin = Inches(1.0)
+        section.right_margin = Inches(1.0)
+
+    workflow_name = doc_model.metadata.get("Workflow Name", "Alteryx Workflow")
+    bs = doc_model.business_summary
+
+    # -------------------------------------------------------------
+    # Cover Section / Document Header Banner
+    # -------------------------------------------------------------
+    p_brand = doc.add_paragraph()
+    p_brand.paragraph_format.space_before = Pt(0)
+    p_brand.paragraph_format.space_after = Pt(2)
+    run_brand = p_brand.add_run("ETL Intelligence & Migration - Alteryx Workflows")
+    run_brand.font.size = Pt(9)
+    run_brand.font.bold = True
+    run_brand.font.color.rgb = RGB_PRIMARY
+
+    p_title = doc.add_paragraph()
+    p_title.paragraph_format.space_before = Pt(0)
+    p_title.paragraph_format.space_after = Pt(4)
+    run_title = p_title.add_run(f"TECHNICAL SPECIFICATIONS\n{workflow_name}")
+    run_title.font.size = Pt(20)
+    run_title.font.bold = True
+    run_title.font.color.rgb = RGB_NAVY
+
+    p_subtitle = doc.add_paragraph()
+    p_subtitle.paragraph_format.space_after = Pt(14)
+    run_sub = p_subtitle.add_run("Detailed tool-by-tool execution logic, configurations, and technical parameters")
+    run_sub.font.size = Pt(11)
+    run_sub.font.color.rgb = RGB_MUTED
+
     # =============================================================
-    # SECTION 6: STEP-BY-STEP TOOL SPECIFICATIONS
+    # SECTION 1: EXECUTIVE SUMMARY (Exact reuse from canonical model)
     # =============================================================
-    h6 = doc.add_heading("6. Step-by-Step Tool Specifications", level=1)
-    h6.paragraph_format.space_before = Pt(16)
-    h6.paragraph_format.space_after = Pt(6)
+    _render_executive_summary_section(doc, doc_model)
+
+    # =============================================================
+    # SECTION 2: STEP-BY-STEP TOOL SPECIFICATIONS
+    # =============================================================
+    h2 = doc.add_heading("2. Step-by-Step Tool Specifications", level=1)
+    h2.paragraph_format.space_before = Pt(16)
+    h2.paragraph_format.space_after = Pt(6)
 
     doc.add_paragraph(
         "This section documents each workflow execution step in topological sequence, detailing the "
@@ -565,7 +595,6 @@ def generate_docx(
         annotation_text = matching_node.annotation if matching_node and matching_node.annotation else ""
         technical_summary = step.summary or (matching_node.summary if matching_node else "Processes records in the workflow pipeline.")
 
-        # Business action priority: Annotation or synthesized action
         business_action = annotation_text or f"Executes {step.tool_type} operation in the data pipeline."
 
         p_step = doc.add_paragraph()
@@ -614,11 +643,11 @@ def generate_docx(
     doc.add_paragraph().paragraph_format.space_after = Pt(16)
 
     # =============================================================
-    # SECTION 7: TECHNICAL CONFIGURATION APPENDIX
+    # SECTION 3: TECHNICAL CONFIGURATION APPENDIX
     # =============================================================
-    h7 = doc.add_heading("7. Technical Configuration Appendix", level=1)
-    h7.paragraph_format.space_before = Pt(16)
-    h7.paragraph_format.space_after = Pt(6)
+    h3 = doc.add_heading("3. Technical Configuration Appendix", level=1)
+    h3.paragraph_format.space_before = Pt(16)
+    h3.paragraph_format.space_after = Pt(6)
 
     doc.add_paragraph(
         "This appendix documents the parsed configuration parameters and connection strings for each workflow tool for engineering review:"

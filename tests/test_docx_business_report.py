@@ -67,14 +67,11 @@ class TestDocxBusinessReport:
         words = len(exec_text.split())
         assert 50 <= words <= 350, f"Executive summary word count {words} out of expected range!"
 
-        # 4. Report body sections present
+        # 4. Report body sections present in Business Report
         assert "5. Visual Workflow Graph (DAG Architecture)" in full_text
-        assert "6. Step-by-Step Tool Specifications" in full_text
-        assert "7. Technical Configuration Appendix" in full_text
-
-        # 5. Tool business action and technical summary present in body
-        assert "Business Action:" in full_text
-        assert "Technical Function:" in full_text
+        # 5. Technical sections must be ABSENT from Business Report
+        assert "Step-by-Step Tool Specifications" not in full_text
+        assert "Technical Configuration Appendix" not in full_text
 
     def test_join_workflow_docx_business_report(self, tmp_path: Path):
         """Test on a multi-input join workflow."""
@@ -95,6 +92,8 @@ class TestDocxBusinessReport:
 
         words = len(exec_text.split())
         assert 50 <= words <= 350
+        assert "Step-by-Step Tool Specifications" not in full_text
+        assert "Technical Configuration Appendix" not in full_text
 
     def test_demo_claims_volume_extract_docx_business_report(self, tmp_path: Path):
         """Test on the full reconstructed Demo Claims regression fixture."""
@@ -122,7 +121,7 @@ class TestDocxBusinessReport:
         assert "#1" not in exec_text
         assert "#39" not in exec_text
 
-        # Verify body sections
+        # Verify body sections in Business Report
         assert "2. Business Process & Operational Deliverables" in full_text
         assert "2.1 Inputs & Upstream Dependencies" in full_text
         assert "2.2 Outputs & Business Reporting Deliverables" in full_text
@@ -130,8 +129,10 @@ class TestDocxBusinessReport:
         assert "3. Key Business Rules & Transformations" in full_text
         assert "4. Source-to-Target Data Lineage" in full_text
         assert "5. Visual Workflow Graph (DAG Architecture)" in full_text
-        assert "6. Step-by-Step Tool Specifications" in full_text
-        assert "7. Technical Configuration Appendix" in full_text
+
+        # Verify Technical sections are REMOVED from Business Report
+        assert "Step-by-Step Tool Specifications" not in full_text
+        assert "Technical Configuration Appendix" not in full_text
 
         # Verify specific business facts in body
         assert "Claims Volume" in full_text
@@ -224,3 +225,101 @@ class TestDocxBusinessReport:
         assert "Conclusions" in exec_text
         assert "Recommendations" in exec_text
         assert "Limitations" not in exec_text
+
+    def test_technical_specifications_docx_generation(self, tmp_path: Path):
+        """Test Technical Specifications DOCX generation and verify content and structure."""
+        from awa.analysis.workflow_analyzer import analyze_canonical
+        from awa.generators.doc_builder import build_document_model
+        from awa.generators.docx_generator import generate_docx, generate_technical_specifications_docx
+
+        canonical = analyze_canonical(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        doc_model = build_document_model(
+            canonical.workflow,
+            canonical.execution_order,
+            canonical.translations,
+            canonical.dag_layout,
+            canonical.lineage_paths,
+            business_summary=canonical.business_summary,
+            analysis_id=canonical.analysis_id,
+            graph=canonical.graph,
+        )
+
+        biz_file = tmp_path / "Business_Report.docx"
+        tech_file = tmp_path / "Technical_Specifications.docx"
+
+        generate_docx(doc_model, biz_file)
+        generate_technical_specifications_docx(doc_model, tech_file)
+
+        assert biz_file.exists()
+        assert tech_file.exists()
+
+        biz_full = self._extract_all_docx_text(biz_file)
+        tech_full = self._extract_all_docx_text(tech_file)
+
+        biz_exec = self._extract_executive_summary_text(biz_file)
+        tech_exec = self._extract_executive_summary_text(tech_file)
+
+        # 1. Executive Summary in Technical Specifications exactly matches Business Report
+        assert biz_exec == tech_exec
+        assert len(tech_exec.split()) >= 50
+
+        # 2. Business Report excludes technical sections
+        assert "Step-by-Step Tool Specifications" not in biz_full
+        assert "Technical Configuration Appendix" not in biz_full
+
+        # 3. Technical Specifications includes technical sections
+        assert "2. Step-by-Step Tool Specifications" in tech_full
+        assert "3. Technical Configuration Appendix" in tech_full
+        assert "Business Action:" in tech_full
+        assert "Technical Function:" in tech_full
+        assert "Tool #1" in tech_full
+        assert "Tool #8" in tech_full
+
+        # 4. Technical Specifications does not contain Business Process, Rules, Lineage, or DAG
+        assert "2. Business Process & Operational Deliverables" not in tech_full
+        assert "3. Key Business Rules & Transformations" not in tech_full
+        assert "4. Source-to-Target Data Lineage" not in tech_full
+        assert "5. Visual Workflow Graph (DAG Architecture)" not in tech_full
+
+    def test_download_endpoints_for_both_reports(self):
+        """Verify download endpoints return valid DOCX files for both Business Report and Technical Specifications."""
+        import io
+        from fastapi.testclient import TestClient
+        from backend.app.main import app
+
+        client = TestClient(app)
+        wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        with open(wf_path, "rb") as f:
+            resp = client.post("/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
+
+        assert resp.status_code == 200
+        analysis_id = resp.json()["analysis_id"]
+
+        # 1. Business Report
+        resp_biz = client.get(f"/api/download/{analysis_id}/docx")
+        assert resp_biz.status_code == 200
+        assert "Business_Report.docx" in resp_biz.headers.get("Content-Disposition", "")
+        doc_biz = docx.Document(io.BytesIO(resp_biz.content))
+        biz_headings = [p.text for p in doc_biz.paragraphs if p.style.name.startswith("Heading")]
+        assert "1. Executive Summary" in biz_headings
+        assert "2. Step-by-Step Tool Specifications" not in biz_headings
+
+        # 2. Technical Specifications
+        resp_tech = client.get(f"/api/download/{analysis_id}/technical-docx")
+        assert resp_tech.status_code == 200
+        assert "Technical_Specifications.docx" in resp_tech.headers.get("Content-Disposition", "")
+        doc_tech = docx.Document(io.BytesIO(resp_tech.content))
+        tech_headings = [p.text for p in doc_tech.paragraphs if p.style.name.startswith("Heading")]
+        assert "1. Executive Summary" in tech_headings
+        assert "2. Step-by-Step Tool Specifications" in tech_headings
+        assert "3. Technical Configuration Appendix" in tech_headings
+
+        # 3. ZIP bundle contains both
+        resp_zip = client.get(f"/api/download/{analysis_id}/zip")
+        assert resp_zip.status_code == 200
+        import zipfile
+        zf = zipfile.ZipFile(io.BytesIO(resp_zip.content))
+        zip_names = zf.namelist()
+        assert any("Business_Report.docx" in name for name in zip_names)
+        assert any("Technical_Specifications.docx" in name for name in zip_names)
+

@@ -85,7 +85,7 @@ export const api = {
     return handleResponse<PythonOutputDTO>(res);
   },
 
-  getDownloadUrl(analysisId: string, type: 'docx' | 'json' | 'python' | 'svg' | 'zip' | 'sttm'): string {
+  getDownloadUrl(analysisId: string, type: 'docx' | 'technical-docx' | 'json' | 'python' | 'svg' | 'zip' | 'sttm'): string {
     return `${BASE_URL}/download/${analysisId}/${type}`;
   },
 };

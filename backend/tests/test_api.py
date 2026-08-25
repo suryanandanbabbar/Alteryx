@@ -71,10 +71,17 @@ def test_upload_and_query_workflow():
     assert "diagnostics" in resp_d.json()
 
     # 7. Test Downloads
-    # 7a. DOCX download
+    # 7a. Business Report DOCX download
     resp_docx = client.get(f"/api/download/{aid}/docx")
     assert resp_docx.status_code == 200
     assert len(resp_docx.content) > 0
+    assert "Business_Report.docx" in resp_docx.headers.get("Content-Disposition", "")
+
+    # 7a2. Technical Specifications DOCX download
+    resp_tech_docx = client.get(f"/api/download/{aid}/technical-docx")
+    assert resp_tech_docx.status_code == 200
+    assert len(resp_tech_docx.content) > 0
+    assert "Technical_Specifications.docx" in resp_tech_docx.headers.get("Content-Disposition", "")
 
     # 7b. SVG download
     resp_svg = client.get(f"/api/download/{aid}/svg")

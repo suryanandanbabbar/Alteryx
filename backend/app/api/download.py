@@ -12,7 +12,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 
 from awa.generators.svg_generator import generate_svg
-from awa.generators.docx_generator import generate_docx
+from awa.generators.docx_generator import generate_docx, generate_technical_specifications_docx
 from awa.generators.doc_builder import build_document_model
 from awa.generators.python_generator import generate_python_code
 from awa.generators.sttm_generator import generate_sttm_excel
@@ -59,7 +59,7 @@ def download_sttm(analysis_id: str):
 
 @router.get("/{analysis_id}/docx")
 def download_docx(analysis_id: str):
-    """Download the Word documentation (.docx) for the workflow."""
+    """Download the Business Report Word document (.docx) for the workflow."""
     res = _get_result_or_404(analysis_id)
     doc_model = build_document_model(
         res.workflow,
@@ -68,6 +68,8 @@ def download_docx(analysis_id: str):
         res.dag_layout,
         res.lineage_paths,
         business_summary=res.business_summary,
+        analysis_id=res.analysis_id,
+        graph=res.graph,
     )
     svg_str = generate_svg(res.dag_layout)
 
@@ -81,7 +83,42 @@ def download_docx(analysis_id: str):
         if tmp_path.exists():
             tmp_path.unlink()
 
-    filename = f"{res.workflow.metadata.name or 'workflow'}.docx"
+    base_name = res.workflow.metadata.name or "workflow"
+    filename = f"{base_name}_Business_Report.docx"
+    return Response(
+        content=docx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{analysis_id}/technical-docx")
+def download_technical_docx(analysis_id: str):
+    """Download the Technical Specifications Word document (.docx) for the workflow."""
+    res = _get_result_or_404(analysis_id)
+    doc_model = build_document_model(
+        res.workflow,
+        res.execution_order,
+        res.translations,
+        res.dag_layout,
+        res.lineage_paths,
+        business_summary=res.business_summary,
+        analysis_id=res.analysis_id,
+        graph=res.graph,
+    )
+
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tf:
+        tmp_path = Path(tf.name)
+
+    try:
+        generate_technical_specifications_docx(doc_model, tmp_path)
+        docx_bytes = tmp_path.read_bytes()
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+    base_name = res.workflow.metadata.name or "workflow"
+    filename = f"{base_name}_Technical_Specifications.docx"
     return Response(
         content=docx_bytes,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -162,7 +199,7 @@ def download_zip(analysis_id: str):
     }
     diags_bytes = json.dumps(diags_data, indent=2, ensure_ascii=False).encode("utf-8")
 
-    # 5. DOCX
+    # 5. Business Report DOCX & Technical Specifications DOCX
     doc_model = build_document_model(
         res.workflow,
         res.execution_order,
@@ -170,15 +207,23 @@ def download_zip(analysis_id: str):
         res.dag_layout,
         res.lineage_paths,
         business_summary=res.business_summary,
+        analysis_id=res.analysis_id,
+        graph=res.graph,
     )
-    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tf:
-        tmp_path = Path(tf.name)
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tf_biz:
+        tmp_biz_path = Path(tf_biz.name)
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tf_tech:
+        tmp_tech_path = Path(tf_tech.name)
     try:
-        generate_docx(doc_model, tmp_path, svg_content=svg_str)
-        docx_bytes = tmp_path.read_bytes()
+        generate_docx(doc_model, tmp_biz_path, svg_content=svg_str)
+        biz_docx_bytes = tmp_biz_path.read_bytes()
+        generate_technical_specifications_docx(doc_model, tmp_tech_path)
+        tech_docx_bytes = tmp_tech_path.read_bytes()
     finally:
-        if tmp_path.exists():
-            tmp_path.unlink()
+        if tmp_biz_path.exists():
+            tmp_biz_path.unlink()
+        if tmp_tech_path.exists():
+            tmp_tech_path.unlink()
 
     # 6. STTM XLSX
     sttm_doc = res.sttm or extract_sttm(res.workflow, res.graph, res.business_summary)
@@ -197,7 +242,8 @@ def download_zip(analysis_id: str):
         zf.writestr(f"{base_name}/workflow.json", json_bytes)
         zf.writestr(f"{base_name}/workflow.py", py_bytes)
         zf.writestr(f"{base_name}/workflow.svg", svg_bytes)
-        zf.writestr(f"{base_name}/workflow.docx", docx_bytes)
+        zf.writestr(f"{base_name}/{base_name}_Business_Report.docx", biz_docx_bytes)
+        zf.writestr(f"{base_name}/{base_name}_Technical_Specifications.docx", tech_docx_bytes)
         zf.writestr(f"{base_name}/{base_name}_STTM.xlsx", sttm_bytes)
         zf.writestr(f"{base_name}/diagnostics.json", diags_bytes)
 

@@ -8,7 +8,7 @@ interface DownloadPageProps {
 }
 
 export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
-  const triggerDownload = (type: 'docx' | 'json' | 'python' | 'svg' | 'zip' | 'sttm') => {
+  const triggerDownload = (type: 'docx' | 'technical-docx' | 'json' | 'python' | 'svg' | 'zip' | 'sttm') => {
     window.location.href = api.getDownloadUrl(analysisId, type);
   };
 
@@ -35,7 +35,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
       <DownloadCard
         icon={Archive}
         title="Complete bundle"
-        subtitle="All generated artifacts (JSON, Python, SVG, Word Doc, STTM Excel, Diagnostics) in a single ZIP"
+        subtitle="All generated artifacts (JSON, Python, SVG, Business Report, Technical Specifications, STTM Excel, Diagnostics) in a single ZIP"
         formatBadge=".zip"
         isPrimary={true}
         onDownload={() => triggerDownload('zip')}
@@ -64,10 +64,18 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
 
         <DownloadCard
           icon={FileText}
-          title="Word document"
-          subtitle="Comprehensive workflow documentation report with embedded visual DAG"
+          title="Business Report"
+          subtitle="Executive business analysis report with business purpose, methodologies, findings, conclusions, lineage, and visual DAG"
           formatBadge=".docx"
           onDownload={() => triggerDownload('docx')}
+        />
+
+        <DownloadCard
+          icon={FileText}
+          title="Technical Specifications"
+          subtitle="Engineering specifications report with executive summary, step-by-step tool inventory, and technical configuration appendix"
+          formatBadge=".docx"
+          onDownload={() => triggerDownload('technical-docx')}
         />
 
         <DownloadCard
