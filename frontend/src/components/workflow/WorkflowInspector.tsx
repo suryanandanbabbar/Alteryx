@@ -9,6 +9,9 @@ import {
   ExternalLink,
   ArrowDownLeft,
   RotateCcw,
+  ChevronUp,
+  ChevronDown,
+  GripHorizontal,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { NodeDTO, ConnectionDTO } from '../../types/workflow';
@@ -18,11 +21,12 @@ import { formatXmlForDisplay } from '../../utils/xmlFormatter';
 
 export type ColumnId = 'WHAT_IT_DOES' | 'DATA_FLOW' | 'TECHNICAL_DETAILS';
 
-interface FloatingPanelState {
+interface FloatingCardState {
   x: number;
   y: number;
   width: number;
-  height: number;
+  maxHeight: number;
+  collapsed: boolean;
   zIndex: number;
 }
 
@@ -63,10 +67,10 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   // Pane layout state (session-only, resets on workflow switch)
   const [paneHeight, setPaneHeight] = useState<number>(DEFAULT_PANE_HEIGHT);
   const [detachedColumns, setDetachedColumns] = useState<Set<ColumnId>>(new Set());
-  const [floatingPanels, setFloatingPanels] = useState<Record<ColumnId, FloatingPanelState>>({
-    WHAT_IT_DOES: { x: 40, y: 40, width: 340, height: 260, zIndex: 100 },
-    DATA_FLOW: { x: 80, y: 80, width: 360, height: 280, zIndex: 100 },
-    TECHNICAL_DETAILS: { x: 120, y: 120, width: 400, height: 300, zIndex: 100 },
+  const [floatingCards, setFloatingCards] = useState<Record<ColumnId, FloatingCardState>>({
+    WHAT_IT_DOES: { x: 30, y: 50, width: 340, maxHeight: 320, collapsed: false, zIndex: 100 },
+    DATA_FLOW: { x: 390, y: 50, width: 340, maxHeight: 320, collapsed: false, zIndex: 100 },
+    TECHNICAL_DETAILS: { x: 750, y: 50, width: 380, maxHeight: 340, collapsed: false, zIndex: 100 },
   });
   const [highestZIndex, setHighestZIndex] = useState<number>(100);
 
@@ -75,23 +79,23 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
 
-  // Dragging floating panel state
-  const isDraggingPanelRef = useRef<ColumnId | null>(null);
+  // Dragging floating card state
+  const isDraggingCardRef = useRef<ColumnId | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Reset pane layout on workflow change
   useEffect(() => {
     setPaneHeight(DEFAULT_PANE_HEIGHT);
     setDetachedColumns(new Set());
-    setFloatingPanels({
-      WHAT_IT_DOES: { x: 40, y: 40, width: 340, height: 260, zIndex: 100 },
-      DATA_FLOW: { x: 80, y: 80, width: 360, height: 280, zIndex: 100 },
-      TECHNICAL_DETAILS: { x: 120, y: 120, width: 400, height: 300, zIndex: 100 },
+    setFloatingCards({
+      WHAT_IT_DOES: { x: 30, y: 50, width: 340, maxHeight: 320, collapsed: false, zIndex: 100 },
+      DATA_FLOW: { x: 390, y: 50, width: 340, maxHeight: 320, collapsed: false, zIndex: 100 },
+      TECHNICAL_DETAILS: { x: 750, y: 50, width: 380, maxHeight: 340, collapsed: false, zIndex: 100 },
     });
     setHighestZIndex(100);
   }, [analysisId]);
 
-  // Global mouse handlers for bottom pane resize and floating panel drag
+  // Global mouse handlers for bottom pane resize and floating card drag
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       // 1. Bottom pane vertical resize
@@ -102,13 +106,13 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
         setPaneHeight(newHeight);
       }
 
-      // 2. Floating panel dragging
-      if (isDraggingPanelRef.current) {
-        const colId = isDraggingPanelRef.current;
-        const newX = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffsetRef.current.x));
-        const newY = Math.max(0, Math.min(window.innerHeight - 50, e.clientY - dragOffsetRef.current.y));
+      // 2. Floating card dragging
+      if (isDraggingCardRef.current) {
+        const colId = isDraggingCardRef.current;
+        const newX = Math.max(10, Math.min(window.innerWidth - 100, e.clientX - dragOffsetRef.current.x));
+        const newY = Math.max(10, Math.min(window.innerHeight - 50, e.clientY - dragOffsetRef.current.y));
 
-        setFloatingPanels((prev) => ({
+        setFloatingCards((prev) => ({
           ...prev,
           [colId]: {
             ...prev[colId],
@@ -125,8 +129,8 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
       }
-      if (isDraggingPanelRef.current) {
-        isDraggingPanelRef.current = null;
+      if (isDraggingCardRef.current) {
+        isDraggingCardRef.current = null;
         document.body.style.cursor = '';
         document.body.style.userSelect = '';
       }
@@ -159,15 +163,17 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
 
     const nextZ = highestZIndex + 1;
     setHighestZIndex(nextZ);
-    setFloatingPanels((prev) => {
-      // Cascade initial floating positions neatly
-      const cascadeOffset = colId === 'WHAT_IT_DOES' ? 30 : colId === 'DATA_FLOW' ? 80 : 130;
+    setFloatingCards((prev) => {
+      // Cascade positions across canvas smoothly
+      const cascadeOffset = colId === 'WHAT_IT_DOES' ? 30 : colId === 'DATA_FLOW' ? 380 : 730;
+      const initialY = colId === 'WHAT_IT_DOES' ? 50 : colId === 'DATA_FLOW' ? 60 : 70;
       return {
         ...prev,
         [colId]: {
           ...prev[colId],
-          x: Math.min(window.innerWidth - 440, Math.max(40, cascadeOffset + 40)),
-          y: Math.min(window.innerHeight - 360, Math.max(60, cascadeOffset + 30)),
+          x: Math.min(window.innerWidth - (prev[colId].width + 20), Math.max(20, cascadeOffset)),
+          y: Math.min(window.innerHeight - 200, Math.max(30, initialY)),
+          collapsed: false,
           zIndex: nextZ,
         },
       };
@@ -182,16 +188,31 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
     });
   };
 
+  const handleToggleCollapse = (colId: ColumnId) => {
+    setFloatingCards((prev) => ({
+      ...prev,
+      [colId]: {
+        ...prev[colId],
+        collapsed: !prev[colId].collapsed,
+      },
+    }));
+  };
+
   const handleResetPaneLayout = () => {
     setPaneHeight(DEFAULT_PANE_HEIGHT);
     setDetachedColumns(new Set());
+    setFloatingCards({
+      WHAT_IT_DOES: { x: 30, y: 50, width: 340, maxHeight: 320, collapsed: false, zIndex: 100 },
+      DATA_FLOW: { x: 390, y: 50, width: 340, maxHeight: 320, collapsed: false, zIndex: 100 },
+      TECHNICAL_DETAILS: { x: 750, y: 50, width: 380, maxHeight: 340, collapsed: false, zIndex: 100 },
+    });
     setHighestZIndex(100);
   };
 
   const handleBringToFront = (colId: ColumnId) => {
     const nextZ = highestZIndex + 1;
     setHighestZIndex(nextZ);
-    setFloatingPanels((prev) => ({
+    setFloatingCards((prev) => ({
       ...prev,
       [colId]: {
         ...prev[colId],
@@ -200,17 +221,17 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
     }));
   };
 
-  const handleStartPanelDrag = (colId: ColumnId, e: React.MouseEvent) => {
-    // Only allow dragging from header element, ignore close/dock buttons
+  const handleStartCardDrag = (colId: ColumnId, e: React.MouseEvent) => {
+    // Only allow dragging from header element, ignore buttons
     if ((e.target as HTMLElement).closest('button')) {
       return;
     }
     e.preventDefault();
     handleBringToFront(colId);
-    isDraggingPanelRef.current = colId;
+    isDraggingCardRef.current = colId;
     dragOffsetRef.current = {
-      x: e.clientX - floatingPanels[colId].x,
-      y: e.clientY - floatingPanels[colId].y,
+      x: e.clientX - floatingCards[colId].x,
+      y: e.clientY - floatingCards[colId].y,
     };
     document.body.style.cursor = 'grabbing';
     document.body.style.userSelect = 'none';
@@ -259,7 +280,10 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
     return (
       <div
         style={{
-          width: '100%',
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
           height: '220px',
           maxHeight: '30vh',
           minHeight: '180px',
@@ -268,8 +292,8 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.12)',
-          flexShrink: 0,
-          zIndex: 10,
+          zIndex: 20,
+          pointerEvents: 'auto',
         }}
       >
         {/* Header */}
@@ -412,13 +436,14 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   const renderWhatItDoesContent = (isFloating: boolean) => (
     <div
       style={{
-        padding: '12px 16px',
+        padding: '12px 14px',
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
         overflowY: 'auto',
         flex: 1,
-        borderRight: !isFloating ? '1px solid var(--color-border)' : 'none',
+        width: '100%',
+        boxSizing: 'border-box',
       }}
     >
       {/* What It Does */}
@@ -460,7 +485,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
           {!isFloating && (
             <button
               onClick={() => handleDetachColumn('WHAT_IT_DOES')}
-              title="Pop out What It Does / Workflow Role as floating panel"
+              title="Pop out What It Does / Workflow Role as floating card"
               aria-label="Detach What It Does"
               style={{
                 background: 'transparent',
@@ -536,13 +561,14 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   const renderDataFlowContent = (isFloating: boolean) => (
     <div
       style={{
-        padding: '12px 16px',
+        padding: '12px 14px',
         display: 'flex',
         flexDirection: 'column',
         gap: '8px',
         overflowY: 'auto',
         flex: 1,
-        borderRight: !isFloating ? '1px solid var(--color-border)' : 'none',
+        width: '100%',
+        boxSizing: 'border-box',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -556,7 +582,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
           {!isFloating && (
             <button
               onClick={() => handleDetachColumn('DATA_FLOW')}
-              title="Pop out Data Flow as floating panel"
+              title="Pop out Data Flow as floating card"
               aria-label="Detach Data Flow"
               style={{
                 background: 'transparent',
@@ -700,12 +726,14 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   const renderTechnicalDetailsContent = (isFloating: boolean) => (
     <div
       style={{
-        padding: '12px 16px',
+        padding: '12px 14px',
         display: 'flex',
         flexDirection: 'column',
         gap: '10px',
         overflowY: 'auto',
         flex: 1,
+        width: '100%',
+        boxSizing: 'border-box',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -715,7 +743,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
         {!isFloating && (
           <button
             onClick={() => handleDetachColumn('TECHNICAL_DETAILS')}
-            title="Pop out Technical Details as floating panel"
+            title="Pop out Technical Details as floating card"
             aria-label="Detach Technical Details"
             style={{
               background: 'transparent',
@@ -812,8 +840,8 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             border: '1px solid var(--color-border)',
             borderRadius: '4px',
             padding: '6px 8px',
-            height: isFloating ? '140px' : '100px',
-            maxHeight: isFloating ? '220px' : '120px',
+            height: isFloating ? '130px' : '100px',
+            maxHeight: isFloating ? '200px' : '120px',
             overflowX: 'auto',
             overflowY: 'auto',
             fontFamily: 'var(--font-mono)',
@@ -835,13 +863,6 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   const isCol3Docked = !detachedColumns.has('TECHNICAL_DETAILS');
   const dockedCount = (isCol1Docked ? 1 : 0) + (isCol2Docked ? 1 : 0) + (isCol3Docked ? 1 : 0);
 
-  // Dynamic grid template for remaining docked columns
-  const getGridTemplateColumns = () => {
-    if (dockedCount === 3) return 'minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1.25fr)';
-    if (dockedCount === 2) return 'minmax(0, 1fr) minmax(0, 1fr)';
-    return 'minmax(0, 1fr)';
-  };
-
   const hasDetachedPanels = detachedColumns.size > 0;
   const isCustomHeight = paneHeight !== DEFAULT_PANE_HEIGHT;
   const showResetButton = hasDetachedPanels || isCustomHeight;
@@ -849,10 +870,10 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
   return (
     <>
       {/* ------------------------------------------------------------- */}
-      {/* 1. FLOATING DETACHED PANELS (Rendered as Viewport Overlays)   */}
+      {/* 1. FLOATING DETACHED CARDS (Rendered as Viewport Overlays)    */}
       {/* ------------------------------------------------------------- */}
       {Array.from(detachedColumns).map((colId) => {
-        const panelState = floatingPanels[colId];
+        const cardState = floatingCards[colId];
         const title =
           colId === 'WHAT_IT_DOES'
             ? 'What It Does & Role'
@@ -866,38 +887,44 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             onMouseDown={() => handleBringToFront(colId)}
             style={{
               position: 'fixed',
-              left: `${panelState.x}px`,
-              top: `${panelState.y}px`,
-              width: `${panelState.width}px`,
-              maxHeight: '70vh',
+              left: `${cardState.x}px`,
+              top: `${cardState.y}px`,
+              width: `${cardState.width}px`,
+              minWidth: '280px',
+              maxWidth: '420px',
+              maxHeight: cardState.collapsed ? 'auto' : `${cardState.maxHeight}px`,
               background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-md, 6px)',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.1)',
-              zIndex: panelState.zIndex,
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.24), 0 2px 6px rgba(0, 0, 0, 0.12)',
+              zIndex: cardState.zIndex,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
+              pointerEvents: 'auto',
             }}
           >
-            {/* Draggable Header */}
+            {/* Draggable Card Header */}
             <div
-              onMouseDown={(e) => handleStartPanelDrag(colId, e)}
+              onMouseDown={(e) => handleStartCardDrag(colId, e)}
               style={{
-                padding: '6px 12px',
-                borderBottom: '1px solid var(--color-border)',
+                padding: '6px 10px',
+                borderBottom: cardState.collapsed ? 'none' : '1px solid var(--color-border)',
                 background: 'var(--color-surface-secondary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 cursor: 'grab',
                 userSelect: 'none',
+                minHeight: '34px',
+                boxSizing: 'border-box',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                <GripHorizontal size={13} color="var(--color-text-muted)" style={{ flexShrink: 0 }} />
                 <span
                   style={{
-                    fontSize: '10.5px',
+                    fontSize: '10px',
                     fontWeight: 800,
                     fontFamily: 'var(--font-mono)',
                     color: 'var(--color-text)',
@@ -905,16 +932,45 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                     border: '1px solid var(--color-border)',
                     padding: '1px 4px',
                     borderRadius: '3px',
+                    flexShrink: 0,
                   }}
                 >
                   #{node.tool_id}
                 </span>
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {title}
                 </span>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                {/* Collapse / Expand Toggle Button */}
+                <button
+                  onClick={() => handleToggleCollapse(colId)}
+                  title={cardState.collapsed ? 'Expand card' : 'Collapse card'}
+                  aria-label={cardState.collapsed ? 'Expand card' : 'Collapse card'}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                    color: 'var(--color-text-secondary)',
+                    padding: '2px 4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
+                    e.currentTarget.style.color = 'var(--color-primary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = 'var(--color-text-secondary)';
+                  }}
+                >
+                  {cardState.collapsed ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+                </button>
+
                 {/* Dock Button */}
                 <button
                   onClick={() => handleDockColumn(colId)}
@@ -948,33 +1004,61 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
               </div>
             </div>
 
-            {/* Panel Content Body */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-              {colId === 'WHAT_IT_DOES' && renderWhatItDoesContent(true)}
-              {colId === 'DATA_FLOW' && renderDataFlowContent(true)}
-              {colId === 'TECHNICAL_DETAILS' && renderTechnicalDetailsContent(true)}
-            </div>
+            {/* Card Content Body (Hidden when collapsed) */}
+            {!cardState.collapsed && (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                {colId === 'WHAT_IT_DOES' && renderWhatItDoesContent(true)}
+                {colId === 'DATA_FLOW' && renderDataFlowContent(true)}
+                {colId === 'TECHNICAL_DETAILS' && renderTechnicalDetailsContent(true)}
+              </div>
+            )}
           </div>
         );
       })}
 
       {/* ------------------------------------------------------------- */}
-      {/* 2. DOCKED BOTTOM PANE (Only rendered if at least 1 docked)     */}
+      {/* 2. DOCKED BOTTOM CARDS / SURFACE (Rendered as Bottom Overlay) */}
       {/* ------------------------------------------------------------- */}
       {dockedCount > 0 && (
         <div
-          style={{
-            width: '100%',
-            height: `${paneHeight}px`,
-            background: 'var(--color-surface)',
-            borderTop: '1px solid var(--color-border)',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.12)',
-            flexShrink: 0,
-            position: 'relative',
-            zIndex: 10,
-          }}
+          style={
+            dockedCount === 3
+              ? {
+                  // When ALL THREE are docked: Full-width bottom inspector surface
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  width: '100%',
+                  height: `${paneHeight}px`,
+                  background: 'var(--color-surface)',
+                  borderTop: '1px solid var(--color-border)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.12)',
+                  zIndex: 15,
+                  pointerEvents: 'auto',
+                  boxSizing: 'border-box',
+                }
+              : {
+                  // When 1 or 2 are docked: Transparent positioning layer with shrink-wrapped card
+                  position: 'absolute',
+                  bottom: '12px',
+                  left: '12px',
+                  width: 'fit-content',
+                  maxWidth: 'calc(100% - 24px)',
+                  height: `${paneHeight}px`,
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-md, 6px)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.1)',
+                  zIndex: 15,
+                  pointerEvents: 'auto',
+                  overflow: 'hidden',
+                }
+          }
         >
           {/* Draggable Horizontal Resize Handle at the Top Edge */}
           <div
@@ -1022,6 +1106,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
               height: '36px',
               boxSizing: 'border-box',
               flexShrink: 0,
+              gap: '12px',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
@@ -1072,11 +1157,11 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {/* Reset Layout Button (Restores all detached panels and default height) */}
+              {/* Reset Layout Button (Restores all detached cards, uncollapses them, and resets default height) */}
               {showResetButton && (
                 <button
                   onClick={handleResetPaneLayout}
-                  title="Reset pane layout & dock all panels"
+                  title="Reset pane layout & dock all cards"
                   aria-label="Reset pane layout"
                   style={{
                     background: 'var(--color-surface)',
@@ -1129,17 +1214,103 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
 
           {/* 2. Content Body: Docked Columns */}
           <div
-            style={{
-              flex: 1,
-              display: 'grid',
-              gridTemplateColumns: getGridTemplateColumns(),
-              minHeight: 0,
-              overflow: 'hidden',
-            }}
+            style={
+              dockedCount === 3
+                ? {
+                    // All 3 docked: Clean full-width 3-column arrangement
+                    flex: 1,
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1.25fr)',
+                    minHeight: 0,
+                    overflow: 'hidden',
+                  }
+                : {
+                    // Fewer than 3 docked: Independent fixed-width cards
+                    flex: 1,
+                    display: 'flex',
+                    justifyContent: 'flex-start',
+                    alignItems: 'stretch',
+                    minHeight: 0,
+                    overflowX: 'auto',
+                    overflowY: 'hidden',
+                  }
+            }
           >
-            {isCol1Docked && renderWhatItDoesContent(false)}
-            {isCol2Docked && renderDataFlowContent(false)}
-            {isCol3Docked && renderTechnicalDetailsContent(false)}
+            {isCol1Docked && (
+              <div
+                style={
+                  dockedCount === 3
+                    ? {
+                        display: 'flex',
+                        minHeight: 0,
+                        overflow: 'hidden',
+                        borderRight: '1px solid var(--color-border)',
+                      }
+                    : {
+                        width: '340px',
+                        minWidth: '280px',
+                        maxWidth: '380px',
+                        flexShrink: 0,
+                        flexGrow: 0,
+                        display: 'flex',
+                        minHeight: 0,
+                        borderRight: (isCol2Docked || isCol3Docked) ? '1px solid var(--color-border)' : 'none',
+                      }
+                }
+              >
+                {renderWhatItDoesContent(false)}
+              </div>
+            )}
+
+            {isCol2Docked && (
+              <div
+                style={
+                  dockedCount === 3
+                    ? {
+                        display: 'flex',
+                        minHeight: 0,
+                        overflow: 'hidden',
+                        borderRight: '1px solid var(--color-border)',
+                      }
+                    : {
+                        width: '360px',
+                        minWidth: '300px',
+                        maxWidth: '420px',
+                        flexShrink: 0,
+                        flexGrow: 0,
+                        display: 'flex',
+                        minHeight: 0,
+                        borderRight: isCol3Docked ? '1px solid var(--color-border)' : 'none',
+                      }
+                }
+              >
+                {renderDataFlowContent(false)}
+              </div>
+            )}
+
+            {isCol3Docked && (
+              <div
+                style={
+                  dockedCount === 3
+                    ? {
+                        display: 'flex',
+                        minHeight: 0,
+                        overflow: 'hidden',
+                      }
+                    : {
+                        width: '400px',
+                        minWidth: '320px',
+                        maxWidth: '460px',
+                        flexShrink: 0,
+                        flexGrow: 0,
+                        display: 'flex',
+                        minHeight: 0,
+                      }
+                }
+              >
+                {renderTechnicalDetailsContent(false)}
+              </div>
+            )}
           </div>
         </div>
       )}
