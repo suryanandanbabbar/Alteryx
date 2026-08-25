@@ -10,6 +10,7 @@ import networkx as nx
 from awa.model.workflow import Workflow
 from awa.model.tool import Tool
 from awa.model.business_summary import WorkflowBusinessSummary
+from awa.model.visual_category import get_visual_category
 from awa.tools.catalog import get_tool_summary
 from awa.tools import humanize_tool_configuration
 
@@ -29,6 +30,52 @@ from .prompts import (
 from .cache import LLMNarrativeCache, get_global_narrative_cache, compute_cache_key
 
 logger = logging.getLogger("awa.llm")
+
+
+def _get_workflow_role(tool_type: str, category: str) -> str:
+    """Map tool type and visual category to standard workflow role."""
+    t_lower = tool_type.lower()
+    c_lower = category.lower()
+
+    if "sort" in t_lower:
+        return "Ordering"
+    if "select" in t_lower:
+        return "Field Selection"
+    if "unique" in t_lower:
+        return "Deduplication"
+    if "sample" in t_lower:
+        return "Sampling"
+    if "datetime" in t_lower:
+        return "Temporal Formatting"
+    if any(k in t_lower for k in ("regex", "texttocolumns", "xmlparse", "jsonparse")):
+        return "Data Parsing"
+    if any(k in t_lower for k in ("input", "fileinput", "directory")):
+        return "Data Input"
+    if any(k in t_lower for k in ("output", "browse")):
+        return "Data Output"
+    if any(k in t_lower for k in ("blockuntildone", "message", "test")):
+        return "Execution Control"
+
+    if c_lower == "input":
+        return "Data Input"
+    if c_lower == "output":
+        return "Data Output"
+    if c_lower == "join":
+        return "Data Integration"
+    if c_lower == "filter":
+        return "Data Filtering"
+    if c_lower in ("formula", "transform", "cleansing"):
+        return "Data Transformation"
+    if c_lower in ("summarize", "aggregate"):
+        return "Aggregation"
+    if c_lower == "sort":
+        return "Ordering"
+    if c_lower == "select":
+        return "Field Selection"
+    if c_lower == "unique":
+        return "Deduplication"
+
+    return "Data Transformation"
 
 
 def _clean_narrative_text(raw_text: str | None) -> str:
@@ -56,18 +103,24 @@ def _clean_narrative_text(raw_text: str | None) -> str:
         r"^executive summary:\s*",
         r"^description:\s*",
         r"^summary:\s*",
+        r"^this tool\s+",
     ]
     for pattern in prefixes_to_strip:
         text = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
+
+    # Capitalize first character if lowercase
+    if text and text[0].islower():
+        text = text[0].upper() + text[1:]
 
     return text
 
 
 def extract_tool_facts(workflow: Workflow, tool: Tool, graph: nx.DiGraph | None = None) -> ToolFacts:
-    """Extract deterministic facts for a single tool from the workflow model and DAG."""
+    """Extract deterministic facts for a single tool instance from the workflow model and DAG."""
     # Upstream and downstream tools
     upstreams: list[dict[str, Any]] = []
     downstreams: list[dict[str, Any]] = []
+    input_fields: list[str] = []
 
     if graph is not None:
         if graph.has_node(tool.tool_id):
@@ -80,6 +133,10 @@ def extract_tool_facts(workflow: Workflow, tool: Tool, graph: nx.DiGraph | None 
                         "name": pred_tool.name or pred_tool.tool_type,
                         "annotation": pred_tool.annotation,
                     })
+                    # Collect input fields available from predecessors
+                    for f in pred_tool.output_fields:
+                        if f.name and f.name not in input_fields:
+                            input_fields.append(f.name)
             for succ_id in graph.successors(tool.tool_id):
                 succ_tool = workflow.tools.get(succ_id)
                 if succ_tool:
@@ -94,23 +151,33 @@ def extract_tool_facts(workflow: Workflow, tool: Tool, graph: nx.DiGraph | None 
     raw_cfg = tool.configuration.parsed if tool.configuration else {}
     cleaned_cfg = humanize_tool_configuration(tool.tool_type, raw_cfg)
 
-    # Technical fallback description from tool registry
+    # Generic tool definition from tool registry
     tech_function = get_tool_summary(tool.plugin or tool.tool_type)
 
     output_flds = [f.name for f in tool.output_fields if f.name]
 
+    # Workflow Role & Container Context
+    vis_cat = get_visual_category(tool.tool_type)
+    role = _get_workflow_role(tool.tool_type, vis_cat)
+    container_ctx = tool.container_name if tool.container_name else "Root Level (No Container)"
+
     return ToolFacts(
         tool_id=tool.tool_id,
         tool_type=tool.tool_type,
+        plugin=tool.plugin or tool.tool_type,
         tool_name=tool.name or tool.tool_type,
-        workflow_role=tool.container_name or "Processing",
+        workflow_name=workflow.metadata.name or "Alteryx Workflow",
+        workflow_role=role,
         annotation=tool.annotation,
+        deterministic_tool_definition=tech_function,
         configuration_summary=cleaned_cfg,
+        input_fields=input_fields,
+        output_fields=output_flds,
         upstream_tools=upstreams,
         downstream_tools=downstreams,
         container_name=tool.container_name,
-        output_fields=output_flds,
-        technical_function=tech_function,
+        container_context=container_ctx,
+        raw_node_xml=tool.raw_node_xml,
     )
 
 
@@ -175,16 +242,7 @@ def extract_workflow_facts(workflow: Workflow, business_summary: WorkflowBusines
 
 
 class LLMNarrativeGenerator:
-    """High-level orchestration service for narrative generation with caching and fallback.
-    
-    The generator:
-    1. Extracts deterministic facts from the workflow model
-    2. Checks the in-memory cache
-    3. Calls the LLM client if cache miss
-    4. Validates and sanitizes the response
-    5. Falls back to deterministic tool registry summaries on failure
-    6. Logs structured generation status (never secrets)
-    """
+    """High-level orchestration service for narrative generation with caching and fallback."""
 
     def __init__(
         self,
@@ -205,15 +263,15 @@ class LLMNarrativeGenerator:
         graph: nx.DiGraph | None = None,
         workflow_id: str = "",
     ) -> NarrativeResult:
-        """Generate a workflow-specific 'What It Does' summary for a tool.
+        """Generate a workflow-specific 'What It Does' summary for a tool instance.
         
-        Fallback uses the deterministic tool registry summary — never raw annotation.
-        The annotation is input context for the LLM, not the fallback output.
+        Explains what THIS INSTANCE is doing in THIS WORKFLOW based on configuration,
+        upstream/downstream relationships, and fields.
         """
-        # 1. Deterministic fallback: ALWAYS use tool registry, never raw annotation
+        # 1. Deterministic fallback: tool registry description
         fallback_text = get_tool_summary(tool.plugin or tool.tool_type)
 
-        # 2. Extract facts (annotation is included as LLM input, not fallback)
+        # 2. Extract facts
         facts = extract_tool_facts(workflow, tool, graph)
         wf_key = workflow_id or workflow.metadata.name or "default_workflow"
         cache_key = compute_cache_key(
@@ -235,7 +293,7 @@ class LLMNarrativeGenerator:
         raw_response = self.client.generate(system_prompt, user_prompt)
         cleaned = _clean_narrative_text(raw_response)
 
-        # 5. Validate output
+        # 5. Validate output: Ensure non-empty, reasonable length
         if cleaned and len(cleaned.split()) >= 3 and len(cleaned) <= 500:
             result = NarrativeResult(
                 text=cleaned,

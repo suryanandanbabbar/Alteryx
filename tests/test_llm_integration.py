@@ -25,6 +25,7 @@ from awa.llm.client import AzureLlamaClient, FakeLLMClient, set_default_llm_clie
 from awa.llm.schemas import ToolFacts, WorkflowFacts, NarrativeResult
 from awa.llm.cache import LLMNarrativeCache, compute_cache_key
 from awa.llm.prompts import (
+    TOOL_PROMPT_VERSION,
     TOOL_SYSTEM_PROMPT,
     WORKFLOW_PURPOSE_SYSTEM_PROMPT,
     EXECUTIVE_SUMMARY_SYSTEM_PROMPT,
@@ -191,13 +192,17 @@ def test_extract_tool_facts():
     facts = extract_tool_facts(wf, tool)
     assert facts.tool_id == 16
     assert facts.tool_type == "Sort"
+    assert facts.workflow_role == "Ordering"
     assert facts.container_name == "Processing Container"
     assert "Quarter_End_Date" in str(facts.configuration_summary)
     assert "Claim_ID" in facts.output_fields
 
     prompt = build_tool_user_prompt(facts)
-    assert "Tool #16 (Sort)" in prompt
+    assert "Tool ID:\n16" in prompt
+    assert "Tool type:\nSort" in prompt
     assert "Quarter_End_Date" in prompt
+    assert "GENERIC TOOL DEFINITION:" in prompt
+    assert "WORKFLOW ROLE:\nOrdering" in prompt
 
 
 def test_different_tool_instances_get_different_llm_context():
@@ -233,6 +238,8 @@ def test_different_tool_instances_get_different_llm_context():
     prompt8 = build_tool_user_prompt(facts8)
     prompt9 = build_tool_user_prompt(facts9)
     assert prompt8 != prompt9
+    assert "Department" in prompt8
+    assert "Claim_Date" in prompt9
 
 
 def test_extract_workflow_facts():
@@ -293,8 +300,8 @@ def test_extract_workflow_facts():
 def test_cache_workflow_isolation():
     cache = LLMNarrativeCache()
 
-    key_wf1 = compute_cache_key("wf_claims_1", "tool_8", "1.0", "llama-70b", {"f": 1})
-    key_wf2 = compute_cache_key("wf_claims_2", "tool_8", "1.0", "llama-70b", {"f": 2})
+    key_wf1 = compute_cache_key("wf_claims_1", "tool_8", "2.0", "llama-70b", {"f": 1})
+    key_wf2 = compute_cache_key("wf_claims_2", "tool_8", "2.0", "llama-70b", {"f": 2})
 
     assert key_wf1 != key_wf2
 
@@ -348,7 +355,7 @@ def test_llm_is_not_called_again_when_cached():
 def test_llm_tool_summary_reaches_diagram_dto():
     fake_client = FakeLLMClient(
         response_map={
-            "tool #16": "Sorts claim records chronologically by Quarter End Date descending for reporting."
+            "tool id:\n16": "Sorts claim records chronologically by Quarter End Date descending for reporting."
         }
     )
     generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
@@ -470,7 +477,7 @@ def test_azure_authentication_failure_is_logged_safely(monkeypatch, caplog):
 
 
 # ---------------------------------------------------------------------------
-# 5. Full End-to-End Pipeline Test
+# 5. Full End-to-End Pipeline & Multi-Instance Regression Tests
 # ---------------------------------------------------------------------------
 
 def test_full_pipeline_with_demo_workflow():
@@ -481,18 +488,26 @@ def test_full_pipeline_with_demo_workflow():
     if not sample_file.exists():
         pytest.skip("Demo workflow fixture not found")
 
+    captured_prompts: dict[int, str] = {}
+
     def mock_generator(system: str, user: str) -> str | None:
-        if "Tool #8" in user:
-            return "Aggregates initial open claim records by department."
-        elif "Tool #9" in user:
-            return "Summarizes total paid indemnity amounts per claimant."
-        elif "Tool #104" in user:
+        if "Tool ID:\n8" in user:
+            captured_prompts[8] = user
+            return "Aggregates claim volume by quarter, claim status, manager, and examiner to create the manager/examiner-level reporting dataset used by downstream analysis."
+        elif "Tool ID:\n9" in user:
+            captured_prompts[9] = user
+            return "Identifies the most recent quarter-end date from the summarized claims data so downstream processing can isolate the latest reporting period."
+        elif "Tool ID:\n104" in user:
+            captured_prompts[104] = user
             return "Computes quarterly claim volume subtotals by examiner."
-        elif "Tool #16" in user:
-            return "Sorts quarterly claim metrics by date in descending order."
-        elif "Tool #1" in user:
+        elif "Tool ID:\n16" in user:
+            captured_prompts[16] = user
+            return "Sorts quarterly claim metrics chronologically by quarter-end date in descending order."
+        elif "Tool ID:\n1" in user:
+            captured_prompts[1] = user
             return "Reads raw claims volume extract from Excel source file."
-        elif "Tool #17" in user:
+        elif "Tool ID:\n17" in user:
+            captured_prompts[17] = user
             return "Exports finalized quarterly claims matrix to Excel deliverable."
         elif "business purpose" in system.lower() or "business purpose" in user.lower():
             return "Automates quarterly insurance claims volume extraction, summarization, and matrix reporting."
@@ -516,10 +531,16 @@ def test_full_pipeline_with_demo_workflow():
     nodes_by_id = {n.tool_id: n for n in diagram_dto.nodes}
 
     # Verify tool #8 and #9 received distinct summaries
-    if 8 in nodes_by_id and 9 in nodes_by_id:
-        assert nodes_by_id[8].summary != nodes_by_id[9].summary
-        assert "department" in nodes_by_id[8].summary
-        assert "indemnity" in nodes_by_id[9].summary
+    assert 8 in nodes_by_id and 9 in nodes_by_id
+    assert nodes_by_id[8].summary != nodes_by_id[9].summary
+    assert "manager" in nodes_by_id[8].summary.lower()
+    assert "most recent quarter-end date" in nodes_by_id[9].summary.lower()
+
+    # Verify that the prompts contain actual configuration details (not just generic info)
+    assert 8 in captured_prompts
+    assert "Quarter End Date" in captured_prompts[8]
+    assert "Manager" in captured_prompts[8]
+    assert "Examiner" in captured_prompts[8]
 
     # Verify tool #16 sort summary
     if 16 in nodes_by_id:

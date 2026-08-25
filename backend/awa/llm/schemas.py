@@ -12,7 +12,7 @@ class NarrativeResult:
     text: str
     source: Literal["llm", "deterministic_fallback"]
     model: str = ""
-    prompt_version: str = "1.0"
+    prompt_version: str = "2.0"
     is_cached: bool = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -27,32 +27,40 @@ class NarrativeResult:
 
 @dataclass
 class ToolFacts:
-    """Deterministic factual context for a single tool."""
+    """Deterministic factual context for a single tool instance in an ETL workflow."""
     tool_id: int
     tool_type: str
+    plugin: str
     tool_name: str
+    workflow_name: str
     workflow_role: str
     annotation: str
+    deterministic_tool_definition: str
     configuration_summary: dict[str, Any] = dc_field(default_factory=dict)
+    input_fields: list[str] = dc_field(default_factory=list)
+    output_fields: list[str] = dc_field(default_factory=list)
     upstream_tools: list[dict[str, Any]] = dc_field(default_factory=list)
     downstream_tools: list[dict[str, Any]] = dc_field(default_factory=list)
     container_name: str | None = None
-    output_fields: list[str] = dc_field(default_factory=list)
-    technical_function: str = ""
+    container_context: str | None = None
+    raw_node_xml: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "workflow_name": self.workflow_name,
             "tool_id": self.tool_id,
             "tool_type": self.tool_type,
+            "plugin": self.plugin,
             "tool_name": self.tool_name,
+            "deterministic_tool_definition": self.deterministic_tool_definition,
             "workflow_role": self.workflow_role,
             "annotation": self.annotation,
             "configuration": self.configuration_summary,
+            "input_fields": self.input_fields,
+            "output_fields": self.output_fields,
             "upstream_tools": self.upstream_tools,
             "downstream_tools": self.downstream_tools,
-            "container": self.container_name,
-            "output_fields": self.output_fields,
-            "technical_function": self.technical_function,
+            "container_context": self.container_context or self.container_name or "None",
         }
 
 

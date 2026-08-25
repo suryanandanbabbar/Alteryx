@@ -7,37 +7,112 @@ from typing import Any
 
 from .schemas import ToolFacts, WorkflowFacts
 
-TOOL_PROMPT_VERSION = "1.0"
+TOOL_PROMPT_VERSION = "2.0"
 WORKFLOW_PURPOSE_PROMPT_VERSION = "1.0"
 EXEC_SUMMARY_PROMPT_VERSION = "1.0"
 
 # ---------------------------------------------------------------------------
-# 1. Tool "What It Does" Prompts
+# 1. Tool "What It Does" Prompts (Workflow-Specific Role)
 # ---------------------------------------------------------------------------
 
-TOOL_SYSTEM_PROMPT = """You are an expert enterprise ETL and Alteryx workflow analyst.
-Your task is to generate a concise, factual, workflow-specific description answering "What It Does" for a single tool within an Alteryx workflow.
+TOOL_SYSTEM_PROMPT = """You are an enterprise ETL workflow analyst.
 
-CRITICAL CONSTRAINTS:
-1. Use ONLY the supplied deterministic workflow facts (configuration, role, upstream inputs, downstream targets, annotation).
-2. Do NOT invent business objectives, stakeholders, schedules, SLAs, KPIs, or external systems not explicitly present in the facts.
-3. Describe what THIS specific tool does in THIS workflow (referencing its actual columns, filters, aggregations, or targets).
-4. Use clear, professional, business-readable language.
-5. Write exactly ONE concise sentence (target 15-30 words).
-6. Do NOT mention that an LLM generated this description.
-7. Do NOT include markdown headings, bullet points, quotes, or conversational preamble."""
+Your task is to explain the role of ONE specific tool instance inside a larger ETL workflow.
+
+Do NOT describe what the tool type generally does.
+
+Instead, explain what THIS INSTANCE is doing in THIS WORKFLOW.
+
+Use the supplied deterministic workflow facts as the source of truth.
+
+The explanation must connect the tool's configuration and position in the data flow to its actual purpose in the workflow.
+
+The reader is a business/technical stakeholder reviewing an existing ETL workflow before migration.
+
+Rules:
+- Describe the specific operation performed by this tool instance.
+- Use actual fields, grouping, filtering, formulas, joins, outputs, or other configuration when available.
+- Use upstream and downstream context to explain why the operation exists in the workflow.
+- Use the annotation as supporting context.
+- Use the workflow role as contextual information.
+- Do not merely restate the tool type.
+- Do not describe generic capabilities of the Alteryx tool.
+- Do not invent business meaning not supported by the supplied facts.
+- Do not mention that you are an AI or LLM.
+- Do not say "this tool".
+- Do not use vague phrases such as "processes the data" when the specific operation can be identified.
+- Return ONE concise business-readable sentence or two short sentences.
+- Target approximately 20-40 words.
+
+CRITICAL:
+The deterministic tool registry description is NOT the answer.
+It is only background information about the tool type.
+The answer must be workflow-specific."""
 
 
 def build_tool_user_prompt(facts: ToolFacts) -> str:
-    """Format deterministic tool facts for the LLM."""
-    facts_dict = facts.to_dict()
-    facts_json = json.dumps(facts_dict, indent=2)
-    return f"""Analyze these deterministic facts for Tool #{facts.tool_id} ({facts.tool_type}) and write a one-sentence "What It Does" description:
+    """Format deterministic tool facts for workflow-specific purpose prompt."""
+    cfg_str = json.dumps(facts.configuration_summary, indent=2) if facts.configuration_summary else "None"
+    in_fields_str = ", ".join(facts.input_fields) if facts.input_fields else "Not specified"
+    out_fields_str = ", ".join(facts.output_fields) if facts.output_fields else "Not specified"
 
-FACTS:
-{facts_json}
+    upstream_str = (
+        json.dumps(facts.upstream_tools, indent=2)
+        if facts.upstream_tools
+        else "None (Source tool)"
+    )
+    downstream_str = (
+        json.dumps(facts.downstream_tools, indent=2)
+        if facts.downstream_tools
+        else "None (Terminal output)"
+    )
 
-DESCRIPTION:"""
+    return f"""WORKFLOW:
+
+Workflow name:
+{facts.workflow_name or 'Alteryx Workflow'}
+
+TOOL:
+
+Tool ID:
+{facts.tool_id}
+
+Tool type:
+{facts.tool_type}
+
+Plugin:
+{facts.plugin or facts.tool_type}
+
+GENERIC TOOL DEFINITION:
+{facts.deterministic_tool_definition or 'Standard ETL processing component.'}
+
+WORKFLOW ROLE:
+{facts.workflow_role}
+
+ANNOTATION:
+{facts.annotation or 'None'}
+
+CONFIGURATION:
+{cfg_str}
+
+INPUT FIELDS:
+{in_fields_str}
+
+OUTPUT FIELDS:
+{out_fields_str}
+
+UPSTREAM TOOLS:
+{upstream_str}
+
+DOWNSTREAM TOOLS:
+{downstream_str}
+
+CONTAINER CONTEXT:
+{facts.container_context or facts.container_name or 'None'}
+
+Based ONLY on these facts, write the workflow-specific "What It Does" description for this particular tool instance.
+
+Return only the final description."""
 
 
 # ---------------------------------------------------------------------------
