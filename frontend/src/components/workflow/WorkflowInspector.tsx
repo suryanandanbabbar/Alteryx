@@ -443,7 +443,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
         flexDirection: 'column',
         gap: '12px',
         overflowY: 'auto',
-        flex: 1,
+        flex: isFloating ? 1 : '0 0 auto',
         width: '100%',
         boxSizing: 'border-box',
       }}
@@ -568,7 +568,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
         flexDirection: 'column',
         gap: '8px',
         overflowY: 'auto',
-        flex: 1,
+        flex: isFloating ? 1 : '0 0 auto',
         width: '100%',
         boxSizing: 'border-box',
       }}
@@ -774,8 +774,8 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
         )}
       </div>
 
-      {/* Container ID & XML Tool Name Metadata Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '14px', alignItems: 'flex-start' }}>
+      {/* Container ID & XML Tool Name Metadata Row (Natural Height) */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '14px', alignItems: 'flex-start', flexShrink: 0 }}>
         <div>
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
             Container ID
@@ -807,9 +807,9 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
         </div>
       </div>
 
-      {/* Workflow Context (Formatted XML Code Viewer) */}
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+      {/* Workflow Context (Formatted XML Code Viewer - Content-Bounded Height) */}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 auto', minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px', flexShrink: 0 }}>
           <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Workflow Context
           </div>
@@ -842,8 +842,8 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             border: '1px solid var(--color-border)',
             borderRadius: '4px',
             padding: '6px 8px',
-            height: isFloating ? '130px' : '100px',
-            maxHeight: isFloating ? '200px' : '120px',
+            height: 'fit-content',
+            maxHeight: '100%',
             overflowX: 'auto',
             overflowY: 'auto',
             fontFamily: 'var(--font-mono)',
@@ -851,6 +851,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             lineHeight: '1.4',
             color: '#e2e8f0',
             whiteSpace: 'pre',
+            boxSizing: 'border-box',
           }}
         >
           <code>{formattedNodeXml}</code>
