@@ -850,16 +850,41 @@ class LLMNarrativeGenerator:
             methods_analysis = str(data.get("methods_of_analysis", "")).strip()
             conclusions = str(data.get("conclusions", "")).strip()
 
-            # Reject empty core analytical sections
-            if not exec_summary or len(exec_summary) < 20:
-                logger.warning("[LLM] Validation failed: executive_summary is too short or empty")
+            # Reject empty or trivial core analytical sections
+            if not exec_summary or len(exec_summary) < 40:
+                logger.warning("[LLM] Validation failed: executive_summary is too short (< 40 chars) or empty")
                 return None
-            if not methods_analysis or len(methods_analysis) < 20:
-                logger.warning("[LLM] Validation failed: methods_of_analysis is too short or empty")
+            if not methods_analysis or len(methods_analysis) < 30:
+                logger.warning("[LLM] Validation failed: methods_of_analysis is too short (< 30 chars) or empty")
                 return None
-            if not conclusions or len(conclusions) < 15:
-                logger.warning("[LLM] Validation failed: conclusions is too short or empty")
+            if not conclusions or len(conclusions) < 20:
+                logger.warning("[LLM] Validation failed: conclusions is too short (< 20 chars) or empty")
                 return None
+
+            # Check for prohibited generic AI filler in executive summary & conclusions
+            prohibited_cliches = [
+                "valuable insights",
+                "meaningful insights",
+                "enhances decision-making",
+                "streamlines business processes",
+                "streamlines data processing",
+                "improves efficiency",
+                "supports data-driven decisions",
+                "ensures robust analysis",
+                "facilitates informed decisions",
+                "produces useful outputs",
+            ]
+            all_text_lower = f"{exec_summary} {methods_analysis} {conclusions}".lower()
+            for cliche in prohibited_cliches:
+                if cliche in all_text_lower:
+                    logger.warning("[LLM] Validation warning: found generic AI cliché '%s' in report narrative", cliche)
+
+            # Check that recommendations/action directives are NOT present in executive summary
+            forbidden_phrases = ["we recommend", "the business should", "recommended action", "recommendation:"]
+            for fp in forbidden_phrases:
+                if fp in all_text_lower:
+                    logger.warning("[LLM] Validation failed: found forbidden recommendation phrasing '%s'", fp)
+                    return None
 
             # 2. Parse and validate findings (3 to 7 items expected, minimum 1)
             raw_findings = data.get("findings", [])

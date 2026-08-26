@@ -8,12 +8,11 @@ from typing import Any
 from .schemas import ToolFacts, WorkflowFacts
 
 TOOL_PROMPT_VERSION = "2.0"
-WORKFLOW_PURPOSE_PROMPT_VERSION = "1.0"
-EXEC_SUMMARY_PROMPT_VERSION = "1.0"
-METHODS_OF_ANALYSIS_PROMPT_VERSION = "1.0"
-FINDINGS_PROMPT_VERSION = "1.0"
-CONCLUSIONS_PROMPT_VERSION = "1.0"
-RECOMMENDATIONS_PROMPT_VERSION = "1.0"
+WORKFLOW_PURPOSE_PROMPT_VERSION = "2.0"
+EXEC_SUMMARY_PROMPT_VERSION = "2.0"
+METHODS_OF_ANALYSIS_PROMPT_VERSION = "2.0"
+FINDINGS_PROMPT_VERSION = "2.0"
+CONCLUSIONS_PROMPT_VERSION = "2.0"
 
 # ---------------------------------------------------------------------------
 # 1. Tool "What It Does" Prompts (Workflow-Specific Role)
@@ -123,14 +122,14 @@ Return only the final description."""
 # 2. Workflow "Business Purpose" Prompts
 # ---------------------------------------------------------------------------
 
-WORKFLOW_PURPOSE_SYSTEM_PROMPT = """You are a senior enterprise data architect summarizing an automated data workflow.
+WORKFLOW_PURPOSE_SYSTEM_PROMPT = """You are a Senior Business Intelligence Analyst summarizing an automated data analysis workflow.
 Your task is to explain the Business Purpose of the entire workflow.
 
 CRITICAL CONSTRAINTS:
 1. Use ONLY the supplied deterministic workflow facts (inputs, stages, transformations, business rules, outputs).
 2. Do NOT invent stakeholders, business owners, schedules, SLAs, KPIs, or external consumers not present in the facts.
-3. Explain what business/process problem the workflow supports, the core data being processed, key transformations performed, and reporting deliverables produced.
-4. Write exactly ONE concise paragraph (approximately 35-65 words).
+3. Explain what business domain/problem the workflow supports, the core entities/measures analysed, key analytical operations performed, and reporting deliverables produced.
+4. Write exactly ONE concise paragraph (approximately 40-75 words).
 5. Do NOT include markdown headings, bullet points, quotes, or conversational preamble."""
 
 
@@ -138,7 +137,7 @@ def build_workflow_purpose_user_prompt(facts: WorkflowFacts) -> str:
     """Format deterministic workflow facts for Business Purpose generation."""
     facts_dict = facts.to_dict()
     facts_json = json.dumps(facts_dict, indent=2)
-    return f"""Analyze these deterministic workflow facts and write a concise, one-paragraph Business Purpose:
+    return f"""Analyze these deterministic workflow facts as a Business Intelligence Analyst and write a concise, one-paragraph Business Purpose:
 
 FACTS:
 {facts_json}
@@ -147,29 +146,37 @@ BUSINESS PURPOSE:"""
 
 
 # ---------------------------------------------------------------------------
-# 3. DOCX "Executive Summary" Prompts
+# 3. DOCX "Executive Summary" Prompts (Standalone)
 # ---------------------------------------------------------------------------
 
-EXECUTIVE_SUMMARY_SYSTEM_PROMPT = """You are a lead enterprise analytics consultant drafting the Executive Summary section for a formal Alteryx Workflow Assessment and Migration Report.
+EXECUTIVE_SUMMARY_SYSTEM_PROMPT = """You are a Senior Business Intelligence & Statistical Reporting Analyst authoring the Executive Summary for a formal business analytics report.
+
+Your task is to tell the complete business-analytics story of the workflow from the supplied facts, following this narrative progression:
+Purpose & Subject → Business Context & Dimensions → Analytical Evidence → Key Findings → Interpretation & Conclusion.
 
 CRITICAL CONSTRAINTS:
-1. Use ONLY the supplied deterministic workflow facts.
-2. Do NOT invent operational schedules, execution frequency, SLAs, ownership, performance metrics, or facts outside the analysis.
-3. Summarize:
-   - what the workflow accomplishes in its business domain
-   - major source datasets integrated
-   - primary transformations and derivations performed
-   - final business deliverables generated
-4. Target length: 100 to 150 words in 1 to 2 professional paragraphs.
-5. Use professional consulting report tone.
-6. Do NOT use bullet points, headings, greetings, or meta-commentary."""
+1. Ground every statement strictly in the supplied deterministic workflow facts.
+2. Explain:
+   - What business subject/domain and core entities/measures are analysed.
+   - Key analytical dimensions (time periods, geography, product categories, customer segments) and why they matter in the analytical operations.
+   - Major cross-source integrations, formula calculations, and multi-dimensional aggregations performed.
+   - Final business reporting deliverables produced and their reporting grain.
+3. PERMANENT EXCLUSIONS:
+   - NO Recommendations or action items ("the business should...").
+   - NO Limitations section or paragraph.
+   - NO Tool IDs (#1, #39), XML node names, coordinates, or raw technical plumbing in the narrative.
+4. NO GENERIC AI FILLER:
+   - Prohibit vague clichés: "provides valuable insights", "enhances decision-making", "streamlines business processes", "improves efficiency".
+   - Replace with concrete, evidenced analytical descriptions.
+5. Target length: 120 to 180 words in 1 to 2 professional paragraphs.
+6. Return ONLY the executive summary prose."""
 
 
 def build_executive_summary_user_prompt(facts: WorkflowFacts) -> str:
     """Format deterministic workflow facts for Executive Summary report generation."""
     facts_dict = facts.to_dict()
     facts_json = json.dumps(facts_dict, indent=2)
-    return f"""Draft the formal Executive Summary paragraph(s) (100-150 words) based strictly on these deterministic workflow facts:
+    return f"""Draft the formal Executive Summary business-analytics narrative (120-180 words) based strictly on these deterministic workflow facts:
 
 FACTS:
 {facts_json}
@@ -178,28 +185,28 @@ EXECUTIVE SUMMARY:"""
 
 
 # ---------------------------------------------------------------------------
-# 4. DOCX "Methods of Analysis" Prompts
+# 4. DOCX "Methods of Analysis" Prompts (Standalone)
 # ---------------------------------------------------------------------------
 
-METHODS_OF_ANALYSIS_SYSTEM_PROMPT = """You are a lead enterprise analytics consultant drafting the "Methods of Analysis" subsection for a formal Workflow Assessment Report.
+METHODS_OF_ANALYSIS_SYSTEM_PROMPT = """You are a Senior Business Intelligence Analyst drafting the "Methods of Analysis" section for a formal business report.
 
-Your task is to explain the actual analytical process, data transformation methodology, and pipeline flow implemented by the workflow.
+Your task is to explain the end-to-end analytical methodology flow:
+Source Ingestion → Integration & Joins → Enrichment & Formulas → Aggregation & Statistical Reductions → Filtering & Segmentation → Deliverable Distribution.
 
 CRITICAL CONSTRAINTS:
-1. Explain the methodology as a coherent end-to-end analytical process rather than as an inventory of Alteryx tools.
-2. Mention ONLY analytical and data engineering techniques actually evidenced by the supplied facts (e.g. source ingestion, data consolidation, joins/reconciliation, aggregations, filtering/exclusion, calculated derivations, temporal analysis, segmentation, or deliverable preparation).
-3. Do NOT blindly enumerate generic techniques that do not exist in the workflow.
+1. Explain the methodology as a coherent analytical process rather than an inventory of Alteryx tools.
+2. Mention ONLY analytical/statistical techniques actually evidenced (e.g. multi-dimensional summation, distinct counting, formula measure derivation, conditional segmentation, relational joins, matrix pivoting, sorting).
+3. Do NOT blindly list generic techniques not present in the workflow.
 4. Do NOT mention "the LLM", "AI", "model", or "prompt".
-5. Write exactly ONE cohesive, professional paragraph (approximately 60-120 words).
-6. Preferred style: "The workflow first ingests ..., then consolidates ... through ..., after which it derives ... and aggregates ... across ... . The resulting dataset is subsequently distributed into ... analytical outputs."
-7. Do NOT use bullet points, markdown headings, or conversational preamble."""
+5. Write exactly ONE cohesive, professional paragraph (approximately 70-130 words).
+6. Do NOT use bullet points, markdown headings, or conversational preamble."""
 
 
 def build_methods_of_analysis_user_prompt(facts: WorkflowFacts) -> str:
     """Format deterministic workflow facts for Methods of Analysis generation."""
     facts_dict = facts.to_dict()
     facts_json = json.dumps(facts_dict, indent=2)
-    return f"""Draft the formal Methods of Analysis paragraph (60-120 words) explaining the actual transformation methodology based strictly on these deterministic workflow facts:
+    return f"""Draft the formal Methods of Analysis paragraph (70-130 words) explaining the actual analytical methodology based strictly on these deterministic workflow facts:
 
 FACTS:
 {facts_json}
@@ -208,35 +215,38 @@ METHODS OF ANALYSIS:"""
 
 
 # ---------------------------------------------------------------------------
-# 5. DOCX "Findings" Prompts
+# 5. DOCX "Findings" Prompts (Standalone)
 # ---------------------------------------------------------------------------
 
-FINDINGS_SYSTEM_PROMPT = """You are a senior data architect and management consultant drafting the "Findings" subsection of an Executive Summary for a formal Workflow Assessment Report.
+FINDINGS_SYSTEM_PROMPT = """You are a Senior Business Intelligence & Statistical Reporting Analyst drafting the "Findings" section for a formal business analytics report.
 
-Your task is to produce approximately 4 to 6 substantive, evidence-based findings grounded strictly in the supplied workflow facts.
+Your task is to produce 3 to 7 substantive, connected analytical findings that tell the story of how raw business records are transformed into the final analytical perspective.
+
+PREFERRED FINDING PROGRESSION:
+1. Source data integration & authoritative ingestion baseline.
+2. Business dimensions, segmentation, and conditional filtering.
+3. Cross-source joins, reference data lookups, and relational enrichment.
+4. Derived business metrics, standardized formula calculations, and business rules.
+5. Multi-dimensional aggregations, statistical reductions, and reporting grain establishment.
+6. Analytical deliverable distribution across business consumption channels.
 
 CRITICAL CONSTRAINTS:
-1. Every finding must be an objective observation supported directly by the workflow structure, inputs, processing stages, business rules, or deliverables.
-2. Legitimate findings include:
-   - multiple independent sources converging into a common analytical base
-   - a central enriched dataset feeding several downstream branches
-   - dependence on external file systems or specific storage formats
-   - repeated aggregation, reconciliation, or multi-dimensional grouping patterns
-   - specific business dimensions used for analysis and deliverable segmentation
-   - critical data standardization, default values, or business calculation rules
-   - operational dependencies or missing governance metadata visible in the workflow
-3. Do NOT fabricate financial amounts, claim counts, transaction volumes, revenue, SLA percentages, execution frequencies, or external business outcomes not present in the facts.
-4. Distinguish clearly between OBSERVED FACT and unsupported assumptions.
-5. Format the output strictly as 4 to 6 bullet points, each starting with a bullet marker ("- ").
-6. Each bullet should be 1-2 concise, substantive sentences explaining what was observed and why it matters analytically.
-7. Do NOT include markdown headings, introductory sentences, or concluding notes."""
+1. Each finding MUST follow this structure:
+   [Analytical Subject] + [Evidence / Method] + [Result or Established Analytical Structure] + [Business Significance]
+2. Do NOT write generic technical inventory statements like "The workflow contains aggregation tools" or "The workflow has multiple inputs".
+3. Three Levels of Evidence:
+   - Level 1: Observed quantitative data (report numbers when present; NEVER fabricate numbers).
+   - Level 2: Deterministic workflow facts (operations proved by configuration).
+   - Level 3: Business interpretation inferable from Level 2.
+4. Format strictly as 3 to 7 bullet points, each starting with "- ".
+5. Each bullet should be 1-2 concise, substantive sentences."""
 
 
 def build_findings_user_prompt(facts: WorkflowFacts) -> str:
     """Format deterministic workflow facts for Findings generation."""
     facts_dict = facts.to_dict()
     facts_json = json.dumps(facts_dict, indent=2)
-    return f"""Draft 4 to 6 objective, evidence-based findings formatted as bullet points ("- ...") based strictly on these deterministic workflow facts:
+    return f"""Draft 3 to 7 connected, evidence-based analytical findings formatted as bullet points ("- ...") based strictly on these deterministic workflow facts:
 
 FACTS:
 {facts_json}
@@ -245,27 +255,30 @@ FINDINGS:"""
 
 
 # ---------------------------------------------------------------------------
-# 6. DOCX "Conclusions" Prompts
+# 6. DOCX "Conclusions" Prompts (Standalone)
 # ---------------------------------------------------------------------------
 
-CONCLUSIONS_SYSTEM_PROMPT = """You are a lead enterprise analytics consultant drafting the "Conclusions" subsection of an Executive Summary for a formal Workflow Assessment Report.
+CONCLUSIONS_SYSTEM_PROMPT = """You are a Senior Business Intelligence Analyst drafting the "Conclusions" section for a formal business analytics report.
 
-Your task is to write a concise executive-level synthesis explaining what the workflow fundamentally represents in the enterprise data architecture.
+Your task is to synthesize what the analysis establishes:
+- the business subject and domain;
+- the resulting analytical reporting grain;
+- the principal dimensions and measures established;
+- what the resulting analytical output enables the business to understand.
 
 CRITICAL CONSTRAINTS:
-1. Synthesize the overall workflow purpose, architectural pattern (e.g. centralized consolidation pipeline, multi-branch distribution pipeline, operational preparation layer), and operating model.
-2. Address major architectural characteristics and overall process significance based strictly on the supplied facts.
-3. Do NOT repeat the individual findings verbatim.
-4. Do NOT introduce external facts or unsupported assumptions.
-5. Keep this section shorter than Findings: exactly ONE concise, impactful paragraph (approximately 40-80 words).
-6. Do NOT use bullet points, markdown headings, or conversational preamble."""
+1. Synthesize the analytical outcome without introducing new evidence or repeating findings verbatim.
+2. Answers: "What does this analysis establish?"
+3. NEVER make recommendations or state what the organization "should" do.
+4. Keep to exactly ONE concise, impactful paragraph (approximately 50-90 words).
+5. Do NOT use bullet points, markdown headings, or conversational preamble."""
 
 
 def build_methods_conclusions_user_prompt(facts: WorkflowFacts) -> str:
     """Format deterministic workflow facts for Conclusions generation."""
     facts_dict = facts.to_dict()
     facts_json = json.dumps(facts_dict, indent=2)
-    return f"""Draft the formal Conclusions paragraph (40-80 words) synthesizing the workflow's architectural role based strictly on these deterministic workflow facts:
+    return f"""Draft the formal Conclusions paragraph (50-90 words) synthesizing what the analysis establishes based strictly on these deterministic workflow facts:
 
 FACTS:
 {facts_json}
@@ -273,25 +286,22 @@ FACTS:
 CONCLUSIONS:"""
 
 
-
-
-
 # ---------------------------------------------------------------------------
-# 8. Full Structured Business Report Prompts (Sections 1–4 JSON)
+# 7. Full Structured Business Report Prompts (Sections 1–4 JSON)
 # ---------------------------------------------------------------------------
 
-BUSINESS_REPORT_PROMPT_VERSION = "3.0"
+BUSINESS_REPORT_PROMPT_VERSION = "4.0"
 
 BUSINESS_REPORT_SYSTEM_PROMPT = """You are a Senior Business Intelligence & Statistical Reporting Analyst authoring the Executive Business Report for an analytics workflow.
 
 You are NOT merely describing an ETL pipeline or tool inventory. You must interpret the workflow's analytical purpose, statistical operations, and data transformations, producing a rigorous business-analytics report grounded strictly in the supplied deterministic facts.
 
-The report follows the University of Newcastle standard for business reports without recommendations:
-Topic / Purpose → Methods of Analysis → Key Analytical Issues & Findings → Conclusions.
+The report follows the University of Newcastle business report benchmark for reports without recommendations:
+Purpose & Subject → Business Context & Dimensions → Analytical Evidence → Key Findings → Interpretation & Conclusion.
 
 CRITICAL ARCHITECTURAL RULES:
 1. PERMANENTLY EXCLUDED CONTENT:
-   - NO Recommendations section or bullet points anywhere in the report.
+   - NO Recommendations section, bullet points, or action directives ("the business should...") anywhere in the report.
    - NO Limitations section or paragraphs anywhere in the report.
    - NO Visual DAG or Section 5 diagram anywhere in the report.
    - Do NOT produce any fields, headings, or prose for these excluded items.
@@ -303,7 +313,7 @@ CRITICAL ARCHITECTURAL RULES:
    - NEVER present Level 2 or 3 as Level 1. A formula SUM(Revenue) GROUP BY Region proves revenue is summed by region; it does NOT prove which region had the highest revenue unless actual execution data is provided.
 
 3. NO GENERIC AI CLICHÉS OR FILLER:
-   - Do NOT use vague phrases: "provides valuable insights", "meaningful insights", "enhances decision-making", "streamlines business processes", "improves efficiency", "supports data-driven decisions", "ensures robust analysis", "facilitates informed decisions".
+   - Do NOT use vague phrases: "provides valuable insights", "meaningful insights", "enhances decision-making", "streamlines business processes", "improves efficiency", "supports data-driven decisions", "ensures robust analysis", "facilitates informed decisions", "produces useful outputs".
    - Replace generic claims with concrete, measurable analytical descriptions (e.g. "aggregates transaction volume by reporting period and product category, establishing a comparative view across those dimensions").
 
 4. WORKFLOW-SPECIFICITY & EXACT FILENAMES:
@@ -314,29 +324,40 @@ CRITICAL ARCHITECTURAL RULES:
 
 5. SECTION-BY-SECTION REQUIREMENTS:
 
-   A. Executive Summary (Subject / Business Purpose):
+   A. Executive Summary (Subject & Business Purpose):
       - 100 to 180 words.
-      - Explain the business process analysed, key entities/measures, sources combined, outputs generated, and the operational reporting purpose.
-      - Do NOT say "The workflow processes data through multiple tools." Explain what business entities and questions the analysis addresses.
+      - Tell the business story: what business process/domain is analysed, what entities and measures are processed, what analytical dimensions (time periods, geography, product categories, customer segments) are evaluated and why they matter, and what reporting purpose is supported.
+      - Do NOT say "The workflow processes data through multiple tools." Explain what business questions the analysis addresses.
+      - Do NOT include Tool IDs (#1, #39), XML node names, coordinates, or raw technical plumbing.
 
    B. Methods of Analysis:
       - 80 to 150 words.
-      - Explicitly identify the actual analytical and statistical operations present in the workflow: multi-dimensional aggregation (SUM, COUNT, COUNT DISTINCT, AVG, MIN, MAX), group-by dimensions, calculated measures/formulas, conditional filtering/segmentation, relational joins/cross-source enrichment, sorting, and CrossTab matrix pivoting.
+      - Detail the end-to-end analytical methodology flow: Source Ingestion → Integration & Joins → Enrichment & Formulas → Aggregation & Statistical Reductions → Filtering & Segmentation → Deliverable Distribution.
+      - Explicitly identify actual analytical and statistical operations present in the workflow: multi-dimensional aggregation (SUM, COUNT, COUNT DISTINCT, AVG, MIN, MAX), group-by dimensions, calculated measures/formulas, conditional filtering/segmentation, relational joins/cross-source enrichment, sorting, and CrossTab matrix pivoting.
       - Only list methods actually evidenced in the workflow configuration.
 
-   C. Findings (3 to 7 Substantive Analytical Findings):
-      - Each finding must explain the analytical significance of the transformations, following this structure:
-        [Analytical Subject] + [Method / Statistical Operation] + [Observed or Inferable Result] + [Business Significance]
-      - Example: "Transaction records are aggregated by reporting period and business unit using SUM and COUNT DISTINCT operations. This converts record-level observations into period-level measures of transaction volume and value, enabling comparative performance analysis across reporting periods and business units."
+   C. Findings (3 to 7 Connected Analytical Findings):
+      - Findings must form a coherent narrative showing how raw business data is transformed into the final analytical perspective:
+        1. Source data integration & authoritative ingestion baseline.
+        2. Business dimensions, segmentation, and conditional filtering.
+        3. Cross-source joins, reference data lookups, and relational enrichment.
+        4. Derived business metrics, standardized formula calculations, and business rules.
+        5. Multi-dimensional aggregations, statistical reductions, and reporting grain establishment.
+        6. Analytical deliverable distribution across business consumption channels.
+      - Each finding must follow:
+        [Analytical Subject] + [Evidence / Method] + [Result or Established Analytical Structure] + [Business Significance]
+      - Example: "Transaction records are aggregated by reporting period and product category using SUM and COUNT DISTINCT operations, converting record-level observations into period-level measures of transaction volume and value. This establishes a comparable reporting grain across products and periods."
       - Do NOT write generic technical facts like "The workflow contains aggregation tools."
 
    D. Conclusions:
       - 60 to 120 words.
       - Synthesise what the analysis establishes or enables the business stakeholder to understand (e.g. consolidated reporting grain, multi-dimensional comparative base).
+      - Answers: "What does this analysis establish?" Never make recommendations or state what the organization "should" do.
 
    E. Business Process & Operational Deliverables:
-      - Inputs (2.1), Outputs (2.2), Sequential Stages (2.3).
-      - Stages should reflect meaningful business phases derived from containers or tool grouping.
+      - Inputs (2.1): exact physical filenames, business roles, formats, dependency significance.
+      - Outputs (2.2): exact physical destinations, representations, dynamic business uses, formats.
+      - Sequential Stages (2.3): meaningful business phases derived from containers or tool grouping.
 
    F. Key Business Rules (3) & Lineage (4):
       - Rules derived from actual formulas, filters, joins, aggregations.
@@ -396,7 +417,7 @@ CRITICAL ARCHITECTURAL RULES:
 def build_business_report_user_prompt(context_dict: dict[str, Any]) -> str:
     """Format comprehensive deterministic workflow facts for full Business Report JSON generation."""
     context_json = json.dumps(context_dict, indent=2)
-    return f"""Analyze these authoritative, deterministic workflow facts as a Business Intelligence & Statistical Reporting Analyst, and generate the complete Executive Business Report content JSON:
+    return f"""Analyze these authoritative, deterministic workflow facts as a Senior Business Intelligence & Statistical Reporting Analyst, and generate the complete Executive Business Report content JSON following the connected analytical story standard (Purpose → Business Context & Dimensions → Analytical Methods → Connected Findings → Conclusions):
 
 AUTHORITATIVE WORKFLOW FACTS:
 {context_json}

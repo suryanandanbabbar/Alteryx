@@ -812,6 +812,200 @@ class TestDocxBusinessReport:
                 })
             return None
 
+        # Domain 3: Insurance Claims & Loss Analysis Workflow
+        claims_wf = Workflow(
+            metadata=WorkflowMetadata(name="Insurance Claims Loss Frequency Analysis", version="2024.1"),
+            tools={
+                301: Tool(
+                    tool_id=301,
+                    plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+                    tool_type="DbFileInput",
+                    name="Input Policy Claims",
+                    position=Position(0, 0),
+                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "policy_claims_register.xlsx"}),
+                ),
+                302: Tool(
+                    tool_id=302,
+                    plugin="AlteryxBasePluginsGui.Summarize.Summarize",
+                    tool_type="Summarize",
+                    name="Aggregate Paid Losses",
+                    position=Position(100, 0),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>",
+                        parsed={"summarize_fields": [{"field": "Incurred_Loss", "action": "Sum"}, {"field": "Policy_Number", "action": "CountDistinct"}]},
+                    ),
+                ),
+                303: Tool(
+                    tool_id=303,
+                    plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+                    tool_type="DbFileOutput",
+                    name="Output Loss Ratio Matrix",
+                    position=Position(200, 0),
+                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "quarterly_actuarial_losses.xlsx"}),
+                ),
+            },
+            connections=[
+                Connection(origin_tool_id=301, origin_anchor="Output", destination_tool_id=302, destination_anchor="Input"),
+                Connection(origin_tool_id=302, origin_anchor="Output", destination_tool_id=303, destination_anchor="Input"),
+            ],
+        )
+
+        def mock_domain_llm(system: str, user: str) -> str | None:
+            if "wire_transfers.csv" in user or "Banking Settlement" in user:
+                return json.dumps({
+                    "workflow_title": "Core Banking Settlement Analysis",
+                    "workflow_description": "Automates interbank wire transfer validation, ledger reconciliation, and daily liquidity position reporting.",
+                    "executive_summary": "This analytical report evaluates the daily wire transfer settlement process across institutional banking counterparties. The workflow ingests raw wire transaction logs, computes total settlement exposure, calculates distinct active accounts, and outputs finalized ledger balances for central bank reconciliation.",
+                    "methods_of_analysis": "The analysis utilizes multi-dimensional summation (SUM on Transfer_Amount) and distinct population enumeration (COUNT DISTINCT on Account_ID) to establish aggregate liquidity metrics across account hierarchies.",
+                    "findings": [
+                        "Interbank transfer volume is aggregated using SUM(Transfer_Amount) to calculate gross daily settlement exposure across active account partitions.",
+                        "Counterparty participation is quantified using COUNT DISTINCT(Account_ID), establishing the total unique institutional account population per settlement window.",
+                        "Finalized liquidity positions are distributed to daily_settlement.xlsx to support regulatory capital reporting and daily cash clearing audits."
+                    ],
+                    "conclusions": "The workflow establishes an authoritative daily settlement baseline, converting granular wire events into consolidated counterparty liquidity measures required for financial auditability.",
+                    "inputs": [
+                        {
+                            "source_dataset": "wire_transfers.csv",
+                            "business_role": "Inbound interbank wire transfer log feed",
+                            "source_format": "CSV Data File",
+                            "dependency_significance": "Essential transactional input required for central ledger reconciliation"
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "output_deliverable": "daily_settlement.xlsx",
+                            "what_it_represents": "Finalized institutional settlement position matrix",
+                            "business_use": "Daily regulatory liquidity reporting and central bank clearing verification",
+                            "destination_format": "Excel Workbook"
+                        }
+                    ],
+                    "sequential_stages": [
+                        {
+                            "stage_number": 1,
+                            "stage_name": "Transaction Ingestion & Aggregation",
+                            "description": "Ingests raw wire transfer events and computes gross settlement exposure",
+                            "operational_explanation": "Processes wire transfer records via aggregation"
+                        }
+                    ],
+                    "business_rules": [
+                        {
+                            "business_rule": "Aggregate Settlement Exposure",
+                            "category": "Aggregation",
+                            "evidence_configuration": "SUM(Transfer_Amount), COUNT DISTINCT(Account_ID)"
+                        }
+                    ],
+                    "lineage": [
+                        {
+                            "source_datasets": "wire_transfers.csv",
+                            "major_business_transformation": "Aggregate transfer totals and count distinct accounts",
+                            "target_deliverable": "daily_settlement.xlsx"
+                        }
+                    ]
+                })
+            elif "sales_invoices.xlsx" in user or "Sales Commission" in user:
+                return json.dumps({
+                    "workflow_title": "Commercial Sales Commission Reconciliation",
+                    "workflow_description": "Computes sales team commission accruals from completed customer invoices.",
+                    "executive_summary": "This business report evaluates commercial sales revenue and associate commission calculation logic. The workflow ingests finalized customer sales invoices, calculates contractual 5% commission amounts using derived formulas, and generates the monthly commission reconciliation ledger.",
+                    "methods_of_analysis": "The workflow applies mathematical formula expressions ([Invoice_Total] * 0.05) to derive associate payout metrics from transaction-level invoice data.",
+                    "findings": [
+                        "Contractual commission accruals are calculated using deterministic formula derivation ([Invoice_Total] * 0.05), ensuring standard commercial rate application across all completed invoices.",
+                        "Inbound invoice data is validated against sales ledger constraints prior to commission ledger posting.",
+                        "The resulting commission ledger is published to sales_commission_ledger.csv for monthly payroll audit and revenue operations review."
+                    ],
+                    "conclusions": "The workflow establishes a standardized commercial commission derivation pipeline, transforming raw invoice data into audited compensation records.",
+                    "inputs": [
+                        {
+                            "source_dataset": "sales_invoices.xlsx",
+                            "business_role": "Completed customer sales invoice register",
+                            "source_format": "Excel Workbook",
+                            "dependency_significance": "Primary revenue source feed required for commission calculation"
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "output_deliverable": "sales_commission_ledger.csv",
+                            "what_it_represents": "Itemized sales representative commission register",
+                            "business_use": "Monthly commercial sales payroll processing and revenue audit",
+                            "destination_format": "CSV Data File"
+                        }
+                    ],
+                    "sequential_stages": [
+                        {
+                            "stage_number": 1,
+                            "stage_name": "Invoice Ingestion & Commission Derivation",
+                            "description": "Ingests sales invoices and computes commission accruals",
+                            "operational_explanation": "Applies formula derivation to invoices"
+                        }
+                    ],
+                    "business_rules": [
+                        {
+                            "business_rule": "Calculate 5% Commission",
+                            "category": "Calculation",
+                            "evidence_configuration": "[Invoice_Total] * 0.05"
+                        }
+                    ],
+                    "lineage": [
+                        {
+                            "source_datasets": "sales_invoices.xlsx",
+                            "major_business_transformation": "Calculate commission accruals from invoice totals",
+                            "target_deliverable": "sales_commission_ledger.csv"
+                        }
+                    ]
+                })
+            elif "policy_claims_register.xlsx" in user or "Claims Loss Frequency" in user:
+                return json.dumps({
+                    "workflow_title": "Insurance Claims Loss Frequency Analysis",
+                    "workflow_description": "Aggregates quarterly policyholder loss amounts and claim frequency by underwriting class.",
+                    "executive_summary": "This actuarial business report evaluates policyholder incurred claim losses and loss frequency. The workflow ingests the centralized policy claims register, computes aggregate incurred loss amounts via multi-dimensional summation, enumerates distinct policy exposure counts, and publishes the finalized loss ratio matrix for quarterly underwriting review.",
+                    "methods_of_analysis": "The methodology implements actuarial loss summation (SUM on Incurred_Loss) and distinct policy enumeration (COUNT DISTINCT on Policy_Number) to establish policyholder loss experience profiles.",
+                    "findings": [
+                        "Incurred claims exposure is aggregated using SUM(Incurred_Loss), converting transactional loss events into quarterly actuarial portfolio totals.",
+                        "Policy exposure frequency is measured via COUNT DISTINCT(Policy_Number), determining active underwriting participation.",
+                        "The resulting actuarial loss matrix is exported to quarterly_actuarial_losses.xlsx for recurring reserve review and risk pricing adjustments."
+                    ],
+                    "conclusions": "The workflow establishes an actuarial reporting baseline, converting transactional loss events into structured portfolio frequency and severity metrics.",
+                    "inputs": [
+                        {
+                            "source_dataset": "policy_claims_register.xlsx",
+                            "business_role": "Central policyholder claims register",
+                            "source_format": "Excel Workbook",
+                            "dependency_significance": "Authoritative actuarial loss register for quarterly risk assessment"
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "output_deliverable": "quarterly_actuarial_losses.xlsx",
+                            "what_it_represents": "Quarterly underwriting loss ratio and claim severity matrix",
+                            "business_use": "Quarterly reserve audit and actuarial portfolio risk review",
+                            "destination_format": "Excel Workbook"
+                        }
+                    ],
+                    "sequential_stages": [
+                        {
+                            "stage_number": 1,
+                            "stage_name": "Claims Ingestion & Actuarial Aggregation",
+                            "description": "Ingests policy claims and computes portfolio loss aggregations",
+                            "operational_explanation": "Aggregates policyholder claims records"
+                        }
+                    ],
+                    "business_rules": [
+                        {
+                            "business_rule": "Aggregate Portfolio Incurred Losses",
+                            "category": "Aggregation",
+                            "evidence_configuration": "SUM(Incurred_Loss), COUNT DISTINCT(Policy_Number)"
+                        }
+                    ],
+                    "lineage": [
+                        {
+                            "source_datasets": "policy_claims_register.xlsx",
+                            "major_business_transformation": "Aggregate incurred losses and count unique policyholders",
+                            "target_deliverable": "quarterly_actuarial_losses.xlsx"
+                        }
+                    ]
+                })
+            return None
+
         client = FakeLLMClient(generator_fn=mock_domain_llm)
         gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
         set_default_llm_client(client)
@@ -825,7 +1019,6 @@ class TestDocxBusinessReport:
             b_rep = gen.generate_business_report(banking_wf, b_bs, graph=b_graph, workflow_id="banking-1")
             assert b_rep is not None
 
-            # Populate business summary from LLM
             b_bs.business_purpose = b_rep.executive_summary
             b_bs.executive_summary.subject_and_purpose = b_rep.executive_summary
             b_bs.executive_summary.methods_and_process = b_rep.methods_of_analysis
@@ -873,26 +1066,62 @@ class TestDocxBusinessReport:
             assert s_docx.exists()
             s_text = self._extract_all_docx_text(s_docx)
 
-            # 3. Verify Banking-specific terms and absence of Sales / Claims terms
+            # 3. Generate Claims Report
+            c_graph = build_graph(claims_wf)
+            c_order = execution_order(c_graph)
+            c_bs = generate_business_summary(claims_wf, c_graph, c_order)
+            c_rep = gen.generate_business_report(claims_wf, c_bs, graph=c_graph, workflow_id="claims-1")
+            assert c_rep is not None
+
+            c_bs.business_purpose = c_rep.executive_summary
+            c_bs.executive_summary.subject_and_purpose = c_rep.executive_summary
+            c_bs.executive_summary.methods_and_process = c_rep.methods_of_analysis
+            c_bs.executive_summary.findings = c_rep.findings
+            c_bs.executive_summary.conclusions = c_rep.conclusions
+
+            c_doc_model = build_document_model(
+                workflow=claims_wf,
+                execution_order=c_order,
+                translations={},
+                dag_layout=None,
+                lineage_paths=[],
+                business_summary=c_bs,
+                analysis_id="claims-1",
+            )
+            c_docx = tmp_path / "claims_loss_report.docx"
+            generate_docx(c_doc_model, c_docx)
+            assert c_docx.exists()
+            c_text = self._extract_all_docx_text(c_docx)
+
+            # 4. Verify Banking-specific terms and absence of Sales / Claims terms
             assert "wire_transfers.csv" in b_text
             assert "daily_settlement.xlsx" in b_text
             assert "liquidity" in b_text.lower()
             assert "sales_invoices.xlsx" not in b_text
             assert "commission" not in b_text.lower()
-            assert "claims" not in b_text.lower()
-            assert "policy" not in b_text.lower()
+            assert "policy_claims_register.xlsx" not in b_text
+            assert "actuarial" not in b_text.lower()
 
-            # 4. Verify Sales-specific terms and absence of Banking / Claims terms
+            # 5. Verify Sales-specific terms and absence of Banking / Claims terms
             assert "sales_invoices.xlsx" in s_text
             assert "sales_commission_ledger.csv" in s_text
             assert "commission" in s_text.lower()
             assert "wire_transfers.csv" not in s_text
             assert "settlement" not in s_text.lower()
-            assert "claims" not in s_text.lower()
-            assert "policy" not in s_text.lower()
+            assert "policy_claims_register.xlsx" not in s_text
+            assert "actuarial" not in s_text.lower()
 
-            # 5. Verify absolute absence of prohibited sections in both documents
-            for doc_text in (b_text, s_text):
+            # 6. Verify Claims-specific terms and absence of Banking / Sales terms
+            assert "policy_claims_register.xlsx" in c_text
+            assert "quarterly_actuarial_losses.xlsx" in c_text
+            assert "actuarial" in c_text.lower()
+            assert "wire_transfers.csv" not in c_text
+            assert "settlement" not in c_text.lower()
+            assert "sales_invoices.xlsx" not in c_text
+            assert "commission" not in c_text.lower()
+
+            # 7. Verify absolute absence of prohibited sections in all 3 documents
+            for doc_text in (b_text, s_text, c_text):
                 assert "Recommendations" not in doc_text
                 assert "Limitations" not in doc_text
                 assert "Visual Workflow Graph" not in doc_text
