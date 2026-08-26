@@ -27,8 +27,11 @@ from awa.generators.svg_generator import generate_svg
 from awa.generators.docx_generator import generate_docx
 from awa.generators.doc_builder import build_document_model
 from awa.generators.sttm_generator import generate_sttm_excel
+from awa.generators.tool_specifications_generator import generate_tool_specifications_excel
+from awa.model.tool_specifications import build_tool_specifications_document
 from awa.analysis.business_intelligence import generate_business_summary
 from awa.analysis.sttm_extractor import extract_sttm
+from awa.llm.generator import get_default_generator
 
 
 @dataclass
@@ -675,6 +678,20 @@ def analyze_workflow(
     # 6. sttm.xlsx (Source-to-Target Mapping)
     if canonical.sttm:
         generate_sttm_excel(canonical.sttm, output_dir / "sttm.xlsx")
+
+    # 7. tool_specifications.xlsx (Tool Specifications)
+    gen = get_default_generator()
+    tool_specs = gen.generate_all_tool_specifications(
+        workflow,
+        graph=canonical.graph,
+        workflow_id=canonical.analysis_id,
+    )
+    tool_doc = build_tool_specifications_document(
+        workflow=workflow,
+        graph=canonical.graph,
+        tool_specs=tool_specs,
+    )
+    generate_tool_specifications_excel(tool_doc, output_dir / "tool_specifications.xlsx")
 
     return AnalysisResult(
         workflow=workflow,

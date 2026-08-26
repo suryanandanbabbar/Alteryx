@@ -14,6 +14,8 @@ from awa.model.visual_category import get_visual_category
 from awa.tools.catalog import get_tool_summary
 from awa.tools import humanize_tool_configuration
 
+from awa.model.tool_specifications import format_input_tools, format_output_tools
+
 from .client import LLMClient, get_default_llm_client
 from .schemas import (
     NarrativeResult,
@@ -35,6 +37,7 @@ from .prompts import (
     FINDINGS_PROMPT_VERSION,
     CONCLUSIONS_PROMPT_VERSION,
     BUSINESS_REPORT_PROMPT_VERSION,
+    TOOL_SPECIFICATIONS_PROMPT_VERSION,
     TOOL_SYSTEM_PROMPT,
     WORKFLOW_PURPOSE_SYSTEM_PROMPT,
     EXECUTIVE_SUMMARY_SYSTEM_PROMPT,
@@ -42,6 +45,7 @@ from .prompts import (
     FINDINGS_SYSTEM_PROMPT,
     CONCLUSIONS_SYSTEM_PROMPT,
     BUSINESS_REPORT_SYSTEM_PROMPT,
+    TOOL_SPECIFICATIONS_SYSTEM_PROMPT,
     build_tool_user_prompt,
     build_workflow_purpose_user_prompt,
     build_executive_summary_user_prompt,
@@ -49,6 +53,7 @@ from .prompts import (
     build_findings_user_prompt,
     build_methods_conclusions_user_prompt,
     build_business_report_user_prompt,
+    build_tool_specifications_user_prompt,
 )
 from .cache import LLMNarrativeCache, get_global_narrative_cache, compute_cache_key
 
@@ -978,6 +983,104 @@ class LLMNarrativeGenerator:
         results: dict[int, NarrativeResult] = {}
         for tool_id, tool in workflow.tools.items():
             results[tool_id] = self.generate_tool_summary(workflow, tool, graph, workflow_id=workflow_id)
+        return results
+
+    def generate_tool_specification(
+        self,
+        workflow: Workflow,
+        tool: Tool,
+        graph: nx.DiGraph | None = None,
+        workflow_id: str = "",
+    ) -> dict[str, str]:
+        """Generate workflow-specific Role and Data Flow Explanation for a tool."""
+        inp_str = format_input_tools(workflow, graph, tool.tool_id)
+        out_str = format_output_tools(workflow, graph, tool.tool_id)
+        ttype = tool.tool_type or "Tool"
+
+        fallback_role = f"Applies the configured {ttype} operation to the incoming data stream."
+        if inp_str == "Source" and out_str == "None":
+            fallback_data_flow = "Ingests source records and performs localized processing."
+        elif inp_str == "Source":
+            fallback_data_flow = f"Ingests source records and passes the data stream to {out_str}."
+        elif out_str == "None":
+            fallback_data_flow = f"Receives processed data from {inp_str} and writes to the final output destination."
+        else:
+            fallback_data_flow = f"Receives data from {inp_str} and passes the resulting stream to {out_str}."
+
+        facts = extract_tool_facts(workflow, tool, graph)
+        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        cache_key = compute_cache_key(
+            workflow_id=wf_key,
+            scope_key=f"tool_spec_{tool.tool_id}",
+            prompt_version=TOOL_SPECIFICATIONS_PROMPT_VERSION,
+            model_name=self.client.model_name,
+            facts_payload=facts.to_dict(),
+        )
+
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            logger.info("[LLM CACHE] type=tool_spec tool_id=%d status=HIT", tool.tool_id)
+            try:
+                import json
+                cached_data = json.loads(cached.text)
+                return {
+                    "role": cached_data.get("role", fallback_role),
+                    "data_flow_explanation": cached_data.get("data_flow_explanation", fallback_data_flow),
+                }
+            except Exception:
+                pass
+
+        logger.info("[LLM CACHE] type=tool_spec tool_id=%d status=MISS", tool.tool_id)
+
+        system_prompt = TOOL_SPECIFICATIONS_SYSTEM_PROMPT
+        user_prompt = build_tool_specifications_user_prompt(facts)
+        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=400)
+
+        parsed_role = ""
+        parsed_data_flow = ""
+        try:
+            import json
+            clean_json = raw_response.strip()
+            if "```" in clean_json:
+                clean_json = re.sub(r"^```(?:json)?\s*", "", clean_json, flags=re.MULTILINE)
+                clean_json = re.sub(r"\s*```$", "", clean_json, flags=re.MULTILINE)
+            start = clean_json.find("{")
+            end = clean_json.rfind("}")
+            if start != -1 and end != -1:
+                clean_json = clean_json[start : end + 1]
+                data = json.loads(clean_json)
+                parsed_role = str(data.get("role", "")).strip()
+                parsed_data_flow = str(data.get("data_flow_explanation", "")).strip()
+        except Exception as e:
+            logger.warning("[LLM] Failed to parse tool spec JSON for tool #%d: %s", tool.tool_id, e)
+
+        role_final = parsed_role if (parsed_role and len(parsed_role) >= 15) else fallback_role
+        data_flow_final = parsed_data_flow if (parsed_data_flow and len(parsed_data_flow) >= 15) else fallback_data_flow
+
+        import json
+        result = NarrativeResult(
+            text=json.dumps({"role": role_final, "data_flow_explanation": data_flow_final}),
+            source="llm" if (parsed_role and parsed_data_flow) else "deterministic_fallback",
+            model=self.client.model_name,
+            prompt_version=TOOL_SPECIFICATIONS_PROMPT_VERSION,
+        )
+        self._cache.set(cache_key, result)
+
+        return {
+            "role": role_final,
+            "data_flow_explanation": data_flow_final,
+        }
+
+    def generate_all_tool_specifications(
+        self,
+        workflow: Workflow,
+        graph: nx.DiGraph | None = None,
+        workflow_id: str = "",
+    ) -> dict[int, dict[str, str]]:
+        """Generate tool specifications for all tools in a workflow."""
+        results: dict[int, dict[str, str]] = {}
+        for tool_id, tool in workflow.tools.items():
+            results[tool_id] = self.generate_tool_specification(workflow, tool, graph, workflow_id=workflow_id)
         return results
 
 

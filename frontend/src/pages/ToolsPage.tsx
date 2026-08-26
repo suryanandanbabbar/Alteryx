@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../api/client';
 import { DiagramDTO } from '../types/workflow';
 import { NodeDetails } from '../components/NodeDetails';
-import { Loader2, AlertCircle, Search, X, Filter } from 'lucide-react';
+import { Loader2, AlertCircle, Search, X, Filter, Download } from 'lucide-react';
 
 interface ToolsPageProps {
   analysisId: string;
@@ -118,13 +118,45 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ analysisId, selectedToolId
         }}>
           Tools &amp; Configuration
         </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', margin: 0 }}>
-            Tool Specifications &amp; Configuration
-          </h2>
-          <span style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', fontWeight: '500' }}>
-            {isFiltering ? `Showing ${filteredCount} of ${totalCount} tools` : `${totalCount} tools`}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', margin: 0 }}>
+              Tool Specifications &amp; Configuration
+            </h2>
+            <span style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', fontWeight: '500' }}>
+              {isFiltering ? `Showing ${filteredCount} of ${totalCount} tools` : `${totalCount} tools`}
+            </span>
+          </div>
+          <button
+            onClick={() => { window.location.href = api.getDownloadUrl(analysisId, 'tool-specifications'); }}
+            className="btn btn-secondary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 14px',
+              fontSize: '12.5px',
+              fontWeight: '600',
+              cursor: 'pointer',
+            }}
+            title="Download complete tool-by-tool specifications spreadsheet (.xlsx)"
+          >
+            <Download size={14} />
+            <span>Download Tool Specifications</span>
+            <span style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '10px',
+              fontWeight: '700',
+              padding: '2px 6px',
+              borderRadius: 'var(--radius-xs)',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              color: 'var(--color-text-muted)',
+              textTransform: 'uppercase',
+            }}>
+              .xlsx
+            </span>
+          </button>
         </div>
       </div>
 

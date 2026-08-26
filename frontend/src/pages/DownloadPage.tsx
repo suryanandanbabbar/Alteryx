@@ -12,11 +12,10 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
   const [generatingReport, setGeneratingReport] = useState<ReportType | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
-  const handleDocxDownload = async (type: 'docx' | 'technical-docx') => {
+  const handleDocxDownload = async (type: 'docx') => {
     if (generatingReport) return; // Prevent duplicate clicks
     setDownloadError(null);
-    const reportType: ReportType = type === 'docx' ? 'business' : 'technical';
-    setGeneratingReport(reportType);
+    setGeneratingReport('business');
 
     try {
       await api.downloadFile(analysisId, type);
@@ -27,7 +26,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
     }
   };
 
-  const triggerDirectDownload = (type: 'json' | 'python' | 'svg' | 'zip' | 'sttm') => {
+  const triggerDirectDownload = (type: 'json' | 'python' | 'svg' | 'zip' | 'sttm' | 'tool-specifications') => {
     window.location.href = api.getDownloadUrl(analysisId, type);
   };
 
@@ -77,7 +76,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
       <DownloadCard
         icon={Archive}
         title="Complete bundle"
-        subtitle="All generated artifacts (JSON, Python, SVG, Business Report, Technical Specifications, STTM Excel, Diagnostics) in a single ZIP"
+        subtitle="All generated artifacts (JSON, Python, SVG, Business Report, Tool Specifications, STTM Excel, Diagnostics) in a single ZIP"
         formatBadge=".zip"
         isPrimary={true}
         disabled={isGenerating}
@@ -107,21 +106,21 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
          />
 
         <DownloadCard
+          icon={Table}
+          title="Tool Specifications"
+          subtitle="Complete tool-by-tool workflow specification with LLM-generated role and data-flow explanations"
+          formatBadge=".xlsx"
+          disabled={isGenerating}
+          onDownload={() => triggerDirectDownload('tool-specifications')}
+        />
+
+        <DownloadCard
           icon={FileText}
           title="Business Report"
           subtitle="Executive business analysis report with purpose, methodologies, findings, conclusions, lineage, and workflow"
           formatBadge=".docx"
           disabled={isGenerating}
           onDownload={() => handleDocxDownload('docx')}
-        />
-
-        <DownloadCard
-          icon={FileText}
-          title="Technical Specifications"
-          subtitle="Engineering specifications report with summary, step-by-step tool inventory, and technical appendix"
-          formatBadge=".docx"
-          disabled={isGenerating}
-          onDownload={() => handleDocxDownload('technical-docx')}
         />
 
         <DownloadCard

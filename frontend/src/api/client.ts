@@ -85,11 +85,11 @@ export const api = {
     return handleResponse<PythonOutputDTO>(res);
   },
 
-  getDownloadUrl(analysisId: string, type: 'docx' | 'technical-docx' | 'json' | 'python' | 'svg' | 'zip' | 'sttm'): string {
+  getDownloadUrl(analysisId: string, type: 'docx' | 'technical-docx' | 'tool-specifications' | 'json' | 'python' | 'svg' | 'zip' | 'sttm'): string {
     return `${BASE_URL}/download/${analysisId}/${type}`;
   },
 
-  async downloadFile(analysisId: string, type: 'docx' | 'technical-docx' | 'json' | 'python' | 'svg' | 'zip' | 'sttm'): Promise<void> {
+  async downloadFile(analysisId: string, type: 'docx' | 'technical-docx' | 'tool-specifications' | 'json' | 'python' | 'svg' | 'zip' | 'sttm'): Promise<void> {
     const url = `${BASE_URL}/download/${analysisId}/${type}`;
     const res = await fetch(url);
 

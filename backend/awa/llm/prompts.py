@@ -13,10 +13,74 @@ EXEC_SUMMARY_PROMPT_VERSION = "2.0"
 METHODS_OF_ANALYSIS_PROMPT_VERSION = "2.0"
 FINDINGS_PROMPT_VERSION = "2.0"
 CONCLUSIONS_PROMPT_VERSION = "2.0"
+TOOL_SPECIFICATIONS_PROMPT_VERSION = "1.0"
 
 # ---------------------------------------------------------------------------
-# 1. Tool "What It Does" Prompts (Workflow-Specific Role)
+# 1. Tool "What It Does" & Tool Specifications Prompts
 # ---------------------------------------------------------------------------
+
+TOOL_SPECIFICATIONS_SYSTEM_PROMPT = """You are a senior Alteryx workflow analyst producing workflow-specific tool specifications for technical and business stakeholders.
+
+Explain the role and data movement of the tool using ONLY the supplied authoritative workflow facts.
+
+Return a JSON object with exactly these fields:
+{
+  "tool_id": "<ID>",
+  "role": "1-2 concise sentences (20-50 words) explaining what this specific tool instance is doing in this workflow. No generic definitions.",
+  "data_flow_explanation": "1-2 concise sentences explaining what data enters from upstream, what transformation happens here, and what data is passed to downstream tools."
+}
+
+CRITICAL RULES:
+1. Ground every statement strictly in the supplied configuration, input/output fields, and topology.
+2. The explanation must be workflow-specific: mention actual field names, expressions, join keys, filter predicates, and physical filenames when available.
+3. The data flow explanation must explicitly connect: [Upstream source/tool] -> [Current transformation] -> [Downstream target/tool].
+4. Do NOT say "This tool", "the model", "AI", "processes data", "provides valuable insights", or "enhances decision-making".
+5. Return ONLY valid JSON."""
+
+
+def build_tool_specifications_user_prompt(facts: ToolFacts) -> str:
+    """Format deterministic tool facts for Tool Specifications (Role + Data Flow) prompt."""
+    cfg_str = json.dumps(facts.configuration_summary, indent=2) if facts.configuration_summary else "None"
+    in_fields_str = ", ".join(facts.input_fields) if facts.input_fields else "Not specified"
+    out_fields_str = ", ".join(facts.output_fields) if facts.output_fields else "Not specified"
+
+    upstream_str = (
+        json.dumps(facts.upstream_tools, indent=2)
+        if facts.upstream_tools
+        else "None (Source tool - No upstream)"
+    )
+    downstream_str = (
+        json.dumps(facts.downstream_tools, indent=2)
+        if facts.downstream_tools
+        else "None (Terminal tool - No downstream)"
+    )
+
+    return f"""WORKFLOW:
+Workflow name: {facts.workflow_name or 'Alteryx Workflow'}
+
+CURRENT TOOL:
+Tool ID: #{facts.tool_id}
+Tool Type: {facts.tool_type}
+Plugin / XML Name: {facts.plugin or facts.tool_type}
+Annotation: {facts.annotation or 'None'}
+Container Context: {facts.container_context or facts.container_name or 'Root Level'}
+
+CONFIGURATION:
+{cfg_str}
+
+INPUT FIELDS:
+{in_fields_str}
+
+OUTPUT FIELDS:
+{out_fields_str}
+
+IMMEDIATE UPSTREAM TOOLS:
+{upstream_str}
+
+IMMEDIATE DOWNSTREAM TOOLS:
+{downstream_str}
+
+Based ONLY on these facts, generate the workflow-specific Role and Data Flow Explanation JSON:"""
 
 TOOL_SYSTEM_PROMPT = """You are an enterprise ETL workflow analyst.
 
