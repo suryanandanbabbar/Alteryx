@@ -34,7 +34,6 @@ from .prompts import (
     METHODS_OF_ANALYSIS_PROMPT_VERSION,
     FINDINGS_PROMPT_VERSION,
     CONCLUSIONS_PROMPT_VERSION,
-    RECOMMENDATIONS_PROMPT_VERSION,
     BUSINESS_REPORT_PROMPT_VERSION,
     TOOL_SYSTEM_PROMPT,
     WORKFLOW_PURPOSE_SYSTEM_PROMPT,
@@ -42,7 +41,6 @@ from .prompts import (
     METHODS_OF_ANALYSIS_SYSTEM_PROMPT,
     FINDINGS_SYSTEM_PROMPT,
     CONCLUSIONS_SYSTEM_PROMPT,
-    RECOMMENDATIONS_SYSTEM_PROMPT,
     BUSINESS_REPORT_SYSTEM_PROMPT,
     build_tool_user_prompt,
     build_workflow_purpose_user_prompt,
@@ -50,7 +48,6 @@ from .prompts import (
     build_methods_of_analysis_user_prompt,
     build_findings_user_prompt,
     build_methods_conclusions_user_prompt,
-    build_recommendations_user_prompt,
     build_business_report_user_prompt,
 )
 from .cache import LLMNarrativeCache, get_global_narrative_cache, compute_cache_key
@@ -315,7 +312,7 @@ def extract_comprehensive_workflow_context(
             "configuration": cleaned_cfg,
         })
 
-        # Extract explicit expressions
+        # Extract explicit analytical and statistical operations
         if tool.tool_type in ("Formula", "MultiFieldFormula"):
             for ff in cfg.get("formula_fields", []):
                 rules_and_formulas.append({
@@ -323,32 +320,60 @@ def extract_comprehensive_workflow_context(
                     "type": "Formula Calculation",
                     "field": ff.get("field"),
                     "expression": ff.get("expression"),
+                    "formula_type": ff.get("type", "String"),
                 })
         elif tool.tool_type == "Filter":
             rules_and_formulas.append({
                 "tool_id": tid,
                 "type": "Filter Predicate",
-                "expression": cfg.get("expression") or cfg.get("Expression"),
+                "expression": cfg.get("expression") or cfg.get("Expression") or "",
+                "predicate_details": cfg.get("filter_predicate", ""),
             })
         elif tool.tool_type == "Join":
             rules_and_formulas.append({
                 "tool_id": tid,
                 "type": "Join Criteria",
                 "join_fields": cfg.get("join_fields"),
+                "left_keys": cfg.get("left_keys", []),
+                "right_keys": cfg.get("right_keys", []),
             })
         elif tool.tool_type == "Summarize":
+            summarize_entries = []
+            for sf in cfg.get("summarize_fields", []):
+                summarize_entries.append({
+                    "field": sf.get("field", ""),
+                    "action": sf.get("action", ""),
+                    "rename": sf.get("rename", ""),
+                })
             rules_and_formulas.append({
                 "tool_id": tid,
                 "type": "Summarize Aggregation",
-                "summarize_fields": cfg.get("summarize_fields"),
+                "operations": summarize_entries,
+                "raw_fields": cfg.get("summarize_fields"),
             })
         elif tool.tool_type == "CrossTab":
             rules_and_formulas.append({
                 "tool_id": tid,
                 "type": "CrossTab Pivot",
+                "group_fields": cfg.get("group_fields", []),
                 "header_field": cfg.get("header_field"),
                 "data_field": cfg.get("data_field"),
+                "aggregation_methods": cfg.get("methods", []),
             })
+        elif tool.tool_type == "Sort":
+            rules_and_formulas.append({
+                "tool_id": tid,
+                "type": "Sort Ordering",
+                "sort_fields": cfg.get("sort_fields", []),
+            })
+        elif tool.tool_type == "AlteryxSelect":
+            select_fields = cfg.get("select_fields", [])
+            if select_fields:
+                rules_and_formulas.append({
+                    "tool_id": tid,
+                    "type": "Field Selection & Renaming",
+                    "fields_count": len(select_fields),
+                })
 
     lineage_traces = []
     for lin in business_summary.lineage:
@@ -749,72 +774,7 @@ class LLMNarrativeGenerator:
         )
         return fallback_result
 
-    def generate_recommendations(
-        self,
-        workflow: Workflow,
-        business_summary: WorkflowBusinessSummary,
-        workflow_id: str = "",
-    ) -> list[str]:
-        """Generate 2-4 actionable recommendations for DOCX report."""
-        fallback_recs = (
-            business_summary.executive_summary.recommendations
-            if business_summary.executive_summary and business_summary.executive_summary.recommendations
-            else ["Validate business ownership and confirm production refresh dependencies with stakeholders."]
-        )
 
-        facts = extract_workflow_facts(workflow, business_summary)
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
-        cache_key = compute_cache_key(
-            workflow_id=wf_key,
-            scope_key="recommendations",
-            prompt_version=RECOMMENDATIONS_PROMPT_VERSION,
-            model_name=self.client.model_name,
-            facts_payload=facts.to_dict(),
-        )
-
-        cached = self._cache.get(cache_key)
-        if cached is not None:
-            logger.info("[LLM CACHE] type=recommendations status=HIT")
-            try:
-                import json
-                return json.loads(cached.text)
-            except Exception:
-                return [line.strip("- *• ") for line in cached.text.split("\n") if line.strip("- *• ")]
-
-        logger.info("[LLM CACHE] type=recommendations status=MISS")
-
-        system_prompt = RECOMMENDATIONS_SYSTEM_PROMPT
-        user_prompt = build_recommendations_user_prompt(facts)
-        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=500)
-        cleaned = _clean_narrative_text(raw_response)
-
-        bullet_items = []
-        if cleaned:
-            for line in cleaned.split("\n"):
-                stripped = line.strip()
-                if stripped.startswith(("-", "*", "•")):
-                    item_text = re.sub(r"^[-*•]\s*", "", stripped).strip()
-                    if item_text and len(item_text) > 10:
-                        bullet_items.append(item_text)
-                elif re.match(r"^\d+[\.\)]\s+", stripped):
-                    item_text = re.sub(r"^\d+[\.\)]\s+", "", stripped).strip()
-                    if item_text and len(item_text) > 10:
-                        bullet_items.append(item_text)
-
-        if len(bullet_items) >= 1:
-            import json
-            result = NarrativeResult(
-                text=json.dumps(bullet_items),
-                source="llm",
-                model=self.client.model_name,
-                prompt_version=RECOMMENDATIONS_PROMPT_VERSION,
-            )
-            self._cache.set(cache_key, result)
-            logger.info("[LLM] recommendations stored in cache items_count=%d", len(bullet_items))
-            return bullet_items
-
-        logger.info("[LLM] recommendations fallback to deterministic items_count=%d", len(fallback_recs))
-        return fallback_recs
 
     def generate_business_report(
         self,
@@ -880,70 +840,99 @@ class LLMNarrativeGenerator:
         return None
 
     def _parse_business_report_json(self, data: dict[str, Any]) -> BusinessReportContent | None:
-        """Validate and map dictionary to BusinessReportContent."""
+        """Validate and map dictionary to BusinessReportContent with analytical quality checks."""
         try:
+            # 1. Reject prohibited keys
+            if "recommendations" in data or "limitations" in data or "visual_dag" in data or "section_5" in data:
+                logger.warning("[LLM] Business report JSON contained permanently excluded keys; stripping them")
+
+            exec_summary = str(data.get("executive_summary", "")).strip()
+            methods_analysis = str(data.get("methods_of_analysis", "")).strip()
+            conclusions = str(data.get("conclusions", "")).strip()
+
+            # Reject empty core analytical sections
+            if not exec_summary or len(exec_summary) < 20:
+                logger.warning("[LLM] Validation failed: executive_summary is too short or empty")
+                return None
+            if not methods_analysis or len(methods_analysis) < 20:
+                logger.warning("[LLM] Validation failed: methods_of_analysis is too short or empty")
+                return None
+            if not conclusions or len(conclusions) < 15:
+                logger.warning("[LLM] Validation failed: conclusions is too short or empty")
+                return None
+
+            # 2. Parse and validate findings (3 to 7 items expected, minimum 1)
+            raw_findings = data.get("findings", [])
+            findings = [str(f).strip() for f in raw_findings if str(f).strip()]
+            if not findings:
+                logger.warning("[LLM] Validation failed: findings list is empty")
+                return None
+
+            # 3. Parse and validate inputs
             inputs = [
                 BusinessReportInputItem(
-                    source_dataset=str(i.get("source_dataset", "")),
-                    business_role=str(i.get("business_role", "")),
-                    source_format=str(i.get("source_format", "")),
-                    dependency_significance=str(i.get("dependency_significance", "")),
+                    source_dataset=str(i.get("source_dataset", "")).strip(),
+                    business_role=str(i.get("business_role", "")).strip(),
+                    source_format=str(i.get("source_format", "")).strip(),
+                    dependency_significance=str(i.get("dependency_significance", "")).strip(),
                 )
                 for i in data.get("inputs", [])
-                if i.get("source_dataset")
+                if str(i.get("source_dataset", "")).strip()
             ]
 
+            # 4. Parse and validate outputs (must have business_use)
             outputs = [
                 BusinessReportOutputItem(
-                    output_deliverable=str(o.get("output_deliverable", "")),
-                    what_it_represents=str(o.get("what_it_represents", "")),
-                    business_use=str(o.get("business_use", "")),
-                    destination_format=str(o.get("destination_format", "")),
+                    output_deliverable=str(o.get("output_deliverable", "")).strip(),
+                    what_it_represents=str(o.get("what_it_represents", "")).strip(),
+                    business_use=str(o.get("business_use", "")).strip() or str(o.get("what_it_represents", "")).strip(),
+                    destination_format=str(o.get("destination_format", "")).strip(),
                 )
                 for o in data.get("outputs", [])
-                if o.get("output_deliverable")
+                if str(o.get("output_deliverable", "")).strip()
             ]
 
+            # 5. Parse stages
             stages = [
                 BusinessReportStageItem(
                     stage_number=int(s.get("stage_number", idx)),
-                    stage_name=str(s.get("stage_name", "")),
-                    description=str(s.get("description", "")),
-                    operational_explanation=str(s.get("operational_explanation", "")),
+                    stage_name=str(s.get("stage_name", "")).strip(),
+                    description=str(s.get("description", "")).strip(),
+                    operational_explanation=str(s.get("operational_explanation", "")).strip(),
                 )
                 for idx, s in enumerate(data.get("sequential_stages", []), start=1)
-                if s.get("stage_name")
+                if str(s.get("stage_name", "")).strip()
             ]
 
+            # 6. Parse business rules
             rules = [
                 BusinessReportRuleItem(
-                    business_rule=str(r.get("business_rule", "")),
-                    category=str(r.get("category", "")),
-                    evidence_configuration=str(r.get("evidence_configuration", "")),
+                    business_rule=str(r.get("business_rule", "")).strip(),
+                    category=str(r.get("category", "")).strip(),
+                    evidence_configuration=str(r.get("evidence_configuration", "")).strip(),
                 )
                 for r in data.get("business_rules", [])
-                if r.get("business_rule")
+                if str(r.get("business_rule", "")).strip()
             ]
 
+            # 7. Parse lineage
             lineage = [
                 BusinessReportLineageItem(
                     source_datasets=l.get("source_datasets", ""),
-                    major_business_transformation=str(l.get("major_business_transformation", "")),
-                    target_deliverable=str(l.get("target_deliverable", "")),
+                    major_business_transformation=str(l.get("major_business_transformation", "")).strip(),
+                    target_deliverable=str(l.get("target_deliverable", "")).strip(),
                 )
                 for l in data.get("lineage", [])
-                if l.get("target_deliverable")
+                if str(l.get("target_deliverable", "")).strip()
             ]
 
-            findings = [str(f) for f in data.get("findings", []) if str(f).strip()]
-
             return BusinessReportContent(
-                workflow_title=str(data.get("workflow_title", "")),
-                workflow_description=str(data.get("workflow_description", "")),
-                executive_summary=str(data.get("executive_summary", "")),
-                methods_of_analysis=str(data.get("methods_of_analysis", "")),
-                findings=findings,
-                conclusions=str(data.get("conclusions", "")),
+                workflow_title=str(data.get("workflow_title", "")).strip(),
+                workflow_description=str(data.get("workflow_description", "")).strip(),
+                executive_summary=exec_summary,
+                methods_of_analysis=methods_analysis,
+                findings=findings[:7],
+                conclusions=conclusions,
                 inputs=inputs,
                 outputs=outputs,
                 sequential_stages=stages,

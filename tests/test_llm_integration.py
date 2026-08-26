@@ -417,18 +417,12 @@ def test_llm_executive_summary_reaches_docx(tmp_path):
         "Central enriched dataset serves as the common upstream foundation for multiple independent analytical branches.",
     ]
     conclusions_text = "The workflow operates as a centralized data consolidation and multi-dimensional reporting pipeline."
-    recs_list = [
-        "Validate business ownership and operational escalation contacts.",
-        "Confirm production execution schedule and upstream refresh dependencies.",
-    ]
-
     fake_client = FakeLLMClient(
         response_map={
             "executive summary": exec_text,
             "methods of analysis": methods_text,
             "findings": "- " + "\n- ".join(findings_list),
             "conclusions": conclusions_text,
-            "recommendations": "- " + "\n- ".join(recs_list),
         }
     )
     generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
@@ -444,7 +438,6 @@ def test_llm_executive_summary_reaches_docx(tmp_path):
             methods_and_process=methods_text,
             findings=findings_list,
             conclusions=conclusions_text,
-            recommendations=recs_list,
         ),
     )
 
@@ -624,7 +617,6 @@ def test_full_pipeline_with_demo_workflow():
     assert len(exec_sum.findings) == 2
     assert "unified reporting base" in exec_sum.findings[0]
     assert "centralized data consolidation" in exec_sum.conclusions
-    assert exec_sum.recommendations == []
 
     # 2. Demand-driven Tool "What It Does" generation
     tool8 = res.workflow.tools[8]

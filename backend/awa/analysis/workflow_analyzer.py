@@ -591,9 +591,7 @@ def analyze_canonical(
             type(exc).__name__, str(exc)[:200],
         )
 
-    # Enforce: Recommendations must NEVER appear in the Business Report
-    if business_summary and business_summary.executive_summary:
-        business_summary.executive_summary.recommendations = []
+
 
     return CanonicalAnalysisResult(
         analysis_id=aid,

@@ -108,8 +108,6 @@ class TestBusinessIntelligenceEngine:
         assert exec_sum.methods_and_process != ""
         assert len(exec_sum.findings) >= 3
         assert exec_sum.conclusions != ""
-        assert len(exec_sum.recommendations) >= 2
-        assert len(exec_sum.limitations) == 0
 
         # Verify no tool IDs in executive summary
         assert "#" not in exec_sum.subject_and_purpose
@@ -117,8 +115,6 @@ class TestBusinessIntelligenceEngine:
         for fnd in exec_sum.findings:
             assert "#" not in fnd
         assert "#" not in exec_sum.conclusions
-        for r in exec_sum.recommendations:
-            assert "#" not in r
 
     def test_determinism(self, demo_claims_workflow):
         """Verify that identical inputs produce 100% identical business facts."""

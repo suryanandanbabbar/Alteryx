@@ -273,83 +273,84 @@ FACTS:
 CONCLUSIONS:"""
 
 
-# ---------------------------------------------------------------------------
-# 7. DOCX "Recommendations" Prompts
-# ---------------------------------------------------------------------------
 
-RECOMMENDATIONS_SYSTEM_PROMPT = """You are an enterprise data management consultant drafting the "Recommendations" subsection of an Executive Summary for a formal Workflow Assessment Report.
-
-Your task is to produce practical, actionable recommendations for business/process owners and migration teams based specifically on what was observed in this workflow.
-
-CRITICAL CONSTRAINTS:
-1. Every recommendation must be directly tied to observed characteristics of the workflow (e.g. validating undocumented business ownership, confirming production schedule/refresh dependencies, validating external file dependencies, standardizing business calculation rules, formalizing data lineage).
-2. Do NOT produce generic platitudes like "Use AI to improve efficiency", "Improve data quality", or "Monitor the workflow regularly" unless tied to specific observed evidence.
-3. Format the output strictly as 2 to 4 bullet points, each starting with a bullet marker ("- ").
-4. Each bullet should be 1-2 concise, actionable sentences structured around: Action → Reason / Expected Benefit.
-5. Do NOT include markdown headings, introductory sentences, or concluding notes."""
-
-
-def build_recommendations_user_prompt(facts: WorkflowFacts) -> str:
-    """Format deterministic workflow facts for Recommendations generation."""
-    facts_dict = facts.to_dict()
-    facts_json = json.dumps(facts_dict, indent=2)
-    return f"""Draft 2 to 4 actionable, workflow-specific recommendations formatted as bullet points ("- ...") based strictly on these deterministic workflow facts:
-
-FACTS:
-{facts_json}
-
-RECOMMENDATIONS:"""
 
 
 # ---------------------------------------------------------------------------
 # 8. Full Structured Business Report Prompts (Sections 1–4 JSON)
 # ---------------------------------------------------------------------------
 
-BUSINESS_REPORT_PROMPT_VERSION = "2.0"
+BUSINESS_REPORT_PROMPT_VERSION = "3.0"
 
-BUSINESS_REPORT_SYSTEM_PROMPT = """You are a senior enterprise data architect and management consultant authoring an Executive Business Report for an Alteryx workflow.
+BUSINESS_REPORT_SYSTEM_PROMPT = """You are a Senior Business Intelligence & Statistical Reporting Analyst authoring the Executive Business Report for an analytics workflow.
 
-Your task is to interpret the provided authoritative, deterministic workflow facts and generate the complete report content in valid JSON format.
+You are NOT merely describing an ETL pipeline or tool inventory. You must interpret the workflow's analytical purpose, statistical operations, and data transformations, producing a rigorous business-analytics report grounded strictly in the supplied deterministic facts.
 
-CRITICAL INSTRUCTIONS:
-1. STRUCTURE & SECTIONS MUST MATCH EXACTLY:
-   Generate content for:
-   - Workflow title & description
-   - 1. Executive Summary:
-     - Executive Summary paragraph (concise business summary, 80-140 words)
-     - Methods of Analysis (workflow-specific data processing methodology, 60-120 words)
-     - Findings (4 to 6 evidence-based observations grounded in the workflow)
-     - Conclusions (architectural and operational synthesis, 40-80 words)
-   - 2. Business Process & Operational Deliverables:
-     - 2.1 Inputs: every input row with source_dataset (EXACT real filename/path from facts), business_role, source_format, dependency_significance
-     - 2.2 Outputs: every output deliverable with output_deliverable (EXACT real filename/table/deliverable from facts), what_it_represents, business_use, destination_format
-     - 2.3 Sequential Operational Stages: stage_number (1..N), stage_name, description, operational_explanation based on the workflow's actual sequence/containers
-   - 3. Key Business Rules & Transformations:
-     - business_rule (business name/meaning), category (Calculation / Filtering / Aggregation / Integration / Reshaping / Validation), evidence_configuration (technical expression or rule evidence)
-   - 4. Source-to-Target Data Lineage:
-     - source_datasets (exact source names/files), major_business_transformation, target_deliverable (exact target output)
+The report follows the University of Newcastle standard for business reports without recommendations:
+Topic / Purpose → Methods of Analysis → Key Analytical Issues & Findings → Conclusions.
 
-2. REAL FILENAMES ARE MANDATORY:
-   - In 'inputs', the 'source_dataset' field MUST be the exact physical filename/source from the facts (e.g., 'customers.xlsx', 'Claims_Volume_Extract_Demo.xlsx').
-   - In 'outputs', the 'output_deliverable' field MUST be the exact destination filename or deliverable name from the facts (e.g., 'active_customers.xlsx', 'customer_totals.xlsx').
-   - Do NOT invent or alter physical filenames.
+CRITICAL ARCHITECTURAL RULES:
+1. PERMANENTLY EXCLUDED CONTENT:
+   - NO Recommendations section or bullet points anywhere in the report.
+   - NO Limitations section or paragraphs anywhere in the report.
+   - NO Visual DAG or Section 5 diagram anywhere in the report.
+   - Do NOT produce any fields, headings, or prose for these excluded items.
 
-3. ZERO HALLUCINATION:
-   - Ground every statement strictly in the supplied workflow facts (tool configurations, formulas, filters, joins, aggregations, schemas, containers).
-   - Do NOT invent business owners, schedules, refresh frequencies, SLAs, dollar amounts, or external consumers not present in the facts.
-   - If an operational aspect is unstated, state: "Not determinable from the workflow definition."
+2. THREE LEVELS OF EVIDENCE DISCIPLINE:
+   - Level 1 (Observed Data): Actual quantitative execution data from the workflow analysis. Report numeric values when present; NEVER fabricate numbers.
+   - Level 2 (Deterministic Facts): Analytical operations proved by workflow configuration (SUM, COUNT, COUNT DISTINCT, AVG, GROUP BY, joins, filters, formula measures, pivots, sorting). State what is measured/compared.
+   - Level 3 (Business Interpretation): Analytical significance reasonably inferable from Level 2 facts (e.g. regional reporting view, grain reduction).
+   - NEVER present Level 2 or 3 as Level 1. A formula SUM(Revenue) GROUP BY Region proves revenue is summed by region; it does NOT prove which region had the highest revenue unless actual execution data is provided.
 
-4. PROFESSIONAL CONSULTING TONE:
-   - Business-oriented, precise, technically grounded, concise, free from generic filler or fluff.
+3. NO GENERIC AI CLICHÉS OR FILLER:
+   - Do NOT use vague phrases: "provides valuable insights", "meaningful insights", "enhances decision-making", "streamlines business processes", "improves efficiency", "supports data-driven decisions", "ensures robust analysis", "facilitates informed decisions".
+   - Replace generic claims with concrete, measurable analytical descriptions (e.g. "aggregates transaction volume by reporting period and product category, establishing a comparative view across those dimensions").
 
-5. OUTPUT FORMAT:
-   Return ONLY a valid JSON object matching this schema:
+4. WORKFLOW-SPECIFICITY & EXACT FILENAMES:
+   - Derive all business terminology and entities strictly from the supplied workflow context (e.g. sales/orders vs claims/policies vs banking/accounts).
+   - In 'inputs', 'source_dataset' MUST be the exact configured physical filename/path from facts (e.g. 'inventory.csv', 'customers.xlsx').
+   - In 'outputs', 'output_deliverable' MUST be the exact destination filename or table from facts (e.g. 'active_inventory.csv', 'customer_totals.xlsx').
+   - In 'outputs', 'business_use' MUST explain the output's analytical/operational reporting function dynamically from evidence (e.g. "Provides period-level revenue breakdown for monthly commercial audit").
+
+5. SECTION-BY-SECTION REQUIREMENTS:
+
+   A. Executive Summary (Subject / Business Purpose):
+      - 100 to 180 words.
+      - Explain the business process analysed, key entities/measures, sources combined, outputs generated, and the operational reporting purpose.
+      - Do NOT say "The workflow processes data through multiple tools." Explain what business entities and questions the analysis addresses.
+
+   B. Methods of Analysis:
+      - 80 to 150 words.
+      - Explicitly identify the actual analytical and statistical operations present in the workflow: multi-dimensional aggregation (SUM, COUNT, COUNT DISTINCT, AVG, MIN, MAX), group-by dimensions, calculated measures/formulas, conditional filtering/segmentation, relational joins/cross-source enrichment, sorting, and CrossTab matrix pivoting.
+      - Only list methods actually evidenced in the workflow configuration.
+
+   C. Findings (3 to 7 Substantive Analytical Findings):
+      - Each finding must explain the analytical significance of the transformations, following this structure:
+        [Analytical Subject] + [Method / Statistical Operation] + [Observed or Inferable Result] + [Business Significance]
+      - Example: "Transaction records are aggregated by reporting period and business unit using SUM and COUNT DISTINCT operations. This converts record-level observations into period-level measures of transaction volume and value, enabling comparative performance analysis across reporting periods and business units."
+      - Do NOT write generic technical facts like "The workflow contains aggregation tools."
+
+   D. Conclusions:
+      - 60 to 120 words.
+      - Synthesise what the analysis establishes or enables the business stakeholder to understand (e.g. consolidated reporting grain, multi-dimensional comparative base).
+
+   E. Business Process & Operational Deliverables:
+      - Inputs (2.1), Outputs (2.2), Sequential Stages (2.3).
+      - Stages should reflect meaningful business phases derived from containers or tool grouping.
+
+   F. Key Business Rules (3) & Lineage (4):
+      - Rules derived from actual formulas, filters, joins, aggregations.
+      - Lineage mapping exact source datasets through business transformations to target deliverables.
+
+6. JSON SCHEMA (Return ONLY valid JSON matching this schema):
 {
   "workflow_title": "string",
   "workflow_description": "string",
   "executive_summary": "string",
   "methods_of_analysis": "string",
-  "findings": ["string", "string", "string", "string"],
+  "findings": [
+    "string"
+  ],
   "conclusions": "string",
   "inputs": [
     {
@@ -395,7 +396,7 @@ CRITICAL INSTRUCTIONS:
 def build_business_report_user_prompt(context_dict: dict[str, Any]) -> str:
     """Format comprehensive deterministic workflow facts for full Business Report JSON generation."""
     context_json = json.dumps(context_dict, indent=2)
-    return f"""Analyze these authoritative, deterministic workflow facts and generate the complete Executive Business Report content JSON:
+    return f"""Analyze these authoritative, deterministic workflow facts as a Business Intelligence & Statistical Reporting Analyst, and generate the complete Executive Business Report content JSON:
 
 AUTHORITATIVE WORKFLOW FACTS:
 {context_json}

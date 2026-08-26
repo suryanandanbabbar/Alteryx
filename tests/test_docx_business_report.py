@@ -616,11 +616,294 @@ class TestDocxBusinessReport:
             "Publish analytical deliverables",
             "Business use: Not documented",
             "Recommendations",
+            "Limitations",
             "Visual Workflow Graph",
             "DAG Architecture",
+            "Section 5",
         ]
         for s in forbidden_strings:
             assert s not in full_text, f"Found forbidden legacy string in generic report: {s}"
+
+    def test_multi_domain_analytical_differentiation_and_no_leakage(self, tmp_path: Path):
+        """Verify that distinct business domains (Banking vs Commercial Sales) produce distinct analytical narratives with zero cross-domain leakage and zero excluded sections."""
+        from awa.llm.client import FakeLLMClient, set_default_llm_client
+        from awa.llm.generator import LLMNarrativeGenerator, set_default_generator
+        from awa.llm.cache import LLMNarrativeCache
+        import json
+
+        # Domain 1: Banking Transaction Settlement Workflow
+        banking_wf = Workflow(
+            metadata=WorkflowMetadata(name="Core Banking Settlement Analysis", version="2024.1"),
+            tools={
+                101: Tool(
+                    tool_id=101,
+                    plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+                    tool_type="DbFileInput",
+                    name="Input Wire Transfers",
+                    position=Position(0, 0),
+                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "wire_transfers.csv"}),
+                ),
+                102: Tool(
+                    tool_id=102,
+                    plugin="AlteryxBasePluginsGui.Summarize.Summarize",
+                    tool_type="Summarize",
+                    name="Summarize Volume",
+                    position=Position(100, 0),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>",
+                        parsed={"summarize_fields": [{"field": "Transfer_Amount", "action": "Sum"}, {"field": "Account_ID", "action": "CountDistinct"}]},
+                    ),
+                ),
+                103: Tool(
+                    tool_id=103,
+                    plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+                    tool_type="DbFileOutput",
+                    name="Output Daily Settlement",
+                    position=Position(200, 0),
+                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "daily_settlement.xlsx"}),
+                ),
+            },
+            connections=[
+                Connection(origin_tool_id=101, origin_anchor="Output", destination_tool_id=102, destination_anchor="Input"),
+                Connection(origin_tool_id=102, origin_anchor="Output", destination_tool_id=103, destination_anchor="Input"),
+            ],
+        )
+
+        # Domain 2: Commercial Sales & Commission Workflow
+        sales_wf = Workflow(
+            metadata=WorkflowMetadata(name="Commercial Sales Commission Reconciliation", version="2024.1"),
+            tools={
+                201: Tool(
+                    tool_id=201,
+                    plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+                    tool_type="DbFileInput",
+                    name="Input Sales Invoices",
+                    position=Position(0, 0),
+                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "sales_invoices.xlsx"}),
+                ),
+                202: Tool(
+                    tool_id=202,
+                    plugin="AlteryxBasePluginsGui.Formula.Formula",
+                    tool_type="Formula",
+                    name="Calculate Commission",
+                    position=Position(100, 0),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>",
+                        parsed={"formula_fields": [{"field": "Commission_Amount", "expression": "[Invoice_Total] * 0.05"}]},
+                    ),
+                ),
+                203: Tool(
+                    tool_id=203,
+                    plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+                    tool_type="DbFileOutput",
+                    name="Output Sales Ledger",
+                    position=Position(200, 0),
+                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "sales_commission_ledger.csv"}),
+                ),
+            },
+            connections=[
+                Connection(origin_tool_id=201, origin_anchor="Output", destination_tool_id=202, destination_anchor="Input"),
+                Connection(origin_tool_id=202, origin_anchor="Output", destination_tool_id=203, destination_anchor="Input"),
+            ],
+        )
+
+        def mock_domain_llm(system: str, user: str) -> str | None:
+            if "wire_transfers.csv" in user or "Banking Settlement" in user:
+                return json.dumps({
+                    "workflow_title": "Core Banking Settlement Analysis",
+                    "workflow_description": "Automates interbank wire transfer validation, ledger reconciliation, and daily liquidity position reporting.",
+                    "executive_summary": "This analytical report evaluates the daily wire transfer settlement process across institutional banking counterparties. The workflow ingests raw wire transaction logs, computes total settlement exposure, calculates distinct active accounts, and outputs finalized ledger balances for central bank reconciliation.",
+                    "methods_of_analysis": "The analysis utilizes multi-dimensional summation (SUM on Transfer_Amount) and distinct population enumeration (COUNT DISTINCT on Account_ID) to establish aggregate liquidity metrics across account hierarchies.",
+                    "findings": [
+                        "Interbank transfer volume is aggregated using SUM(Transfer_Amount) to calculate gross daily settlement exposure across active account partitions.",
+                        "Counterparty participation is quantified using COUNT DISTINCT(Account_ID), establishing the total unique institutional account population per settlement window.",
+                        "Finalized liquidity positions are distributed to daily_settlement.xlsx to support regulatory capital reporting and daily cash clearing audits."
+                    ],
+                    "conclusions": "The workflow establishes an authoritative daily settlement baseline, converting granular wire events into consolidated counterparty liquidity measures required for financial auditability.",
+                    "inputs": [
+                        {
+                            "source_dataset": "wire_transfers.csv",
+                            "business_role": "Inbound interbank wire transfer log feed",
+                            "source_format": "CSV Data File",
+                            "dependency_significance": "Essential transactional input required for central ledger reconciliation"
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "output_deliverable": "daily_settlement.xlsx",
+                            "what_it_represents": "Finalized institutional settlement position matrix",
+                            "business_use": "Daily regulatory liquidity reporting and central bank clearing verification",
+                            "destination_format": "Excel Workbook"
+                        }
+                    ],
+                    "sequential_stages": [
+                        {
+                            "stage_number": 1,
+                            "stage_name": "Transaction Ingestion & Aggregation",
+                            "description": "Ingests raw wire transfer events and computes gross settlement exposure",
+                            "operational_explanation": "Processes wire transfer records via aggregation"
+                        }
+                    ],
+                    "business_rules": [
+                        {
+                            "business_rule": "Aggregate Settlement Exposure",
+                            "category": "Aggregation",
+                            "evidence_configuration": "SUM(Transfer_Amount), COUNT DISTINCT(Account_ID)"
+                        }
+                    ],
+                    "lineage": [
+                        {
+                            "source_datasets": "wire_transfers.csv",
+                            "major_business_transformation": "Aggregate transfer totals and count distinct accounts",
+                            "target_deliverable": "daily_settlement.xlsx"
+                        }
+                    ]
+                })
+            elif "sales_invoices.xlsx" in user or "Sales Commission" in user:
+                return json.dumps({
+                    "workflow_title": "Commercial Sales Commission Reconciliation",
+                    "workflow_description": "Computes sales team commission accruals from completed customer invoices.",
+                    "executive_summary": "This business report evaluates commercial sales revenue and associate commission calculation logic. The workflow ingests finalized customer sales invoices, calculates contractual 5% commission amounts using derived formulas, and generates the monthly commission reconciliation ledger.",
+                    "methods_of_analysis": "The workflow applies mathematical formula expressions ([Invoice_Total] * 0.05) to derive associate payout metrics from transaction-level invoice data.",
+                    "findings": [
+                        "Contractual commission accruals are calculated using deterministic formula derivation ([Invoice_Total] * 0.05), ensuring standard commercial rate application across all completed invoices.",
+                        "Inbound invoice data is validated against sales ledger constraints prior to commission ledger posting.",
+                        "The resulting commission ledger is published to sales_commission_ledger.csv for monthly payroll audit and revenue operations review."
+                    ],
+                    "conclusions": "The workflow establishes a standardized commercial commission derivation pipeline, transforming raw invoice data into audited compensation records.",
+                    "inputs": [
+                        {
+                            "source_dataset": "sales_invoices.xlsx",
+                            "business_role": "Completed customer sales invoice register",
+                            "source_format": "Excel Workbook",
+                            "dependency_significance": "Primary revenue source feed required for commission calculation"
+                        }
+                    ],
+                    "outputs": [
+                        {
+                            "output_deliverable": "sales_commission_ledger.csv",
+                            "what_it_represents": "Itemized sales representative commission register",
+                            "business_use": "Monthly commercial sales payroll processing and revenue audit",
+                            "destination_format": "CSV Data File"
+                        }
+                    ],
+                    "sequential_stages": [
+                        {
+                            "stage_number": 1,
+                            "stage_name": "Invoice Ingestion & Commission Derivation",
+                            "description": "Ingests sales invoices and computes commission accruals",
+                            "operational_explanation": "Applies formula derivation to invoices"
+                        }
+                    ],
+                    "business_rules": [
+                        {
+                            "business_rule": "Calculate 5% Commission",
+                            "category": "Calculation",
+                            "evidence_configuration": "[Invoice_Total] * 0.05"
+                        }
+                    ],
+                    "lineage": [
+                        {
+                            "source_datasets": "sales_invoices.xlsx",
+                            "major_business_transformation": "Calculate commission accruals from invoice totals",
+                            "target_deliverable": "sales_commission_ledger.csv"
+                        }
+                    ]
+                })
+            return None
+
+        client = FakeLLMClient(generator_fn=mock_domain_llm)
+        gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+        set_default_llm_client(client)
+        set_default_generator(gen)
+
+        try:
+            # 1. Generate Banking Report
+            b_graph = build_graph(banking_wf)
+            b_order = execution_order(b_graph)
+            b_bs = generate_business_summary(banking_wf, b_graph, b_order)
+            b_rep = gen.generate_business_report(banking_wf, b_bs, graph=b_graph, workflow_id="banking-1")
+            assert b_rep is not None
+
+            # Populate business summary from LLM
+            b_bs.business_purpose = b_rep.executive_summary
+            b_bs.executive_summary.subject_and_purpose = b_rep.executive_summary
+            b_bs.executive_summary.methods_and_process = b_rep.methods_of_analysis
+            b_bs.executive_summary.findings = b_rep.findings
+            b_bs.executive_summary.conclusions = b_rep.conclusions
+
+            b_doc_model = build_document_model(
+                workflow=banking_wf,
+                execution_order=b_order,
+                translations={},
+                dag_layout=None,
+                lineage_paths=[],
+                business_summary=b_bs,
+                analysis_id="banking-1",
+            )
+            b_docx = tmp_path / "banking_report.docx"
+            generate_docx(b_doc_model, b_docx)
+            assert b_docx.exists()
+            b_text = self._extract_all_docx_text(b_docx)
+
+            # 2. Generate Sales Report
+            s_graph = build_graph(sales_wf)
+            s_order = execution_order(s_graph)
+            s_bs = generate_business_summary(sales_wf, s_graph, s_order)
+            s_rep = gen.generate_business_report(sales_wf, s_bs, graph=s_graph, workflow_id="sales-1")
+            assert s_rep is not None
+
+            s_bs.business_purpose = s_rep.executive_summary
+            s_bs.executive_summary.subject_and_purpose = s_rep.executive_summary
+            s_bs.executive_summary.methods_and_process = s_rep.methods_of_analysis
+            s_bs.executive_summary.findings = s_rep.findings
+            s_bs.executive_summary.conclusions = s_rep.conclusions
+
+            s_doc_model = build_document_model(
+                workflow=sales_wf,
+                execution_order=s_order,
+                translations={},
+                dag_layout=None,
+                lineage_paths=[],
+                business_summary=s_bs,
+                analysis_id="sales-1",
+            )
+            s_docx = tmp_path / "sales_report.docx"
+            generate_docx(s_doc_model, s_docx)
+            assert s_docx.exists()
+            s_text = self._extract_all_docx_text(s_docx)
+
+            # 3. Verify Banking-specific terms and absence of Sales / Claims terms
+            assert "wire_transfers.csv" in b_text
+            assert "daily_settlement.xlsx" in b_text
+            assert "liquidity" in b_text.lower()
+            assert "sales_invoices.xlsx" not in b_text
+            assert "commission" not in b_text.lower()
+            assert "claims" not in b_text.lower()
+            assert "policy" not in b_text.lower()
+
+            # 4. Verify Sales-specific terms and absence of Banking / Claims terms
+            assert "sales_invoices.xlsx" in s_text
+            assert "sales_commission_ledger.csv" in s_text
+            assert "commission" in s_text.lower()
+            assert "wire_transfers.csv" not in s_text
+            assert "settlement" not in s_text.lower()
+            assert "claims" not in s_text.lower()
+            assert "policy" not in s_text.lower()
+
+            # 5. Verify absolute absence of prohibited sections in both documents
+            for doc_text in (b_text, s_text):
+                assert "Recommendations" not in doc_text
+                assert "Limitations" not in doc_text
+                assert "Visual Workflow Graph" not in doc_text
+                assert "Visual DAG" not in doc_text
+                assert "DAG Architecture" not in doc_text
+                assert "Section 5" not in doc_text
+                assert "5. Visual" not in doc_text
+
+        finally:
+            set_default_llm_client(None)
+            set_default_generator(None)
 
 
 

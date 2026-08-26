@@ -875,93 +875,169 @@ def _build_executive_summary(
     assessment: BusinessAssessment,
     purpose: str,
 ) -> ExecutiveSummaryContent:
-    """Construct a concise, evidence-based Executive Summary conforming to the business analysis standard."""
-    # 1. Subject Matter / Business Purpose (1 concise paragraph)
+    """Construct an evidence-based Executive Summary conforming to the professional business analytics standard."""
+    # Collect specific analytical operations present in the workflow
+    summarize_ops: list[str] = []
+    formula_fields: list[str] = []
+    filter_exprs: list[str] = []
+    join_keys: list[str] = []
+    sort_fields: list[str] = []
+    crosstab_fields: list[str] = []
+
+    for tool in workflow.tools.values():
+        cfg = tool.configuration.parsed or {}
+        ttype = tool.tool_type
+        if ttype == "Summarize":
+            for sf in cfg.get("summarize_fields", []):
+                field_name = sf.get("field", "")
+                action = sf.get("action", "")
+                if action and field_name:
+                    summarize_ops.append(f"{action}({field_name})")
+        elif ttype in ("Formula", "MultiFieldFormula"):
+            for ff in cfg.get("formula_fields", []):
+                fname = ff.get("field", "")
+                if fname:
+                    formula_fields.append(fname)
+        elif ttype == "Filter":
+            expr = cfg.get("expression") or cfg.get("Expression") or ""
+            if expr:
+                filter_exprs.append(expr)
+        elif ttype == "Join":
+            jfields = cfg.get("join_fields", [])
+            if jfields:
+                join_keys.extend(str(jf) for jf in jfields[:2])
+        elif ttype == "Sort":
+            for sf in cfg.get("sort_fields", []):
+                sname = sf.get("field", "")
+                if sname:
+                    sort_fields.append(sname)
+        elif ttype == "CrossTab":
+            hfield = cfg.get("header_field", "")
+            dfield = cfg.get("data_field", "")
+            if hfield or dfield:
+                crosstab_fields.append(f"{hfield} -> {dfield}")
+
+    # 1. Subject Matter / Business Purpose (concise analytical overview)
     if purpose:
         subject_and_purpose = purpose
     elif inputs and outputs:
-        inp_names = ", ".join(i.name for i in inputs[:3])
-        out_names = ", ".join(o.name for o in outputs[:3])
+        inp_names = ", ".join(i.source_filename or i.name for i in inputs[:3])
+        out_names = ", ".join(o.sheet_or_table or o.name for o in outputs[:3])
         subject_and_purpose = (
-            f"This workflow automates data preparation and reporting by ingesting {inp_names}, "
-            f"applying standard transformation and reconciliation rules, and publishing {out_names}."
+            f"This workflow automates operational data preparation and reporting by ingesting {inp_names}, "
+            f"executing structured transformation and reconciliation rules, and publishing finalized analytical deliverables to {out_names}."
         )
     else:
-        subject_and_purpose = "This workflow automates operational data preparation and reporting."
+        subject_and_purpose = "This workflow automates operational data preparation, analytical transformation, and business reporting."
 
-    # 2. Methods / Workflow Process (1 concise paragraph: Input -> Prep -> Enrich -> Transform -> Output)
-    if len(inputs) > 1:
-        inp_count_str = f"{len(inputs)} source datasets"
-        out_count_str = f"{len(outputs)} distinct analytical deliverables" if outputs else "reporting outputs"
+    # 2. Methods of Analysis (concrete analytical / statistical methods present)
+    methods_list: list[str] = []
+    if inputs:
+        inp_count = len(inputs)
+        methods_list.append(f"multi-source data ingestion ({inp_count} source dataset{'s' if inp_count != 1 else ''})")
+    if join_keys:
+        methods_list.append(f"relational joins and cross-source enrichment")
+    if filter_exprs:
+        methods_list.append("conditional filtering and record segmentation")
+    if formula_fields:
+        methods_list.append("calculated measure derivation via formula expressions")
+    if summarize_ops:
+        methods_list.append(f"multi-dimensional aggregation ({len(summarize_ops)} aggregation operations)")
+    if crosstab_fields:
+        methods_list.append("matrix pivoting and dimensional cross-tabulation")
+    if sort_fields:
+        methods_list.append("chronological and categorical sorting")
+    if outputs:
+        out_count = len(outputs)
+        methods_list.append(f"analytical deliverable distribution ({out_count} target export{'s' if out_count != 1 else ''})")
+
+    if methods_list:
         methods_and_process = (
-            f"The workflow ingests {inp_count_str}, reconciles records across sources, "
-            f"applies sequential data preparation and calculation rules across {len(stages)} operational stages, "
-            f"and distributes the transformed records into {out_count_str}."
-        )
-    elif inputs and outputs:
-        methods_and_process = (
-            f"The workflow ingests {inputs[0].name}, validates and transforms records according to sequential "
-            f"business rules, and publishes the resulting dataset to {outputs[0].name}."
-        )
-    elif inputs:
-        methods_and_process = (
-            f"The workflow ingests {inputs[0].name} and applies sequential validation, filtering, and derivation rules."
+            f"The workflow applies sequential analytical operations including {', '.join(methods_list[:5])} "
+            f"across {len(stages)} processing stages to establish a consistent reporting baseline."
         )
     else:
         methods_and_process = (
             "The workflow applies sequential data preparation, validation, and calculation rules to produce analysis-ready records."
         )
 
-    # 3. Findings (Objective, evidence-based observations)
-    findings = []
+    # 3. Findings (Analytical Subject + Method + Result/Fact + Business Significance)
+    findings: list[str] = []
+
     if len(inputs) > 1:
-        src_names = ", ".join(i.name for i in inputs[:4])
-        findings.append(f"The process combines {len(inputs)} independent source datasets ({src_names}) into a unified reporting base.")
+        src_names = ", ".join(i.source_filename or i.name for i in inputs[:4])
+        findings.append(
+            f"Data integration combines {len(inputs)} independent source datasets ({src_names}) into a unified analytical base, "
+            f"enabling cross-source reconciliation and consolidated reporting across disparate operational records."
+        )
     elif inputs:
-        findings.append(f"The process depends on {inputs[0].name} as its primary source dataset.")
+        inp_name = inputs[0].source_filename or inputs[0].name
+        findings.append(
+            f"Primary data ingestion establishes {inp_name} as the authoritative source dataset, "
+            f"serving as the single upstream foundation for all subsequent transformation and calculation steps."
+        )
+
+    if summarize_ops:
+        ops_summary = ", ".join(summarize_ops[:3])
+        findings.append(
+            f"Multi-dimensional aggregation applies {ops_summary} operations to convert record-level transaction observations "
+            f"into structured period-level summary measures, reducing data granularity to support executive reporting."
+        )
+
+    if formula_fields:
+        f_names = ", ".join(list(dict.fromkeys(formula_fields))[:3])
+        findings.append(
+            f"Derived metric calculation establishes standardized business measures ({f_names}) through deterministic formula rules, "
+            f"ensuring consistent analytical calculations prior to deliverable export."
+        )
+
+    if filter_exprs:
+        findings.append(
+            f"Data segmentation and quality filtering isolates specific target records using configured conditional predicates, "
+            f"preventing non-qualifying records from propagating into published downstream deliverables."
+        )
 
     if len(outputs) > 1:
-        findings.append(f"The pipeline branches transformed data into {len(outputs)} distinct published deliverables.")
+        out_names = ", ".join(o.sheet_or_table or o.name for o in outputs[:3])
+        findings.append(
+            f"Analytical deliverable distribution branches transformed records into {len(outputs)} distinct outputs ({out_names}), "
+            f"providing tailored reporting views across different business consumption channels."
+        )
+    elif outputs:
+        out_name = outputs[0].sheet_or_table or outputs[0].name
+        findings.append(
+            f"Published output generation exports transformed records to {out_name}, "
+            f"providing the finalized deliverable for recurring operational review."
+        )
 
-    if business_rules:
+    # Ensure findings length is between 3 and 7 items
+    if len(findings) < 3 and business_rules:
         cats = list(dict.fromkeys(r.category for r in business_rules))
         cats_str = ", ".join(cats[:3])
-        findings.append(f"Key business logic enforces operational standardization through {cats_str.lower()} rules.")
+        findings.append(
+            f"Operational business logic enforces standardization through {cats_str.lower()} rules extracted from tool configurations."
+        )
 
-    if inputs and inputs[0].source_type:
-        findings.append(f"All inbound and outbound data flows rely on external {inputs[0].source_type} dependencies.")
-
-    # 4. Conclusions (Business interpretation of what the workflow represents)
+    # 4. Conclusions (Analytical synthesis of what the workflow demonstrates)
     if len(inputs) > 1 and len(outputs) > 1:
         conclusions = (
             "The workflow operates as a centralized data consolidation and multi-dimensional reporting pipeline, "
-            "integrating disparate operational feeds into recurring analytical deliverables."
+            "integrating disparate operational feeds into recurring analytical deliverables with a unified reporting grain."
         )
     elif len(outputs) > 1:
         conclusions = (
             "The workflow operates as an analytical distribution pipeline, preparing a central source dataset "
-            "into multiple specialized reporting views."
+            "into multiple specialized reporting views for downstream business consumption."
         )
     else:
         conclusions = (
-            "The workflow operates as a standardized data preparation process, transforming raw source extracts "
-            "into structured operational reporting outputs."
+            "The workflow establishes a standardized data preparation and reporting process, transforming raw source extracts "
+            "into a structured operational deliverable."
         )
-
-    # 5. Recommendations
-    recommendations = []
-    if assessment.business_owner == "Not documented":
-        recommendations.append("Validate business ownership and operational escalation contacts, as ownership is not recorded in the workflow definition.")
-    if assessment.schedule == "Not documented":
-        recommendations.append("Confirm the production execution schedule, execution frequency, and upstream refresh dependencies with process stakeholders.")
-    if inputs and any(i.source_type == "Excel Workbook" for i in inputs):
-        recommendations.append("Validate external file path dependencies and source system stability prior to platform migration or automated scheduling.")
 
     return ExecutiveSummaryContent(
         subject_and_purpose=subject_and_purpose,
         methods_and_process=methods_and_process,
-        findings=findings,
+        findings=findings[:7],
         conclusions=conclusions,
-        recommendations=recommendations,
-        limitations=[],
     )

@@ -188,13 +188,11 @@ class ExecutiveBusinessRule:
 
 @dataclass
 class ExecutiveSummaryContent:
-    """Structured Executive Summary conforming to the business analysis report standard."""
+    """Structured Executive Summary conforming to the business analysis report standard (no recommendations)."""
     subject_and_purpose: str = ""                       # 1. Subject matter / business purpose paragraph
-    methods_and_process: str = ""                       # 2. Methods / workflow process flow paragraph
-    findings: list[str] = dc_field(default_factory=list) # 3. Objective structural and operational findings
-    conclusions: str = ""                               # 4. Short business interpretation of the process
-    recommendations: list[str] = dc_field(default_factory=list) # 5. Actionable next steps for business/migration teams
-    limitations: list[str] = dc_field(default_factory=list)     # 6. Material boundaries of static analysis
+    methods_and_process: str = ""                       # 2. Methods / analytical process flow paragraph
+    findings: list[str] = dc_field(default_factory=list) # 3. Objective analytical findings
+    conclusions: str = ""                               # 4. Business and analytical synthesis
 
     @property
     def purpose(self) -> str:
@@ -206,8 +204,6 @@ class ExecutiveSummaryContent:
             "methods_and_process": self.methods_and_process,
             "findings": self.findings,
             "conclusions": self.conclusions,
-            "recommendations": self.recommendations,
-            "limitations": self.limitations,
         }
 
 
