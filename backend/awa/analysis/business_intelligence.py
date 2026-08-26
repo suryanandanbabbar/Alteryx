@@ -185,22 +185,15 @@ def _detect_inputs(workflow: Workflow, evidence: list[str]) -> list[BusinessInpu
         else:
             business_name = f"Source Input #{tid}"
 
-        # Assign concrete Business Role
-        lower_name = business_name.lower()
-        if "claims" in lower_name or "volume" in lower_name:
-            role = "Primary claims dataset"
-        elif "policy" in lower_name or "master" in lower_name:
-            role = "Policy attributes master"
-        elif "payment" in lower_name:
-            role = "Payment transaction history"
-        elif "diary" in lower_name or "note" in lower_name:
-            role = "Adjuster diary and activity notes"
-        elif "customer" in lower_name:
-            role = "Customer account master"
-        elif "transaction" in lower_name or "sales" in lower_name:
-            role = "Transaction event records"
+        # Assign factual default Business Role based on tool configuration/annotation
+        if tool.annotation and len(tool.annotation.strip()) > 3:
+            role = tool.annotation.strip()
+        elif sheet_or_table:
+            role = f"Source dataset ({sheet_or_table})"
+        elif base_path:
+            role = f"Source dataset ({business_name})"
         else:
-            role = tool.annotation or f"Source reference dataset ({source_type})"
+            role = f"Source reference dataset ({source_type})"
 
         desc = tool.annotation or f"Ingests {business_name} records."
         if sheet_or_table:
@@ -222,6 +215,7 @@ def _detect_inputs(workflow: Workflow, evidence: list[str]) -> list[BusinessInpu
                 sheet_or_table=sheet_or_table,
                 container_name=tool.container_name,
                 business_role=role,
+                dependency_significance=f"{source_type} source dataset for downstream processing",
                 description=desc,
                 evidence=[ev],
             )
@@ -274,31 +268,22 @@ def _detect_outputs(workflow: Workflow, graph: nx.DiGraph, evidence: list[str]) 
         else:
             business_name = f"Deliverable #{tid}"
 
-        # Standardize known business deliverable names
-        lower_name = business_name.lower()
-        if "detail" in lower_name or "historical" in lower_name and "quarter" not in lower_name:
-            business_name = "Historical Claims Extract"
-            meaning = "Claim-level historical reporting"
-            likely_use = "Operational historical claims review"
-        elif "quarter" in lower_name:
-            business_name = "Quarterly Volume Summary"
-            meaning = "Quarterly claims volume and status aggregations"
-            likely_use = "Quarterly portfolio tracking"
-        elif "product" in lower_name:
-            business_name = "Product Type Analysis"
-            meaning = "Claims analysis categorized by product line"
-            likely_use = "Product performance and mix analysis"
-        elif "state" in lower_name:
-            business_name = "State Analysis"
-            meaning = "Geographic claims reporting by state"
-            likely_use = "Regional claims distribution analysis"
-        elif "aging" in lower_name or "risk" in lower_name:
-            business_name = "Aging & Litigation Risk Analysis"
-            meaning = "Claims grouped by aging duration and litigation status"
-            likely_use = "Litigation risk and aging bottleneck monitoring"
+        # Factual business meaning and likely use based on actual configuration
+        if tool.annotation and len(tool.annotation.strip()) > 3:
+            meaning = tool.annotation.strip()
+        elif sheet_or_table:
+            meaning = f"Published deliverable for {sheet_or_table}"
+        elif base_path:
+            meaning = f"Published deliverable for {business_name}"
         else:
-            meaning = tool.annotation or f"Exported analytical dataset for {business_name}."
-            likely_use = "Use not documented"
+            meaning = f"Exported analytical dataset for {business_name}"
+        
+        if sheet_or_table:
+            likely_use = f"Downstream reporting and analysis ({sheet_or_table})"
+        elif base_path:
+            likely_use = f"Downstream analytical consumption ({business_name})"
+        else:
+            likely_use = f"Downstream reporting and analytics ({dest_type})"
 
         # Trace upstream sources
         upstream_src_names: list[str] = []
@@ -406,31 +391,50 @@ def _detect_stages(
             )
             stage_num += 1
     else:
-        # Fallback to standard 4-stage pipeline
-        standard_pipeline = [
-            ("INGEST", "Ingest", "Source data ingestion", "Loads upstream source datasets into the pipeline.", "Reads source files", [t for t in exec_order if workflow.tools.get(t) and workflow.tools[t].tool_type in ("DbFileInput", "TextInput", "DynamicInput")]),
-            ("SUMMARISE", "Summarise", "Historical volume and team aggregations", "Aggregates records for reporting periods.", "Summarizes metrics", [t for t in exec_order if workflow.tools.get(t) and workflow.tools[t].tool_type in ("Summarize", "CrossTab", "Sort")]),
-            ("ENRICH", "Enrich", "Cross-source data enrichment and calculations", "Merges reference attributes and calculates metrics.", "Relational joins and formulas", [t for t in exec_order if workflow.tools.get(t) and workflow.tools[t].tool_type in ("Join", "Formula", "Filter", "Union", "AlteryxSelect")]),
-            ("REPORT", "Report", "Publish analytical deliverables", "Exports finalized datasets for downstream consumption.", "Writes target files", [t for t in exec_order if workflow.tools.get(t) and workflow.tools[t].tool_type in ("DbFileOutput", "BrowseV2", "Render")]),
-        ]
+        # Build stages dynamically from actual tool types in execution order
+        # Group tools by functional role based on their tool_type
+        role_groups: dict[str, list[int]] = {
+            "Data Input": [],
+            "Transformation": [],
+            "Output": [],
+        }
+        for tid in exec_order:
+            t = workflow.tools.get(tid)
+            if not t:
+                continue
+            if t.tool_type in ("DbFileInput", "InputData", "TextInput", "DynamicInput"):
+                role_groups["Data Input"].append(tid)
+            elif t.tool_type in ("DbFileOutput", "OutputData", "Render", "BrowseV2"):
+                role_groups["Output"].append(tid)
+            else:
+                role_groups["Transformation"].append(tid)
 
         stage_num = 1
-        for short_code, sname, ssum, spurp, smtrans, t_ids in standard_pipeline:
+        for role_label, t_ids in role_groups.items():
             if not t_ids:
                 continue
+            tool_types_in_group = list(dict.fromkeys(
+                workflow.tools[t].tool_type for t in t_ids if t in workflow.tools
+            ))
+            types_str = ", ".join(tool_types_in_group[:4])
+            short_code = role_label.upper().replace(" ", "_")[:10]
             short_title = f"{stage_num:02d} {short_code}"
+            summary = f"{role_label} operations ({types_str})"
+            purpose = f"Processes records through {len(t_ids)} {role_label.lower()} steps."
+            major_trans = f"Applies {types_str} operations across {len(t_ids)} steps."
+
             stage_inputs = [inp.tool_id for inp in inputs if inp.tool_id in t_ids]
             stage_outputs = [out.tool_id for out in outputs if out.tool_id in t_ids]
 
             stages.append(
                 BusinessStage(
                     stage_number=stage_num,
-                    name=sname,
+                    name=role_label,
                     short_title=short_title,
-                    summary=ssum,
-                    description=ssum,
-                    business_purpose=spurp,
-                    major_transformation=smtrans,
+                    summary=summary,
+                    description=summary,
+                    business_purpose=purpose,
+                    major_transformation=major_trans,
                     tool_ids=t_ids,
                     input_ids=stage_inputs,
                     output_ids=stage_outputs,
@@ -448,62 +452,19 @@ def _detect_stages(
 
 def _format_stage_info(stage_num: int, caption: str, tool_ids: list[int], workflow: Workflow) -> tuple[str, str, str, str, str]:
     """Derive concise stage title, short code, summary, purpose, and major transformation."""
-    cap_lower = caption.lower()
-
-    if "extract claims" in cap_lower or "ingest" in cap_lower:
-        name = "Ingest Claims Data"
-        short_title = f"{stage_num:02d} INGEST"
-        summary = "Claims and supporting reference data"
-        purpose = "Ingests source claims records and prepares initial data stream."
-        major_trans = "Reads primary claims workbook and validates record format."
-    elif "create summar" in cap_lower or "volume" in cap_lower:
-        name = "Summarise Volume"
-        short_title = f"{stage_num:02d} SUMMARISE"
-        summary = "Historical volume and team reporting"
-        purpose = "Aggregates claims by quarter, status, manager, and examiner."
-        major_trans = "Pivots status counts and aggregates quarterly volume."
-    elif "additional" in cap_lower or "sources" in cap_lower:
-        name = "Ingest Master Data"
-        short_title = f"{stage_num:02d} SOURCES"
-        summary = "Policy, payment, and diary reference sources"
-        purpose = "Ingests secondary policy, financial payment, and diary notes data."
-        major_trans = "Rolls payment transactions up to claim-level totals."
-    elif "enrich" in cap_lower:
-        name = "Enrich Claims"
-        short_title = f"{stage_num:02d} ENRICH"
-        summary = "Combine claims with policy, payment and diary data"
-        purpose = "Consolidates claim records with policy attributes, payment history, and adjuster notes."
-        major_trans = "Relational joins on Policy Number and Claim Number with zero-fill defaulting."
-    elif "product" in cap_lower:
-        name = "Product Analysis"
-        short_title = f"{stage_num:02d} PRODUCT"
-        summary = "Claims summarized by product line and quarter"
-        purpose = "Generates product line performance reporting."
-        major_trans = "Aggregates enriched claims by product type and reporting quarter."
-    elif "state" in cap_lower:
-        name = "State Analysis"
-        short_title = f"{stage_num:02d} STATE"
-        summary = "Geographic claims reporting by state"
-        purpose = "Generates state-level geographic claims distribution summaries."
-        major_trans = "Aggregates enriched claims by state and reporting quarter."
-    elif "aging" in cap_lower or "risk" in cap_lower:
-        name = "Derive Aging & Risk"
-        short_title = f"{stage_num:02d} DERIVE"
-        summary = "Calculate activity and aging/risk attributes"
-        purpose = "Calculates days since last activity and classifies claims into aging buckets and litigation risk."
-        major_trans = "Calculates activity recency and assigns operational aging buckets."
-    elif "final output" in cap_lower or "export" in cap_lower:
-        name = "Publish Deliverables"
-        short_title = f"{stage_num:02d} REPORT"
-        summary = "Publish analytical outputs"
-        purpose = "Publishes finalized claim detail and quarterly summary extracts to target files."
-        major_trans = "Exports formatted reporting sheets to Excel deliverables."
-    else:
-        name = caption.strip()
-        short_title = f"{stage_num:02d} {name.upper()[:10]}"
-        summary = f"Executes {name.lower()} operations"
-        purpose = f"Processes records through {len(tool_ids)} workflow steps."
-        major_trans = "Applies business transformations and aggregations."
+    clean_caption = caption.strip() if caption else f"Stage {stage_num:02d}"
+    name = clean_caption
+    words = [w for w in re.sub(r"[^a-zA-Z0-9\s]", " ", clean_caption).split() if w]
+    short_code = words[0].upper()[:10] if words else f"STAGE{stage_num:02d}"
+    short_title = f"{stage_num:02d} {short_code}"
+    
+    tools_in_stage = [workflow.tools[tid] for tid in tool_ids if tid in workflow.tools]
+    tool_types = list(dict.fromkeys(t.tool_type for t in tools_in_stage))
+    types_str = ", ".join(tool_types[:3]) if tool_types else "processing"
+    
+    summary = f"Executes {clean_caption.lower()} operations"
+    purpose = f"Processes records through {len(tool_ids)} workflow steps ({types_str})."
+    major_trans = f"Applies {types_str} transformations across {len(tool_ids)} steps."
 
     return name, short_title, summary, purpose, major_trans
 
@@ -522,102 +483,115 @@ def _detect_business_rules(workflow: Workflow, exec_order: list[int], evidence: 
             continue
 
         ann = tool.annotation.strip() if tool.annotation else ""
-        cfg = tool.configuration.parsed
+        cfg = tool.configuration.parsed or {}
+        ttype = tool.tool_type
 
-        # Rule: Payment zero-filling
-        if tool.tool_type == "Formula" and ("zero" in ann.lower() or "payment" in ann.lower() or "total paid" in str(cfg).lower()):
-            rules.append(
-                BusinessRule(
-                    rule_name="Payment Defaulting",
-                    category="Data Cleansing",
-                    description="Payment values are filled with zero where transaction history is missing.",
-                    tool_ids=[tid],
-                    evidence=f"Tool #{tid} (Formula): {ann or 'Zero-fill defaulting'}",
-                )
-            )
-
-        # Rule: Payment transaction aggregation
-        elif tool.tool_type == "Summarize" and "payment" in ann.lower():
-            rules.append(
-                BusinessRule(
-                    rule_name="Payment Rollup",
-                    category="Aggregation",
-                    description="Payment transactions are aggregated to claim level (sum of payments and transaction count).",
-                    tool_ids=[tid],
-                    evidence=f"Tool #{tid} (Summarize): {ann}",
-                )
-            )
-
-        # Rule: Latest quarter identification
-        elif tool.tool_type == "Summarize" and ("recent quarter" in ann.lower() or "latest quarter" in ann.lower()):
-            rules.append(
-                BusinessRule(
-                    rule_name="Latest Period Identification",
-                    category="Aggregation",
-                    description="Identifies the most recent quarter end date across all historical claims.",
-                    tool_ids=[tid],
-                    evidence=f"Tool #{tid} (Summarize): {ann}",
-                )
-            )
-
-        # Rule: Filtering for most recent quarter
-        elif tool.tool_type == "Join" and "matching the most recent quarter" in ann.lower():
-            rules.append(
-                BusinessRule(
-                    rule_name="Latest Period Selection",
-                    category="Filtering",
-                    description="Claims are retained strictly for the latest reporting period via exact date matching.",
-                    tool_ids=[tid],
-                    evidence=f"Tool #{tid} (Join): {ann}",
-                )
-            )
-
-        # Rule: Aging bucketing
-        elif tool.tool_type == "Formula" and ("aging" in ann.lower() or "bucket" in ann.lower()):
-            rules.append(
-                BusinessRule(
-                    rule_name="Aging Bucket Classification",
-                    category="Classification",
-                    description="Claims are assigned to operational aging duration buckets based on days since last activity.",
-                    tool_ids=[tid],
-                    evidence=f"Tool #{tid} (Formula): {ann}",
-                )
-            )
-
-        # Rule: Activity recency calculation & litigation normalization
-        elif tool.tool_type == "Formula" and ("activity" in ann.lower() or "days" in ann.lower() or "litigation" in ann.lower()):
-            rules.append(
-                BusinessRule(
-                    rule_name="Activity Recency Calculation",
-                    category="Calculation",
-                    description="Calculates days since last activity and normalizes litigation and reopened claim indicators.",
-                    tool_ids=[tid],
-                    evidence=f"Tool #{tid} (Formula): {ann}",
-                )
-            )
-
-        # Rule: Crosstab reshaping
-        elif tool.tool_type == "CrossTab":
-            if "status" in ann.lower() or "quarter" in ann.lower():
+        # Formula rules
+        if ttype in ("Formula", "MultiFieldFormula"):
+            ffs = cfg.get("formula_fields", [])
+            for ff in ffs:
+                field_name = ff.get("field", "")
+                expr = ff.get("expression", "")
+                if expr:
+                    rule_name = ann or f"Calculate {field_name}" if field_name else "Business Calculation"
+                    desc = f"Calculates `{field_name}` via expression `{expr[:60]}`." if field_name else f"Evaluates expression `{expr[:60]}`."
+                    rules.append(
+                        BusinessRule(
+                            rule_name=rule_name,
+                            category="Calculation",
+                            description=ann or desc,
+                            tool_ids=[tid],
+                            evidence=f"Tool #{tid} (Formula): {expr[:80]}",
+                        )
+                    )
+            if not ffs and ann:
                 rules.append(
                     BusinessRule(
-                        rule_name="Quarterly Status Reshaping",
-                        category="Reshaping",
-                        description="Claim status counts are pivoted into horizontal reporting columns by quarter.",
+                        rule_name=ann,
+                        category="Calculation",
+                        description=ann,
                         tool_ids=[tid],
-                        evidence=f"Tool #{tid} (CrossTab): {ann or 'Pivots status by quarter'}",
+                        evidence=f"Tool #{tid} (Formula): {ann}",
                     )
                 )
-            elif "manager" in ann.lower() or "examiner" in ann.lower():
+
+        # Filter rules
+        elif ttype == "Filter":
+            expr = cfg.get("expression", "") or cfg.get("Expression", "")
+            if expr:
+                rule_name = ann or "Record Filtering"
+                desc = f"Filters records matching condition: `{expr[:60]}`."
                 rules.append(
                     BusinessRule(
-                        rule_name="Team Performance Reshaping",
-                        category="Reshaping",
-                        description="Manager and examiner claim metrics are transformed into team performance columns.",
+                        rule_name=rule_name,
+                        category="Filtering",
+                        description=ann or desc,
                         tool_ids=[tid],
-                        evidence=f"Tool #{tid} (CrossTab): {ann or 'Creates manager/examiner status columns'}",
+                        evidence=f"Tool #{tid} (Filter): {expr[:80]}",
                     )
                 )
+
+        # Summarize aggregation rules
+        elif ttype == "Summarize":
+            sfs = cfg.get("summarize_fields", [])
+            if sfs:
+                actions = [f"{sf.get('action')}({sf.get('field')})" for sf in sfs if sf.get('field')]
+                acts_str = ", ".join(actions[:3])
+                rule_name = ann or "Data Aggregation"
+                desc = f"Aggregates records by {acts_str}." if acts_str else "Aggregates records."
+                rules.append(
+                    BusinessRule(
+                        rule_name=rule_name,
+                        category="Aggregation",
+                        description=ann or desc,
+                        tool_ids=[tid],
+                        evidence=f"Tool #{tid} (Summarize): {acts_str}",
+                    )
+                )
+            elif ann:
+                rules.append(
+                    BusinessRule(
+                        rule_name=ann,
+                        category="Aggregation",
+                        description=ann,
+                        tool_ids=[tid],
+                        evidence=f"Tool #{tid} (Summarize): {ann}",
+                    )
+                )
+
+        # Join rules
+        elif ttype == "Join":
+            jfs = cfg.get("join_fields", [])
+            if jfs:
+                keys = [f"{jf.get('left')} = {jf.get('right')}" for jf in jfs if jf.get('left')]
+                keys_str = ", ".join(keys[:2])
+                rule_name = ann or "Data Integration"
+                desc = f"Joins datasets on {keys_str}." if keys_str else "Performs relational join."
+                rules.append(
+                    BusinessRule(
+                        rule_name=rule_name,
+                        category="Integration",
+                        description=ann or desc,
+                        tool_ids=[tid],
+                        evidence=f"Tool #{tid} (Join): {keys_str}",
+                    )
+                )
+
+        # CrossTab rules
+        elif ttype == "CrossTab":
+            h_fld = cfg.get("header_field", "")
+            d_fld = cfg.get("data_field", "")
+            rule_name = ann or "Matrix Pivot"
+            desc = f"Pivots `{d_fld}` across `{h_fld}` columns." if h_fld and d_fld else (ann or "Pivots records into tabular structure.")
+            rules.append(
+                BusinessRule(
+                    rule_name=rule_name,
+                    category="Reshaping",
+                    description=desc,
+                    tool_ids=[tid],
+                    evidence=f"Tool #{tid} (CrossTab): {h_fld} -> {d_fld}",
+                )
+            )
 
     return rules
 
@@ -688,7 +662,6 @@ def _compute_business_lineage(
     """Compute explicit source -> transformation -> target lineage mappings."""
     lineage_entries: list[BusinessLineageEntry] = []
 
-    # Derive clean mapping rows
     for out in outputs:
         out_tid = out.tool_id
         if not graph.has_node(out_tid):
@@ -696,29 +669,32 @@ def _compute_business_lineage(
 
         ancestors = nx.ancestors(graph, out_tid)
         upstream_inputs = [inp for inp in inputs if inp.tool_id in ancestors]
-        src_names = " + ".join([inp.name for inp in upstream_inputs]) or "Primary Source Stream"
+        src_names = " + ".join([inp.name for inp in upstream_inputs]) if upstream_inputs else "Source Data Stream"
 
-        # Determine concrete transformation operation
-        out_name_lower = out.name.lower()
-        if "detail" in out_name_lower:
-            trans = "Sort claim detail chronologically by quarter"
-        elif "quarter" in out_name_lower:
-            trans = "Aggregate volume by quarter and pivot status counts"
-        elif "product" in out_name_lower:
-            trans = "Enrich with Policy Master and aggregate by product type and quarter"
-        elif "state" in out_name_lower:
-            trans = "Enrich with Policy Master and aggregate by state and quarter"
-        elif "aging" in out_name_lower or "risk" in out_name_lower:
-            trans = "Calculate activity recency, assign aging buckets, and count by litigation status"
+        # Determine concrete transformation operations from ancestors
+        anc_tools = [workflow.tools[a] for a in ancestors if a in workflow.tools]
+        ops = []
+        for t in anc_tools:
+            if t.tool_type in ("Summarize", "CrossTab") and "Aggregation" not in ops:
+                ops.append("Aggregation")
+            elif t.tool_type in ("Join", "Union") and "Integration" not in ops:
+                ops.append("Integration")
+            elif t.tool_type in ("Formula", "MultiFieldFormula") and "Calculation" not in ops:
+                ops.append("Calculation")
+            elif t.tool_type == "Filter" and "Filtering" not in ops:
+                ops.append("Filtering")
+
+        if ops:
+            trans = f"Applies {' and '.join(ops)} rules and outputs to {out.name}"
         else:
-            trans = f"Applies validation rules and exports to {out.name}"
+            trans = f"Transforms and formats records for {out.name}"
 
         lineage_entries.append(
             BusinessLineageEntry(
                 source_name=src_names,
                 transformation=trans,
                 target_name=out.name,
-                intermediate_stages=[t.container_name for t in [workflow.tools.get(a) for a in ancestors] if t and t.container_name],
+                intermediate_stages=[t.container_name for t in anc_tools if t.container_name],
                 transformation_summary=f"{src_names} → {trans} → {out.name}",
                 source_tool_id=upstream_inputs[0].tool_id if upstream_inputs else 0,
                 target_tool_id=out_tid,
@@ -874,7 +850,7 @@ def _infer_purpose(
     meta_desc = workflow.metadata.description or ""
     textbox_texts = [tb.text.strip() for tb in workflow.textboxes.values() if tb.text and len(tb.text.strip()) > 30]
 
-    one_line = "Claims reporting and operational risk analysis workflow"
+    one_line = f"{workflow.metadata.name or 'Data Processing'} workflow"
 
     if meta_desc and len(meta_desc) > 30:
         sentences = [s.strip() for s in meta_desc.split(".") if s.strip()]
@@ -885,7 +861,7 @@ def _infer_purpose(
     else:
         inp_str = ", ".join([i.name for i in inputs[:3]])
         out_str = ", ".join([o.name for o in outputs[:3]])
-        purpose = f"The workflow ingests {inp_str}, applies transformation and enrichment business rules, and publishes {out_str}."
+        purpose = f"The workflow ingests {inp_str or 'source data'}, applies transformation and enrichment business rules, and publishes {out_str or 'reporting deliverables'}."
 
     return purpose, one_line
 
@@ -900,16 +876,8 @@ def _build_executive_summary(
     purpose: str,
 ) -> ExecutiveSummaryContent:
     """Construct a concise, evidence-based Executive Summary conforming to the business analysis standard."""
-    is_claims = "claims" in purpose.lower() or "claims" in workflow.metadata.name.lower()
-
     # 1. Subject Matter / Business Purpose (1 concise paragraph)
-    if is_claims:
-        subject_and_purpose = (
-            "This workflow supports historical claims reporting by extracting transaction records, "
-            "consolidating them with policy, payment, and adjuster activity reference data, and publishing "
-            "standardized analytical extracts for portfolio, volume, and duration risk analysis."
-        )
-    elif purpose:
+    if purpose:
         subject_and_purpose = purpose
     elif inputs and outputs:
         inp_names = ", ".join(i.name for i in inputs[:3])
@@ -922,14 +890,13 @@ def _build_executive_summary(
         subject_and_purpose = "This workflow automates operational data preparation and reporting."
 
     # 2. Methods / Workflow Process (1 concise paragraph: Input -> Prep -> Enrich -> Transform -> Output)
-    if is_claims or len(inputs) > 1:
-        inp_count_str = f"{len(inputs)} source datasets" if inputs else "source datasets"
+    if len(inputs) > 1:
+        inp_count_str = f"{len(inputs)} source datasets"
         out_count_str = f"{len(outputs)} distinct analytical deliverables" if outputs else "reporting outputs"
         methods_and_process = (
-            f"The workflow ingests {inp_count_str}, reconciles transaction records with master policy and "
-            "diary reference data, and aggregates payment history to the claim level. It then normalizes status flags, "
-            "derives elapsed duration and operational aging classifications, aggregates volume metrics across reporting periods, "
-            f"and distributes the reconciled data into {out_count_str}."
+            f"The workflow ingests {inp_count_str}, reconciles records across sources, "
+            f"applies sequential data preparation and calculation rules across {len(stages)} operational stages, "
+            f"and distributes the transformed records into {out_count_str}."
         )
     elif inputs and outputs:
         methods_and_process = (
@@ -954,44 +921,12 @@ def _build_executive_summary(
         findings.append(f"The process depends on {inputs[0].name} as its primary source dataset.")
 
     if len(outputs) > 1:
-        findings.append("A central enriched dataset serves as the common upstream foundation for multiple independent analytical branches.")
-        
-        dims = []
-        for out in outputs:
-            if "quarter" in out.name.lower() or "volume" in out.name.lower():
-                dims.append("quarterly volume trends")
-            elif "product" in out.name.lower():
-                dims.append("product lines")
-            elif "state" in out.name.lower() or "geograph" in out.name.lower():
-                dims.append("geographic states")
-            elif "aging" in out.name.lower() or "risk" in out.name.lower():
-                dims.append("duration aging bands")
-        if dims:
-            unique_dims = list(dict.fromkeys(dims))
-            if len(unique_dims) == 1:
-                dim_str = unique_dims[0]
-            elif len(unique_dims) == 2:
-                dim_str = f"{unique_dims[0]} and {unique_dims[1]}"
-            else:
-                dim_str = ", ".join(unique_dims[:-1]) + f", and {unique_dims[-1]}"
-            findings.append(f"Outputs are segmented across distinct business dimensions, including {dim_str}.")
+        findings.append(f"The pipeline branches transformed data into {len(outputs)} distinct published deliverables.")
 
     if business_rules:
-        rule_themes = []
-        if any("default" in r.rule_name.lower() or "zero" in r.description.lower() for r in business_rules):
-            rule_themes.append("zero-fill defaulting for missing values")
-        if any("aging" in r.rule_name.lower() for r in business_rules):
-            rule_themes.append("duration aging categorization")
-        if any("reshaping" in r.rule_name.lower() or "status" in r.description.lower() for r in business_rules):
-            rule_themes.append("status count pivoting")
-        if rule_themes:
-            if len(rule_themes) == 1:
-                theme_str = rule_themes[0]
-            elif len(rule_themes) == 2:
-                theme_str = f"{rule_themes[0]} and {rule_themes[1]}"
-            else:
-                theme_str = ", ".join(rule_themes[:-1]) + f", and {rule_themes[-1]}"
-            findings.append(f"Business logic standardizes records through {theme_str}.")
+        cats = list(dict.fromkeys(r.category for r in business_rules))
+        cats_str = ", ".join(cats[:3])
+        findings.append(f"Key business logic enforces operational standardization through {cats_str.lower()} rules.")
 
     if inputs and inputs[0].source_type:
         findings.append(f"All inbound and outbound data flows rely on external {inputs[0].source_type} dependencies.")
@@ -1013,7 +948,7 @@ def _build_executive_summary(
             "into structured operational reporting outputs."
         )
 
-    # 5. Recommendations (Actionable next steps for business/migration teams)
+    # 5. Recommendations
     recommendations = []
     if assessment.business_owner == "Not documented":
         recommendations.append("Validate business ownership and operational escalation contacts, as ownership is not recorded in the workflow definition.")

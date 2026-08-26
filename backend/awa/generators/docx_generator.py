@@ -2,11 +2,10 @@
 
 Generates two publication-quality Word documents from the canonical DocumentModel:
 1. Business Report (.docx):
-   - Executive Summary (Subject & Purpose, Methods of Analysis, Findings, Conclusions, Recommendations)
+   - Executive Summary (Subject & Purpose, Methods of Analysis, Findings, Conclusions)
    - Business Process & Operational Deliverables (Inputs, Outputs, Operational Stages)
    - Key Business Rules & Transformations
    - Source-to-Target Data Lineage
-   - Visual Workflow Graph (DAG Architecture)
 
 2. Technical Specifications (.docx):
    - Executive Summary (Exact reuse from canonical model)
@@ -204,22 +203,6 @@ def _render_executive_summary_section(doc: Document, doc_model: DocumentModel) -
         r_c = p_conc.add_run(exec_summary.conclusions)
         r_c.font.size = Pt(9.5)
 
-    # 1.5 Recommendations (Conditional)
-    if exec_summary and exec_summary.recommendations:
-        p_rec_hdr = doc.add_paragraph()
-        p_rec_hdr.paragraph_format.space_before = Pt(4)
-        p_rec_hdr.paragraph_format.space_after = Pt(2)
-        r_rh = p_rec_hdr.add_run("Recommendations")
-        r_rh.bold = True
-        r_rh.font.color.rgb = RGB_NAVY
-        r_rh.font.size = Pt(10)
-
-        for rec in exec_summary.recommendations:
-            p_r = doc.add_paragraph(style='List Bullet')
-            p_r.paragraph_format.space_after = Pt(2)
-            r_r = p_r.add_run(rec)
-            r_r.font.size = Pt(9.0)
-
 
 def generate_docx(
     doc_model: DocumentModel,
@@ -326,7 +309,7 @@ def generate_docx(
                 p2.runs[0].font.size = Pt(8.0)
 
                 p3 = row[3].paragraphs[0]
-                p3.add_run(getattr(inp, "dependency_significance", "Primary source input required for downstream processing"))
+                p3.add_run(getattr(inp, "dependency_significance", "") or "")
                 p3.runs[0].font.size = Pt(8.0)
 
             doc.add_paragraph().paragraph_format.space_after = Pt(8)
@@ -370,12 +353,9 @@ def generate_docx(
                 p1.runs[0].font.size = Pt(8.0)
 
                 p2 = row[2].paragraphs[0]
-                use_val = out.likely_use if out.likely_use and out.likely_use != "Use not documented" else "Business use: Not documented"
+                use_val = out.likely_use or out.business_meaning or ""
                 p2.add_run(use_val)
                 p2.runs[0].font.size = Pt(8.0)
-                if "Not documented" in use_val:
-                    p2.runs[0].font.italic = True
-                    p2.runs[0].font.color.rgb = RGB_MUTED
 
                 p3 = row[3].paragraphs[0]
                 p3.add_run(out.destination_type)
@@ -503,28 +483,6 @@ def generate_docx(
             p2.runs[0].font.size = Pt(8.0)
 
         doc.add_paragraph().paragraph_format.space_after = Pt(16)
-
-    # =============================================================
-    # SECTION 5: VISUAL WORKFLOW GRAPH (DAG ARCHITECTURE)
-    # =============================================================
-    h5 = doc.add_heading("5. Visual Workflow Graph (DAG Architecture)", level=1)
-    h5.paragraph_format.space_before = Pt(16)
-    h5.paragraph_format.space_after = Pt(6)
-
-    doc.add_paragraph(
-        "The following diagram illustrates the complete directed acyclic graph (DAG) representing all "
-        "data flows, transformation nodes, and execution branches across the workflow:"
-    )
-
-    try:
-        png_bytes = render_dag_to_png(doc_model.dag_layout, scale=1.5)
-        image_stream = io.BytesIO(png_bytes)
-        doc.add_picture(image_stream, width=Inches(6.5))
-        doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    except Exception as e:
-        doc.add_paragraph(f"[Graph rendering note: DAG preview could not be generated: {e}]")
-
-    doc.add_paragraph().paragraph_format.space_after = Pt(16)
 
     doc.save(str(output_path))
 

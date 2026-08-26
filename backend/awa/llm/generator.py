@@ -15,7 +15,18 @@ from awa.tools.catalog import get_tool_summary
 from awa.tools import humanize_tool_configuration
 
 from .client import LLMClient, get_default_llm_client
-from .schemas import NarrativeResult, ToolFacts, WorkflowFacts
+from .schemas import (
+    NarrativeResult,
+    ToolFacts,
+    WorkflowFacts,
+    BusinessReportContent,
+    BusinessReportInputItem,
+    BusinessReportOutputItem,
+    BusinessReportStageItem,
+    BusinessReportRuleItem,
+    BusinessReportLineageItem,
+    ComprehensiveWorkflowContext,
+)
 from .prompts import (
     TOOL_PROMPT_VERSION,
     WORKFLOW_PURPOSE_PROMPT_VERSION,
@@ -24,6 +35,7 @@ from .prompts import (
     FINDINGS_PROMPT_VERSION,
     CONCLUSIONS_PROMPT_VERSION,
     RECOMMENDATIONS_PROMPT_VERSION,
+    BUSINESS_REPORT_PROMPT_VERSION,
     TOOL_SYSTEM_PROMPT,
     WORKFLOW_PURPOSE_SYSTEM_PROMPT,
     EXECUTIVE_SUMMARY_SYSTEM_PROMPT,
@@ -31,6 +43,7 @@ from .prompts import (
     FINDINGS_SYSTEM_PROMPT,
     CONCLUSIONS_SYSTEM_PROMPT,
     RECOMMENDATIONS_SYSTEM_PROMPT,
+    BUSINESS_REPORT_SYSTEM_PROMPT,
     build_tool_user_prompt,
     build_workflow_purpose_user_prompt,
     build_executive_summary_user_prompt,
@@ -38,6 +51,7 @@ from .prompts import (
     build_findings_user_prompt,
     build_methods_conclusions_user_prompt,
     build_recommendations_user_prompt,
+    build_business_report_user_prompt,
 )
 from .cache import LLMNarrativeCache, get_global_narrative_cache, compute_cache_key
 
@@ -246,6 +260,117 @@ def extract_workflow_facts(workflow: Workflow, business_summary: WorkflowBusines
         business_outputs=outputs,
         one_line_purpose=business_summary.one_line_purpose or "",
         why_it_matters=business_summary.why_it_matters or "",
+    )
+
+
+def extract_comprehensive_workflow_context(
+    workflow: Workflow,
+    business_summary: WorkflowBusinessSummary,
+    graph: nx.DiGraph | None = None,
+) -> ComprehensiveWorkflowContext:
+    """Extract rich, authoritative workflow context from CIR, tools, formulas, and graph topology."""
+    inputs_list = []
+    for inp in business_summary.source_inputs:
+        inputs_list.append({
+            "tool_id": inp.tool_id,
+            "canonical_filename": inp.source_filename or inp.name,
+            "raw_path": inp.raw_source,
+            "source_type": inp.source_type,
+            "sheet_or_table": inp.sheet_or_table,
+            "container": inp.container_name,
+        })
+
+    outputs_list = []
+    for out in business_summary.business_outputs:
+        outputs_list.append({
+            "tool_id": out.tool_id,
+            "canonical_destination": out.sheet_or_table or out.name,
+            "raw_path": out.raw_destination,
+            "destination_type": out.destination_type,
+            "upstream_sources": out.upstream_sources,
+            "container": out.container_name,
+        })
+
+    containers_list = []
+    for cid, cont in sorted(workflow.containers.items()):
+        c_tools = [t.tool_id for t in workflow.tools.values() if t.container_id == cid]
+        containers_list.append({
+            "container_id": cid,
+            "caption": cont.caption,
+            "disabled": cont.disabled,
+            "tool_ids": c_tools,
+        })
+
+    steps_list = []
+    rules_and_formulas = []
+    for tid, tool in sorted(workflow.tools.items()):
+        cfg = tool.configuration.parsed or {}
+        cleaned_cfg = humanize_tool_configuration(tool.tool_type, cfg)
+        steps_list.append({
+            "tool_id": tid,
+            "tool_type": tool.tool_type,
+            "name": tool.name or tool.tool_type,
+            "annotation": tool.annotation,
+            "container": tool.container_name,
+            "configuration": cleaned_cfg,
+        })
+
+        # Extract explicit expressions
+        if tool.tool_type in ("Formula", "MultiFieldFormula"):
+            for ff in cfg.get("formula_fields", []):
+                rules_and_formulas.append({
+                    "tool_id": tid,
+                    "type": "Formula Calculation",
+                    "field": ff.get("field"),
+                    "expression": ff.get("expression"),
+                })
+        elif tool.tool_type == "Filter":
+            rules_and_formulas.append({
+                "tool_id": tid,
+                "type": "Filter Predicate",
+                "expression": cfg.get("expression") or cfg.get("Expression"),
+            })
+        elif tool.tool_type == "Join":
+            rules_and_formulas.append({
+                "tool_id": tid,
+                "type": "Join Criteria",
+                "join_fields": cfg.get("join_fields"),
+            })
+        elif tool.tool_type == "Summarize":
+            rules_and_formulas.append({
+                "tool_id": tid,
+                "type": "Summarize Aggregation",
+                "summarize_fields": cfg.get("summarize_fields"),
+            })
+        elif tool.tool_type == "CrossTab":
+            rules_and_formulas.append({
+                "tool_id": tid,
+                "type": "CrossTab Pivot",
+                "header_field": cfg.get("header_field"),
+                "data_field": cfg.get("data_field"),
+            })
+
+    lineage_traces = []
+    for lin in business_summary.lineage:
+        lineage_traces.append({
+            "source": lin.source_name,
+            "target": lin.target_name,
+            "summary": lin.transformation_summary or lin.transformation,
+        })
+
+    return ComprehensiveWorkflowContext(
+        workflow_name=workflow.metadata.name or "Alteryx Workflow",
+        workflow_version=workflow.metadata.version or "2024.1",
+        workflow_description=workflow.metadata.description or "",
+        author=workflow.metadata.author or "Not documented",
+        total_tools=len(workflow.tools),
+        total_connections=len(workflow.connections),
+        inputs=inputs_list,
+        outputs=outputs_list,
+        containers=containers_list,
+        execution_steps=steps_list,
+        rules_and_formulas=rules_and_formulas,
+        lineage_traces=lineage_traces,
     )
 
 
@@ -690,6 +815,144 @@ class LLMNarrativeGenerator:
 
         logger.info("[LLM] recommendations fallback to deterministic items_count=%d", len(fallback_recs))
         return fallback_recs
+
+    def generate_business_report(
+        self,
+        workflow: Workflow,
+        business_summary: WorkflowBusinessSummary,
+        graph: nx.DiGraph | None = None,
+        workflow_id: str = "",
+    ) -> BusinessReportContent | None:
+        """Generate full, structured, LLM-authored Business Report content."""
+        context = extract_comprehensive_workflow_context(workflow, business_summary, graph=graph)
+        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        cache_key = compute_cache_key(
+            workflow_id=wf_key,
+            scope_key="business_report_full",
+            prompt_version=BUSINESS_REPORT_PROMPT_VERSION,
+            model_name=self.client.model_name,
+            facts_payload=context.to_dict(),
+        )
+
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            logger.info("[LLM CACHE] type=business_report_full status=HIT")
+            try:
+                import json
+                data = json.loads(cached.text)
+                return self._parse_business_report_json(data)
+            except Exception as e:
+                logger.warning("[LLM CACHE] Failed to deserialize cached business report: %s", e)
+
+        logger.info("[LLM CACHE] type=business_report_full status=MISS")
+
+        system_prompt = BUSINESS_REPORT_SYSTEM_PROMPT
+        user_prompt = build_business_report_user_prompt(context.to_dict())
+        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=2500)
+
+        if not raw_response:
+            logger.warning("[LLM] Business report generation returned empty response")
+            return None
+
+        # Clean response and parse JSON
+        cleaned = raw_response.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+            cleaned = re.sub(r"\n?```$", "", cleaned).strip()
+
+        try:
+            import json
+            data = json.loads(cleaned)
+            report = self._parse_business_report_json(data)
+            if report:
+                result = NarrativeResult(
+                    text=json.dumps(report.to_dict()),
+                    source="llm",
+                    model=self.client.model_name,
+                    prompt_version=BUSINESS_REPORT_PROMPT_VERSION,
+                )
+                self._cache.set(cache_key, result)
+                logger.info("[LLM] Business report successfully generated and cached")
+                return report
+        except Exception as exc:
+            logger.warning("[LLM] Failed to parse Business Report JSON response: %s", exc)
+
+        return None
+
+    def _parse_business_report_json(self, data: dict[str, Any]) -> BusinessReportContent | None:
+        """Validate and map dictionary to BusinessReportContent."""
+        try:
+            inputs = [
+                BusinessReportInputItem(
+                    source_dataset=str(i.get("source_dataset", "")),
+                    business_role=str(i.get("business_role", "")),
+                    source_format=str(i.get("source_format", "")),
+                    dependency_significance=str(i.get("dependency_significance", "")),
+                )
+                for i in data.get("inputs", [])
+                if i.get("source_dataset")
+            ]
+
+            outputs = [
+                BusinessReportOutputItem(
+                    output_deliverable=str(o.get("output_deliverable", "")),
+                    what_it_represents=str(o.get("what_it_represents", "")),
+                    business_use=str(o.get("business_use", "")),
+                    destination_format=str(o.get("destination_format", "")),
+                )
+                for o in data.get("outputs", [])
+                if o.get("output_deliverable")
+            ]
+
+            stages = [
+                BusinessReportStageItem(
+                    stage_number=int(s.get("stage_number", idx)),
+                    stage_name=str(s.get("stage_name", "")),
+                    description=str(s.get("description", "")),
+                    operational_explanation=str(s.get("operational_explanation", "")),
+                )
+                for idx, s in enumerate(data.get("sequential_stages", []), start=1)
+                if s.get("stage_name")
+            ]
+
+            rules = [
+                BusinessReportRuleItem(
+                    business_rule=str(r.get("business_rule", "")),
+                    category=str(r.get("category", "")),
+                    evidence_configuration=str(r.get("evidence_configuration", "")),
+                )
+                for r in data.get("business_rules", [])
+                if r.get("business_rule")
+            ]
+
+            lineage = [
+                BusinessReportLineageItem(
+                    source_datasets=l.get("source_datasets", ""),
+                    major_business_transformation=str(l.get("major_business_transformation", "")),
+                    target_deliverable=str(l.get("target_deliverable", "")),
+                )
+                for l in data.get("lineage", [])
+                if l.get("target_deliverable")
+            ]
+
+            findings = [str(f) for f in data.get("findings", []) if str(f).strip()]
+
+            return BusinessReportContent(
+                workflow_title=str(data.get("workflow_title", "")),
+                workflow_description=str(data.get("workflow_description", "")),
+                executive_summary=str(data.get("executive_summary", "")),
+                methods_of_analysis=str(data.get("methods_of_analysis", "")),
+                findings=findings,
+                conclusions=str(data.get("conclusions", "")),
+                inputs=inputs,
+                outputs=outputs,
+                sequential_stages=stages,
+                business_rules=rules,
+                lineage=lineage,
+            )
+        except Exception as e:
+            logger.warning("[LLM] Validation failed while parsing BusinessReportContent: %s", e)
+            return None
 
     def generate_all_tool_summaries(
         self,

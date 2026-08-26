@@ -487,65 +487,113 @@ def analyze_canonical(
     # 10. Extract deterministic Source-to-Target Mapping (STTM)
     sttm = extract_sttm(workflow, graph, business_summary=business_summary)
 
-    # 11. Optionally enrich with LLM narratives if configured & available
+    # 11. Enrich with LLM-authored full Business Report content if configured & available
     try:
         from awa.llm import get_default_generator
         import logging as _llm_log
         _llm_logger = _llm_log.getLogger("awa.llm")
         gen = get_default_generator()
         if gen.client.is_available:
-            _llm_logger.info("LLM enrichment: starting narrative generation for analysis %s", aid)
-            purp_res = gen.generate_business_purpose(workflow, business_summary, workflow_id=aid)
-            if purp_res.source == "llm":
-                business_summary.business_purpose = purp_res.text
-                _llm_logger.info("LLM enrichment: business_purpose source=llm")
-            else:
-                _llm_logger.info("LLM enrichment: business_purpose source=%s", purp_res.source)
-            exec_res = gen.generate_executive_summary(workflow, business_summary, workflow_id=aid)
-            if exec_res.source == "llm" and business_summary.executive_summary:
-                business_summary.executive_summary.subject_and_purpose = exec_res.text
-                _llm_logger.info("LLM enrichment: executive_summary source=llm")
-            elif exec_res.source == "llm" and not business_summary.executive_summary:
-                _llm_logger.warning("LLM enrichment: executive_summary generated but executive_summary object is None")
-            else:
-                _llm_logger.info("LLM enrichment: executive_summary source=%s", exec_res.source)
+            _llm_logger.info("LLM enrichment: starting full Business Report generation for analysis %s", aid)
 
-            # Methods of Analysis narrative enrichment
-            meth_res = gen.generate_methods_of_analysis(workflow, business_summary, workflow_id=aid)
-            if meth_res.source == "llm" and business_summary.executive_summary:
-                business_summary.executive_summary.methods_and_process = meth_res.text
-                _llm_logger.info("LLM enrichment: methods_of_analysis source=llm")
+            report_content = gen.generate_business_report(workflow, business_summary, graph=graph, workflow_id=aid)
+            if report_content is not None:
+                _llm_logger.info("LLM enrichment: full business_report successfully generated")
+                if report_content.workflow_description:
+                    business_summary.one_line_purpose = report_content.workflow_description
+                if report_content.executive_summary and business_summary.executive_summary:
+                    business_summary.executive_summary.subject_and_purpose = report_content.executive_summary
+                    business_summary.business_purpose = report_content.executive_summary
+                if report_content.methods_of_analysis and business_summary.executive_summary:
+                    business_summary.executive_summary.methods_and_process = report_content.methods_of_analysis
+                if report_content.findings and business_summary.executive_summary:
+                    business_summary.executive_summary.findings = report_content.findings
+                if report_content.conclusions and business_summary.executive_summary:
+                    business_summary.executive_summary.conclusions = report_content.conclusions
+
+                # Populate LLM inputs (matched by count for structural alignment)
+                if report_content.inputs:
+                    for inp_llm, inp_bs in zip(report_content.inputs, business_summary.source_inputs):
+                        if inp_llm.business_role:
+                            inp_bs.business_role = inp_llm.business_role
+                        if inp_llm.dependency_significance:
+                            inp_bs.dependency_significance = inp_llm.dependency_significance
+
+                # Populate LLM outputs
+                if report_content.outputs:
+                    for out_llm, out_bs in zip(report_content.outputs, business_summary.business_outputs):
+                        if out_llm.what_it_represents:
+                            out_bs.business_meaning = out_llm.what_it_represents
+                        if out_llm.business_use:
+                            out_bs.likely_use = out_llm.business_use
+
+                # Replace sequential stages entirely with LLM-authored stages
+                if report_content.sequential_stages:
+                    from awa.model.business_summary import BusinessStage
+                    new_stages = []
+                    for idx, stg_llm in enumerate(report_content.sequential_stages, start=1):
+                        new_stages.append(
+                            BusinessStage(
+                                stage_number=stg_llm.stage_number or idx,
+                                name=stg_llm.stage_name,
+                                short_title=f"{stg_llm.stage_number or idx:02d} {stg_llm.stage_name[:10].upper()}",
+                                summary=stg_llm.description,
+                                description=stg_llm.description,
+                                business_purpose=stg_llm.description,
+                                major_transformation=stg_llm.operational_explanation,
+                            )
+                        )
+                    business_summary.processing_stages = new_stages
+
+                # Replace business rules entirely with LLM-authored rules
+                if report_content.business_rules:
+                    from awa.model.business_summary import BusinessRule
+                    new_rules = []
+                    for r in report_content.business_rules:
+                        new_rules.append(
+                            BusinessRule(
+                                rule_name=r.business_rule,
+                                category=r.category,
+                                description=r.business_rule,
+                                evidence=r.evidence_configuration,
+                            )
+                        )
+                    business_summary.business_rules = new_rules
+
+                # Replace lineage entirely with LLM-authored lineage
+                if report_content.lineage:
+                    from awa.model.business_summary import BusinessLineageEntry
+                    new_lineage = []
+                    for l in report_content.lineage:
+                        src_str = l.source_datasets if isinstance(l.source_datasets, str) else " + ".join(l.source_datasets)
+                        new_lineage.append(
+                            BusinessLineageEntry(
+                                source_name=src_str,
+                                transformation=l.major_business_transformation,
+                                target_name=l.target_deliverable,
+                                transformation_summary=f"{src_str} → {l.major_business_transformation} → {l.target_deliverable}",
+                            )
+                        )
+                    business_summary.lineage = new_lineage
             else:
-                _llm_logger.info("LLM enrichment: methods_of_analysis source=%s", meth_res.source)
-
-            # Findings narrative enrichment
-            findings_list = gen.generate_findings(workflow, business_summary, workflow_id=aid)
-            if findings_list and business_summary.executive_summary:
-                business_summary.executive_summary.findings = findings_list
-                _llm_logger.info("LLM enrichment: findings items_count=%d", len(findings_list))
-
-            # Conclusions narrative enrichment
-            conc_res = gen.generate_conclusions(workflow, business_summary, workflow_id=aid)
-            if conc_res.source == "llm" and business_summary.executive_summary:
-                business_summary.executive_summary.conclusions = conc_res.text
-                _llm_logger.info("LLM enrichment: conclusions source=llm")
-            else:
-                _llm_logger.info("LLM enrichment: conclusions source=%s", conc_res.source)
-
-            # Recommendations narrative enrichment
-            recs_list = gen.generate_recommendations(workflow, business_summary, workflow_id=aid)
-            if recs_list and business_summary.executive_summary:
-                business_summary.executive_summary.recommendations = recs_list
-                _llm_logger.info("LLM enrichment: recommendations items_count=%d", len(recs_list))
+                _llm_logger.warning(
+                    "LLM enrichment: full business_report generation returned None for analysis %s. "
+                    "Report will use deterministic facts only — no LLM-authored prose.",
+                    aid,
+                )
         else:
             _llm_logger.debug("LLM enrichment: skipped — client not available (no runtime credentials)")
     except Exception as exc:
         import logging as _llm_log
         _llm_logger = _llm_log.getLogger("awa.llm")
         _llm_logger.warning(
-            "LLM enrichment failed: %s — %s. Deterministic fallback will be used.",
+            "LLM enrichment failed: %s — %s. Report will use deterministic facts only.",
             type(exc).__name__, str(exc)[:200],
         )
+
+    # Enforce: Recommendations must NEVER appear in the Business Report
+    if business_summary and business_summary.executive_summary:
+        business_summary.executive_summary.recommendations = []
 
     return CanonicalAnalysisResult(
         analysis_id=aid,

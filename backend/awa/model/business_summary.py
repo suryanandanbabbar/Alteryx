@@ -20,7 +20,7 @@ class BusinessInput:
     sheet_or_table: str | None = None
     container_name: str | None = None
     business_role: str = ""         # e.g. "Primary claims dataset"
-    dependency_significance: str = "Primary source input required for downstream processing"
+    dependency_significance: str = ""
     description: str = ""
     evidence: list[str] = dc_field(default_factory=list)
 
@@ -49,7 +49,7 @@ class BusinessOutput:
     destination_type: str           # e.g. "Excel Workbook", "Alteryx Database"
     sheet_or_table: str | None = None
     business_meaning: str = ""      # e.g. "Claim-level historical reporting"
-    likely_use: str = ""            # e.g. "Quarterly claims volume reporting" or "Use not documented"
+    likely_use: str = ""            # LLM-populated business use description
     business_purpose: str = ""      # Deprecated alias kept for backward compatibility
     container_name: str | None = None
     upstream_sources: list[str] = dc_field(default_factory=list)
@@ -63,7 +63,7 @@ class BusinessOutput:
             "destination_type": self.destination_type,
             "sheet_or_table": self.sheet_or_table,
             "business_meaning": self.business_meaning or self.business_purpose,
-            "likely_use": self.likely_use or "Use not documented",
+            "likely_use": self.likely_use,
             "business_purpose": self.business_purpose or self.business_meaning,
             "container_name": self.container_name,
             "upstream_sources": self.upstream_sources,
@@ -75,7 +75,7 @@ class BusinessOutput:
 class BusinessStage:
     """A high-level business processing stage derived from graph & containers."""
     stage_number: int
-    name: str                       # e.g. "Ingest", "Summarise", "Enrich", "Derive", "Report"
+    name: str                       # Derived from workflow containers or tool-type grouping
     short_title: str                # e.g. "01 INGEST"
     summary: str                    # e.g. "Claims and supporting reference data"
     description: str
@@ -260,7 +260,7 @@ class BusinessAssessment:
 class WorkflowBusinessSummary:
     """The authoritative, deterministic business intelligence summary for the workflow."""
     business_purpose: str           # 1-3 concise sentences answering "Why does this workflow exist?"
-    one_line_purpose: str           # e.g. "Claims reporting and enrichment workflow"
+    one_line_purpose: str           # e.g. "Business reporting and enrichment workflow"
     why_it_matters: str             # Factual business value summary
     source_inputs: list[BusinessInput] = dc_field(default_factory=list)
     processing_stages: list[BusinessStage] = dc_field(default_factory=list)

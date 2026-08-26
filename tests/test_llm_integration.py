@@ -537,6 +537,57 @@ def test_full_pipeline_with_demo_workflow():
         elif "Tool ID:\n17" in user:
             captured_prompts[17] = user
             return "Exports finalized quarterly claims matrix to Excel deliverable."
+        elif "business_report" in system.lower() or "executive business report" in system.lower() or "report_structure" in user.lower():
+            import json
+            return json.dumps({
+                "workflow_name": "Demo Claims Volume Extract",
+                "workflow_description": "Automates quarterly insurance claims volume extraction, summarization, and matrix reporting.",
+                "executive_summary": "This workflow extracts claim volume data, performs multi-level aggregation by quarter and manager, and produces standardized reporting deliverables across historical reporting periods.",
+                "methods_of_analysis": "The workflow ingests four source datasets, reconciles transaction records with master policy and diary reference data, derives elapsed duration, and aggregates volume metrics.",
+                "findings": [
+                    "Combines four independent source datasets into a unified reporting base.",
+                    "Central enriched dataset serves as the common upstream foundation for multiple independent analytical branches."
+                ],
+                "conclusions": "The workflow operates as a centralized data consolidation and multi-dimensional reporting pipeline, integrating disparate feeds into recurring analytical deliverables.",
+                "inputs": [
+                    {
+                        "source_dataset": "Claims_Volume_Extract_Demo.xlsx",
+                        "business_role": "Primary source extract of historical insurance claims volume",
+                        "source_format": "Excel Workbook",
+                        "dependency_significance": "Essential foundation for all downstream quarterly reporting"
+                    }
+                ],
+                "outputs": [
+                    {
+                        "output_deliverable": "Claims_Historical_Extract_Demo_Output.xlsx",
+                        "what_it_represents": "Standardized claim-level historical reporting extract",
+                        "business_use": "Quarterly operational audit and executive claim volume review",
+                        "destination_format": "Excel Workbook"
+                    }
+                ],
+                "sequential_stages": [
+                    {
+                        "stage_number": 1,
+                        "stage_name": "Data Ingestion",
+                        "description": "Ingests core claims transaction records and policy master tables",
+                        "operational_explanation": "Reads source files"
+                    }
+                ],
+                "business_rules": [
+                    {
+                        "business_rule": "Filter open claims",
+                        "category": "Data Quality / Filtering",
+                        "evidence_configuration": "Status != 'Closed'"
+                    }
+                ],
+                "lineage": [
+                    {
+                        "source_datasets": ["Claims_Volume_Extract_Demo.xlsx"],
+                        "major_business_transformation": "Filter, join, and aggregate claims volume",
+                        "target_deliverable": "Claims_Historical_Extract_Demo_Output.xlsx"
+                    }
+                ]
+            })
         elif "methods of analysis" in user.lower():
             return "The workflow ingests four source datasets, reconciles transaction records with master policy and diary reference data, derives elapsed duration, and aggregates volume metrics."
         elif "findings:" in user.lower():
@@ -573,8 +624,7 @@ def test_full_pipeline_with_demo_workflow():
     assert len(exec_sum.findings) == 2
     assert "unified reporting base" in exec_sum.findings[0]
     assert "centralized data consolidation" in exec_sum.conclusions
-    assert len(exec_sum.recommendations) == 2
-    assert "Validate business ownership" in exec_sum.recommendations[0]
+    assert exec_sum.recommendations == []
 
     # 2. Demand-driven Tool "What It Does" generation
     tool8 = res.workflow.tools[8]

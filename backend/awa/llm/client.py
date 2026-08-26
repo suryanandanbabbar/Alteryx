@@ -343,6 +343,9 @@ class FakeLLMClient(LLMClient):
         return self.default_response
 
 
+MockLLMClient = FakeLLMClient
+
+
 _global_client: LLMClient | None = None
 
 

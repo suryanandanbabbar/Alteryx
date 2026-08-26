@@ -187,7 +187,7 @@ class BusinessOutputDTO(BaseModel):
     destination_type: str
     sheet_or_table: str | None = None
     business_meaning: str = ""
-    likely_use: str = "Use not documented"
+    likely_use: str = ""
     business_purpose: str = ""
     container_name: str | None = None
     upstream_sources: list[str] = Field(default_factory=list)

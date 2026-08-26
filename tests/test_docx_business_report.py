@@ -3,6 +3,13 @@ import docx
 import pytest
 
 from awa.analysis.workflow_analyzer import analyze_workflow, analyze_canonical
+from awa.model.workflow import Workflow, WorkflowMetadata
+from awa.model.tool import Tool, Position, ToolConfiguration
+from awa.model.connection import Connection
+from awa.graph.builder import build_graph, execution_order
+from awa.analysis.business_intelligence import generate_business_summary
+from awa.generators.doc_builder import build_document_model
+from awa.generators.docx_generator import generate_docx
 
 
 class TestDocxBusinessReport:
@@ -66,8 +73,11 @@ class TestDocxBusinessReport:
         assert 50 <= words <= 350, f"Executive summary word count {words} out of expected range!"
 
         # 4. Report body sections present in Business Report
-        assert "5. Visual Workflow Graph (DAG Architecture)" in full_text
-        # 5. Technical sections must be ABSENT from Business Report
+        assert "4. Source-to-Target Data Lineage" in full_text or "2. Business Process & Operational Deliverables" in full_text
+        # 5. Omitted sections must be ABSENT from Business Report
+        assert "Recommendations" not in full_text
+        assert "Visual Workflow Graph" not in full_text
+        assert "DAG Architecture" not in full_text
         assert "Step-by-Step Tool Specifications" not in full_text
         assert "Technical Configuration Appendix" not in full_text
 
@@ -108,7 +118,7 @@ class TestDocxBusinessReport:
         assert "Methods of Analysis" in exec_text
         assert "Findings" in exec_text
         assert "Conclusions" in exec_text
-        assert "Recommendations" in exec_text
+        assert "Recommendations" not in exec_text
         assert "Limitations" not in exec_text
 
         # Word count check (~100-350 words)
@@ -126,7 +136,8 @@ class TestDocxBusinessReport:
         assert "2.3 Sequential Operational Stages" in full_text
         assert "3. Key Business Rules & Transformations" in full_text
         assert "4. Source-to-Target Data Lineage" in full_text
-        assert "5. Visual Workflow Graph (DAG Architecture)" in full_text
+        assert "5. Visual Workflow Graph" not in full_text
+        assert "DAG Architecture" not in full_text
 
         # Verify Technical sections are REMOVED from Business Report
         assert "Step-by-Step Tool Specifications" not in full_text
@@ -137,10 +148,8 @@ class TestDocxBusinessReport:
         assert "Policy_Master_Demo.xlsx" in full_text
         assert "Claim_Payments_Demo.xlsx" in full_text
         assert "Claim_Diary_Notes_Demo.xlsx" in full_text
-        assert "Historical Claims Extract" in full_text
-        assert "Product Type Analysis" in full_text
-        assert "State Analysis" in full_text
-        assert "Aging & Litigation Risk Analysis" in full_text
+        assert "Claims_Volume_Extract_Demo.xlsx" in full_text
+        assert "Output" in full_text or "Deliverables" in full_text
 
     def test_conditional_rendering_omits_empty_sections(self, tmp_path: Path):
         """Verify that when metadata/rules/outputs are missing, their headings are completely omitted."""
@@ -203,7 +212,7 @@ class TestDocxBusinessReport:
         doc = docx.Document(io.BytesIO(docx_resp.content))
         headings = [p.text for p in doc.paragraphs if p.style.name.startswith("Heading")]
         assert "1. Executive Summary" in headings
-        assert "5. Visual Workflow Graph (DAG Architecture)" in headings
+        assert "5. Visual Workflow Graph (DAG Architecture)" not in headings
 
         # Verify text between "1. Executive Summary" and the next major heading is non-empty
         in_exec = False
@@ -211,7 +220,7 @@ class TestDocxBusinessReport:
         for p in doc.paragraphs:
             if p.text == "1. Executive Summary":
                 in_exec = True
-            elif p.text.startswith("2. ") or p.text.startswith("5. "):
+            elif p.text.startswith("2. ") or p.text.startswith("3. ") or p.text.startswith("4. "):
                 in_exec = False
             if in_exec:
                 exec_lines.append(p.text)
@@ -221,7 +230,7 @@ class TestDocxBusinessReport:
         assert "Methods of Analysis" in exec_text
         assert "Findings" in exec_text
         assert "Conclusions" in exec_text
-        assert "Recommendations" in exec_text
+        assert "Recommendations" not in exec_text
         assert "Limitations" not in exec_text
 
     def test_technical_specifications_docx_generation(self, tmp_path: Path):
@@ -392,5 +401,226 @@ class TestDocxBusinessReport:
         assert "Policy_Master_Demo.xlsx" in filenames
         assert "Claim_Payments_Demo.xlsx" in filenames
         assert "Claim_Diary_Notes_Demo.xlsx" in filenames
+
+    def test_fully_llm_authored_business_report_integration(self, tmp_path: Path):
+        """Test full LLM-authored report generation using MockLLMClient."""
+        import json
+        from awa.llm.client import MockLLMClient, set_default_llm_client
+        from awa.llm.generator import LLMNarrativeGenerator, set_default_generator
+        from awa.generators.doc_builder import build_document_model
+        from awa.generators.docx_generator import generate_docx
+
+        mock_report = {
+            "workflow_title": "Automated Customer Sales Reporting Pipeline",
+            "workflow_description": "Production ETL pipeline consolidating customer transactions",
+            "executive_summary": "This automated data workflow ingests daily customer transactions and generates aggregated portfolio revenue summaries for management reporting.",
+            "methods_of_analysis": "The process joins customer master attributes with transaction event records, applies business calculation formulas to compute tax and net amounts, filters active accounts, and aggregates metrics by product line.",
+            "findings": [
+                "Combines two primary enterprise datasets into a unified analytical base.",
+                "Enforces data standardization through automated calculation and zero-fill rules.",
+                "Branches transformed data into specialized reporting extracts.",
+                "Relies on external file storage for source ingestion."
+            ],
+            "conclusions": "The workflow serves as a centralized transaction preparation pipeline delivering reconciled revenue metrics to business stakeholders.",
+            "inputs": [
+                {
+                    "source_dataset": "customers.xlsx",
+                    "business_role": "Customer master dimension table",
+                    "source_format": "Excel Workbook",
+                    "dependency_significance": "Mandatory primary reference dataset"
+                },
+                {
+                    "source_dataset": "orders.csv",
+                    "business_role": "Transactional order history feed",
+                    "source_format": "CSV Data File",
+                    "dependency_significance": "Daily transactional volume source"
+                }
+            ],
+            "outputs": [
+                {
+                    "output_deliverable": "customer_totals.xlsx",
+                    "what_it_represents": "Reconciled customer sales revenue summary",
+                    "business_use": "Monthly commercial revenue audit",
+                    "destination_format": "Excel Workbook"
+                }
+            ],
+            "sequential_stages": [
+                {
+                    "stage_number": 1,
+                    "stage_name": "Source Ingestion",
+                    "description": "Loads customer master and order transaction files",
+                    "operational_explanation": "Validates schema and parses columnar datatypes"
+                },
+                {
+                    "stage_number": 2,
+                    "stage_name": "Relational Join & Aggregation",
+                    "description": "Joins orders to customer records and calculates totals",
+                    "operational_explanation": "Executes inner join on customer_id and computes sum of amounts"
+                },
+                {
+                    "stage_number": 3,
+                    "stage_name": "Deliverable Export",
+                    "description": "Exports finalized customer totals to Excel",
+                    "operational_explanation": "Formats numeric columns and writes workbook"
+                }
+            ],
+            "business_rules": [
+                {
+                    "business_rule": "Customer ID Reconciliation",
+                    "category": "Integration",
+                    "evidence_configuration": "customers.customer_id = orders.customer_id"
+                },
+                {
+                    "business_rule": "Revenue Total Rollup",
+                    "category": "Aggregation",
+                    "evidence_configuration": "SUM(orders.amount) GROUP BY customer_id, name"
+                }
+            ],
+            "lineage": [
+                {
+                    "source_datasets": "customers.xlsx + orders.csv",
+                    "major_business_transformation": "Join customer profiles with orders, aggregate revenue, and sort descending",
+                    "target_deliverable": "customer_totals.xlsx"
+                }
+            ]
+        }
+
+        mock_client = MockLLMClient(default_response=json.dumps(mock_report))
+        mock_gen = LLMNarrativeGenerator(client=mock_client)
+        set_default_llm_client(mock_client)
+        set_default_generator(mock_gen)
+
+        try:
+            canonical = analyze_canonical("fixtures/joins/join_workflow.yxmd")
+            doc_model = build_document_model(
+                canonical.workflow,
+                canonical.execution_order,
+                canonical.translations,
+                canonical.dag_layout,
+                canonical.lineage_paths,
+                business_summary=canonical.business_summary,
+                analysis_id=canonical.analysis_id,
+                graph=canonical.graph,
+            )
+
+            out_docx = tmp_path / "llm_business_report.docx"
+            generate_docx(doc_model, out_docx)
+            assert out_docx.exists()
+
+            full_text = self._extract_all_docx_text(out_docx)
+            exec_text = self._extract_executive_summary_text(out_docx)
+
+            # 1. Section 1 Executive Summary populated from LLM
+            assert "1. Executive Summary" in exec_text
+            assert "Methods of Analysis" in exec_text
+            assert "Findings" in exec_text
+            assert "Conclusions" in exec_text
+            assert "This automated data workflow ingests daily customer transactions" in exec_text
+            assert "Combines two primary enterprise datasets into a unified analytical base" in exec_text
+            assert "The workflow serves as a centralized transaction preparation pipeline" in exec_text
+
+            # 2. Section 2 Inputs & Outputs populated from LLM
+            assert "2. Business Process & Operational Deliverables" in full_text
+            assert "2.1 Inputs & Upstream Dependencies" in full_text
+            assert "customers.xlsx" in full_text
+            assert "Customer master dimension table" in full_text
+            assert "orders.csv" in full_text
+            assert "Transactional order history feed" in full_text
+
+            assert "2.2 Outputs & Business Reporting Deliverables" in full_text
+            assert "customer_totals.xlsx" in full_text
+            assert "Reconciled customer sales revenue summary" in full_text
+            assert "Monthly commercial revenue audit" in full_text
+
+            assert "2.3 Sequential Operational Stages" in full_text
+            assert "Source Ingestion" in full_text
+            assert "Relational Join & Aggregation" in full_text
+
+            # 3. Section 3 Business Rules populated from LLM
+            assert "3. Key Business Rules & Transformations" in full_text
+            assert "Customer ID Reconciliation" in full_text
+            assert "Revenue Total Rollup" in full_text
+
+            # 4. Section 4 Lineage populated from LLM
+            assert "4. Source-to-Target Data Lineage" in full_text
+            assert "Join customer profiles with orders" in full_text
+
+            # 5. Omitted sections are NOT present
+            assert "Recommendations" not in full_text
+            assert "Visual Workflow Graph" not in full_text
+            assert "DAG Architecture" not in full_text
+        finally:
+            set_default_llm_client(None)
+            set_default_generator(None)
+
+    def test_no_claims_hardcoding_in_generic_uncontainerized_workflow(self, tmp_path: Path):
+        """Verify that a generic workflow with no containers does NOT produce claims-demo stage names or descriptions."""
+        wf = Workflow(
+            metadata=WorkflowMetadata(name="Sales Inventory Sync", version="2023.2"),
+            tools={
+                1: Tool(
+                    tool_id=1,
+                    plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+                    tool_type="DbFileInput",
+                    name="Input Inventory",
+                    position=Position(0, 0),
+                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "inventory.csv"}),
+                ),
+                2: Tool(
+                    tool_id=2,
+                    plugin="AlteryxBasePluginsGui.Filter.Filter",
+                    tool_type="Filter",
+                    name="Filter Active",
+                    position=Position(100, 0),
+                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"Expression": "[Active] == 1"}),
+                ),
+                3: Tool(
+                    tool_id=3,
+                    plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+                    tool_type="DbFileOutput",
+                    name="Output Active Inventory",
+                    position=Position(200, 0),
+                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "active_inventory.csv"}),
+                ),
+            },
+            connections=[
+                Connection(origin_tool_id=1, origin_anchor="Output", destination_tool_id=2, destination_anchor="Input"),
+                Connection(origin_tool_id=2, origin_anchor="True", destination_tool_id=3, destination_anchor="Input"),
+            ],
+        )
+
+        graph = build_graph(wf)
+        exec_order = execution_order(graph)
+        bs = generate_business_summary(wf, graph, exec_order)
+
+        doc_model = build_document_model(
+            workflow=wf,
+            execution_order=exec_order,
+            translations={},
+            dag_layout=None,
+            lineage_paths=[],
+            business_summary=bs,
+            analysis_id="generic-test-1",
+        )
+
+        out_docx = tmp_path / "generic_report.docx"
+        generate_docx(doc_model, out_docx)
+        assert out_docx.exists()
+
+        full_text = self._extract_all_docx_text(out_docx)
+
+        # Prohibit claims-specific legacy stage names and descriptions
+        forbidden_strings = [
+            "Historical volume and team aggregations",
+            "Cross-source data enrichment and calculations",
+            "Publish analytical deliverables",
+            "Business use: Not documented",
+            "Recommendations",
+            "Visual Workflow Graph",
+            "DAG Architecture",
+        ]
+        for s in forbidden_strings:
+            assert s not in full_text, f"Found forbidden legacy string in generic report: {s}"
+
 
 

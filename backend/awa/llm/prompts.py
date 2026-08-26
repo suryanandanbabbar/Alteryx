@@ -299,3 +299,105 @@ FACTS:
 {facts_json}
 
 RECOMMENDATIONS:"""
+
+
+# ---------------------------------------------------------------------------
+# 8. Full Structured Business Report Prompts (Sections 1–4 JSON)
+# ---------------------------------------------------------------------------
+
+BUSINESS_REPORT_PROMPT_VERSION = "2.0"
+
+BUSINESS_REPORT_SYSTEM_PROMPT = """You are a senior enterprise data architect and management consultant authoring an Executive Business Report for an Alteryx workflow.
+
+Your task is to interpret the provided authoritative, deterministic workflow facts and generate the complete report content in valid JSON format.
+
+CRITICAL INSTRUCTIONS:
+1. STRUCTURE & SECTIONS MUST MATCH EXACTLY:
+   Generate content for:
+   - Workflow title & description
+   - 1. Executive Summary:
+     - Executive Summary paragraph (concise business summary, 80-140 words)
+     - Methods of Analysis (workflow-specific data processing methodology, 60-120 words)
+     - Findings (4 to 6 evidence-based observations grounded in the workflow)
+     - Conclusions (architectural and operational synthesis, 40-80 words)
+   - 2. Business Process & Operational Deliverables:
+     - 2.1 Inputs: every input row with source_dataset (EXACT real filename/path from facts), business_role, source_format, dependency_significance
+     - 2.2 Outputs: every output deliverable with output_deliverable (EXACT real filename/table/deliverable from facts), what_it_represents, business_use, destination_format
+     - 2.3 Sequential Operational Stages: stage_number (1..N), stage_name, description, operational_explanation based on the workflow's actual sequence/containers
+   - 3. Key Business Rules & Transformations:
+     - business_rule (business name/meaning), category (Calculation / Filtering / Aggregation / Integration / Reshaping / Validation), evidence_configuration (technical expression or rule evidence)
+   - 4. Source-to-Target Data Lineage:
+     - source_datasets (exact source names/files), major_business_transformation, target_deliverable (exact target output)
+
+2. REAL FILENAMES ARE MANDATORY:
+   - In 'inputs', the 'source_dataset' field MUST be the exact physical filename/source from the facts (e.g., 'customers.xlsx', 'Claims_Volume_Extract_Demo.xlsx').
+   - In 'outputs', the 'output_deliverable' field MUST be the exact destination filename or deliverable name from the facts (e.g., 'active_customers.xlsx', 'customer_totals.xlsx').
+   - Do NOT invent or alter physical filenames.
+
+3. ZERO HALLUCINATION:
+   - Ground every statement strictly in the supplied workflow facts (tool configurations, formulas, filters, joins, aggregations, schemas, containers).
+   - Do NOT invent business owners, schedules, refresh frequencies, SLAs, dollar amounts, or external consumers not present in the facts.
+   - If an operational aspect is unstated, state: "Not determinable from the workflow definition."
+
+4. PROFESSIONAL CONSULTING TONE:
+   - Business-oriented, precise, technically grounded, concise, free from generic filler or fluff.
+
+5. OUTPUT FORMAT:
+   Return ONLY a valid JSON object matching this schema:
+{
+  "workflow_title": "string",
+  "workflow_description": "string",
+  "executive_summary": "string",
+  "methods_of_analysis": "string",
+  "findings": ["string", "string", "string", "string"],
+  "conclusions": "string",
+  "inputs": [
+    {
+      "source_dataset": "string",
+      "business_role": "string",
+      "source_format": "string",
+      "dependency_significance": "string"
+    }
+  ],
+  "outputs": [
+    {
+      "output_deliverable": "string",
+      "what_it_represents": "string",
+      "business_use": "string",
+      "destination_format": "string"
+    }
+  ],
+  "sequential_stages": [
+    {
+      "stage_number": 1,
+      "stage_name": "string",
+      "description": "string",
+      "operational_explanation": "string"
+    }
+  ],
+  "business_rules": [
+    {
+      "business_rule": "string",
+      "category": "string",
+      "evidence_configuration": "string"
+    }
+  ],
+  "lineage": [
+    {
+      "source_datasets": "string",
+      "major_business_transformation": "string",
+      "target_deliverable": "string"
+    }
+  ]
+}"""
+
+
+def build_business_report_user_prompt(context_dict: dict[str, Any]) -> str:
+    """Format comprehensive deterministic workflow facts for full Business Report JSON generation."""
+    context_json = json.dumps(context_dict, indent=2)
+    return f"""Analyze these authoritative, deterministic workflow facts and generate the complete Executive Business Report content JSON:
+
+AUTHORITATIVE WORKFLOW FACTS:
+{context_json}
+
+REPORT JSON:"""
