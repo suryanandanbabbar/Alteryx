@@ -497,8 +497,22 @@ def analyze_canonical(
         _llm_logger = _llm_log.getLogger("awa.llm")
         gen = get_default_generator()
         if gen.client.is_available:
-            _llm_logger.info("LLM enrichment: starting full Business Report generation for analysis %s", aid)
+            _llm_logger.info("LLM enrichment: starting generation for analysis %s", aid)
 
+            # 1. Generate dynamic Process Stages for Overview page
+            try:
+                process_stages = gen.generate_process_stages(
+                    workflow,
+                    graph=graph,
+                    business_summary=business_summary,
+                    workflow_id=aid,
+                )
+                if process_stages:
+                    business_summary.processing_stages = process_stages
+            except Exception as stg_err:
+                _llm_logger.warning("LLM process stages generation failed: %s", stg_err)
+
+            # 2. Generate full Business Report content for DOCX
             report_content = gen.generate_business_report(workflow, business_summary, graph=graph, workflow_id=aid)
             if report_content is not None:
                 _llm_logger.info("LLM enrichment: full business_report successfully generated")
@@ -529,19 +543,6 @@ def analyze_canonical(
                             out_bs.business_meaning = out_llm.what_it_represents
                         if out_llm.business_use:
                             out_bs.likely_use = out_llm.business_use
-
-                # Populate LLM-authored process stages for Overview
-                try:
-                    process_stages = gen.generate_process_stages(
-                        workflow,
-                        graph=graph,
-                        business_summary=business_summary,
-                        workflow_id=aid,
-                    )
-                    if process_stages:
-                        business_summary.processing_stages = process_stages
-                except Exception as stg_err:
-                    _llm_logger.warning("LLM process stages generation failed: %s", stg_err)
 
                 # Replace business rules entirely with LLM-authored rules
                 if report_content.business_rules:

@@ -14,7 +14,7 @@ METHODS_OF_ANALYSIS_PROMPT_VERSION = "2.0"
 FINDINGS_PROMPT_VERSION = "2.0"
 CONCLUSIONS_PROMPT_VERSION = "2.0"
 TOOL_SPECIFICATIONS_PROMPT_VERSION = "1.0"
-PROCESS_STAGES_PROMPT_VERSION = "1.0"
+PROCESS_STAGES_PROMPT_VERSION = "2.0"
 
 # ---------------------------------------------------------------------------
 # 1. Tool "What It Does" & Tool Specifications Prompts
@@ -496,30 +496,27 @@ REPORT JSON:"""
 
 PROCESS_STAGES_SYSTEM_PROMPT = """You are a Senior Alteryx Workflow and Business Analytics Analyst.
 
-Your task is to divide the supplied Alteryx workflow into meaningful, coherent sequential business/analytical process stages for the Overview page.
+Your task is to divide the supplied workflow into coherent, workflow-specific business/analytical stages.
 
-Each stage must represent a genuine operational phase of the actual workflow based on:
-- Data movement and workflow topology
-- Analytical intent and business purpose
-- Key transformations, formulas, joins, and aggregations
-- Physical inputs and deliverable outputs
-- Tool container groupings and annotations
-
-Do NOT simply classify tools into basic technical buckets like "Input", "Transformation", "Output".
-Instead, identify coherent workflow phases (e.g. Transaction Ingestion, Customer Enrichment, Revenue Aggregation, Customer Segmentation, Reporting Output).
+CORE PRINCIPLES:
+- The number of stages is NOT predetermined. Determine the appropriate number from the topology, containers, tool operations, analytical purpose, inputs, outputs, transformations, and dependencies.
+- There is no predefined category list. Categories must be selected semantically from the workflow (e.g. INGESTION, DATA PREPARATION, CUSTOMER ENRICHMENT, REVENUE AGGREGATION, SEGMENTATION, QUALITY VALIDATION, REPORTING, ORDER INGESTION, PRODUCT ENRICHMENT, PRICING CALCULATION, SALES AGGREGATION, REGIONAL REPORTING).
+- There is no predefined stage naming scheme.
+- Do NOT use a universal Input → Transform → Output template (do NOT generate generic labels like "DATA_INPUT", "TRANSFORM", "OUTPUT" or "Data Input", "Transformation", "Output").
+- The category tag must be a complete, meaningful, concise uppercase label derived from the actual stage (do NOT abbreviate or truncate words).
 
 Return ONLY valid JSON matching this schema:
 {
   "stages": [
     {
       "stage_number": 1,
-      "stage_name": "Concise business-readable stage name (e.g. Customer Data Preparation, Revenue Aggregation)",
-      "category": "Short 1-word uppercase tag (e.g. INGEST, PREPARE, ENRICH, AGGREGATE, SEGMENT, PUBLISH, VALIDATE)",
-      "description": "One concise sentence explaining what happens during this stage.",
-      "purpose": "1-2 sentences explaining WHY this stage exists in the workflow based on evidence.",
-      "transformation": "1-2 sentences explaining the key analytical and data transformations performed.",
+      "stage_name": "Concise, meaningful workflow-specific phase name (e.g. Store Inventory Ingestion, Replenishment Calculation & Shortage Detection, Purchase Order Deliverable Publication)",
+      "category": "Complete uppercase workflow-specific category (e.g. INVENTORY INGESTION, REPLENISHMENT ANALYSIS, ORDER PUBLICATION)",
+      "description": "One concise sentence explaining what occurs in this phase.",
+      "purpose": "1-2 sentences explaining WHY this phase exists based on evidence from the workflow.",
+      "transformation": "1-2 sentences explaining the actual analytical and data transformations performed.",
       "key_actions": [
-        "1 to 4 concrete bullet points detailing actual operations (e.g. 'Reads customer records from customers.xlsx', 'Joins on Customer_ID', 'Aggregates Revenue by Region')"
+        "1 to 4 concrete operations derived from the workflow (e.g. 'Reads sales records from sales.xlsx', 'Joins customer attributes using Customer_ID', 'Aggregates Revenue by Region')"
       ],
       "tool_ids": [1, 2]
     }
@@ -531,15 +528,13 @@ CRITICAL RULES:
    - Use actual field names, filenames, formulas, join keys, filters, and aggregations from the supplied facts.
    - Never invent business entities, numerical results, SLAs, or objectives not in the facts.
    - Do NOT use claims-specific terminology unless the workflow facts actually describe claims.
-   - Do NOT use generic clichés like "provides valuable insights", "enhances decision-making", "processes data".
+   - Do NOT use generic clichés like "provides valuable insights", "enhances decision-making", "processes data", "transforms records".
 2. Tool coverage & ordering:
    - Preserve logical execution order (Stage 1 to Stage N).
    - Every tool ID in tool_ids must be an integer corresponding to an actual tool in the workflow.
    - Assign each tool to exactly one stage.
-   - All workflow tools should be covered across the stages.
-3. Concise & Professional:
-   - Generate a meaningful number of stages (typically 3 to 6 depending on workflow complexity).
-4. Return ONLY valid JSON."""
+   - Every workflow tool must be assigned across the stages (100% tool coverage).
+3. Return ONLY valid JSON."""
 
 
 def build_process_stages_user_prompt(context_dict: dict[str, Any]) -> str:

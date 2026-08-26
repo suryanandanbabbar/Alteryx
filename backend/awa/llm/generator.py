@@ -1226,7 +1226,8 @@ class LLMNarrativeGenerator:
                 if not s_name:
                     continue
                 s_cat = str(item.get("category", "")).strip().upper() or "PROCESS"
-                s_cat = re.sub(r"[^A-Z0-9_]", "", s_cat)[:12] or "PROCESS"
+                s_cat = re.sub(r"[^A-Z0-9_ -]", " ", s_cat).strip()
+                s_cat = " ".join(s_cat.split())[:35] or "PROCESS"
                 s_desc = str(item.get("description", "")).strip()
                 s_purpose = str(item.get("purpose", "")).strip() or s_desc
                 s_trans = str(item.get("transformation") or item.get("operational_explanation", "")).strip()
@@ -1302,15 +1303,9 @@ class LLMNarrativeGenerator:
         graph: nx.DiGraph | None,
         business_summary: WorkflowBusinessSummary | None,
     ) -> list[BusinessStage]:
-        """Derive generic factual process stages based on graph topology without domain hardcoding."""
+        """Derive generic factual process stages based on graph topology and container structures."""
         from awa.model.business_summary import BusinessStage
         from awa.graph.builder import execution_order
-
-        input_tools: list[int] = []
-        transform_tools: list[int] = []
-        enrich_tools: list[int] = []
-        aggregate_tools: list[int] = []
-        output_tools: list[int] = []
 
         ordered_tids: list[int] = []
         if graph is not None:
@@ -1322,93 +1317,174 @@ class LLMNarrativeGenerator:
         else:
             ordered_tids = sorted(list(workflow.tools.keys()))
 
-        for tid in ordered_tids:
-            t = workflow.tools[tid]
-            ttype = t.tool_type
-            if ttype in ("DbFileInput", "InputData", "TextInput", "DynamicInput", "Directory", "DateTimeNow"):
-                input_tools.append(tid)
-            elif ttype in ("DbFileOutput", "OutputData", "Render", "BrowseV2"):
-                output_tools.append(tid)
-            elif ttype in ("Summarize", "CrossTab", "RunningTotal", "CountRecords"):
-                aggregate_tools.append(tid)
-            elif ttype in ("Join", "JoinMultiple", "FindReplace", "Union", "AppendFields"):
-                enrich_tools.append(tid)
-            else:
-                transform_tools.append(tid)
+        # If workflow has containers, group by containers
+        if workflow.containers:
+            container_tools: dict[int, list[int]] = {}
+            container_order: list[int] = []
+            for tid in ordered_tids:
+                tool = workflow.tools.get(tid)
+                if not tool:
+                    continue
+                cid = tool.container_id or 0
+                if cid not in container_tools:
+                    container_tools[cid] = []
+                    container_order.append(cid)
+                container_tools[cid].append(tid)
 
-        groups: list[tuple[str, str, str, str, list[int]]] = []
-        if input_tools:
-            groups.append((
-                "Data Ingestion & Source Preparation",
-                "INGEST",
-                f"Ingests source records from {len(input_tools)} input source(s).",
-                "Reads and prepares raw source datasets for downstream processing.",
-                input_tools,
-            ))
-        if transform_tools:
-            groups.append((
-                "Core Data Transformations",
-                "TRANSFORM",
-                f"Executes field selections, filtering, and calculated derivations across {len(transform_tools)} step(s).",
-                "Applies field manipulation, data cleansing, and formula rules.",
-                transform_tools,
-            ))
-        if enrich_tools:
-            groups.append((
-                "Data Enrichment & Integration",
-                "ENRICH",
-                f"Integrates cross-dataset attributes using relational joins across {len(enrich_tools)} step(s).",
-                "Combines disparate data streams into unified records.",
-                enrich_tools,
-            ))
-        if aggregate_tools:
-            groups.append((
-                "Aggregation & Analytical Summarization",
-                "AGGREGATE",
-                f"Aggregates metrics and pivots data across {len(aggregate_tools)} step(s).",
+            stages: list[BusinessStage] = []
+            stage_num = 1
+            for cid in container_order:
+                t_ids = container_tools[cid]
+                if not t_ids:
+                    continue
+                cont = workflow.containers.get(cid)
+                caption = cont.caption.strip() if cont and cont.caption else f"Processing Phase {stage_num:02d}"
+                clean_cat = re.sub(r"[^a-zA-Z0-9\s]", " ", caption).strip().upper()
+                cat_words = clean_cat.split()
+                category = " ".join(cat_words[:4]) if cat_words else f"STAGE {stage_num:02d}"
+                short_title = f"{stage_num:02d} {category}"
+
+                tools_in_stage = [workflow.tools[t] for t in t_ids if t in workflow.tools]
+                tool_types = list(dict.fromkeys(t.tool_type for t in tools_in_stage))
+                types_str = ", ".join(tool_types[:3]) if tool_types else "processing"
+
+                actions = [
+                    workflow.tools[t].annotation.strip()
+                    for t in t_ids
+                    if workflow.tools.get(t) and workflow.tools[t].annotation and len(workflow.tools[t].annotation.strip()) > 3
+                ]
+
+                stages.append(
+                    BusinessStage(
+                        stage_number=stage_num,
+                        name=caption,
+                        short_title=short_title,
+                        summary=f"Executes {caption.lower()} operations ({types_str})",
+                        description=f"Executes {caption.lower()} operations ({types_str})",
+                        business_purpose=f"Processes records through {len(t_ids)} workflow step{'s' if len(t_ids) != 1 else ''} ({types_str}).",
+                        major_transformation=f"Applies {types_str} operations across {len(t_ids)} step{'s' if len(t_ids) != 1 else ''}.",
+                        tool_ids=t_ids,
+                        tool_count=len(t_ids),
+                        annotations=actions[:4],
+                        transformations=[f"{types_str} operations"],
+                    )
+                )
+                stage_num += 1
+            return stages
+
+        # Dynamic operation clusters for workflows without containers
+        group_specs = [
+            (
+                "DATA INGESTION",
+                "Source Ingestion & Extraction",
+                ("DbFileInput", "InputData", "TextInput", "DynamicInput", "Directory", "DateTimeNow"),
+                "Ingests source records from input datasets into the workflow.",
+                "Reads and validates raw input files for downstream processing.",
+            ),
+            (
+                "DATA PREPARATION",
+                "Data Cleansing & Filtering",
+                ("Filter", "Select", "AlteryxSelect", "AutoField", "DateTime", "Sample", "Unique"),
+                "Applies field selection, cleansing, and active record filtering.",
+                "Filters unneeded records and standardizes schemas.",
+            ),
+            (
+                "BUSINESS CALCULATIONS",
+                "Calculations & Business Derivations",
+                ("Formula", "MultiFieldFormula", "MultiRowFormula", "GenerateRows"),
+                "Computes derived business metrics and evaluates rule expressions.",
+                "Applies domain logic, formula rules, and calculated fields.",
+            ),
+            (
+                "DATA ENRICHMENT",
+                "Relational Enrichment & Joins",
+                ("Join", "JoinMultiple", "FindReplace", "Union", "AppendFields", "FuzzyMatch"),
+                "Integrates cross-dataset attributes using relational joins.",
+                "Combines disparate streams into enriched analytical records.",
+            ),
+            (
+                "METRIC AGGREGATION",
+                "Analytical Summarization & Aggregation",
+                ("Summarize", "CrossTab", "Transpose", "RunningTotal", "CountRecords"),
+                "Aggregates metrics and pivots data for summary reporting.",
                 "Computes group summary totals and structural pivots.",
-                aggregate_tools,
-            ))
-        if output_tools:
-            groups.append((
-                "Reporting & Deliverable Publication",
-                "PUBLISH",
-                f"Exports processed records to {len(output_tools)} target deliverable(s).",
-                "Writes finalized output datasets for business consumption.",
-                output_tools,
-            ))
+            ),
+            (
+                "DATA ORDERING",
+                "Sorting & Sequence Ordering",
+                ("Sort", "RecordID", "Tile"),
+                "Sorts records and assigns sequence order identifiers.",
+                "Organizes data ordering for downstream delivery.",
+            ),
+            (
+                "REPORT PUBLICATION",
+                "Reporting Deliverables & Publication",
+                ("DbFileOutput", "OutputData", "Render", "BrowseV2"),
+                "Exports finalized analytical deliverables.",
+                "Publishes processed datasets for business reporting.",
+            ),
+        ]
 
-        if not groups:
-            groups.append((
-                "Workflow Processing",
-                "PROCESS",
-                f"Processes records across {len(ordered_tids)} workflow steps.",
-                "Executes configured ETL transformations.",
-                ordered_tids,
-            ))
-
+        assigned: set[int] = set()
         stages: list[BusinessStage] = []
-        for stage_idx, (name, cat, desc, purpose, tids) in enumerate(groups, start=1):
-            actions = [
-                workflow.tools[t].annotation.strip()
-                for t in tids
-                if workflow.tools.get(t) and workflow.tools[t].annotation and len(workflow.tools[t].annotation.strip()) > 3
-            ]
+        stage_num = 1
+        for cat_tag, stage_title, matching_types, default_desc, default_purpose in group_specs:
+            t_ids = [tid for tid in ordered_tids if tid in workflow.tools and workflow.tools[tid].tool_type in matching_types and tid not in assigned]
+            if not t_ids:
+                continue
+            assigned.update(t_ids)
+
+            tool_types_in_group = list(dict.fromkeys(
+                workflow.tools[t].tool_type for t in t_ids if t in workflow.tools
+            ))
+            types_str = ", ".join(tool_types_in_group[:4])
+            annotations = [workflow.tools[t].annotation.strip() for t in t_ids if workflow.tools.get(t) and workflow.tools[t].annotation and len(workflow.tools[t].annotation.strip()) > 3]
+            specific_name = stage_title
+            if len(t_ids) == 1 and annotations:
+                specific_name = annotations[0]
+
+            short_title = f"{stage_num:02d} {cat_tag}"
+            summary = f"{default_desc} ({types_str})"
+            purpose = f"{default_purpose} ({len(t_ids)} step{'s' if len(t_ids) != 1 else ''})"
+            major_trans = f"Applies {types_str} operations across {len(t_ids)} step{'s' if len(t_ids) != 1 else ''}."
+
             stages.append(
                 BusinessStage(
-                    stage_number=stage_idx,
-                    name=name,
-                    short_title=f"{stage_idx:02d} {cat}",
-                    summary=desc,
-                    description=desc,
+                    stage_number=stage_num,
+                    name=specific_name,
+                    short_title=short_title,
+                    summary=summary,
+                    description=summary,
                     business_purpose=purpose,
-                    major_transformation=desc,
-                    tool_ids=tids,
-                    tool_count=len(tids),
-                    annotations=actions[:4],
-                    transformations=[desc],
+                    major_transformation=major_trans,
+                    tool_ids=t_ids,
+                    tool_count=len(t_ids),
+                    annotations=annotations[:4],
+                    transformations=[f"{workflow.tools[t].tool_type}: {workflow.tools[t].annotation or 'Processes data'}" for t in t_ids if workflow.tools.get(t)],
                 )
             )
+            stage_num += 1
+
+        remaining = [tid for tid in ordered_tids if tid in workflow.tools and tid not in assigned]
+        if remaining:
+            if stages:
+                stages[-1].tool_ids.extend(remaining)
+                stages[-1].tool_ids.sort()
+                stages[-1].tool_count = len(stages[-1].tool_ids)
+            else:
+                stages.append(
+                    BusinessStage(
+                        stage_number=1,
+                        name="Workflow Data Processing",
+                        short_title="01 DATA PROCESSING",
+                        summary="Executes workflow data transformations.",
+                        description="Executes workflow data transformations.",
+                        business_purpose="Processes workflow records.",
+                        major_transformation="Applies ETL operations.",
+                        tool_ids=remaining,
+                        tool_count=len(remaining),
+                    )
+                )
 
         return stages
 

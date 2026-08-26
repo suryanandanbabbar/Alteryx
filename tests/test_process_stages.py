@@ -338,72 +338,151 @@ class TestProcessStages:
         assert "litigation" not in combined
         assert "examiner" not in combined
 
-    def test_claims_workflow_stage_generation_from_yxmd(self):
-        """Test process stages generation on the actual Claims Demo YXMD workflow."""
+    def test_simple_filter_workflow_stages(self):
+        """Test process stages on simple filter workflow has meaningful dynamic categories."""
         from pathlib import Path
         from awa.parser.xml_parser import parse_workflow
         from awa.graph.builder import build_graph
 
-        yxmd_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
-        if not yxmd_path.exists():
-            pytest.skip("Demo workflow YXMD not found")
+        filter_path = Path("fixtures/basic/simple_filter.yxmd")
+        if not filter_path.exists():
+            pytest.skip("simple_filter.yxmd not found")
 
-        wf = parse_workflow(yxmd_path)
+        wf = parse_workflow(filter_path)
         g = build_graph(wf)
 
-        # Fallback generation on full workflow
         generator = LLMNarrativeGenerator(client=MockLLMClient(response_text=""), cache=LLMNarrativeCache())
-        stages = generator.generate_process_stages(wf, g, workflow_id="claims_demo_test")
+        stages = generator.generate_process_stages(wf, g, workflow_id="simple_filter_test")
 
-        assert len(stages) >= 3
-        # Check all workflow tools are covered
+        assert len(stages) == 3
+        # Ensure categories are not generic 12-char truncated tokens
+        assert stages[0].short_title == "01 DATA INGESTION"
+        assert stages[1].short_title == "02 DATA PREPARATION"
+        assert stages[2].short_title == "03 REPORT PUBLICATION"
+
+    def test_join_workflow_enrichment_stages(self):
+        """Test process stages on join workflow captures enrichment, aggregation, ordering, publication."""
+        from pathlib import Path
+        from awa.parser.xml_parser import parse_workflow
+        from awa.graph.builder import build_graph
+
+        join_path = Path("fixtures/joins/join_workflow.yxmd")
+        if not join_path.exists():
+            pytest.skip("join_workflow.yxmd not found")
+
+        wf = parse_workflow(join_path)
+        g = build_graph(wf)
+
+        generator = LLMNarrativeGenerator(client=MockLLMClient(response_text=""), cache=LLMNarrativeCache())
+        stages = generator.generate_process_stages(wf, g, workflow_id="join_test")
+
+        assert len(stages) >= 4
+        categories = [s.short_title for s in stages]
+        assert any("INGESTION" in c for c in categories)
+        assert any("ENRICHMENT" in c for c in categories)
+        assert any("AGGREGATION" in c for c in categories)
+        assert any("ORDERING" in c for c in categories)
+        assert any("PUBLICATION" in c for c in categories)
+
+        # 100% tool coverage
         all_stage_tools = [tid for s in stages for tid in s.tool_ids]
         assert set(all_stage_tools) == set(wf.tools.keys())
 
-    def test_workflow_analyzer_populates_processing_stages(self, monkeypatch):
-        """Test analyze_canonical sets LLM process stages on CanonicalAnalysisResult.business_summary."""
-        from pathlib import Path
-        from awa.analysis.workflow_analyzer import analyze_canonical
-        from awa.llm.generator import set_default_generator
+    def test_macro_workflow_stage_generation(self):
+        """Test that a workflow with Macro/Custom tools generates macro-relevant stages."""
+        tools = {
+            1: Tool(tool_id=1, plugin="DbFileInput", tool_type="DbFileInput", name="Transaction Feed", position=Position(100, 100), configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "Transactions.csv"}), annotation="Read transactions"),
+            2: Tool(tool_id=2, plugin="Macro", tool_type="Macro", name="Custom Risk Scoring Macro", position=Position(200, 100), configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"MacroName": "Risk_Scoring.yxmc"}), annotation="Execute risk score macro"),
+            3: Tool(tool_id=3, plugin="DbFileOutput", tool_type="DbFileOutput", name="Risk Report", position=Position(300, 100), configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "Risk_Output.xlsx"}), annotation="Publish scored risks"),
+        }
+        wf = Workflow(
+            metadata=WorkflowMetadata(name="Macro Risk Processing", version="2021.3", description="Executes risk scoring macro"),
+            tools=tools,
+        )
+        g = nx.DiGraph()
+        g.add_nodes_from([1, 2, 3])
+        g.add_edges_from([(1, 2), (2, 3)])
 
-        yxmd_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
-        if not yxmd_path.exists():
-            pytest.skip("Demo workflow YXMD not found")
-
-        llm_stage_response = json.dumps({
+        llm_response = json.dumps({
             "stages": [
                 {
                     "stage_number": 1,
-                    "stage_name": "Claims Ingestion & Staging",
-                    "category": "INGEST",
-                    "description": "Ingests historical claims and reference master datasets.",
-                    "purpose": "Sources core datasets.",
-                    "transformation": "Extracts raw claims.",
-                    "key_actions": ["Reads Claims_Volume_Extract_Demo.xlsx"],
-                    "tool_ids": [1, 2, 101, 102, 103],
+                    "stage_name": "Transaction Data Ingestion",
+                    "category": "TRANSACTION INGESTION",
+                    "description": "Reads raw transactions from CSV feed.",
+                    "purpose": "Sources transactions for risk analysis.",
+                    "transformation": "Extracts raw transaction records.",
+                    "key_actions": ["Reads Transactions.csv"],
+                    "tool_ids": [1],
                 },
                 {
                     "stage_number": 2,
-                    "stage_name": "Multi-Source Claim Enrichment & Scoring",
-                    "category": "ENRICH",
-                    "description": "Joins policy, payment, and diary data with risk calculations.",
-                    "purpose": "Enriches claims.",
-                    "transformation": "Calculates days since last activity and risk flags.",
-                    "key_actions": ["Calculates Aging Bucket"],
-                    "tool_ids": [104, 111, 112, 113, 114, 115, 116, 117, 118],
+                    "stage_name": "Risk Scoring Macro Execution",
+                    "category": "MACRO SCORING",
+                    "description": "Runs custom Risk_Scoring macro to calculate risk scores.",
+                    "purpose": "Calculates risk profiles using modular macro logic.",
+                    "transformation": "Applies custom macro algorithms.",
+                    "key_actions": ["Invokes Risk_Scoring.yxmc"],
+                    "tool_ids": [2],
+                },
+                {
+                    "stage_number": 3,
+                    "stage_name": "Risk Report Deliverable Export",
+                    "category": "REPORT PUBLICATION",
+                    "description": "Exports scored risks to Excel report.",
+                    "purpose": "Publishes risk analytics for risk officers.",
+                    "transformation": "Writes risk report workbook.",
+                    "key_actions": ["Writes Risk_Output.xlsx"],
+                    "tool_ids": [3],
                 },
             ]
         })
 
-        client = MockLLMClient(response_text=llm_stage_response)
-        custom_generator = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
-        set_default_generator(custom_generator)
+        client = MockLLMClient(response_text=llm_response)
+        generator = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
 
-        try:
-            canonical = analyze_canonical(yxmd_path)
-            assert canonical.business_summary is not None
-            assert len(canonical.business_summary.processing_stages) >= 2
-            assert canonical.business_summary.processing_stages[0].short_title.startswith("01")
-        finally:
-            set_default_generator(None)
+        stages = generator.generate_process_stages(wf, g, workflow_id="macro_risk_wf")
+        assert len(stages) == 3
+        assert stages[1].short_title == "02 MACRO SCORING"
+        assert stages[1].name == "Risk Scoring Macro Execution"
+        assert stages[1].tool_ids == [2]
+
+    def test_complete_category_labels_no_truncation(self):
+        """Test category labels are full uppercase phrases and not truncated."""
+        wf, g = _create_sample_workflow()
+        mock_response = json.dumps({
+            "stages": [
+                {
+                    "stage_number": 1,
+                    "stage_name": "Customer Master Ingestion",
+                    "category": "CUSTOMER INGESTION & STAGING",
+                    "description": "Ingests customer master datasets.",
+                    "purpose": "Sources customer profiles.",
+                    "transformation": "Parses customer profiles.",
+                    "key_actions": ["Reads Customers"],
+                    "tool_ids": [1, 2],
+                },
+                {
+                    "stage_number": 2,
+                    "stage_name": "Commercial Revenue Aggregation",
+                    "category": "COMMERCIAL REVENUE AGGREGATION",
+                    "description": "Aggregates revenue across regions.",
+                    "purpose": "Computes sales totals.",
+                    "transformation": "Sums regional revenue.",
+                    "key_actions": ["Sums Revenue"],
+                    "tool_ids": [3, 4, 5],
+                },
+            ]
+        })
+
+        client = MockLLMClient(response_text=mock_response)
+        generator = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+
+        stages = generator.generate_process_stages(wf, g, workflow_id="category_formatting_test")
+
+        assert stages[0].short_title == "01 CUSTOMER INGESTION STAGING" or "01 CUSTOMER INGESTION & STAGING"
+        assert stages[1].short_title == "02 COMMERCIAL REVENUE AGGREGATION"
+        assert not stages[0].short_title.endswith("...")
+        assert not stages[1].short_title.endswith("...")
+
 

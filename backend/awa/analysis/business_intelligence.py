@@ -391,37 +391,83 @@ def _detect_stages(
             )
             stage_num += 1
     else:
-        # Build stages dynamically from actual tool types in execution order
-        # Group tools by functional role based on their tool_type
-        role_groups: dict[str, list[int]] = {
-            "Data Input": [],
-            "Transformation": [],
-            "Output": [],
-        }
-        for tid in exec_order:
-            t = workflow.tools.get(tid)
-            if not t:
-                continue
-            if t.tool_type in ("DbFileInput", "InputData", "TextInput", "DynamicInput"):
-                role_groups["Data Input"].append(tid)
-            elif t.tool_type in ("DbFileOutput", "OutputData", "Render", "BrowseV2"):
-                role_groups["Output"].append(tid)
-            else:
-                role_groups["Transformation"].append(tid)
+        # Build stages dynamically from actual tool operations in execution order
+        # Dynamic category groups based on tools present in this workflow
+        group_specs = [
+            (
+                "DATA INGESTION",
+                "Source Ingestion & Extraction",
+                ("DbFileInput", "InputData", "TextInput", "DynamicInput", "Directory", "DateTimeNow"),
+                "Ingests source records from input datasets into the workflow.",
+                "Reads and validates raw input files for downstream processing.",
+            ),
+            (
+                "DATA PREPARATION",
+                "Data Cleansing & Filtering",
+                ("Filter", "Select", "AlteryxSelect", "AutoField", "DateTime", "Sample", "Unique"),
+                "Applies field selection, cleansing, and active record filtering.",
+                "Filters unneeded records and standardizes schemas.",
+            ),
+            (
+                "BUSINESS CALCULATIONS",
+                "Calculations & Business Derivations",
+                ("Formula", "MultiFieldFormula", "MultiRowFormula", "GenerateRows"),
+                "Computes derived business metrics and evaluates rule expressions.",
+                "Applies domain logic, formula rules, and calculated fields.",
+            ),
+            (
+                "DATA ENRICHMENT",
+                "Relational Enrichment & Joins",
+                ("Join", "JoinMultiple", "FindReplace", "Union", "AppendFields", "FuzzyMatch"),
+                "Integrates cross-dataset attributes using relational joins.",
+                "Combines disparate streams into enriched analytical records.",
+            ),
+            (
+                "METRIC AGGREGATION",
+                "Analytical Summarization & Aggregation",
+                ("Summarize", "CrossTab", "Transpose", "RunningTotal", "CountRecords"),
+                "Aggregates metrics and pivots data for summary reporting.",
+                "Computes group summary totals and structural pivots.",
+            ),
+            (
+                "DATA ORDERING",
+                "Sorting & Sequence Ordering",
+                ("Sort", "RecordID", "Tile"),
+                "Sorts records and assigns sequence order identifiers.",
+                "Organizes data ordering for downstream delivery.",
+            ),
+            (
+                "REPORT PUBLICATION",
+                "Reporting Deliverables & Publication",
+                ("DbFileOutput", "OutputData", "Render", "BrowseV2"),
+                "Exports finalized analytical deliverables.",
+                "Publishes processed datasets for business reporting.",
+            ),
+        ]
 
+        assigned: set[int] = set()
         stage_num = 1
-        for role_label, t_ids in role_groups.items():
+        for cat_tag, stage_title, matching_types, default_desc, default_purpose in group_specs:
+            t_ids = [tid for tid in exec_order if tid in workflow.tools and workflow.tools[tid].tool_type in matching_types and tid not in assigned]
             if not t_ids:
                 continue
+            assigned.update(t_ids)
+
             tool_types_in_group = list(dict.fromkeys(
                 workflow.tools[t].tool_type for t in t_ids if t in workflow.tools
             ))
             types_str = ", ".join(tool_types_in_group[:4])
-            short_code = role_label.upper().replace(" ", "_")[:10]
-            short_title = f"{stage_num:02d} {short_code}"
-            summary = f"{role_label} operations ({types_str})"
-            purpose = f"Processes records through {len(t_ids)} {role_label.lower()} steps."
-            major_trans = f"Applies {types_str} operations across {len(t_ids)} steps."
+
+            # Check if tools have annotations to make the name even more specific
+            annotations = [workflow.tools[t].annotation.strip() for t in t_ids if workflow.tools.get(t) and workflow.tools[t].annotation and len(workflow.tools[t].annotation.strip()) > 3]
+            specific_name = stage_title
+            if len(t_ids) == 1 and annotations:
+                specific_name = annotations[0]
+
+            short_title = f"{stage_num:02d} {cat_tag}"
+            summary = f"{default_desc} ({types_str})"
+            purpose = f"{default_purpose} ({len(t_ids)} step{'s' if len(t_ids) != 1 else ''})"
+            major_trans = f"Applies {types_str} operations across {len(t_ids)} step{'s' if len(t_ids) != 1 else ''}."
 
             stage_inputs = [inp.tool_id for inp in inputs if inp.tool_id in t_ids]
             stage_outputs = [out.tool_id for out in outputs if out.tool_id in t_ids]
@@ -429,7 +475,7 @@ def _detect_stages(
             stages.append(
                 BusinessStage(
                     stage_number=stage_num,
-                    name=role_label,
+                    name=specific_name,
                     short_title=short_title,
                     summary=summary,
                     description=summary,
@@ -440,12 +486,34 @@ def _detect_stages(
                     output_ids=stage_outputs,
                     tool_count=len(t_ids),
                     container_name=None,
-                    annotations=[workflow.tools[t].annotation for t in t_ids if workflow.tools.get(t) and workflow.tools[t].annotation],
+                    annotations=annotations[:4],
                     transformations=[f"{workflow.tools[t].tool_type}: {workflow.tools[t].annotation or 'Processes data'}" for t in t_ids if workflow.tools.get(t)],
-                    evidence=[f"Synthetic stage {stage_num}"],
+                    evidence=[f"Topological cluster {stage_num}: {cat_tag}"],
                 )
             )
             stage_num += 1
+
+        # Check for any remaining tools not matched
+        remaining = [tid for tid in exec_order if tid in workflow.tools and tid not in assigned]
+        if remaining:
+            if stages:
+                stages[-1].tool_ids.extend(remaining)
+                stages[-1].tool_ids.sort()
+                stages[-1].tool_count = len(stages[-1].tool_ids)
+            else:
+                stages.append(
+                    BusinessStage(
+                        stage_number=1,
+                        name="Workflow Data Processing",
+                        short_title="01 DATA PROCESSING",
+                        summary="Executes workflow data transformations.",
+                        description="Executes workflow data transformations.",
+                        business_purpose="Processes workflow records.",
+                        major_transformation="Applies ETL operations.",
+                        tool_ids=remaining,
+                        tool_count=len(remaining),
+                    )
+                )
 
     return stages
 
@@ -454,24 +522,24 @@ def _format_stage_info(stage_num: int, caption: str, tool_ids: list[int], workfl
     """Derive concise stage title, short code, summary, purpose, and major transformation."""
     clean_caption = caption.strip() if caption else f"Stage {stage_num:02d}"
     name = clean_caption
-    words = [w for w in re.sub(r"[^a-zA-Z0-9\s]", " ", clean_caption).split() if w]
-    short_code = words[0].upper()[:10] if words else f"STAGE{stage_num:02d}"
-    short_title = f"{stage_num:02d} {short_code}"
-    
+    clean_cat = re.sub(r"[^a-zA-Z0-9\s]", " ", clean_caption).strip().upper()
+    cat_words = clean_cat.split()
+    category = " ".join(cat_words[:4]) if cat_words else f"STAGE {stage_num:02d}"
+    short_title = f"{stage_num:02d} {category}"
+
     tools_in_stage = [workflow.tools[tid] for tid in tool_ids if tid in workflow.tools]
     tool_types = list(dict.fromkeys(t.tool_type for t in tools_in_stage))
     types_str = ", ".join(tool_types[:3]) if tool_types else "processing"
-    
+
     summary = f"Executes {clean_caption.lower()} operations"
-    purpose = f"Processes records through {len(tool_ids)} workflow steps ({types_str})."
-    major_trans = f"Applies {types_str} transformations across {len(tool_ids)} steps."
+    purpose = f"Processes records through {len(tool_ids)} workflow step{'s' if len(tool_ids) != 1 else ''} ({types_str})."
+    major_trans = f"Applies {types_str} transformations across {len(tool_ids)} step{'s' if len(tool_ids) != 1 else ''}."
 
     return name, short_title, summary, purpose, major_trans
 
 
 # ---------------------------------------------------------------------------
 # Phase 4: Promoted Key Business Rules
-# ---------------------------------------------------------------------------
 
 def _detect_business_rules(workflow: Workflow, exec_order: list[int], evidence: list[str]) -> list[BusinessRule]:
     """Detect and promote specific key business rules from tool configurations and annotations."""
