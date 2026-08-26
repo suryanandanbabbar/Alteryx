@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { api } from '../api/client';
 import { DiagramDTO } from '../types/workflow';
 import { NodeDetails } from '../components/NodeDetails';
+import { DocumentGenerationModal, ReportType } from '../components/DocumentGenerationModal';
 import { Loader2, AlertCircle, Search, X, Filter, Download } from 'lucide-react';
 
 interface ToolsPageProps {
@@ -15,6 +16,8 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ analysisId, selectedToolId
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('ALL');
+  const [generatingReport, setGeneratingReport] = useState<ReportType | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -36,6 +39,20 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ analysisId, selectedToolId
       mounted = false;
     };
   }, [analysisId]);
+
+  const handleDownloadToolSpecifications = async () => {
+    if (generatingReport) return;
+    setDownloadError(null);
+    setGeneratingReport('tool-specifications');
+
+    try {
+      await api.downloadFile(analysisId, 'tool-specifications');
+    } catch (err: any) {
+      setDownloadError(err.message || 'Failed to download tool specifications. Please try again.');
+    } finally {
+      setGeneratingReport(null);
+    }
+  };
 
   // Extract unique tool types sorted alphabetically
   const toolTypes = useMemo(() => {
@@ -105,7 +122,28 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ analysisId, selectedToolId
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1400px', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1400px', width: '100%', position: 'relative' }}>
+      {/* Document Generation Loading Modal */}
+      {generatingReport && <DocumentGenerationModal type={generatingReport} />}
+
+      {/* Error Alert */}
+      {downloadError && (
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--color-error-subtle)',
+          border: '1px solid rgba(220, 38, 38, 0.3)',
+          color: 'var(--color-error)',
+          fontSize: '13px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+        }}>
+          <AlertCircle size={16} style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>{downloadError}</div>
+        </div>
+      )}
+
       {/* Page Header */}
       <div>
         <div style={{
@@ -128,7 +166,8 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ analysisId, selectedToolId
             </span>
           </div>
           <button
-            onClick={() => { window.location.href = api.getDownloadUrl(analysisId, 'tool-specifications'); }}
+            onClick={handleDownloadToolSpecifications}
+            disabled={generatingReport !== null}
             className="btn btn-secondary"
             style={{
               display: 'inline-flex',
@@ -137,7 +176,8 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ analysisId, selectedToolId
               padding: '8px 14px',
               fontSize: '12.5px',
               fontWeight: '600',
-              cursor: 'pointer',
+              cursor: generatingReport ? 'not-allowed' : 'pointer',
+              opacity: generatingReport ? 0.7 : 1,
             }}
             title="Download complete tool-by-tool specifications spreadsheet (.xlsx)"
           >

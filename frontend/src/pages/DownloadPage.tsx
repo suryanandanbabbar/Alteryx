@@ -12,10 +12,11 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
   const [generatingReport, setGeneratingReport] = useState<ReportType | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
-  const handleDocxDownload = async (type: 'docx') => {
+  const handleDownloadWithModal = async (type: 'docx' | 'tool-specifications') => {
     if (generatingReport) return; // Prevent duplicate clicks
     setDownloadError(null);
-    setGeneratingReport('business');
+    const reportType: ReportType = type === 'docx' ? 'business' : 'tool-specifications';
+    setGeneratingReport(reportType);
 
     try {
       await api.downloadFile(analysisId, type);
@@ -26,7 +27,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
     }
   };
 
-  const triggerDirectDownload = (type: 'json' | 'python' | 'svg' | 'zip' | 'sttm' | 'tool-specifications') => {
+  const triggerDirectDownload = (type: 'json' | 'python' | 'svg' | 'zip' | 'sttm') => {
     window.location.href = api.getDownloadUrl(analysisId, type);
   };
 
@@ -111,7 +112,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
           subtitle="Complete tool-by-tool workflow specification with LLM-generated role and data-flow explanations"
           formatBadge=".xlsx"
           disabled={isGenerating}
-          onDownload={() => triggerDirectDownload('tool-specifications')}
+          onDownload={() => handleDownloadWithModal('tool-specifications')}
         />
 
         <DownloadCard
@@ -120,7 +121,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
           subtitle="Executive business analysis report with purpose, methodologies, findings, conclusions, lineage, and workflow"
           formatBadge=".docx"
           disabled={isGenerating}
-          onDownload={() => handleDocxDownload('docx')}
+          onDownload={() => handleDownloadWithModal('docx')}
         />
 
         <DownloadCard

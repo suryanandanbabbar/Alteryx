@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AnalysisOverviewDTO } from './types/workflow';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { SplashScreen } from './components/SplashScreen';
 import { UploadPage } from './pages/UploadPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { DiagramPage } from './pages/DiagramPage';
@@ -43,13 +44,19 @@ export const App: React.FC = () => {
 
   // If no active analysis, render upload view
   if (!overview) {
-    return <UploadPage onUploadSuccess={handleUploadSuccess} />;
+    return (
+      <>
+        <SplashScreen />
+        <UploadPage onUploadSuccess={handleUploadSuccess} />
+      </>
+    );
   }
 
   const sectionTitle = SECTION_TITLES[activeSection] || 'Workflow Analysis';
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--color-bg)' }}>
+      <SplashScreen />
       {/* Persistent Left Sidebar */}
       <Sidebar
         overview={overview}

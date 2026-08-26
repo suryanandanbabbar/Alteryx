@@ -1,7 +1,7 @@
 import React from 'react';
-import { FileText, Settings, Sparkles } from 'lucide-react';
+import { FileText, Table, Sparkles } from 'lucide-react';
 
-export type ReportType = 'business' | 'technical';
+export type ReportType = 'business' | 'tool-specifications' | 'technical';
 
 interface DocumentGenerationModalProps {
   type: ReportType;
@@ -9,10 +9,10 @@ interface DocumentGenerationModalProps {
 
 export const DocumentGenerationModal: React.FC<DocumentGenerationModalProps> = ({ type }) => {
   const isBusiness = type === 'business';
-  const title = isBusiness ? 'Preparing Business Report' : 'Preparing Technical Specifications';
+  const title = isBusiness ? 'Preparing Business Report' : 'Preparing Tool Specifications';
   const subtitle = isBusiness
     ? 'Generating your Business Report... AI-generated analysis is being prepared.'
-    : 'Generating your Technical Specifications... Please wait while the document is prepared.';
+    : 'Generating your Tool Specifications... AI-generated tool analysis is being prepared.';
 
   return (
     <div
@@ -104,7 +104,7 @@ export const DocumentGenerationModal: React.FC<DocumentGenerationModalProps> = (
               boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)',
             }}
           >
-            {isBusiness ? <FileText size={30} /> : <Settings size={30} />}
+            {isBusiness ? <FileText size={30} /> : <Table size={30} />}
 
             {/* Sparkle Badge */}
             <div
