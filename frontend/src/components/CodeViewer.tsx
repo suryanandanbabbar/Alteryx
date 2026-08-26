@@ -105,6 +105,7 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({ pythonData, onDownload }
           overflow: 'auto',
           maxHeight: '480px',
           display: 'flex',
+          alignItems: 'flex-start',
           fontSize: '12px',
           fontFamily: 'var(--font-mono)',
           lineHeight: 1.6,
@@ -118,9 +119,11 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({ pythonData, onDownload }
             borderRight: '1px solid var(--color-border)',
             background: 'var(--color-surface-secondary)',
             minWidth: '48px',
+            flexShrink: 0,
+            boxSizing: 'border-box',
           }}>
             {lines.map((_, i) => (
-              <div key={i}>{i + 1}</div>
+              <div key={i} style={{ height: '1.6em', lineHeight: '1.6em' }}>{i + 1}</div>
             ))}
           </div>
 
@@ -132,8 +135,17 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({ pythonData, onDownload }
             whiteSpace: 'pre',
             overflowX: 'auto',
             flex: 1,
+            fontFamily: 'inherit',
+            fontSize: 'inherit',
+            lineHeight: '1.6',
           }}>
-            <code>{pythonData.code}</code>
+            <code>
+              {lines.map((line, i) => (
+                <div key={i} style={{ height: '1.6em', lineHeight: '1.6em' }}>
+                  {line || ' '}
+                </div>
+              ))}
+            </code>
           </pre>
         </div>
       </div>
