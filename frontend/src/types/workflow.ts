@@ -151,6 +151,7 @@ export interface BusinessInputDTO {
   name: string;
   raw_source: string;
   source_type: string;
+  source_filename?: string | null;
   sheet_or_table?: string | null;
   container_name?: string | null;
   business_role?: string;

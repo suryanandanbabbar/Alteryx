@@ -209,12 +209,16 @@ def _detect_inputs(workflow: Workflow, evidence: list[str]) -> list[BusinessInpu
         ev = f"Input Tool #{tid} ({tool.tool_type}): {raw_file or 'in-memory configuration'}"
         evidence.append(ev)
 
+        # Canonical source filename (only if backed by a physical file path)
+        source_filename = base_path if base_path and "." in base_path else None
+
         inputs.append(
             BusinessInput(
                 tool_id=tid,
                 name=business_name,
                 raw_source=raw_file or "In-memory configuration",
                 source_type=source_type,
+                source_filename=source_filename,
                 sheet_or_table=sheet_or_table,
                 container_name=tool.container_name,
                 business_role=role,

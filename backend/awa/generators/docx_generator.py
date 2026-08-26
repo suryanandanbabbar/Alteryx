@@ -313,7 +313,8 @@ def generate_docx(
                     set_cell_margins(c, top=50, bottom=50, left=80, right=80)
 
                 p0 = row[0].paragraphs[0]
-                p0.add_run(inp.name).bold = True
+                display_source_name = getattr(inp, "source_filename", None) or inp.name
+                p0.add_run(display_source_name).bold = True
                 p0.runs[0].font.size = Pt(8.0)
 
                 p1 = row[1].paragraphs[0]

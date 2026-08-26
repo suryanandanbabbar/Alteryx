@@ -149,6 +149,7 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
                     name=inp.name,
                     raw_source=inp.raw_source,
                     source_type=inp.source_type,
+                    source_filename=inp.source_filename,
                     sheet_or_table=inp.sheet_or_table,
                     container_name=inp.container_name,
                     business_role=inp.business_role,

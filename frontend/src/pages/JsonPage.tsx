@@ -66,7 +66,7 @@ export const JsonPage: React.FC<JsonPageProps> = ({ analysisId }) => {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1000px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1400px', width: '100%' }}>
       {/* Section Subtitle */}
       <div>
         <div style={{

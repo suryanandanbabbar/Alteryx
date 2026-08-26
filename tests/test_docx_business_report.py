@@ -1,10 +1,8 @@
-"""Tests for Executive Summary DOCX report structure, length, and content."""
-
 from pathlib import Path
 import docx
 import pytest
 
-from awa.analysis.workflow_analyzer import analyze_workflow
+from awa.analysis.workflow_analyzer import analyze_workflow, analyze_canonical
 
 
 class TestDocxBusinessReport:
@@ -134,11 +132,11 @@ class TestDocxBusinessReport:
         assert "Step-by-Step Tool Specifications" not in full_text
         assert "Technical Configuration Appendix" not in full_text
 
-        # Verify specific business facts in body
-        assert "Claims Volume" in full_text
-        assert "Policy Master" in full_text
-        assert "Claim Payments" in full_text
-        assert "Claim Diary Notes" in full_text
+        # Verify specific business facts & real source filenames in body
+        assert "Claims_Volume_Extract_Demo.xlsx" in full_text
+        assert "Policy_Master_Demo.xlsx" in full_text
+        assert "Claim_Payments_Demo.xlsx" in full_text
+        assert "Claim_Diary_Notes_Demo.xlsx" in full_text
         assert "Historical Claims Extract" in full_text
         assert "Product Type Analysis" in full_text
         assert "State Analysis" in full_text
@@ -322,4 +320,77 @@ class TestDocxBusinessReport:
         zip_names = zf.namelist()
         assert any("Business_Report.docx" in name for name in zip_names)
         assert any("Technical_Specifications.docx" in name for name in zip_names)
+
+    def test_canonical_filename_extraction_windows_and_unix_paths(self, tmp_path: Path):
+        """Test 1 & 2: Given Windows or Unix path, canonical filename is extracted without directories."""
+        xml_content = """<?xml version="1.0"?>
+<AlteryxDocument yxmdVer="2024.1">
+  <Nodes>
+    <Node ToolID="1">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput"><Position x="50" y="50" /></GuiSettings>
+      <Properties><Configuration><File>C:\\Data\\Claim_Volume_Extract_Demo.xlsx|||Sheet1$</File></Configuration></Properties>
+    </Node>
+    <Node ToolID="2">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput"><Position x="50" y="150" /></GuiSettings>
+      <Properties><Configuration><File>/data/claims/Policy_Master_Unix.xlsx</File></Configuration></Properties>
+    </Node>
+  </Nodes>
+  <Connections />
+</AlteryxDocument>"""
+        wf_file = tmp_path / "test_paths.yxmd"
+        wf_file.write_text(xml_content, encoding="utf-8")
+
+        canonical = analyze_canonical(wf_file)
+        inputs = canonical.business_summary.source_inputs
+
+        assert len(inputs) == 2
+        inp1 = next(i for i in inputs if i.tool_id == 1)
+        inp2 = next(i for i in inputs if i.tool_id == 2)
+
+        assert inp1.source_filename == "Claim_Volume_Extract_Demo.xlsx"
+        assert inp2.source_filename == "Policy_Master_Unix.xlsx"
+
+    def test_annotation_not_authoritative_for_source_filename(self, tmp_path: Path):
+        """Test 3: Annotation text must not override or determine the real filename from XML config."""
+        xml_content = """<?xml version="1.0"?>
+<AlteryxDocument yxmdVer="2024.1">
+  <Nodes>
+    <Node ToolID="1">
+      <GuiSettings Plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput"><Position x="50" y="50" /></GuiSettings>
+      <Properties>
+        <Configuration><File>C:\\Data\\Claim_Volume_Extract_Demo.xlsx|||Sheet1$</File></Configuration>
+        <Annotation DisplayMode="0"><DefaultAnnotationText>Claims Volume</DefaultAnnotationText></Annotation>
+      </Properties>
+    </Node>
+  </Nodes>
+  <Connections />
+</AlteryxDocument>"""
+        wf_file = tmp_path / "test_annotation.yxmd"
+        wf_file.write_text(xml_content, encoding="utf-8")
+
+        canonical = analyze_canonical(wf_file)
+        inp = canonical.business_summary.source_inputs[0]
+
+        assert inp.source_filename == "Claim_Volume_Extract_Demo.xlsx"
+
+    def test_overview_dto_contains_canonical_source_filenames(self):
+        """Test 4: Overview DTO for Demo Claims workflow contains canonical source filenames."""
+        from fastapi.testclient import TestClient
+        from backend.app.main import app
+
+        client = TestClient(app)
+        wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        with open(wf_path, "rb") as f:
+            resp = client.post("/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        source_inputs = data["business_summary"]["source_inputs"]
+
+        filenames = [si["source_filename"] for si in source_inputs]
+        assert "Claims_Volume_Extract_Demo.xlsx" in filenames
+        assert "Policy_Master_Demo.xlsx" in filenames
+        assert "Claim_Payments_Demo.xlsx" in filenames
+        assert "Claim_Diary_Notes_Demo.xlsx" in filenames
+
 

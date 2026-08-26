@@ -173,6 +173,7 @@ class BusinessInputDTO(BaseModel):
     name: str
     raw_source: str
     source_type: str
+    source_filename: str | None = None
     sheet_or_table: str | None = None
     container_name: str | None = None
     business_role: str = ""

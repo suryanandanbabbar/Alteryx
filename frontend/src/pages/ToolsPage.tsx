@@ -105,7 +105,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({ analysisId, selectedToolId
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1000px', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1400px', width: '100%' }}>
       {/* Page Header */}
       <div>
         <div style={{

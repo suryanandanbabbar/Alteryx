@@ -16,6 +16,7 @@ class BusinessInput:
     name: str                       # e.g. "Claims Volume"
     raw_source: str                 # e.g. ".\\Data\\Claims_Volume_Extract_Demo.xlsx|||Sheet1$"
     source_type: str                # e.g. "Excel Workbook", "CSV Data File"
+    source_filename: str | None = None  # e.g. "Claims_Volume_Extract_Demo.xlsx"
     sheet_or_table: str | None = None
     container_name: str | None = None
     business_role: str = ""         # e.g. "Primary claims dataset"
@@ -29,6 +30,7 @@ class BusinessInput:
             "name": self.name,
             "raw_source": self.raw_source,
             "source_type": self.source_type,
+            "source_filename": self.source_filename,
             "sheet_or_table": self.sheet_or_table,
             "container_name": self.container_name,
             "business_role": self.business_role,

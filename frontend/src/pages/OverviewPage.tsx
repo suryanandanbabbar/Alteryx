@@ -19,7 +19,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
   onNavigateToDiagram,
 }) => {
   const bs = overview.business_summary;
-  const assessment = bs?.assessment;
   const [expandedStage, setExpandedStage] = useState<number | null>(null);
 
   // Map tool_id to direct Alteryx tool name and details
@@ -43,7 +42,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
   const oneLinePurpose = bs?.one_line_purpose || 'Data preparation and reporting workflow';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1000px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1400px', width: '100%' }}>
       {/* 1. Header & Compact Metrics Strip */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <div>
@@ -201,7 +200,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}>
-                  {inp.name}
+                  {inp.source_filename || inp.name}
                 </div>
               ))}
             </div>
@@ -417,22 +416,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
               );
             })}
           </div>
-        </div>
-      )}
-
-      {/* 5. Key Observations (Compact Bullets) */}
-      {assessment && assessment.key_observations && assessment.key_observations.length > 0 && (
-        <div className="app-card" style={{ padding: '16px 18px' }}>
-          <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
-            Key Observations
-          </div>
-          <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {assessment.key_observations.map((obs, idx) => (
-              <li key={idx} style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)' }}>
-                {obs}
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </div>

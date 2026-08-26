@@ -34,7 +34,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
   const isGenerating = generatingReport !== null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '850px', position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1400px', width: '100%', position: 'relative' }}>
       {/* Document Generation Loading Modal */}
       {generatingReport && <DocumentGenerationModal type={generatingReport} />}
 
