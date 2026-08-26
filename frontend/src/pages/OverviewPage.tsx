@@ -228,7 +228,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
               }}>
                 <span style={{ fontWeight: '700', color: 'var(--color-primary)' }}>Multi-Stage Processing</span>
                 <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                  Aggregation · Cross-source Joins · Aging & Risk Derivations
+                  {bs.processing_stages.map((s) => s.name).slice(0, 3).join(' · ') || 'Multi-step data pipeline'}
                 </span>
               </div>
             </div>

@@ -28,6 +28,8 @@ from .schemas import (
     BusinessReportRuleItem,
     BusinessReportLineageItem,
     ComprehensiveWorkflowContext,
+    ProcessStageContent,
+    WorkflowProcessStages,
 )
 from .prompts import (
     TOOL_PROMPT_VERSION,
@@ -38,6 +40,7 @@ from .prompts import (
     CONCLUSIONS_PROMPT_VERSION,
     BUSINESS_REPORT_PROMPT_VERSION,
     TOOL_SPECIFICATIONS_PROMPT_VERSION,
+    PROCESS_STAGES_PROMPT_VERSION,
     TOOL_SYSTEM_PROMPT,
     WORKFLOW_PURPOSE_SYSTEM_PROMPT,
     EXECUTIVE_SUMMARY_SYSTEM_PROMPT,
@@ -46,6 +49,7 @@ from .prompts import (
     CONCLUSIONS_SYSTEM_PROMPT,
     BUSINESS_REPORT_SYSTEM_PROMPT,
     TOOL_SPECIFICATIONS_SYSTEM_PROMPT,
+    PROCESS_STAGES_SYSTEM_PROMPT,
     build_tool_user_prompt,
     build_workflow_purpose_user_prompt,
     build_executive_summary_user_prompt,
@@ -54,6 +58,7 @@ from .prompts import (
     build_methods_conclusions_user_prompt,
     build_business_report_user_prompt,
     build_tool_specifications_user_prompt,
+    build_process_stages_user_prompt,
 )
 from .cache import LLMNarrativeCache, get_global_narrative_cache, compute_cache_key
 
@@ -267,10 +272,25 @@ def extract_workflow_facts(workflow: Workflow, business_summary: WorkflowBusines
 
 def extract_comprehensive_workflow_context(
     workflow: Workflow,
-    business_summary: WorkflowBusinessSummary,
+    business_summary: WorkflowBusinessSummary | None = None,
     graph: nx.DiGraph | None = None,
 ) -> ComprehensiveWorkflowContext:
     """Extract rich, authoritative workflow context from CIR, tools, formulas, and graph topology."""
+    if isinstance(business_summary, nx.DiGraph) and graph is None:
+        graph = business_summary
+        business_summary = None
+
+    if business_summary is None:
+        from awa.analysis.business_intelligence import generate_business_summary
+        from awa.graph.builder import execution_order
+        g = graph or nx.DiGraph()
+        try:
+            steps = execution_order(g)
+            e_order = [s.tool_id for s in steps if s.tool_id in workflow.tools]
+        except Exception:
+            e_order = list(workflow.tools.keys())
+        business_summary = generate_business_summary(workflow, g, e_order)
+
     inputs_list = []
     for inp in business_summary.source_inputs:
         inputs_list.append({
@@ -1082,6 +1102,315 @@ class LLMNarrativeGenerator:
         for tool_id, tool in workflow.tools.items():
             results[tool_id] = self.generate_tool_specification(workflow, tool, graph, workflow_id=workflow_id)
         return results
+
+    def generate_process_stages(
+        self,
+        workflow: Workflow,
+        graph: nx.DiGraph | None = None,
+        business_summary: WorkflowBusinessSummary | None = None,
+        workflow_id: str = "",
+    ) -> list[BusinessStage]:
+        """Generate structured business process stages for the Overview page."""
+        from awa.model.business_summary import BusinessStage
+
+        context = extract_comprehensive_workflow_context(workflow, business_summary=business_summary, graph=graph)
+        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        cache_key = compute_cache_key(
+            workflow_id=wf_key,
+            scope_key="process_stages",
+            prompt_version=PROCESS_STAGES_PROMPT_VERSION,
+            model_name=self.client.model_name,
+            facts_payload=context.to_dict(),
+        )
+
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            logger.info("[LLM CACHE] type=process_stages status=HIT")
+            stages = self._parse_process_stages_json(cached.text, workflow, graph)
+            if stages:
+                return stages
+
+        logger.info("[LLM CACHE] type=process_stages status=MISS")
+
+        system_prompt = PROCESS_STAGES_SYSTEM_PROMPT
+        user_prompt = build_process_stages_user_prompt(context.to_dict())
+        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=1500)
+
+        stages = self._parse_process_stages_json(raw_response, workflow, graph)
+        if not stages:
+            logger.warning("[LLM] Process stages generation failed validation, using generic deterministic fallback.")
+            stages = self._generate_fallback_process_stages(workflow, graph, business_summary)
+            import json
+            fallback_payload = {
+                "stages": [
+                    {
+                        "stage_number": s.stage_number,
+                        "stage_name": s.name,
+                        "category": s.short_title.split()[-1] if s.short_title else "PROCESS",
+                        "description": s.description,
+                        "purpose": s.business_purpose,
+                        "transformation": s.major_transformation,
+                        "key_actions": s.annotations,
+                        "tool_ids": s.tool_ids,
+                    }
+                    for s in stages
+                ]
+            }
+            res = NarrativeResult(
+                text=json.dumps(fallback_payload),
+                source="deterministic_fallback",
+                model=self.client.model_name,
+                prompt_version=PROCESS_STAGES_PROMPT_VERSION,
+            )
+            self._cache.set(cache_key, res)
+            return stages
+
+        import json
+        cache_payload = {
+            "stages": [
+                {
+                    "stage_number": s.stage_number,
+                    "stage_name": s.name,
+                    "category": s.short_title.split()[-1] if s.short_title else "PROCESS",
+                    "description": s.description,
+                    "purpose": s.business_purpose,
+                    "transformation": s.major_transformation,
+                    "key_actions": s.annotations,
+                    "tool_ids": s.tool_ids,
+                }
+                for s in stages
+            ]
+        }
+        res = NarrativeResult(
+            text=json.dumps(cache_payload),
+            source="llm",
+            model=self.client.model_name,
+            prompt_version=PROCESS_STAGES_PROMPT_VERSION,
+        )
+        self._cache.set(cache_key, res)
+
+        return stages
+
+    def _parse_process_stages_json(
+        self,
+        raw_json: str,
+        workflow: Workflow,
+        graph: nx.DiGraph | None = None,
+    ) -> list[BusinessStage] | None:
+        """Parse, validate, and enforce 100% tool coverage for LLM process stages."""
+        from awa.model.business_summary import BusinessStage
+        try:
+            import json
+            clean_json = raw_json.strip()
+            if "```" in clean_json:
+                clean_json = re.sub(r"^```(?:json)?\s*", "", clean_json, flags=re.MULTILINE)
+                clean_json = re.sub(r"\s*```$", "", clean_json, flags=re.MULTILINE)
+            start = clean_json.find("{")
+            end = clean_json.rfind("}")
+            if start == -1 or end == -1:
+                return None
+            clean_json = clean_json[start : end + 1]
+            data = json.loads(clean_json)
+            raw_stages = data.get("stages") or data.get("sequential_stages", [])
+            if not isinstance(raw_stages, list) or not raw_stages:
+                return None
+
+            all_wf_tool_ids = set(workflow.tools.keys())
+            assigned_tool_ids: set[int] = set()
+            parsed_stages: list[BusinessStage] = []
+
+            for idx, item in enumerate(raw_stages, start=1):
+                if not isinstance(item, dict):
+                    continue
+                s_name = str(item.get("stage_name", "")).strip()
+                if not s_name:
+                    continue
+                s_cat = str(item.get("category", "")).strip().upper() or "PROCESS"
+                s_cat = re.sub(r"[^A-Z0-9_]", "", s_cat)[:12] or "PROCESS"
+                s_desc = str(item.get("description", "")).strip()
+                s_purpose = str(item.get("purpose", "")).strip() or s_desc
+                s_trans = str(item.get("transformation") or item.get("operational_explanation", "")).strip()
+                s_actions = [str(a).strip() for a in item.get("key_actions", []) if str(a).strip()]
+
+                raw_tids = item.get("tool_ids", [])
+                valid_tids: list[int] = []
+                for tid_val in raw_tids:
+                    try:
+                        tid_int = int(str(tid_val).replace("#", "").strip())
+                        if tid_int in all_wf_tool_ids and tid_int not in assigned_tool_ids:
+                            valid_tids.append(tid_int)
+                            assigned_tool_ids.add(tid_int)
+                    except (ValueError, TypeError):
+                        pass
+
+                stage_num = int(item.get("stage_number", idx))
+                short_title = f"{stage_num:02d} {s_cat}"
+
+                stage_obj = BusinessStage(
+                    stage_number=stage_num,
+                    name=s_name,
+                    short_title=short_title,
+                    summary=s_desc,
+                    description=s_desc,
+                    business_purpose=s_purpose,
+                    major_transformation=s_trans,
+                    tool_ids=valid_tids,
+                    tool_count=len(valid_tids),
+                    annotations=s_actions,
+                    transformations=[s_trans] if s_trans else [],
+                )
+                parsed_stages.append(stage_obj)
+
+            if not parsed_stages:
+                return None
+
+            # Tool Coverage Guarantee: ensure every workflow tool is assigned to a stage
+            unassigned_tids = all_wf_tool_ids - assigned_tool_ids
+            if unassigned_tids:
+                for tid in sorted(unassigned_tids):
+                    assigned = False
+                    if graph is not None:
+                        preds = set(graph.predecessors(tid)) if graph.has_node(tid) else set()
+                        succs = set(graph.successors(tid)) if graph.has_node(tid) else set()
+                        for stg in parsed_stages:
+                            if set(stg.tool_ids) & (preds | succs):
+                                stg.tool_ids.append(tid)
+                                stg.tool_count = len(stg.tool_ids)
+                                assigned = True
+                                break
+                    if not assigned:
+                        closest_stage = min(
+                            parsed_stages,
+                            key=lambda stg: min([abs(tid - t) for t in stg.tool_ids] or [999]),
+                        )
+                        closest_stage.tool_ids.append(tid)
+                        closest_stage.tool_count = len(closest_stage.tool_ids)
+
+            # Sort tool_ids inside each stage
+            for stg in parsed_stages:
+                stg.tool_ids.sort()
+                stg.tool_count = len(stg.tool_ids)
+
+            return parsed_stages
+        except Exception as e:
+            logger.warning("[LLM] Error parsing process stages JSON: %s", e)
+            return None
+
+    def _generate_fallback_process_stages(
+        self,
+        workflow: Workflow,
+        graph: nx.DiGraph | None,
+        business_summary: WorkflowBusinessSummary | None,
+    ) -> list[BusinessStage]:
+        """Derive generic factual process stages based on graph topology without domain hardcoding."""
+        from awa.model.business_summary import BusinessStage
+        from awa.graph.builder import execution_order
+
+        input_tools: list[int] = []
+        transform_tools: list[int] = []
+        enrich_tools: list[int] = []
+        aggregate_tools: list[int] = []
+        output_tools: list[int] = []
+
+        ordered_tids: list[int] = []
+        if graph is not None:
+            try:
+                exec_steps = execution_order(graph)
+                ordered_tids = [s.tool_id for s in exec_steps if s.tool_id in workflow.tools]
+            except Exception:
+                ordered_tids = sorted(list(workflow.tools.keys()))
+        else:
+            ordered_tids = sorted(list(workflow.tools.keys()))
+
+        for tid in ordered_tids:
+            t = workflow.tools[tid]
+            ttype = t.tool_type
+            if ttype in ("DbFileInput", "InputData", "TextInput", "DynamicInput", "Directory", "DateTimeNow"):
+                input_tools.append(tid)
+            elif ttype in ("DbFileOutput", "OutputData", "Render", "BrowseV2"):
+                output_tools.append(tid)
+            elif ttype in ("Summarize", "CrossTab", "RunningTotal", "CountRecords"):
+                aggregate_tools.append(tid)
+            elif ttype in ("Join", "JoinMultiple", "FindReplace", "Union", "AppendFields"):
+                enrich_tools.append(tid)
+            else:
+                transform_tools.append(tid)
+
+        groups: list[tuple[str, str, str, str, list[int]]] = []
+        if input_tools:
+            groups.append((
+                "Data Ingestion & Source Preparation",
+                "INGEST",
+                f"Ingests source records from {len(input_tools)} input source(s).",
+                "Reads and prepares raw source datasets for downstream processing.",
+                input_tools,
+            ))
+        if transform_tools:
+            groups.append((
+                "Core Data Transformations",
+                "TRANSFORM",
+                f"Executes field selections, filtering, and calculated derivations across {len(transform_tools)} step(s).",
+                "Applies field manipulation, data cleansing, and formula rules.",
+                transform_tools,
+            ))
+        if enrich_tools:
+            groups.append((
+                "Data Enrichment & Integration",
+                "ENRICH",
+                f"Integrates cross-dataset attributes using relational joins across {len(enrich_tools)} step(s).",
+                "Combines disparate data streams into unified records.",
+                enrich_tools,
+            ))
+        if aggregate_tools:
+            groups.append((
+                "Aggregation & Analytical Summarization",
+                "AGGREGATE",
+                f"Aggregates metrics and pivots data across {len(aggregate_tools)} step(s).",
+                "Computes group summary totals and structural pivots.",
+                aggregate_tools,
+            ))
+        if output_tools:
+            groups.append((
+                "Reporting & Deliverable Publication",
+                "PUBLISH",
+                f"Exports processed records to {len(output_tools)} target deliverable(s).",
+                "Writes finalized output datasets for business consumption.",
+                output_tools,
+            ))
+
+        if not groups:
+            groups.append((
+                "Workflow Processing",
+                "PROCESS",
+                f"Processes records across {len(ordered_tids)} workflow steps.",
+                "Executes configured ETL transformations.",
+                ordered_tids,
+            ))
+
+        stages: list[BusinessStage] = []
+        for stage_idx, (name, cat, desc, purpose, tids) in enumerate(groups, start=1):
+            actions = [
+                workflow.tools[t].annotation.strip()
+                for t in tids
+                if workflow.tools.get(t) and workflow.tools[t].annotation and len(workflow.tools[t].annotation.strip()) > 3
+            ]
+            stages.append(
+                BusinessStage(
+                    stage_number=stage_idx,
+                    name=name,
+                    short_title=f"{stage_idx:02d} {cat}",
+                    summary=desc,
+                    description=desc,
+                    business_purpose=purpose,
+                    major_transformation=desc,
+                    tool_ids=tids,
+                    tool_count=len(tids),
+                    annotations=actions[:4],
+                    transformations=[desc],
+                )
+            )
+
+        return stages
 
 
 _global_generator: LLMNarrativeGenerator | None = None

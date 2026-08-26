@@ -530,23 +530,18 @@ def analyze_canonical(
                         if out_llm.business_use:
                             out_bs.likely_use = out_llm.business_use
 
-                # Replace sequential stages entirely with LLM-authored stages
-                if report_content.sequential_stages:
-                    from awa.model.business_summary import BusinessStage
-                    new_stages = []
-                    for idx, stg_llm in enumerate(report_content.sequential_stages, start=1):
-                        new_stages.append(
-                            BusinessStage(
-                                stage_number=stg_llm.stage_number or idx,
-                                name=stg_llm.stage_name,
-                                short_title=f"{stg_llm.stage_number or idx:02d} {stg_llm.stage_name[:10].upper()}",
-                                summary=stg_llm.description,
-                                description=stg_llm.description,
-                                business_purpose=stg_llm.description,
-                                major_transformation=stg_llm.operational_explanation,
-                            )
-                        )
-                    business_summary.processing_stages = new_stages
+                # Populate LLM-authored process stages for Overview
+                try:
+                    process_stages = gen.generate_process_stages(
+                        workflow,
+                        graph=graph,
+                        business_summary=business_summary,
+                        workflow_id=aid,
+                    )
+                    if process_stages:
+                        business_summary.processing_stages = process_stages
+                except Exception as stg_err:
+                    _llm_logger.warning("LLM process stages generation failed: %s", stg_err)
 
                 # Replace business rules entirely with LLM-authored rules
                 if report_content.business_rules:

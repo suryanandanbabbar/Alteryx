@@ -236,3 +236,40 @@ class ComprehensiveWorkflowContext:
             "rules_and_formulas": self.rules_and_formulas,
             "lineage_traces": self.lineage_traces,
         }
+
+
+@dataclass
+class ProcessStageContent:
+    """Structured LLM-authored content for an individual process stage."""
+    stage_number: int
+    stage_name: str
+    category: str
+    description: str
+    purpose: str
+    transformation: str
+    key_actions: list[str] = dc_field(default_factory=list)
+    tool_ids: list[int] = dc_field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "stage_number": self.stage_number,
+            "stage_name": self.stage_name,
+            "category": self.category,
+            "description": self.description,
+            "purpose": self.purpose,
+            "transformation": self.transformation,
+            "key_actions": self.key_actions,
+            "tool_ids": self.tool_ids,
+        }
+
+
+@dataclass
+class WorkflowProcessStages:
+    """Collection of LLM-generated process stages for a workflow."""
+    stages: list[ProcessStageContent] = dc_field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "stages": [s.to_dict() for s in self.stages],
+        }
+
