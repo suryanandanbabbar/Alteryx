@@ -458,7 +458,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{
-              fontSize: '10px',
+              fontSize: '12px',
               fontWeight: 700,
               color: 'var(--color-text-muted)',
               textTransform: 'uppercase',
@@ -498,7 +498,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '3px',
-                fontSize: '10px',
+                fontSize: '12px',
                 fontWeight: 600,
                 borderRadius: '3px',
               }}
@@ -521,7 +521,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             background: 'var(--color-surface-secondary)',
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-sm, 4px)',
-            fontSize: '11.5px',
+            fontSize: '14px',
             fontWeight: 500,
             color: 'var(--color-text)',
             lineHeight: '1.45',
@@ -536,7 +536,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
 
       {/* Workflow Role */}
       <div>
-        <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
+        <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>
           Workflow Role
         </div>
         <div
@@ -545,7 +545,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             background: 'var(--color-surface-secondary)',
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-sm, 4px)',
-            fontSize: '11.5px',
+            fontSize: '14px',
             fontWeight: 700,
             color: 'var(--color-text)',
             display: 'flex',
@@ -574,11 +574,11 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Data Flow
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+          <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
             {upstreamNodes.length} upstream · {downstreamNodes.length} downstream
           </span>
           {!isFloating && (
@@ -595,7 +595,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '3px',
-                fontSize: '10px',
+                fontSize: '12px',
                 fontWeight: 600,
                 borderRadius: '3px',
               }}
@@ -617,7 +617,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
         {/* Upstream nodes */}
         {upstreamNodes.length === 0 ? (
-          <div style={{ fontSize: '10.5px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '3px 6px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '3px 6px' }}>
             Source tool (no upstream inputs)
           </div>
         ) : (
@@ -640,11 +640,11 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
                 <ArrowLeft size={11} color="#0284c7" />
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   #{up.tool_id} {up.name}
                 </span>
               </div>
-              <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', marginLeft: '6px' }}>
+              <span style={{ fontSize: '14px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', marginLeft: '6px' }}>
                 {up.tool_type}
               </span>
             </div>
@@ -665,13 +665,13 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
             <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: roleColor, flexShrink: 0 }} />
-            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               #{node.tool_id} {node.name}
             </span>
           </div>
           <span
             style={{
-              fontSize: '9px',
+              fontSize: '14px',
               fontWeight: 800,
               color: categoryColor.text || 'var(--color-primary)',
               background: categoryColor.badgeBg || 'var(--color-primary-subtle)',
@@ -688,7 +688,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
 
         {/* Downstream nodes */}
         {downstreamNodes.length === 0 ? (
-          <div style={{ fontSize: '10.5px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '3px 6px' }}>
+          <div style={{ fontSize: '14px', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '3px 6px' }}>
             Terminal tool (no downstream outputs)
           </div>
         ) : (
@@ -711,11 +711,11 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
                 <ArrowRight size={11} color="#16a34a" />
-                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   #{down.tool_id} {down.name}
                 </span>
               </div>
-              <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', marginLeft: '6px' }}>
+              <span style={{ fontSize: '14px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', marginLeft: '6px' }}>
                 {down.tool_type}
               </span>
             </div>
@@ -739,7 +739,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Technical Details
         </span>
         {!isFloating && (
@@ -756,7 +756,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '3px',
-              fontSize: '10px',
+              fontSize: '12px',
               fontWeight: 600,
               borderRadius: '3px',
             }}
@@ -777,21 +777,21 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
       {/* Container ID & XML Tool Name Metadata Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '14px', alignItems: 'flex-start' }}>
         <div>
-          <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
             Container ID
           </div>
-          <div style={{ fontSize: '11px', fontWeight: 600, color: node.container_id != null ? 'var(--color-text)' : 'var(--color-text-muted)', fontStyle: node.container_id != null ? 'normal' : 'italic' }}>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: node.container_id != null ? 'var(--color-text)' : 'var(--color-text-muted)', fontStyle: node.container_id != null ? 'normal' : 'italic' }}>
             {containerIdDisplay}
           </div>
         </div>
 
         <div style={{ overflow: 'hidden' }}>
-          <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>
             XML Tool Name
           </div>
           <div
             style={{
-              fontSize: '11px',
+              fontSize: '14px',
               fontWeight: 600,
               fontFamily: 'var(--font-mono)',
               color: xmlToolName !== 'Not available in tool registry' ? 'var(--color-text)' : 'var(--color-text-muted)',
@@ -810,7 +810,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
       {/* Workflow Context (Formatted XML Code Viewer) */}
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             Workflow Context
           </div>
           {rawNodeXml !== 'Source Node unavailable' && (
@@ -824,7 +824,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
                 border: '1px solid var(--color-border)',
                 borderRadius: '3px',
                 padding: '2px 6px',
-                fontSize: '9.5px',
+                fontSize: '12px',
                 color: copiedXml ? 'var(--color-success)' : 'var(--color-text-muted)',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
@@ -847,7 +847,7 @@ export const WorkflowInspector: React.FC<WorkflowInspectorProps> = ({
             overflowX: 'auto',
             overflowY: 'auto',
             fontFamily: 'var(--font-mono)',
-            fontSize: '10px',
+            fontSize: '12px',
             lineHeight: '1.4',
             color: '#e2e8f0',
             whiteSpace: 'pre',
