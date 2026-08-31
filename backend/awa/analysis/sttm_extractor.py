@@ -65,22 +65,26 @@ def _humanize_label(name: str) -> str:
 
 
 def _clean_table_name(raw_name: str) -> str:
-    """Derive a clean, business-friendly table/dataset name from file paths or annotations."""
+    """Derive an authoritative dataset name from file path, connection, or sheet.
+    Strictly preserves actual filenames and sheet names without stripping domain words.
+    """
     if not raw_name:
         return "Source Dataset"
     
-    # Strip file path delimiters
-    name = raw_name.replace("\\", "/").split("/")[-1]
-    if "|||" in name:
-        base, sheet = name.split("|||", 1)
-        base = re.sub(r"\.(xlsx|xls|csv|yxdb|json|txt|parquet|avro|db|sqlite)$", "", base, flags=re.IGNORECASE)
-        sheet = sheet.replace("$", "").strip()
-        if sheet and sheet.lower() not in ("sheet1", "data"):
-            return f"{_humanize_label(base)} — {sheet}"
-        return _humanize_label(base)
+    clean = raw_name.strip().strip('"\'')
+    if "|||" in clean:
+        parts = clean.split("|||", 1)
+        base = parts[0].replace("\\", "/").rstrip("/").split("/")[-1]
+        sheet = parts[1].replace("$", "").strip()
+        if sheet.lower().startswith("select"):
+            m = re.search(r"from\s+[`\[]?([A-Za-z0-9_]+)[`\]]?", sheet, re.IGNORECASE)
+            sheet = m.group(1) if m else ""
+        if sheet and sheet.lower() not in ("data", ""):
+            return f"{base} — {sheet}"
+        return base
     
-    name = re.sub(r"\.(xlsx|xls|csv|yxdb|json|txt|parquet|avro|db|sqlite)$", "", name, flags=re.IGNORECASE)
-    return _humanize_label(name)
+    name = clean.replace("\\", "/").rstrip("/").split("/")[-1]
+    return name if name else "Source Dataset"
 
 
 def _humanize_generic_expression(expr: str, target_attr: str, ref_fields: list[str]) -> str:
@@ -136,29 +140,80 @@ class STTMExtractor:
         self._resolve_names()
 
     def _resolve_names(self):
-        """Map source and sink tool IDs to clean business table names."""
-        if self.business_summary:
-            for inp in self.business_summary.source_inputs:
-                self.input_names[inp.tool_id] = inp.name
-            for out in self.business_summary.business_outputs:
-                if out.sheet_or_table and out.sheet_or_table.lower() not in ("sheet1", "data"):
-                    self.output_names[out.tool_id] = f"{out.name} — {out.sheet_or_table}"
-                else:
-                    self.output_names[out.tool_id] = out.name
+        """Map source and sink tool IDs to authoritative dataset names with strict actual filename precedence."""
+        biz_inputs = {inp.tool_id: inp for inp in (self.business_summary.source_inputs if self.business_summary else [])}
+        biz_outputs = {out.tool_id: out for out in (self.business_summary.business_outputs if self.business_summary else [])}
 
-        # Fallback for any tool not in business_summary
         for tid, tool in self.workflow.tools.items():
             cfg = tool.configuration.parsed or {}
-            file_path = cfg.get("file_path", "") or cfg.get("File", "")
-            
-            if tid not in self.input_names:
-                tdef = self.catalog.resolve(tool.plugin or tool.tool_type)
-                if not tdef.input_anchors or tool.tool_type in ("DbFileInput", "InputData", "TextInput", "Directory", "DynamicInput"):
-                    self.input_names[tid] = tool.name or _clean_table_name(file_path) or f"Source {tid}"
+            file_path = (
+                cfg.get("file_path", "")
+                or cfg.get("File", "")
+                or cfg.get("destination_file", "")
+                or cfg.get("source_file", "")
+            )
 
-            if tid not in self.output_names:
-                if tool.tool_type in ("DbFileOutput", "OutputData", "Render") or not self.graph.out_degree(tid):
-                    self.output_names[tid] = tool.name or _clean_table_name(file_path) or f"Target {tid}"
+            tdef = self.catalog.resolve(tool.plugin or tool.tool_type)
+            is_input = not tdef.input_anchors or tool.tool_type in ("DbFileInput", "InputData", "TextInput", "Directory", "DynamicInput")
+            
+            if is_input:
+                # 1. Configured file path
+                if file_path:
+                    self.input_names[tid] = _clean_table_name(file_path)
+                # 2. Canonical business input source_filename or raw_source
+                elif tid in biz_inputs and (biz_inputs[tid].source_filename or biz_inputs[tid].raw_source):
+                    b_inp = biz_inputs[tid]
+                    raw = b_inp.source_filename or b_inp.raw_source
+                    if raw and raw.lower() not in ("in-memory configuration", "standard input stream"):
+                        self.input_names[tid] = _clean_table_name(raw)
+                    elif tool.tool_type == "TextInput":
+                        flds = cfg.get("fields", [])
+                        field_hint = f" ({', '.join(flds[:2])})" if flds else ""
+                        self.input_names[tid] = f"TextInput #{tid}{field_hint}"
+                    else:
+                        self.input_names[tid] = f"Source #{tid}"
+                elif tool.tool_type == "TextInput":
+                    flds = cfg.get("fields", [])
+                    field_hint = f" ({', '.join(flds[:2])})" if flds else ""
+                    self.input_names[tid] = f"TextInput #{tid}{field_hint}"
+                else:
+                    self.input_names[tid] = f"Source #{tid}"
+
+            # Check if sink
+            is_explicit_sink = tool.tool_type in ("DbFileOutput", "OutputData", "Render")
+            is_leaf = self.graph.has_node(tid) and self.graph.out_degree(tid) == 0 and tool.tool_type not in ("BrowseV2", "Browse")
+            browse_preds = self._get_browse_predecessors()
+            is_browse_sink = tid in browse_preds
+            
+            if is_explicit_sink or is_leaf or is_browse_sink:
+                if file_path:
+                    self.output_names[tid] = _clean_table_name(file_path)
+                elif tid in biz_outputs and (biz_outputs[tid].raw_destination or biz_outputs[tid].name):
+                    b_out = biz_outputs[tid]
+                    raw = b_out.raw_destination
+                    if raw and raw.lower() not in ("standard output stream", "in-memory destination"):
+                        self.output_names[tid] = _clean_table_name(raw)
+                    else:
+                        self.output_names[tid] = f"Deliverable #{tid}"
+                else:
+                    self.output_names[tid] = f"Deliverable #{tid}"
+
+    def _get_browse_predecessors(self) -> set[int]:
+        """Identify terminal operational nodes whose only downstream consumers are Browse tools."""
+        browse_predecessors = set()
+        has_file_sinks = any(t.tool_type in ("DbFileOutput", "OutputData", "Render") for t in self.workflow.tools.values())
+        if not has_file_sinks:
+            for b_tid, b_tool in self.workflow.tools.items():
+                if b_tool.tool_type in ("BrowseV2", "Browse"):
+                    preds = list(self.graph.predecessors(b_tid)) if self.graph.has_node(b_tid) else []
+                    for p in preds:
+                        non_browse_succs = [
+                            s for s in self.graph.successors(p)
+                            if self.workflow.tools.get(s) and self.workflow.tools[s].tool_type not in ("BrowseV2", "Browse")
+                        ]
+                        if not non_browse_succs:
+                            browse_predecessors.add(p)
+        return browse_predecessors
 
     def extract_document(self) -> STTMDocument:
         """Extract the full collection of STTM mappings from the workflow."""
@@ -196,19 +251,28 @@ class STTMExtractor:
             out_schema = self._process_node(tool, incoming_schemas, incoming_by_anchor, source_field_registry)
             node_schemas[tid] = out_schema
 
+        # Detect terminal nodes feeding Browse tools if no explicit file sinks exist
+        browse_predecessors = self._get_browse_predecessors()
+
         # Collect mappings from all output / sink nodes
         mappings: list[STTMMapping] = []
         for tid, tool in sorted(self.workflow.tools.items()):
-            is_sink = tool.tool_type in ("DbFileOutput", "OutputData", "Render") or (
-                self.graph.has_node(tid) and self.graph.out_degree(tid) == 0 and tool.tool_type not in ("BrowseV2", "Browse")
+            is_sink = (
+                tool.tool_type in ("DbFileOutput", "OutputData", "Render")
+                or (self.graph.has_node(tid) and self.graph.out_degree(tid) == 0 and tool.tool_type not in ("BrowseV2", "Browse"))
+                or (tid in browse_predecessors)
             )
             
             if is_sink:
-                target_table = self.output_names.get(tid, f"Target Table #{tid}")
+                target_table = self.output_names.get(tid, f"Deliverable #{tid}")
                 out_fields = node_schemas.get(tid, {})
 
                 for tgt_attr, origins in out_fields.items():
+                    if tgt_attr.startswith("*"):
+                        continue
                     for origin in origins:
+                        if origin.source_attribute.startswith("*"):
+                            continue
                         mapping = self._build_mapping(target_table, tgt_attr, origin, tid)
                         mappings.append(mapping)
 
@@ -400,11 +464,23 @@ class STTMExtractor:
         if ttype in ("AlteryxSelect", "Select"):
             select_fields = cfg.get("select_fields", [])
             if not select_fields:
-                return {k: [self._copy_origin(o) for o in v] for k, v in base_incoming.items()}
+                return {k: [self._copy_origin(o) for o in v] for k, v in base_incoming.items() if not k.startswith("*")}
 
             out_schema = {}
+            unknown_selected = False
+            explicit_fields = set()
+
             for sf in select_fields:
                 old_name = sf.get("field", "")
+                if not old_name:
+                    continue
+
+                if old_name == "*Unknown" or old_name.startswith("*"):
+                    if sf.get("selected", "True") != "False":
+                        unknown_selected = True
+                    continue
+
+                explicit_fields.add(old_name)
                 rename = sf.get("rename", "")
                 selected = sf.get("selected", "True") != "False"
 
@@ -412,6 +488,9 @@ class STTMExtractor:
                     continue
 
                 new_name = rename if rename else old_name
+                if new_name.startswith("*"):
+                    continue
+
                 if old_name in base_incoming:
                     origins = []
                     for o in base_incoming[old_name]:
@@ -433,9 +512,16 @@ class STTMExtractor:
                             source_tool_id=tid,
                             current_name=new_name,
                             transformation_category="Rename" if rename else "Direct",
-                            transformation_logic=f"Populates [{new_name}] from [{first_src}].[{old_name}]." if not rename else f"Renamed from [{old_name}] to [{new_name}].",
+                            transformation_logic=f"Populates [{new_name}] from [{first_src}].[{old_name}]." if not rename else f"Renamed from [{old_name}] to [{new_name}]."
                         )
                     ]
+
+            # If *Unknown was selected="True", pass through incoming unmentioned fields
+            if unknown_selected:
+                for in_col, in_origins in base_incoming.items():
+                    if not in_col.startswith("*") and in_col not in explicit_fields and in_col not in out_schema:
+                        out_schema[in_col] = [self._copy_origin(o) for o in in_origins]
+
             return out_schema
 
         # 3. Formula / MultiFieldFormula
@@ -751,11 +837,24 @@ class STTMExtractor:
         )
 
     def _deduplicate_mappings(self, mappings: list[STTMMapping]) -> list[STTMMapping]:
-        """Deduplicate mapping rows and sort deterministically."""
+        """Deduplicate mapping rows, purge wildcards/empty tokens, and sort deterministically."""
         seen = set()
         unique: list[STTMMapping] = []
 
         for m in mappings:
+            # Enforce Mapping Authority Invariant #7: Purge *Unknown, *, empty tokens
+            if (
+                not m.source_attribute
+                or not m.target_attribute
+                or not m.source_table
+                or not m.target_table
+                or m.source_attribute.startswith("*")
+                or m.target_attribute.startswith("*")
+                or m.source_table.startswith("*")
+                or m.target_table.startswith("*")
+            ):
+                continue
+
             key = (m.target_table, m.target_attribute, m.source_table, m.source_attribute, m.transformation)
             if key not in seen:
                 seen.add(key)
@@ -771,6 +870,132 @@ def extract_sttm(
     graph: nx.DiGraph,
     business_summary: WorkflowBusinessSummary | None = None,
 ) -> STTMDocument:
-    """Entry point for extracting STTMDocument from canonical workflow models."""
+    """Entry point for extracting deterministic STTMDocument from canonical workflow models."""
     extractor = STTMExtractor(workflow, graph, business_summary)
     return extractor.extract_document()
+
+
+def build_sttm_evidence_context(
+    workflow: Workflow,
+    graph: nx.DiGraph,
+    business_summary: WorkflowBusinessSummary | None = None,
+) -> dict[str, Any]:
+    """Extract comprehensive deterministic evidence context to ground LLM STTM generation.
+    
+    Strictly adheres to the Mapping Authority Invariant:
+    1. Authoritative source datasets with actual filenames/paths and intrinsic fields (minus *Unknown)
+    2. Authoritative target deliverables with actual filenames/sheets and target attributes
+    3. Transformation operations (Formulas, Joins, Aggregations, CrossTabs, Selects)
+    4. Deterministic candidate mappings with verified DAG reachability
+    """
+    extractor = STTMExtractor(workflow, graph, business_summary)
+    sttm_doc = extractor.extract_document()
+
+    # 1. Source Datasets
+    source_fields_map = extractor._discover_source_fields()
+    source_datasets = []
+    for tid, name in extractor.input_names.items():
+        tool = workflow.tools.get(tid)
+        fields = source_fields_map.get(tid, [])
+        clean_fields = [f for f in fields if f and not f.startswith("*")]
+        source_datasets.append({
+            "tool_id": tid,
+            "dataset_name": name,
+            "tool_type": tool.tool_type if tool else "InputData",
+            "fields": clean_fields,
+        })
+
+    # 2. Target Deliverables
+    target_deliverables = []
+    for tid, name in extractor.output_names.items():
+        tool = workflow.tools.get(tid)
+        tgt_fields = sorted(list({
+            m.target_attribute for m in sttm_doc.mappings
+            if m.target_table == name and not m.target_attribute.startswith("*")
+        }))
+        if tgt_fields:
+            target_deliverables.append({
+                "tool_id": tid,
+                "deliverable_name": name,
+                "tool_type": tool.tool_type if tool else "OutputData",
+                "fields": tgt_fields,
+            })
+
+    # 3. Candidate Mappings with DAG reachability
+    candidate_mappings = []
+    for m in sttm_doc.mappings:
+        path_tool_ids: list[int] = []
+        if (
+            m.source_tool_id
+            and m.target_tool_id
+            and graph.has_node(m.source_tool_id)
+            and graph.has_node(m.target_tool_id)
+        ):
+            try:
+                shortest = nx.shortest_path(graph, m.source_tool_id, m.target_tool_id)
+                path_tool_ids = shortest
+            except Exception:
+                path_tool_ids = [m.source_tool_id, m.target_tool_id]
+        else:
+            if m.source_tool_id:
+                path_tool_ids.append(m.source_tool_id)
+            if m.target_tool_id and m.target_tool_id != m.source_tool_id:
+                path_tool_ids.append(m.target_tool_id)
+
+        candidate_mappings.append({
+            "source_table": m.source_table,
+            "source_attribute": m.source_attribute,
+            "transformation": m.transformation,
+            "transformation_logic": m.transformation_logic,
+            "target_table": m.target_table,
+            "target_attribute": m.target_attribute,
+            "source_tool_id": m.source_tool_id,
+            "target_tool_id": m.target_tool_id,
+            "evidence_tool_ids": path_tool_ids,
+        })
+
+    # 4. Key Transformation Details
+    transformations = []
+    for tid, tool in sorted(workflow.tools.items()):
+        cfg = tool.configuration.parsed or {}
+        if tool.tool_type in ("Formula", "MultiFieldFormula"):
+            ffs = cfg.get("formula_fields", [])
+            for ff in ffs:
+                transformations.append({
+                    "tool_id": tid,
+                    "tool_type": tool.tool_type,
+                    "target_field": ff.get("field", ""),
+                    "expression": ff.get("expression", ""),
+                })
+        elif tool.tool_type == "Join":
+            jfs = cfg.get("join_fields", [])
+            transformations.append({
+                "tool_id": tid,
+                "tool_type": "Join",
+                "join_fields": jfs,
+            })
+        elif tool.tool_type == "Summarize":
+            sfs = cfg.get("summarize_fields", [])
+            transformations.append({
+                "tool_id": tid,
+                "tool_type": "Summarize",
+                "summarize_fields": sfs,
+            })
+        elif tool.tool_type == "CrossTab":
+            transformations.append({
+                "tool_id": tid,
+                "tool_type": "CrossTab",
+                "group_fields": cfg.get("group_fields", []),
+                "header_field": cfg.get("header_field", ""),
+                "data_field": cfg.get("data_field", ""),
+                "method": cfg.get("method", ""),
+            })
+
+    return {
+        "workflow_name": workflow.metadata.name or "Workflow",
+        "source_datasets": source_datasets,
+        "target_deliverables": target_deliverables,
+        "candidate_mappings": candidate_mappings,
+        "transformations": transformations,
+        "deterministic_baseline": sttm_doc,
+    }

@@ -15,6 +15,7 @@ FINDINGS_PROMPT_VERSION = "2.0"
 CONCLUSIONS_PROMPT_VERSION = "2.0"
 TOOL_SPECIFICATIONS_PROMPT_VERSION = "1.0"
 PROCESS_STAGES_PROMPT_VERSION = "2.0"
+STTM_PROMPT_VERSION = "1.0"
 
 # ---------------------------------------------------------------------------
 # 1. Tool "What It Does" & Tool Specifications Prompts
@@ -546,3 +547,69 @@ AUTHORITATIVE WORKFLOW FACTS:
 {context_json}
 
 STAGES JSON:"""
+
+
+# ---------------------------------------------------------------------------
+# 9. Source-to-Target Mapping (STTM) Prompts
+# ---------------------------------------------------------------------------
+
+STTM_SYSTEM_PROMPT = """You are a Senior Enterprise Data Integration Architect and Data Lineage Specialist.
+
+Your task is to generate the complete, authoritative field-level Source-to-Target Mapping (STTM) for an ETL workflow migration, mapping every target deliverable attribute back to its originating source dataset attribute.
+
+MAPPING AUTHORITY INVARIANT (CRITICAL RULES):
+1. The deterministic facts define the AUTHORITATIVE UNIVERSE of datasets, fields, targets, and possible lineage paths.
+2. The LLM may resolve semantic relationships and business transformation descriptions, but may NEVER create new workflow entities:
+   - Source dataset MUST exist in the supplied "source_datasets".
+   - Source field MUST exist in that source dataset's "fields" (or belong to an explicitly dynamic/external upstream tool).
+   - Target dataset MUST exist in "target_deliverables".
+   - Target field MUST exist in that target deliverable's "fields".
+   - At least one deterministic graph/lineage path must connect source to target.
+   - Every referenced tool ID must exist in the workflow.
+   - "*Unknown", "*", empty placeholders, captions, and fabricated identifiers are STRICTLY FORBIDDEN.
+3. Every target field across all target deliverables MUST be accounted for (100% target completeness).
+4. Transformation category MUST be one of:
+   "Direct", "Rename", "Join", "Derived Calculation", "Aggregation", "Filter", "Union", "Pivot / Reshape", "Lookup", "Conditional", "Other Transformation".
+5. Transformation logic MUST be clear, factual, and describe how the target attribute is produced:
+   - For Direct: "Populates [<target>] directly from [<source>].[<field>]."
+   - For Rename: "Renamed from [<old>] to [<new>]."
+   - For Formulas: Describe calculation using exact formula expressions from facts.
+   - For Joins: Mention enrichment source and join match keys.
+   - For Aggregations: Mention grouping grain and aggregation function (SUM, COUNT, etc.).
+   - For CrossTab: Detail row grouping key, pivot header category, and measure aggregation.
+
+Return ONLY a valid JSON object matching this structure:
+{
+  "workflow_name": "<name>",
+  "mappings": [
+    {
+      "source_table": "<exact dataset name from source_datasets>",
+      "source_attribute": "<exact attribute name from source_datasets fields>",
+      "transformation": "<standard category>",
+      "transformation_logic": "<factual business-readable description>",
+      "target_table": "<exact deliverable name from target_deliverables>",
+      "target_attribute": "<exact target attribute from target_deliverables fields>",
+      "source_tool_id": <int>,
+      "target_tool_id": <int>,
+      "evidence_tool_ids": [<int>, ...]
+    }
+  ]
+}"""
+
+
+def build_sttm_user_prompt(evidence_context: dict[str, Any]) -> str:
+    """Format deterministic STTM evidence context into user prompt."""
+    payload = {
+        "workflow_name": evidence_context.get("workflow_name", "Workflow"),
+        "source_datasets": evidence_context.get("source_datasets", []),
+        "target_deliverables": evidence_context.get("target_deliverables", []),
+        "candidate_mappings": evidence_context.get("candidate_mappings", []),
+        "transformations": evidence_context.get("transformations", []),
+    }
+    evidence_json = json.dumps(payload, indent=2)
+    return f"""Resolve the field-level Source-to-Target Mapping (STTM) for this workflow based strictly on the authoritative evidence below:
+
+AUTHORITATIVE EVIDENCE:
+{evidence_json}
+
+STTM JSON:"""

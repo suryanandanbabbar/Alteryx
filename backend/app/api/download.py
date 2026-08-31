@@ -40,7 +40,13 @@ def _get_result_or_404(analysis_id: str):
 def download_sttm(analysis_id: str):
     """Download the Source-to-Target Mapping (.xlsx) workbook for the workflow."""
     res = _get_result_or_404(analysis_id)
-    sttm_doc = res.sttm or extract_sttm(res.workflow, res.graph, res.business_summary)
+    gen = get_default_generator()
+    sttm_doc = gen.generate_sttm(
+        res.workflow,
+        graph=res.graph,
+        business_summary=res.business_summary,
+        workflow_id=res.analysis_id,
+    )
 
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tf:
         tmp_path = Path(tf.name)
@@ -253,7 +259,12 @@ def download_zip(analysis_id: str):
             tmp_tool_path.unlink()
 
     # 7. STTM XLSX
-    sttm_doc = res.sttm or extract_sttm(res.workflow, res.graph, res.business_summary)
+    sttm_doc = gen.generate_sttm(
+        res.workflow,
+        graph=res.graph,
+        business_summary=res.business_summary,
+        workflow_id=res.analysis_id,
+    )
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tf_xlsx:
         tmp_xlsx_path = Path(tf_xlsx.name)
     try:

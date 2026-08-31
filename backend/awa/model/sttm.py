@@ -29,6 +29,9 @@ class STTMMapping:
     source_tool_id: int | None = None
     target_tool_id: int | None = None
     evidence: str = ""
+    intermediate_fields: list[str] = dc_field(default_factory=list)
+    evidence_tool_ids: list[int] = dc_field(default_factory=list)
+    source: str = "llm"  # "llm" or "deterministic_fallback"
 
     def to_dict(self) -> dict:
         return {
@@ -38,6 +41,11 @@ class STTMMapping:
             "transformation_logic": self.transformation_logic,
             "target_table": self.target_table,
             "target_attribute": self.target_attribute,
+            "source_tool_id": self.source_tool_id,
+            "target_tool_id": self.target_tool_id,
+            "intermediate_fields": self.intermediate_fields,
+            "evidence_tool_ids": self.evidence_tool_ids,
+            "source": self.source,
         }
 
 

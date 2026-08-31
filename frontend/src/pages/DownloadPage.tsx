@@ -12,10 +12,10 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
   const [generatingReport, setGeneratingReport] = useState<ReportType | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
-  const handleDownloadWithModal = async (type: 'docx' | 'tool-specifications') => {
+  const handleDownloadWithModal = async (type: 'docx' | 'tool-specifications' | 'sttm') => {
     if (generatingReport) return; // Prevent duplicate clicks
     setDownloadError(null);
-    const reportType: ReportType = type === 'docx' ? 'business' : 'tool-specifications';
+    const reportType: ReportType = type === 'docx' ? 'business' : type === 'sttm' ? 'sttm' : 'tool-specifications';
     setGeneratingReport(reportType);
 
     try {
@@ -27,7 +27,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
     }
   };
 
-  const triggerDirectDownload = (type: 'json' | 'python' | 'svg' | 'zip' | 'sttm') => {
+  const triggerDirectDownload = (type: 'json' | 'python' | 'svg' | 'zip') => {
     window.location.href = api.getDownloadUrl(analysisId, type);
   };
 
@@ -103,7 +103,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
            subtitle="Field-level data lineage workbook mapping source attributes and transformations to targets"
            formatBadge=".xlsx"
            disabled={isGenerating}
-           onDownload={() => triggerDirectDownload('sttm')}
+           onDownload={() => handleDownloadWithModal('sttm')}
          />
 
         <DownloadCard

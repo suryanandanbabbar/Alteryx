@@ -273,3 +273,43 @@ class WorkflowProcessStages:
             "stages": [s.to_dict() for s in self.stages],
         }
 
+
+@dataclass
+class STTMMappingItem:
+    """Individual field-level mapping item resolved by LLM."""
+    source_table: str
+    source_attribute: str
+    transformation: str
+    transformation_logic: str
+    target_table: str
+    target_attribute: str
+    source_tool_id: int | None = None
+    target_tool_id: int | None = None
+    evidence_tool_ids: list[int] = dc_field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_table": self.source_table,
+            "source_attribute": self.source_attribute,
+            "transformation": self.transformation,
+            "transformation_logic": self.transformation_logic,
+            "target_table": self.target_table,
+            "target_attribute": self.target_attribute,
+            "source_tool_id": self.source_tool_id,
+            "target_tool_id": self.target_tool_id,
+            "evidence_tool_ids": self.evidence_tool_ids,
+        }
+
+
+@dataclass
+class STTMLLMResponse:
+    """Collection of LLM-resolved STTM mapping rows."""
+    workflow_name: str
+    mappings: list[STTMMappingItem] = dc_field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "workflow_name": self.workflow_name,
+            "mappings": [m.to_dict() for m in self.mappings],
+        }
+

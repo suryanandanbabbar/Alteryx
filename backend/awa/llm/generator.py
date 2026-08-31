@@ -15,6 +15,9 @@ from awa.tools.catalog import get_tool_summary
 from awa.tools import humanize_tool_configuration
 
 from awa.model.tool_specifications import format_input_tools, format_output_tools
+from awa.model.sttm import STTMDocument, STTMMapping
+from awa.analysis.sttm_extractor import extract_sttm, build_sttm_evidence_context
+from awa.analysis.sttm_validator import STTMValidator
 
 from .client import LLMClient, get_default_llm_client
 from .schemas import (
@@ -30,6 +33,8 @@ from .schemas import (
     ComprehensiveWorkflowContext,
     ProcessStageContent,
     WorkflowProcessStages,
+    STTMMappingItem,
+    STTMLLMResponse,
 )
 from .prompts import (
     TOOL_PROMPT_VERSION,
@@ -41,6 +46,7 @@ from .prompts import (
     BUSINESS_REPORT_PROMPT_VERSION,
     TOOL_SPECIFICATIONS_PROMPT_VERSION,
     PROCESS_STAGES_PROMPT_VERSION,
+    STTM_PROMPT_VERSION,
     TOOL_SYSTEM_PROMPT,
     WORKFLOW_PURPOSE_SYSTEM_PROMPT,
     EXECUTIVE_SUMMARY_SYSTEM_PROMPT,
@@ -50,6 +56,7 @@ from .prompts import (
     BUSINESS_REPORT_SYSTEM_PROMPT,
     TOOL_SPECIFICATIONS_SYSTEM_PROMPT,
     PROCESS_STAGES_SYSTEM_PROMPT,
+    STTM_SYSTEM_PROMPT,
     build_tool_user_prompt,
     build_workflow_purpose_user_prompt,
     build_executive_summary_user_prompt,
@@ -59,6 +66,7 @@ from .prompts import (
     build_business_report_user_prompt,
     build_tool_specifications_user_prompt,
     build_process_stages_user_prompt,
+    build_sttm_user_prompt,
 )
 from .cache import LLMNarrativeCache, get_global_narrative_cache, compute_cache_key
 
@@ -1487,6 +1495,121 @@ class LLMNarrativeGenerator:
                 )
 
         return stages
+
+    def generate_sttm(
+        self,
+        workflow: Workflow,
+        graph: nx.DiGraph | None = None,
+        business_summary: WorkflowBusinessSummary | None = None,
+        workflow_id: str = "",
+    ) -> STTMDocument:
+        """Generate structured, validated Source-to-Target Mapping (STTM).
+        
+        Enforces Mapping Authority Invariant:
+        1. Builds comprehensive deterministic evidence context from canonical workflow & DAG.
+        2. Checks LLM cache.
+        3. If client unavailable or disabled -> immediate deterministic fallback.
+        4. Calls LLM with STTM_SYSTEM_PROMPT and build_sttm_user_prompt.
+        5. Validates mappings via STTMValidator (checks source/target datasets, fields, DAG reachability, wildcards).
+        6. Reconciles with deterministic baseline for 100% target completeness.
+        7. Falls back to deterministic extraction if LLM times out, fails, or produces invalid output.
+        """
+        if graph is None:
+            from awa.graph.builder import build_graph
+            graph = build_graph(workflow)
+
+        # 1. Deterministic evidence context & baseline
+        evidence_context = build_sttm_evidence_context(workflow, graph, business_summary)
+        deterministic_baseline: STTMDocument = evidence_context["deterministic_baseline"]
+
+        # If LLM client is unavailable or disabled, immediately return deterministic baseline
+        if not self.client.is_available:
+            logger.info("[LLM STTM] Client unavailable or disabled — using deterministic baseline.")
+            return deterministic_baseline
+
+        validator = STTMValidator(evidence_context, graph)
+
+        # 2. Check Cache
+        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        cache_key_payload = {
+            "source_datasets": evidence_context.get("source_datasets", []),
+            "target_deliverables": evidence_context.get("target_deliverables", []),
+            "candidate_mappings": evidence_context.get("candidate_mappings", []),
+        }
+        cache_key = compute_cache_key(
+            workflow_id=wf_key,
+            scope_key="sttm_mappings",
+            prompt_version=STTM_PROMPT_VERSION,
+            model_name=self.client.model_name,
+            facts_payload=cache_key_payload,
+        )
+
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            logger.info("[LLM CACHE] type=sttm_mappings status=HIT")
+            llm_items = self._parse_sttm_json(cached.text)
+            if llm_items is not None:
+                return validator.reconcile_and_build_document(llm_items, workflow.metadata.name or "Workflow")
+
+        logger.info("[LLM CACHE] type=sttm_mappings status=MISS")
+
+        # 3. Call LLM
+        system_prompt = STTM_SYSTEM_PROMPT
+        user_prompt = build_sttm_user_prompt(evidence_context)
+        try:
+            raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=2500)
+        except Exception as e:
+            logger.warning("[LLM STTM] Client exception: %s — falling back to deterministic baseline.", e)
+            return deterministic_baseline
+
+        llm_items = self._parse_sttm_json(raw_response)
+        if llm_items is None:
+            logger.warning("[LLM STTM] Generation failed or malformed JSON — falling back to deterministic baseline.")
+            return deterministic_baseline
+
+        # 4. Validate & Reconcile
+        sttm_doc = validator.reconcile_and_build_document(llm_items, workflow.metadata.name or "Workflow")
+
+        # 5. Store in cache on success
+        import json
+        self._cache.set(
+            cache_key,
+            NarrativeResult(
+                text=json.dumps({"workflow_name": sttm_doc.workflow_name, "mappings": [m.to_dict() for m in sttm_doc.mappings]}),
+                source="llm",
+                model=self.client.model_name,
+                prompt_version=STTM_PROMPT_VERSION,
+            ),
+        )
+
+        return sttm_doc
+
+    def _parse_sttm_json(self, raw_text: str | None) -> list[dict[str, Any]] | None:
+        """Clean and parse LLM response into mapping item dictionaries."""
+        if not raw_text or not raw_text.strip():
+            return None
+
+        clean = raw_text.strip()
+        # Strip markdown code fences if present
+        if clean.startswith("```"):
+            clean = re.sub(r"^```(?:json)?\s*", "", clean)
+            clean = re.sub(r"\s*```$", "", clean)
+            clean = clean.strip()
+
+        try:
+            import json
+            data = json.loads(clean)
+            if isinstance(data, dict):
+                mappings = data.get("mappings")
+                if isinstance(mappings, list):
+                    return [m for m in mappings if isinstance(m, dict)]
+            elif isinstance(data, list):
+                return [m for m in data if isinstance(m, dict)]
+        except Exception as e:
+            logger.warning("[LLM STTM] Failed to parse JSON response: %s", e)
+
+        return None
+
 
 
 _global_generator: LLMNarrativeGenerator | None = None
