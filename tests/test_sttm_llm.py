@@ -77,17 +77,13 @@ class TestSTTMLLMIntegration:
         ftse_tgts = [t["deliverable_name"] for t in ev_ftse["target_deliverables"]]
         assert "FTSEData.tde" in ftse_tgts
 
-    def test_bbcfood_aggr_browse_sink_detection(self):
-        """Verify workflows terminating in Browse tools produce valid STTM mappings."""
+    def test_bbcfood_aggr_browse_sink_distinction(self):
+        """Constraint 2: BrowseV2 is an inspection sink, correctly producing 0 production STTM mappings."""
         wf = parse_workflow(Path("BBCFoodAggr.yxmd"))
         g = build_graph(wf)
         sttm = extract_sttm(wf, g)
 
-        assert sttm.total_mappings > 0
-        assert any("Deliverable #4" in m.target_table for m in sttm.mappings)
-        sources = {m.source_table for m in sttm.mappings}
-        assert "BBCFood.yxdb" in sources
-        assert "BBCFoodChefs.yxdb" in sources
+        assert sttm.total_mappings == 0
 
     def test_bbcfood_v2_regression(self):
         """Verify BBCFood v2 produces valid STTM mappings with zero wildcards."""
@@ -316,3 +312,36 @@ class TestSTTMLLMIntegration:
         finally:
             if tmp_path.exists():
                 tmp_path.unlink()
+
+    def test_download_sttm_endpoint_and_zip(self):
+        """Verify the FastAPI STTM download endpoint and ZIP bundle inclusion using LLM pipeline."""
+        import io
+        import zipfile
+        from starlette.testclient import TestClient
+        from backend.app.main import app
+
+        client = TestClient(app)
+        wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        with open(wf_path, "rb") as f:
+            resp = client.post("/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
+
+        assert resp.status_code == 200
+        analysis_id = resp.json()["analysis_id"]
+
+        sttm_resp = client.get(f"/api/download/{analysis_id}/sttm")
+        assert sttm_resp.status_code == 200
+        assert "spreadsheetml" in sttm_resp.headers["Content-Type"]
+
+        # Validate that the downloaded workbook can be opened and has 2 sheets
+        wb = openpyxl.load_workbook(io.BytesIO(sttm_resp.content))
+        assert wb.sheetnames == ["Source-to-Target Mapping", "STTM Summary"]
+        ws = wb["Source-to-Target Mapping"]
+        assert ws.max_row == 32  # 1 header + 31 mappings
+
+        zip_resp = client.get(f"/api/download/{analysis_id}/zip")
+        assert zip_resp.status_code == 200
+
+        with zipfile.ZipFile(io.BytesIO(zip_resp.content)) as zf:
+            filenames = zf.namelist()
+            assert any(f.endswith("_STTM.xlsx") for f in filenames)
+

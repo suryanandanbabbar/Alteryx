@@ -179,13 +179,11 @@ class STTMExtractor:
                 else:
                     self.input_names[tid] = f"Source #{tid}"
 
-            # Check if sink
+            # Check if production sink
             is_explicit_sink = tool.tool_type in ("DbFileOutput", "OutputData", "Render")
             is_leaf = self.graph.has_node(tid) and self.graph.out_degree(tid) == 0 and tool.tool_type not in ("BrowseV2", "Browse")
-            browse_preds = self._get_browse_predecessors()
-            is_browse_sink = tid in browse_preds
             
-            if is_explicit_sink or is_leaf or is_browse_sink:
+            if is_explicit_sink or is_leaf:
                 if file_path:
                     self.output_names[tid] = _clean_table_name(file_path)
                 elif tid in biz_outputs and (biz_outputs[tid].raw_destination or biz_outputs[tid].name):
@@ -197,23 +195,6 @@ class STTMExtractor:
                         self.output_names[tid] = f"Deliverable #{tid}"
                 else:
                     self.output_names[tid] = f"Deliverable #{tid}"
-
-    def _get_browse_predecessors(self) -> set[int]:
-        """Identify terminal operational nodes whose only downstream consumers are Browse tools."""
-        browse_predecessors = set()
-        has_file_sinks = any(t.tool_type in ("DbFileOutput", "OutputData", "Render") for t in self.workflow.tools.values())
-        if not has_file_sinks:
-            for b_tid, b_tool in self.workflow.tools.items():
-                if b_tool.tool_type in ("BrowseV2", "Browse"):
-                    preds = list(self.graph.predecessors(b_tid)) if self.graph.has_node(b_tid) else []
-                    for p in preds:
-                        non_browse_succs = [
-                            s for s in self.graph.successors(p)
-                            if self.workflow.tools.get(s) and self.workflow.tools[s].tool_type not in ("BrowseV2", "Browse")
-                        ]
-                        if not non_browse_succs:
-                            browse_predecessors.add(p)
-        return browse_predecessors
 
     def extract_document(self) -> STTMDocument:
         """Extract the full collection of STTM mappings from the workflow."""
@@ -251,16 +232,12 @@ class STTMExtractor:
             out_schema = self._process_node(tool, incoming_schemas, incoming_by_anchor, source_field_registry)
             node_schemas[tid] = out_schema
 
-        # Detect terminal nodes feeding Browse tools if no explicit file sinks exist
-        browse_predecessors = self._get_browse_predecessors()
-
-        # Collect mappings from all output / sink nodes
+        # Collect mappings from all production output / sink nodes
         mappings: list[STTMMapping] = []
         for tid, tool in sorted(self.workflow.tools.items()):
             is_sink = (
                 tool.tool_type in ("DbFileOutput", "OutputData", "Render")
                 or (self.graph.has_node(tid) and self.graph.out_degree(tid) == 0 and tool.tool_type not in ("BrowseV2", "Browse"))
-                or (tid in browse_predecessors)
             )
             
             if is_sink:

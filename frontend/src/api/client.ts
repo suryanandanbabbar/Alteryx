@@ -7,8 +7,13 @@ import {
   DiagramDTO,
   PythonOutputDTO,
 } from '../types/workflow';
+import { PortfolioOverviewDTO } from '../types/portfolio';
 
 const BASE_URL = '/api';
+
+export function isPortfolioResponse(data: any): data is PortfolioOverviewDTO {
+  return data && typeof data === 'object' && 'portfolio_id' in data;
+}
 
 export class ApiError extends Error {
   code?: string;
@@ -48,7 +53,7 @@ async function handleResponse<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  async uploadWorkflow(file: File): Promise<AnalysisOverviewDTO> {
+  async uploadWorkflow(file: File): Promise<AnalysisOverviewDTO | PortfolioOverviewDTO> {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -57,6 +62,36 @@ export const api = {
       body: formData,
     });
 
+    return handleResponse<AnalysisOverviewDTO | PortfolioOverviewDTO>(res);
+  },
+
+  async uploadPortfolio(files: File[], relativePaths?: string[], portfolioName: string = "ETL Portfolio"): Promise<PortfolioOverviewDTO | AnalysisOverviewDTO> {
+    const formData = new FormData();
+    files.forEach((f) => {
+      formData.append('files', f);
+    });
+    if (relativePaths && relativePaths.length > 0) {
+      relativePaths.forEach((p) => {
+        formData.append('relative_paths', p);
+      });
+    }
+    formData.append('portfolio_name', portfolioName);
+
+    const res = await fetch(`${BASE_URL}/portfolio/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    return handleResponse<PortfolioOverviewDTO | AnalysisOverviewDTO>(res);
+  },
+
+  async getPortfolio(portfolioId: string): Promise<PortfolioOverviewDTO> {
+    const res = await fetch(`${BASE_URL}/portfolio/${portfolioId}`);
+    return handleResponse<PortfolioOverviewDTO>(res);
+  },
+
+  async getPortfolioWorkflow(portfolioId: string, workflowId: string): Promise<AnalysisOverviewDTO> {
+    const res = await fetch(`${BASE_URL}/portfolio/${portfolioId}/workflow/${workflowId}`);
     return handleResponse<AnalysisOverviewDTO>(res);
   },
 

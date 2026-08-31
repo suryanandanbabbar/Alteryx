@@ -7,19 +7,20 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, status
 
 from awa.parser.format_handler import FormatValidationError
 from backend.app.config import settings
-from backend.app.models.schemas import AnalysisOverviewDTO
+from backend.app.models.schemas import AnalysisOverviewDTO, PortfolioOverviewDTO
 from backend.app.services.analyzer import process_uploaded_workflow, to_overview_dto
+from backend.app.services.portfolio_service import extract_workflows_from_zip, process_portfolio_uploads
 from backend.app.services.storage import get_storage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Upload"])
 
 
-@router.post("/upload", response_model=AnalysisOverviewDTO)
+@router.post("/upload", response_model=AnalysisOverviewDTO | PortfolioOverviewDTO)
 async def upload_workflow(file: UploadFile = File(...)):
-    """Upload an Alteryx workflow file (.yxmd, .yxwz, or .xml) and run deterministic analysis.
+    """Upload an Alteryx workflow file (.yxmd, .yxwz, .xml, or multi-workflow zip) and run deterministic analysis.
 
-    Returns the canonical workflow overview and analysis_id for subsequent requests.
+    Returns AnalysisOverviewDTO for a single workflow, or PortfolioOverviewDTO if multiple workflows are contained.
     """
     if not file.filename:
         raise HTTPException(
@@ -53,9 +54,19 @@ async def upload_workflow(file: UploadFile = File(...)):
             detail={"code": "EMPTY_FILE", "error": "EMPTY_FILE", "message": "Uploaded file is empty."},
         )
 
+    # Check if this is a zip containing multiple workflows
+    raw_bytes = bytes(content)
+    ext = file.filename.lower()
+    if ext.endswith(".zip") or ext.endswith(".yxzp") or (len(raw_bytes) >= 4 and raw_bytes[:4] == b"PK\x03\x04"):
+        extracted = extract_workflows_from_zip(raw_bytes)
+        if len(extracted) > 1:
+            logger.info("Detected multi-workflow package '%s' with %d workflows. Running portfolio analysis.", file.filename, len(extracted))
+            portfolio = process_portfolio_uploads(extracted, portfolio_name=Path(file.filename).stem)
+            return PortfolioOverviewDTO(**portfolio.to_dict())
+
     try:
-        # Process and analyze
-        canonical_result = process_uploaded_workflow(file.filename, bytes(content))
+        # Process and analyze single workflow
+        canonical_result = process_uploaded_workflow(file.filename, raw_bytes)
 
         # Store in storage service
         storage = get_storage()

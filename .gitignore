@@ -14,7 +14,8 @@ dist/
 .coverage
 htmlcov/
 /scripts/
-
+*.yxmd
+*.xlsx
 # Analysis & generated outputs
 /analysis/
 /output/

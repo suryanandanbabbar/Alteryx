@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AnalysisOverviewDTO } from './types/workflow';
+import { PortfolioOverviewDTO } from './types/portfolio';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { SplashScreen } from './components/SplashScreen';
@@ -10,6 +11,8 @@ import { ToolsPage } from './pages/ToolsPage';
 import { JsonPage } from './pages/JsonPage';
 import { PythonPage } from './pages/PythonPage';
 import { DownloadPage } from './pages/DownloadPage';
+import { PortfolioPage } from './pages/PortfolioPage';
+import { api, isPortfolioResponse } from './api/client';
 
 const SECTION_TITLES: Record<string, string> = {
   overview: 'Overview',
@@ -22,17 +25,25 @@ const SECTION_TITLES: Record<string, string> = {
 
 export const App: React.FC = () => {
   const [overview, setOverview] = useState<AnalysisOverviewDTO | null>(null);
+  const [portfolio, setPortfolio] = useState<PortfolioOverviewDTO | null>(null);
   const [activeSection, setActiveSection] = useState<string>('overview');
   const [selectedToolId, setSelectedToolId] = useState<number | null>(null);
 
-  const handleUploadSuccess = (newOverview: AnalysisOverviewDTO) => {
-    setOverview(newOverview);
+  const handleUploadSuccess = (result: AnalysisOverviewDTO | PortfolioOverviewDTO) => {
+    if (isPortfolioResponse(result)) {
+      setPortfolio(result);
+      setOverview(null);
+    } else {
+      setOverview(result);
+      setPortfolio(null);
+    }
     setActiveSection('overview');
     setSelectedToolId(null);
   };
 
   const handleReset = () => {
     setOverview(null);
+    setPortfolio(null);
     setActiveSection('overview');
     setSelectedToolId(null);
   };
@@ -42,14 +53,39 @@ export const App: React.FC = () => {
     setActiveSection('tools');
   };
 
-  // If no active analysis, render upload view
-  if (!overview) {
+  // If no active analysis and no active portfolio, render upload view
+  if (!overview && !portfolio) {
     return (
       <>
         <SplashScreen />
         <UploadPage onUploadSuccess={handleUploadSuccess} />
       </>
     );
+  }
+
+  // If active portfolio and no individual workflow selected, render portfolio overview
+  if (portfolio && !overview) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--color-bg)', padding: '32px 40px', boxSizing: 'border-box' }}>
+        <PortfolioPage
+          portfolio={portfolio}
+          onSelectWorkflow={async (workflowId) => {
+            try {
+              const wfOverview = await api.getOverview(workflowId);
+              setOverview(wfOverview);
+              setActiveSection('overview');
+            } catch (err) {
+              console.error('Failed to load workflow overview:', err);
+            }
+          }}
+          onReset={handleReset}
+        />
+      </div>
+    );
+  }
+
+  if (!overview) {
+    return null;
   }
 
   const sectionTitle = SECTION_TITLES[activeSection] || 'Workflow Analysis';
@@ -77,6 +113,7 @@ export const App: React.FC = () => {
         <Header
           sectionTitle={sectionTitle}
           workflowName={overview.source.original_filename}
+          onBackToPortfolio={portfolio ? () => setOverview(null) : undefined}
         />
 
         {/* Scrollable Page Body */}

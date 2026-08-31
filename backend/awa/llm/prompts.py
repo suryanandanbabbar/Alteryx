@@ -613,3 +613,57 @@ AUTHORITATIVE EVIDENCE:
 {evidence_json}
 
 STTM JSON:"""
+
+
+# ---------------------------------------------------------------------------
+# 5. Portfolio ETL Rationalisation Prompts
+# ---------------------------------------------------------------------------
+
+PORTFOLIO_RATIONALISATION_PROMPT_VERSION = "1.0"
+
+PORTFOLIO_RATIONALISATION_SYSTEM_PROMPT = """You are a Principal Enterprise Data Architect and ETL Migration Specialist.
+
+Your task is to qualify cross-workflow relationships and ETL rationalisation recommendations for a portfolio of Alteryx workflows based strictly on the supplied deterministic evidence.
+
+CRITICAL MAPPING & RATIONALISATION INVARIANTS:
+1. Ground every statement in the deterministic signals, shared sources, shared targets, tool sequences, and business summaries.
+2. NEVER invent a workflow, dataset, tool, or relationship. All workflow IDs and names must exist in the supplied portfolio evidence.
+3. Do NOT declare workflows to be duplicates solely from name similarity. Look for shared sources, shared targets, high transformation overlap, and lineage match.
+4. Distinguish:
+   - CONSOLIDATE: Workflows sharing sources/targets with substantial logic overlap.
+   - SHARED_LOGIC: Workflows using different inputs/outputs but identical transformation patterns.
+   - RETIRE_CANDIDATE: Workflows that produce no production deliverables and terminate only in inspection sinks (Browse).
+   - REVIEW: Workflows requiring architectural inspection before migration.
+5. Provide actionable, professional, concise rationale.
+6. Return ONLY valid JSON matching this schema:
+{
+  "qualified_relationships": [
+    {
+      "workflow_a_id": "<id>",
+      "workflow_b_id": "<id>",
+      "relationship_type": "<STRUCTURAL_SIMILARITY|SEMANTIC_SIMILARITY|SHARED_SOURCE|SHARED_TARGET|SHARED_LOGIC|OVERLAPPING_PIPELINE|DUPLICATE_CANDIDATE>",
+      "reasoning": "<1-2 sentences qualifying the shared lineage, data, or operational logic>",
+      "confidence": "HIGH|MEDIUM|LOW"
+    }
+  ],
+  "rationalisation_recommendations": [
+    {
+      "workflow_ids": ["<id>", ...],
+      "recommendation_type": "<CONSOLIDATE|RETIRE_CANDIDATE|SHARED_LOGIC|REVIEW>",
+      "reasoning": "<1-2 sentences explaining why this action is recommended>",
+      "confidence": "HIGH|MEDIUM|LOW"
+    }
+  ]
+}"""
+
+
+def build_portfolio_rationalisation_user_prompt(evidence: dict[str, Any]) -> str:
+    """Format compact deterministic portfolio evidence into user prompt for rationalisation qualification."""
+    evidence_json = json.dumps(evidence, indent=2)
+    return f"""Evaluate and semantically qualify the following portfolio evidence and candidate relationships:
+
+DETERMINISTIC PORTFOLIO EVIDENCE:
+{evidence_json}
+
+RATIONALISATION QUALIFICATION JSON:"""
+

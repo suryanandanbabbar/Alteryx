@@ -282,3 +282,95 @@ class AnalysisOverviewDTO(BaseModel):
     connections: list[ConnectionDTO]
     diagnostics: list[DiagnosticDTO]
     business_summary: WorkflowBusinessSummaryDTO | None = None
+
+
+# ---------------------------------------------------------------------------
+# Portfolio & ETL Rationalisation DTOs
+# ---------------------------------------------------------------------------
+
+
+class PortfolioWorkflowSummaryDTO(BaseModel):
+    workflow_id: str
+    filename: str
+    relative_path: str
+    status: str
+    error_message: str | None = None
+    node_count: int = 0
+    connection_count: int = 0
+    source_count: int = 0
+    target_count: int = 0
+    sources: list[str] = Field(default_factory=list)
+    targets: list[str] = Field(default_factory=list)
+    inspection_sinks: list[str] = Field(default_factory=list)
+    sink_classifications: dict[str, str] = Field(default_factory=dict)
+    tool_types: list[str] = Field(default_factory=list)
+    business_purpose: str = ""
+    sttm_mappings_count: int = 0
+
+
+class DeterministicSignalsDTO(BaseModel):
+    shared_sources: list[str] = Field(default_factory=list)
+    shared_targets: list[str] = Field(default_factory=list)
+    tool_sequence_similarity: float = 0.0
+    graph_topology_similarity: float = 0.0
+    transformation_overlap: float = 0.0
+    field_overlap: float = 0.0
+    lineage_overlap: float = 0.0
+    composite_score: float = 0.0
+
+
+class WorkflowRelationshipDTO(BaseModel):
+    workflow_a_id: str
+    workflow_a_name: str
+    workflow_b_id: str
+    workflow_b_name: str
+    relationship_type: str
+    deterministic_signals: DeterministicSignalsDTO
+    llm_reasoning: str = ""
+    confidence: str = "HIGH"
+    evidence: list[str] = Field(default_factory=list)
+
+
+class RationalisationCandidateDTO(BaseModel):
+    workflow_ids: list[str]
+    workflow_names: list[str]
+    recommendation_type: str
+    reasoning: str = ""
+    evidence: list[str] = Field(default_factory=list)
+    confidence: str = "HIGH"
+
+
+class SharedDatasetDTO(BaseModel):
+    dataset_name: str
+    dataset_type: str
+    workflow_ids: list[str]
+    workflow_names: list[str]
+
+
+class PortfolioAggregateMetricsDTO(BaseModel):
+    total_workflows: int = 0
+    successful_workflows: int = 0
+    failed_workflows: int = 0
+    total_tools: int = 0
+    total_sources: int = 0
+    unique_sources: int = 0
+    total_targets: int = 0
+    unique_targets: int = 0
+    shared_sources_count: int = 0
+    shared_targets_count: int = 0
+    inspection_sinks_count: int = 0
+    tool_distribution: dict[str, int] = Field(default_factory=dict)
+
+
+class PortfolioOverviewDTO(BaseModel):
+    portfolio_id: str
+    portfolio_name: str
+    workflow_count: int
+    workflows: list[PortfolioWorkflowSummaryDTO]
+    metrics: PortfolioAggregateMetricsDTO
+    shared_sources: list[SharedDatasetDTO]
+    shared_targets: list[SharedDatasetDTO]
+    relationships: list[WorkflowRelationshipDTO]
+    rationalisation_candidates: list[RationalisationCandidateDTO]
+    created_at: float
+

@@ -8,11 +8,19 @@ from dataclasses import dataclass
 from typing import Dict
 
 from awa.model.analysis_result import CanonicalAnalysisResult
+from awa.model.portfolio import PortfolioAnalysis
 
 
 @dataclass
 class StorageEntry:
     result: CanonicalAnalysisResult
+    created_at: float
+    ttl_seconds: float
+
+
+@dataclass
+class PortfolioStorageEntry:
+    portfolio: PortfolioAnalysis
     created_at: float
     ttl_seconds: float
 
@@ -36,6 +44,21 @@ class StorageService(ABC):
         ...
 
     @abstractmethod
+    def save_portfolio(self, portfolio: PortfolioAnalysis, ttl_seconds: float = 3600.0) -> str:
+        """Store a portfolio analysis and return its portfolio_id."""
+        ...
+
+    @abstractmethod
+    def get_portfolio(self, portfolio_id: str) -> PortfolioAnalysis | None:
+        """Retrieve a portfolio analysis by portfolio_id."""
+        ...
+
+    @abstractmethod
+    def delete_portfolio(self, portfolio_id: str) -> bool:
+        """Remove a portfolio analysis by portfolio_id."""
+        ...
+
+    @abstractmethod
     def cleanup(self) -> int:
         """Purge expired entries, returning the number of cleaned items."""
         ...
@@ -49,6 +72,7 @@ class InMemoryStorage(StorageService):
 
     def __init__(self, default_ttl_seconds: float = 3600.0):
         self._store: Dict[str, StorageEntry] = {}
+        self._portfolios: Dict[str, PortfolioStorageEntry] = {}
         self.default_ttl = default_ttl_seconds
 
     def save(self, result: CanonicalAnalysisResult, ttl_seconds: float | None = None) -> str:
@@ -74,6 +98,28 @@ class InMemoryStorage(StorageService):
     def delete(self, analysis_id: str) -> bool:
         return self._store.pop(analysis_id, None) is not None
 
+    def save_portfolio(self, portfolio: PortfolioAnalysis, ttl_seconds: float | None = None) -> str:
+        ttl = ttl_seconds if ttl_seconds is not None else self.default_ttl
+        entry = PortfolioStorageEntry(
+            portfolio=portfolio,
+            created_at=time.time(),
+            ttl_seconds=ttl,
+        )
+        self._portfolios[portfolio.portfolio_id] = entry
+        return portfolio.portfolio_id
+
+    def get_portfolio(self, portfolio_id: str) -> PortfolioAnalysis | None:
+        entry = self._portfolios.get(portfolio_id)
+        if entry is None:
+            return None
+        if time.time() - entry.created_at > entry.ttl_seconds:
+            self._portfolios.pop(portfolio_id, None)
+            return None
+        return entry.portfolio
+
+    def delete_portfolio(self, portfolio_id: str) -> bool:
+        return self._portfolios.pop(portfolio_id, None) is not None
+
     def cleanup(self) -> int:
         now = time.time()
         expired = [
@@ -82,7 +128,15 @@ class InMemoryStorage(StorageService):
         ]
         for aid in expired:
             self._store.pop(aid, None)
-        return len(expired)
+
+        expired_portfolios = [
+            pid for pid, entry in self._portfolios.items()
+            if now - entry.created_at > entry.ttl_seconds
+        ]
+        for pid in expired_portfolios:
+            self._portfolios.pop(pid, None)
+
+        return len(expired) + len(expired_portfolios)
 
 
 # Global storage instance

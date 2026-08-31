@@ -5,9 +5,10 @@ import { useTheme } from '../context/ThemeContext';
 interface HeaderProps {
   sectionTitle: string;
   workflowName?: string;
+  onBackToPortfolio?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ sectionTitle, workflowName }) => {
+export const Header: React.FC<HeaderProps> = ({ sectionTitle, workflowName, onBackToPortfolio }) => {
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -27,14 +28,37 @@ export const Header: React.FC<HeaderProps> = ({ sectionTitle, workflowName }) =>
     }}>
       {/* Breadcrumb & Section Title */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{
-          fontSize: '12px',
-          fontWeight: '600',
-          color: 'var(--color-text-muted)',
-          letterSpacing: '0.3px',
-        }}>
-          ETL Intelligence & Migration
-        </span>
+        {onBackToPortfolio ? (
+          <button
+            onClick={onBackToPortfolio}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 8px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface-secondary)',
+              color: 'var(--color-primary)',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            title="Return to Portfolio Overview"
+          >
+            ← All Workflows
+          </button>
+        ) : (
+          <span style={{
+            fontSize: '12px',
+            fontWeight: '600',
+            color: 'var(--color-text-muted)',
+            letterSpacing: '0.3px',
+          }}>
+            ETL Intelligence & Migration
+          </span>
+        )}
         <span style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>/</span>
         <h1 style={{
           fontSize: '14px',

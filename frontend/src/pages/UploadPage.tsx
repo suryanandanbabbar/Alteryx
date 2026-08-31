@@ -1,12 +1,62 @@
 import React, { useState, useRef } from 'react';
-import { Upload, AlertCircle, Sun, Moon } from 'lucide-react';
+import { Upload, AlertCircle, Sun, Moon, FolderUp, Files } from 'lucide-react';
 import { api } from '../api/client';
 import { AnalysisOverviewDTO } from '../types/workflow';
+import { PortfolioOverviewDTO } from '../types/portfolio';
 import { useTheme } from '../context/ThemeContext';
 import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
 
 interface UploadPageProps {
-  onUploadSuccess: (overview: AnalysisOverviewDTO) => void;
+  onUploadSuccess: (result: AnalysisOverviewDTO | PortfolioOverviewDTO) => void;
+}
+
+const SUPPORTED_EXTS = ['.yxmd', '.yxwz', '.xml', '.zip', '.yxzp'];
+
+async function getFilesFromDataTransfer(dataTransfer: DataTransfer): Promise<{ file: File; path: string }[]> {
+  const items = dataTransfer.items;
+  if (!items || items.length === 0) {
+    return Array.from(dataTransfer.files).map((f) => ({ file: f, path: f.name }));
+  }
+
+  const result: { file: File; path: string }[] = [];
+  const queue: { entry: any; path: string }[] = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+    if (entry) {
+      queue.push({ entry, path: entry.name });
+    } else {
+      const file = item.getAsFile();
+      if (file) {
+        result.push({ file, path: file.name });
+      }
+    }
+  }
+
+  while (queue.length > 0) {
+    const { entry, path } = queue.shift()!;
+    if (entry.isFile) {
+      try {
+        const file: File = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        result.push({ file, path });
+      } catch (e) {
+        console.warn('Could not read file entry', entry, e);
+      }
+    } else if (entry.isDirectory) {
+      try {
+        const reader = entry.createReader();
+        const entries: any[] = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+        for (const child of entries) {
+          queue.push({ entry: child, path: `${path}/${child.name}` });
+        }
+      } catch (e) {
+        console.warn('Could not read directory entry', entry, e);
+      }
+    }
+  }
+
+  return result;
 }
 
 export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
@@ -15,18 +65,42 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
   const [analyzingFileName, setAnalyzingFileName] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const { theme, toggleTheme } = useTheme();
 
-  const handleFile = async (file: File) => {
+  const handleFiles = async (fileEntries: { file: File; path: string }[]) => {
     setError(null);
-    setAnalyzingFileName(file.name);
+    if (!fileEntries || fileEntries.length === 0) return;
+
+    // Filter valid workflow candidates
+    const valid = fileEntries.filter(({ file }) => {
+      const ext = `.${file.name.split('.').pop()?.toLowerCase()}`;
+      return SUPPORTED_EXTS.includes(ext);
+    });
+
+    if (valid.length === 0) {
+      setError('No valid Alteryx workflow files (.yxmd, .yxwz, .xml, .zip) found in the selected files or folder.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const overview = await api.uploadWorkflow(file);
-      onUploadSuccess(overview);
+      if (valid.length === 1 && !valid[0].file.name.toLowerCase().endsWith('.zip')) {
+        // Case A / D: Single YXMD workflow -> existing single-workflow analysis
+        setAnalyzingFileName(valid[0].file.name);
+        const overview = await api.uploadWorkflow(valid[0].file);
+        onUploadSuccess(overview);
+      } else {
+        // Case B / C: Multiple workflows or ZIP package -> Portfolio mode
+        setAnalyzingFileName(`Analyzing portfolio (${valid.length} workflow files)...`);
+        const files = valid.map((v) => v.file);
+        const paths = valid.map((v) => v.path);
+        const result = await api.uploadPortfolio(files, paths);
+        onUploadSuccess(result);
+      }
     } catch (err: any) {
-      setError(err.message || 'Workflow could not be analyzed. Please check the file and try again.');
+      setError(err.message || 'Analysis failed. Please check the workflow files and try again.');
     } finally {
       setLoading(false);
       setAnalyzingFileName(undefined);
@@ -44,21 +118,33 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     if (loading) return;
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFile(file);
-    }
+
+    const fileEntries = await getFilesFromDataTransfer(e.dataTransfer);
+    handleFiles(fileEntries);
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (loading) return;
-    const file = e.target.files?.[0];
-    if (file) {
-      handleFile(file);
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const entries = Array.from(files).map((f) => ({ file: f, path: f.name }));
+      handleFiles(entries);
+    }
+  };
+
+  const handleFolderInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (loading) return;
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const entries = Array.from(files).map((f) => ({
+        file: f,
+        path: (f as any).webkitRelativePath || f.name,
+      }));
+      handleFiles(entries);
     }
   };
 
@@ -199,13 +285,22 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             type="file"
             ref={fileInputRef}
             onChange={handleFileInputChange}
-            accept=".yxmd,.yxwz,.xml"
+            accept=".yxmd,.yxwz,.xml,.zip,.yxzp"
+            multiple
+            style={{ display: 'none' }}
+          />
+
+          <input
+            type="file"
+            ref={folderInputRef}
+            onChange={handleFolderInputChange}
+            {...({ webkitdirectory: '', directory: '' } as any)}
             style={{ display: 'none' }}
           />
 
           <div style={{
-            width: '44px',
-            height: '44px',
+            width: '48px',
+            height: '48px',
             borderRadius: '50%',
             background: 'var(--color-surface-secondary)',
             border: '1px solid var(--color-border)',
@@ -214,58 +309,88 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             justifyContent: 'center',
             color: 'var(--color-primary)',
           }}>
-            <Upload size={20} />
+            <Upload size={22} />
           </div>
 
-              <div>
-                <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-text)', marginBottom: '4px' }}>
-                  Drop workflow file here, or choose file
-                </div>
-                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  Select a workflow file from your computer
-                </div>
-              </div>
+          <div>
+            <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--color-text)', marginBottom: '4px' }}>
+              Drop workflow file(s) or folder here
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '420px', margin: '0 auto' }}>
+              Select a single workflow file, multiple workflows, or an entire folder of workflows for portfolio rationalisation
+            </div>
+          </div>
 
-              <button
-                type="button"
-                className="btn-primary"
-                style={{ padding: '8px 20px', fontSize: '13px' }}
-              >
-                Choose file
-              </button>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
+              style={{ padding: '8px 18px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Files size={15} /> Choose File(s)
+            </button>
 
-              {/* Supported Formats */}
-              <div style={{
-                display: 'flex',
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                folderInputRef.current?.click();
+              }}
+              style={{
+                padding: '8px 18px',
+                fontSize: '13px',
+                fontWeight: '600',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface-secondary)',
+                color: 'var(--color-text)',
+                cursor: 'pointer',
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: '8px',
-                marginTop: '8px',
-                paddingTop: '16px',
-                borderTop: '1px solid var(--color-border-subtle)',
-                width: '100%',
-                justifyContent: 'center',
-              }}>
-                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Supported formats:
-                </span>
-                {['.yxmd', '.yxwz', '.xml'].map((fmt) => (
-                  <span
-                    key={fmt}
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      color: 'var(--color-text-secondary)',
-                      background: 'var(--color-surface-secondary)',
-                      border: '1px solid var(--color-border)',
-                      padding: '2px 6px',
-                      borderRadius: 'var(--radius-sm)',
-                    }}
-                  >
-                    {fmt}
-                  </span>
-                ))}
-              </div>
+                gap: '6px',
+              }}
+            >
+              <FolderUp size={15} /> Choose Folder
+            </button>
+          </div>
+
+          {/* Supported Formats */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginTop: '8px',
+            paddingTop: '16px',
+            borderTop: '1px solid var(--color-border-subtle)',
+            width: '100%',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+          }}>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Supported formats:
+            </span>
+            {['.yxmd', '.yxwz', '.xml', '.zip / folder'].map((fmt) => (
+              <span
+                key={fmt}
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  color: 'var(--color-text-secondary)',
+                  background: 'var(--color-surface-secondary)',
+                  border: '1px solid var(--color-border)',
+                  padding: '2px 6px',
+                  borderRadius: 'var(--radius-sm)',
+                }}
+              >
+                {fmt}
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Error State */}
