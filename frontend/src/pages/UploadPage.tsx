@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Upload, AlertCircle, Sun, Moon, FolderUp, Files } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, AlertCircle, Sun, Moon, ChevronDown, FileCode, FolderUp } from 'lucide-react';
 import { api } from '../api/client';
 import { AnalysisOverviewDTO } from '../types/workflow';
 import { PortfolioOverviewDTO } from '../types/portfolio';
@@ -10,15 +10,66 @@ interface UploadPageProps {
   onUploadSuccess: (result: AnalysisOverviewDTO | PortfolioOverviewDTO) => void;
 }
 
-const SUPPORTED_EXTS = ['.yxmd', '.yxwz', '.xml', '.zip', '.yxzp'];
+export const SUPPORTED_EXTENSIONS = ['.yxmd', '.yxwz', '.xml'] as const;
 
-async function getFilesFromDataTransfer(dataTransfer: DataTransfer): Promise<{ file: File; path: string }[]> {
+export interface NormalizedEntry {
+  file: File;
+  path: string;
+}
+
+export interface NormalizationResult {
+  validWorkflows: NormalizedEntry[];
+  ignoredCount: number;
+  totalFiles: number;
+}
+
+/**
+ * Normalise and filter user selection to supported workflow files (.yxmd, .yxwz, .xml).
+ * Extension matching is case-insensitive.
+ * Relative paths are preserved.
+ */
+export function normalizeSelection(entries: NormalizedEntry[]): NormalizationResult {
+  const seenPaths = new Set<string>();
+  const validWorkflows: NormalizedEntry[] = [];
+  let ignoredCount = 0;
+
+  for (const entry of entries) {
+    const fname = entry.file.name;
+    // Skip macOS metadata and hidden files
+    if (fname.startsWith('.') || entry.path.includes('__MACOSX')) {
+      ignoredCount++;
+      continue;
+    }
+
+    const ext = `.${fname.split('.').pop()?.toLowerCase()}`;
+    if (SUPPORTED_EXTENSIONS.includes(ext as any)) {
+      const key = entry.path || fname;
+      if (!seenPaths.has(key)) {
+        seenPaths.add(key);
+        validWorkflows.push(entry);
+      }
+    } else {
+      ignoredCount++;
+    }
+  }
+
+  return {
+    validWorkflows,
+    ignoredCount,
+    totalFiles: entries.length,
+  };
+}
+
+/**
+ * Recursively discover files and relative paths from DataTransferItemList (drag and drop).
+ */
+async function getFilesFromDataTransfer(dataTransfer: DataTransfer): Promise<NormalizedEntry[]> {
   const items = dataTransfer.items;
   if (!items || items.length === 0) {
     return Array.from(dataTransfer.files).map((f) => ({ file: f, path: f.name }));
   }
 
-  const result: { file: File; path: string }[] = [];
+  const result: NormalizedEntry[] = [];
   const queue: { entry: any; path: string }[] = [];
 
   for (let i = 0; i < items.length; i++) {
@@ -59,43 +110,95 @@ async function getFilesFromDataTransfer(dataTransfer: DataTransfer): Promise<{ f
   return result;
 }
 
+/**
+ * Recursively scan a FileSystemDirectoryHandle using the File System Access API.
+ */
+async function scanDirectoryHandle(handle: any, currentPath: string): Promise<NormalizedEntry[]> {
+  const entries: NormalizedEntry[] = [];
+  for await (const item of handle.values()) {
+    if (item.kind === 'file') {
+      try {
+        const file: File = await item.getFile();
+        entries.push({
+          file,
+          path: currentPath ? `${currentPath}/${file.name}` : file.name,
+        });
+      } catch (err) {
+        console.warn('Could not read file from directory handle', item.name, err);
+      }
+    } else if (item.kind === 'directory') {
+      const subPath = currentPath ? `${currentPath}/${item.name}` : item.name;
+      const subEntries = await scanDirectoryHandle(item, subPath);
+      entries.push(...subEntries);
+    }
+  }
+  return entries;
+}
+
 export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [analyzingFileName, setAnalyzingFileName] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { theme, toggleTheme } = useTheme();
 
-  const handleFiles = async (fileEntries: { file: File; path: string }[]) => {
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpen]);
+
+  // Ensure webkitdirectory is attached to DOM node for directory input
+  useEffect(() => {
+    if (folderInputRef.current) {
+      folderInputRef.current.setAttribute('webkitdirectory', '');
+      folderInputRef.current.setAttribute('directory', '');
+      (folderInputRef.current as any).webkitdirectory = true;
+    }
+  }, []);
+
+  /**
+   * Unified ingestion pipeline for all selection and drop interactions.
+   */
+  const processEntries = async (entries: NormalizedEntry[]) => {
     setError(null);
-    if (!fileEntries || fileEntries.length === 0) return;
+    if (!entries || entries.length === 0) return;
 
-    // Filter valid workflow candidates
-    const valid = fileEntries.filter(({ file }) => {
-      const ext = `.${file.name.split('.').pop()?.toLowerCase()}`;
-      return SUPPORTED_EXTS.includes(ext);
-    });
+    const { validWorkflows } = normalizeSelection(entries);
 
-    if (valid.length === 0) {
-      setError('No valid Alteryx workflow files (.yxmd, .yxwz, .xml, .zip) found in the selected files or folder.');
+    // Rule 10: Empty folder / zero valid workflows
+    if (validWorkflows.length === 0) {
+      setError('No supported Alteryx workflow files were found in this folder. Supported formats: .yxmd, .yxwz, .xml');
       return;
     }
 
     setLoading(true);
 
     try {
-      if (valid.length === 1 && !valid[0].file.name.toLowerCase().endsWith('.zip')) {
-        // Case A / D: Single YXMD workflow -> existing single-workflow analysis
-        setAnalyzingFileName(valid[0].file.name);
-        const overview = await api.uploadWorkflow(valid[0].file);
+      if (validWorkflows.length === 1) {
+        // Rule 5 & 6: Single workflow (file or 1-workflow folder) -> existing single-workflow pipeline
+        setAnalyzingFileName(validWorkflows[0].file.name);
+        const overview = await api.uploadWorkflow(validWorkflows[0].file);
         onUploadSuccess(overview);
       } else {
-        // Case B / C: Multiple workflows or ZIP package -> Portfolio mode
-        setAnalyzingFileName(`Analyzing portfolio (${valid.length} workflow files)...`);
-        const files = valid.map((v) => v.file);
-        const paths = valid.map((v) => v.path);
+        // Rule 7 & 8: Multiple workflows -> portfolio pipeline
+        setAnalyzingFileName(`Analyzing portfolio (${validWorkflows.length} workflows)...`);
+        const files = validWorkflows.map((v) => v.file);
+        const paths = validWorkflows.map((v) => v.path);
         const result = await api.uploadPortfolio(files, paths);
         onUploadSuccess(result);
       }
@@ -104,6 +207,43 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
     } finally {
       setLoading(false);
       setAnalyzingFileName(undefined);
+    }
+  };
+
+  /**
+   * Trigger folder selection using File System Access API (when supported) or webkitdirectory fallback.
+   */
+  const handleSelectFolder = async () => {
+    setMenuOpen(false);
+    if ('showDirectoryPicker' in window) {
+      try {
+        const dirHandle = await (window as any).showDirectoryPicker();
+        const entries = await scanDirectoryHandle(dirHandle, dirHandle.name);
+        await processEntries(entries);
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          return; // User cancelled picker
+        }
+        console.warn('showDirectoryPicker failed, falling back to input:', err);
+      }
+    }
+
+    // Fallback: trigger hidden directory input
+    if (folderInputRef.current) {
+      folderInputRef.current.value = '';
+      folderInputRef.current.click();
+    }
+  };
+
+  /**
+   * Trigger file selection using native file input.
+   */
+  const handleSelectFiles = () => {
+    setMenuOpen(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
     }
   };
 
@@ -124,7 +264,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
     if (loading) return;
 
     const fileEntries = await getFilesFromDataTransfer(e.dataTransfer);
-    handleFiles(fileEntries);
+    processEntries(fileEntries);
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,7 +272,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
     const files = e.target.files;
     if (files && files.length > 0) {
       const entries = Array.from(files).map((f) => ({ file: f, path: f.name }));
-      handleFiles(entries);
+      processEntries(entries);
     }
   };
 
@@ -144,7 +284,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
         file: f,
         path: (f as any).webkitRelativePath || f.name,
       }));
-      handleFiles(entries);
+      processEntries(entries);
     }
   };
 
@@ -158,7 +298,8 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
     }}>
       {/* Full-page Dedicated Loading Screen */}
       {loading && <AnalysisLoadingScreen fileName={analyzingFileName} />}
-      {/* Top Header Bar */}
+
+      {/* Top Brand Header */}
       <header style={{
         height: '56px',
         borderBottom: '1px solid var(--color-border)',
@@ -168,74 +309,72 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
         justifyContent: 'space-between',
         padding: '0 32px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{
-            width: '28px',
-            height: '28px',
-            minWidth: '28px',
-            borderRadius: 'var(--radius-sm)',
-            background: 'var(--color-primary)',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: '800',
-            fontSize: '13px',
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{
+            fontSize: '12px',
+            fontWeight: '600',
+            color: 'var(--color-text-muted)',
+            letterSpacing: '0.3px',
           }}>
-            E
-          </div>
-          <span style={{ fontSize: '14px', fontWeight: '800', color: 'var(--color-text)' }}>
-            ETL Intelligence & Migration - Alteryx Workflows
+            ETL Intelligence & Migration
           </span>
         </div>
 
         <button
           onClick={toggleTheme}
-          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
           style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--color-text-secondary)',
+            cursor: 'pointer',
+            padding: '6px',
+            borderRadius: 'var(--radius-sm)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '32px',
-            height: '32px',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface)',
-            color: 'var(--color-text-secondary)',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
+            transition: 'color 0.15s ease',
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--color-surface)';
-          }}
+          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
-          {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
       </header>
 
       {/* Main Container */}
       <main style={{
         flex: 1,
-        maxWidth: '680px',
-        width: '100%',
-        margin: '0 auto',
-        padding: '60px 24px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        justifyContent: 'center',
+        padding: '40px 24px',
+        maxWidth: '680px',
+        margin: '0 auto',
+        width: '100%',
+        boxSizing: 'border-box',
       }}>
-        {/* Title & Introduction */}
+        {/* Header Block */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '12px',
+            background: 'var(--color-primary-subtle)',
+            color: 'var(--color-primary)',
+            fontSize: '12px',
+            fontWeight: '600',
+            marginBottom: '16px',
+          }}>
+            ETL Rationalisation
+          </div>
           <h1 style={{
-            fontSize: '28px',
+            fontSize: '32px',
             fontWeight: '800',
-            letterSpacing: '-0.5px',
             color: 'var(--color-text)',
-            marginBottom: '4px',
+            letterSpacing: '-0.5px',
+            marginBottom: '8px',
           }}>
             ETL Intelligence & Migration
           </h1>
@@ -263,7 +402,11 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          onClick={() => !loading && fileInputRef.current?.click()}
+          onClick={() => {
+            if (!loading && !menuOpen) {
+              setMenuOpen(true);
+            }
+          }}
           className="app-card"
           style={{
             width: '100%',
@@ -279,22 +422,24 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             alignItems: 'center',
             gap: '16px',
             transition: 'all 0.15s ease',
+            position: 'relative',
           }}
         >
+          {/* Hidden file input for single/multi-file picking */}
           <input
             type="file"
             ref={fileInputRef}
             onChange={handleFileInputChange}
-            accept=".yxmd,.yxwz,.xml,.zip,.yxzp"
+            accept=".yxmd,.yxwz,.xml,.YXMD,.YXWZ,.XML"
             multiple
             style={{ display: 'none' }}
           />
 
+          {/* Hidden directory input with guaranteed webkitdirectory attribute */}
           <input
             type="file"
             ref={folderInputRef}
             onChange={handleFolderInputChange}
-            {...({ webkitdirectory: '', directory: '' } as any)}
             style={{ display: 'none' }}
           />
 
@@ -314,48 +459,113 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
 
           <div>
             <div style={{ fontSize: '16px', fontWeight: '700', color: 'var(--color-text)', marginBottom: '4px' }}>
-              Drop workflow file(s) or folder here
+              Drop workflow file(s) or folder here, or click Choose
             </div>
             <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', maxWidth: '420px', margin: '0 auto' }}>
-              Select a single workflow file, multiple workflows, or an entire folder of workflows for portfolio rationalisation
+              Select a workflow file (.yxmd, .yxwz, .xml) or an entire folder of workflows
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {/* Single Primary "Choose" Button with Unified Selection */}
+          <div style={{ position: 'relative', display: 'inline-block' }}>
             <button
               type="button"
               className="btn-primary"
               onClick={(e) => {
                 e.stopPropagation();
-                fileInputRef.current?.click();
-              }}
-              style={{ padding: '8px 18px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-            >
-              <Files size={15} /> Choose File(s)
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                folderInputRef.current?.click();
+                setMenuOpen((prev) => !prev);
               }}
               style={{
-                padding: '8px 18px',
-                fontSize: '13px',
+                padding: '9px 24px',
+                fontSize: '14px',
                 fontWeight: '600',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-surface-secondary)',
-                color: 'var(--color-text)',
-                cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px',
+                gap: '8px',
+                cursor: 'pointer',
               }}
             >
-              <FolderUp size={15} /> Choose Folder
+              Choose <ChevronDown size={14} style={{ transform: menuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s ease' }} />
             </button>
+
+            {menuOpen && (
+              <div
+                ref={menuRef}
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                  minWidth: '220px',
+                  padding: '6px',
+                  zIndex: 50,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={handleSelectFiles}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--color-text)',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    width: '100%',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-secondary)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <FileCode size={16} color="var(--color-primary)" />
+                  <div>
+                    <div style={{ fontWeight: '600' }}>Workflow File(s)</div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>.yxmd, .yxwz, or .xml</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSelectFolder}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 12px',
+                    borderRadius: '4px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--color-text)',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    width: '100%',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-surface-secondary)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <FolderUp size={16} color="var(--color-primary)" />
+                  <div>
+                    <div style={{ fontWeight: '600' }}>Workflow Folder</div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Scan folder for workflows</div>
+                  </div>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Supported Formats */}
@@ -373,7 +583,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Supported formats:
             </span>
-            {['.yxmd', '.yxwz', '.xml', '.zip / folder'].map((fmt) => (
+            {SUPPORTED_EXTENSIONS.map((fmt) => (
               <span
                 key={fmt}
                 style={{

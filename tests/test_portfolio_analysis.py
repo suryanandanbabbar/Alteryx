@@ -349,3 +349,90 @@ class TestPortfolioAnalysis:
             assert "tool specifications" not in call.lower()
             assert "source-to-target" not in call.lower()
 
+    def test_case_insensitive_workflow_extensions(self, client):
+        """Case-insensitive workflow extensions (.YXMD, .YXWZ, .XML) are recognised and accepted."""
+        wf_bytes = Path("FTSE 100.yxmd").read_bytes()
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w") as zf:
+            zf.writestr("WORKFLOWS/A.YXMD", wf_bytes)
+            zf.writestr("WORKFLOWS/B.YXWZ", wf_bytes)
+            zf.writestr("WORKFLOWS/C.XML", wf_bytes)
+        zip_buf.seek(0)
+
+        resp = client.post(
+            "/api/portfolio/upload",
+            files=[("files", ("archive.zip", zip_buf.getvalue(), "application/zip"))],
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["workflow_count"] == 3
+        filenames = {w["filename"] for w in data["workflows"]}
+        assert "A.YXMD" in filenames
+        assert "B.YXWZ" in filenames
+        assert "C.XML" in filenames
+
+    def test_folder_with_one_workflow_and_unsupported_files(self, client):
+        """Folder containing 1 workflow and multiple unsupported files treats input as single workflow."""
+        wf_bytes = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes()
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w") as zf:
+            zf.writestr("ETL/Claims.yxmd", wf_bytes)
+            zf.writestr("ETL/README.md", "# ETL Documentation")
+            zf.writestr("ETL/notes.txt", "some notes")
+            zf.writestr("ETL/image.png", b"\x89PNG\r\n\x1a\nfake")
+            zf.writestr("ETL/output.xlsx", b"PK\x03\x04fake_excel")
+        zip_buf.seek(0)
+
+        resp = client.post(
+            "/api/portfolio/upload",
+            files=[("files", ("ETL.zip", zip_buf.getvalue(), "application/zip"))],
+        )
+        # Exactly 1 valid workflow discovered -> returns AnalysisOverviewDTO (single-workflow mode)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "analysis_id" in data
+        assert "portfolio_id" not in data
+        assert data["source"]["original_filename"] == "Claims.yxmd"
+
+    def test_nested_folder_preserves_distinct_identities(self, client):
+        """Identically named workflows in different subdirectories preserve relative paths and remain distinct."""
+        wf_bytes = Path("FTSE 100.yxmd").read_bytes()
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w") as zf:
+            zf.writestr("Sales/A.yxmd", wf_bytes)
+            zf.writestr("Finance/A.yxmd", wf_bytes)
+        zip_buf.seek(0)
+
+        resp = client.post(
+            "/api/portfolio/upload",
+            files=[("files", ("Workflows.zip", zip_buf.getvalue(), "application/zip"))],
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["workflow_count"] == 2
+
+        rel_paths = {w["relative_path"] for w in data["workflows"]}
+        assert "Sales/A.yxmd" in rel_paths
+        assert "Finance/A.yxmd" in rel_paths
+
+        # Distinct workflow IDs generated
+        wf_ids = [w["workflow_id"] for w in data["workflows"]]
+        assert len(set(wf_ids)) == 2
+
+    def test_empty_folder_with_only_unsupported_files_rejected(self, client):
+        """Folder containing only unsupported files returns 400 error without calling analysis."""
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w") as zf:
+            zf.writestr("ETL/README.md", "# Readme")
+            zf.writestr("ETL/data.csv", "a,b,c\n1,2,3")
+            zf.writestr("ETL/notes.txt", "notes")
+        zip_buf.seek(0)
+
+        resp = client.post(
+            "/api/portfolio/upload",
+            files=[("files", ("ETL.zip", zip_buf.getvalue(), "application/zip"))],
+        )
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["detail"]["code"] == "NO_WORKFLOWS_FOUND"
+
