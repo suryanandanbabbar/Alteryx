@@ -60,8 +60,10 @@ class FormulaTranslator(ToolTranslator):
                     import re
                     bracketed = re.findall(r"\[([^\]]+)\]", expression)
                     available = set(upstream_schema) | created_in_step
+                    unknown_streams = getattr(workflow, "_unknown_schema_streams", set())
+                    is_unknown = input_var in unknown_streams
                     for ref_field in bracketed:
-                        if ref_field not in available:
+                        if ref_field not in available and not is_unknown:
                             diagnostics.append(
                                 Diagnostic(
                                     level=DiagnosticLevel.WARNING,
@@ -87,7 +89,8 @@ class FormulaTranslator(ToolTranslator):
                         message=f"Failed to translate formula expression for '{field_name}': {e}",
                         detail=expression,
                     ))
-                    lines.append(f'# ERROR translating expression for {field_name}: {expression}')
+                    clean_expr_comment = (expression or "").replace("\n", " ").replace("\r", " ")
+                    lines.append(f'# Warning: fallback translating expression for {field_name}: {clean_expr_comment}')
                     lines.append(f'{output_var}["{field_name}"] = None  # Translation failed')
 
         code = "\n".join(lines)

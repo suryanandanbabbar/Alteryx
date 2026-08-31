@@ -45,14 +45,33 @@ class RegExTranslator(ToolTranslator):
     def translate(self, tool: Tool, input_variables: list[str], workflow: Workflow) -> TranslationResult:
         in_var = input_variables[0] if input_variables else "df_unknown"
         out_var = f"df_{tool.tool_id}"
-        config = tool.configuration.parsed
+        config = tool.configuration.parsed or {}
         field = config.get("field", "") or "TextField"
         pattern = repr(config.get("regexexpression", r"(\w+)"))
+        method = config.get("method", "Match")
 
-        lines = [
-            f"{out_var} = {in_var}.copy()",
-            f'{out_var}["{field}_regex"] = {out_var}["{field}"].astype(str).str.extract({pattern})',
-        ]
+        lines = [f"{out_var} = {in_var}.copy()"]
+
+        if method == "ParseComplex" and config.get("parse_complex_fields"):
+            cols = [f["field"] for f in config["parse_complex_fields"] if f.get("field")]
+            cols_repr = repr(cols)
+            lines.append(f'{out_var}[{cols_repr}] = {out_var}["{field}"].astype(str).str.extract({pattern})')
+        elif method == "Match":
+            mfield = repr(config.get("match_field", f"{field}_Matched"))
+            lines.append(f'{out_var}[{mfield}] = {out_var}["{field}"].astype(str).str.contains({pattern}, regex=True, na=False)')
+        elif method == "Replace":
+            r_str = repr(config.get("replacestring", ""))
+            lines.append(f'{out_var}["{field}"] = {out_var}["{field}"].astype(str).str.replace({pattern}, {r_str}, regex=True)')
+        elif method == "ParseSimple":
+            simple = config.get("parse_simple", {})
+            rname = simple.get("root_name") or field
+            nfields = simple.get("num_fields", 1)
+            cols = [f"{rname}{i}" for i in range(1, nfields + 1)]
+            cols_repr = repr(cols)
+            lines.append(f'{out_var}[{cols_repr}] = {out_var}["{field}"].astype(str).str.extract({pattern})')
+        else:
+            lines.append(f'{out_var}["{field}_regex"] = {out_var}["{field}"].astype(str).str.extract({pattern})')
+
         return TranslationResult(
             tool_id=tool.tool_id,
             tool_type=tool.tool_type,
@@ -62,7 +81,7 @@ class RegExTranslator(ToolTranslator):
             input_variables=[in_var],
             output_map={"Output": out_var},
             diagnostics=[],
-            description=f"RegEx pattern extraction on '{field}'",
+            description=f"RegEx {method} operation on '{field}'",
         )
 
 

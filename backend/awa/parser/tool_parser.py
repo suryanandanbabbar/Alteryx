@@ -547,8 +547,51 @@ def _extract_regex_config(config_el: ET.Element) -> dict:
     config: dict = {}
     for tag in ("Field", "RegExExpression", "CaseInsensitve", "Method", "ReplaceString"):
         el = config_el.find(tag)
-        if el is not None and el.text:
-            config[tag.lower()] = el.text
+        if el is not None:
+            val = el.get("value") if el.get("value") is not None else el.text
+            if val is not None:
+                config[tag.lower()] = val.strip()
+
+    # Extract ParseComplex fields
+    parse_complex_el = config_el.find("ParseComplex")
+    if parse_complex_el is not None:
+        fields = []
+        for f in parse_complex_el.findall("Field"):
+            f_name = f.get("field") or f.get("name") or ""
+            if f_name:
+                fields.append({
+                    "field": f_name,
+                    "type": f.get("type", "V_WString"),
+                    "size": f.get("size", "1024"),
+                })
+        config["parse_complex_fields"] = fields
+
+    # Extract ParseSimple
+    parse_simple_el = config_el.find("ParseSimple")
+    if parse_simple_el is not None:
+        simple: dict[str, Any] = {}
+        split_el = parse_simple_el.find("SplitToRows")
+        if split_el is not None:
+            simple["split_to_rows"] = split_el.get("value", "False") == "True"
+        root_el = parse_simple_el.find("RootName")
+        if root_el is not None and root_el.text:
+            simple["root_name"] = root_el.text.strip()
+        num_el = parse_simple_el.find("NumFields")
+        if num_el is not None:
+            val = num_el.get("value") or num_el.text or "1"
+            try:
+                simple["num_fields"] = int(val)
+            except ValueError:
+                simple["num_fields"] = 1
+        config["parse_simple"] = simple
+
+    # Extract Match
+    match_el = config_el.find("Match")
+    if match_el is not None:
+        f_el = match_el.find("Field")
+        if f_el is not None and f_el.text:
+            config["match_field"] = f_el.text.strip()
+
     return config
 
 

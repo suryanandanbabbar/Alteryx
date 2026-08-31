@@ -18,7 +18,10 @@ _DIRECT_MAP: dict[str, str] = {
     "trimright": ".str.rstrip()",
     "rtrim": ".str.rstrip()",
     "length": ".str.len()",
+    "len": ".str.len()",
+    "upper": ".str.upper()",
     "uppercase": ".str.upper()",
+    "lower": ".str.lower()",
     "lowercase": ".str.lower()",
     "titlecase": ".str.title()",
     "abs": ".abs()",
@@ -36,11 +39,17 @@ class PandasEmitter(Transformer):
         super().__init__()
         self.df_var = df_var
         self._imports: set[str] = set()
+        self._diagnostics: list[str] = []
 
     @property
     def imports(self) -> set[str]:
         """Return import statements needed by the emitted code."""
         return self._imports.copy()
+
+    @property
+    def diagnostics(self) -> list[str]:
+        """Return warning messages encountered during emission."""
+        return self._diagnostics.copy()
 
     # ── Atoms ──────────────────────────────────────────────────
 
@@ -70,6 +79,10 @@ class PandasEmitter(Transformer):
         token = str(children[0])
         name = token[1:-1]  # strip [ ]
         return f'{self.df_var}["{name}"]'
+
+    def bare_field(self, children):
+        token = str(children[0])
+        return f'{self.df_var}["{token}"]'
 
     def row_ref(self, children):
         token = str(children[0])
@@ -212,6 +225,38 @@ class PandasEmitter(Transformer):
             return "None"
 
         # String functions
+        if func_lower in ("trim", "strip"):
+            if len(args) >= 2:
+                return f"{args[0]}.str.strip({args[1]})"
+            elif args:
+                return f"{args[0]}.str.strip()"
+            return '""'
+        if func_lower in ("ltrim", "trimleft"):
+            if len(args) >= 2:
+                return f"{args[0]}.str.lstrip({args[1]})"
+            elif args:
+                return f"{args[0]}.str.lstrip()"
+            return '""'
+        if func_lower in ("rtrim", "trimright"):
+            if len(args) >= 2:
+                return f"{args[0]}.str.rstrip({args[1]})"
+            elif args:
+                return f"{args[0]}.str.rstrip()"
+            return '""'
+        if func_lower in ("upper", "uppercase"):
+            return f"{args[0]}.str.upper()"
+        if func_lower in ("lower", "lowercase"):
+            return f"{args[0]}.str.lower()"
+        if func_lower in ("titlecase", "totitle"):
+            return f"{args[0]}.str.title()"
+        if func_lower in ("length", "len"):
+            return f"{args[0]}.str.len()"
+        if func_lower in ("padleft",):
+            pad_char = args[2] if len(args) > 2 else repr(" ")
+            return f"{args[0]}.str.pad({args[1]}, side='left', fillchar={pad_char})"
+        if func_lower in ("padright",):
+            pad_char = args[2] if len(args) > 2 else repr(" ")
+            return f"{args[0]}.str.pad({args[1]}, side='right', fillchar={pad_char})"
         if func_lower == "contains":
             return f"{args[0]}.str.contains({args[1]}, na=False)"
         if func_lower == "startswith":
@@ -320,9 +365,10 @@ class PandasEmitter(Transformer):
         if func_lower in _DIRECT_MAP:
             return f"{args[0]}{_DIRECT_MAP[func_lower]}"
 
-        # Unknown function — valid Python fallback
+        # Unknown function — safe valid Python fallback without inline comments that break syntax inside expressions
         args_str = ", ".join(str(a) for a in args)
-        return f"None  # Unsupported Alteryx function: {func_name}({args_str})"
+        self._diagnostics.append(f"Unsupported Alteryx function: {func_name}({args_str})")
+        return "None"
 
     def func_args(self, children):
         return list(children)

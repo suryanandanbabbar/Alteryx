@@ -48,6 +48,7 @@ start: expr
     | NULL_FUNC                 -> null_func
     | if_expr
     | func_call
+    | IDENT                     -> bare_field
     | "(" expr ")"
 
 // IF / ELSEIF / ELSE / ENDIF
@@ -56,7 +57,7 @@ if_expr: IF expr THEN expr elseif_clause* ELSE expr ENDIF
 elseif_clause: ELSEIF expr THEN expr
 
 // Function calls
-func_call: FUNC_NAME "(" func_args? ")"
+func_call: IDENT "(" func_args? ")"
 
 func_args: expr ("," expr)*
 
@@ -93,8 +94,8 @@ STRING: /\"[^\"]*\"/ | /'[^']*'/
 ROW_REF.3: /\[Row-\d+:[^\]]+\]/
 FIELD_REF.1: /\[[^\]]+\]/
 
-// === Function name ===
-FUNC_NAME.0: /[A-Za-z_][A-Za-z0-9_]*/
+// === Function names and unbracketed field identifiers ===
+IDENT.0: /[A-Za-z_][A-Za-z0-9_]*/
 
 // Whitespace
 %import common.WS

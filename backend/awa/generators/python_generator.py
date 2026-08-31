@@ -13,6 +13,29 @@ from awa.model.python_trace import PythonTraceEntry, PythonTraceMap
 from awa.tools.catalog import get_tool_catalog
 
 
+def append_multiline_comment(lines: list[str], message: object, prefix: str = "#") -> None:
+    """Safely append a potentially multiline message as valid Python comments line-by-line.
+
+    Handles:
+    - None or non-string values
+    - Embedded newlines (\n, \r\n, \r)
+    - Blank lines (rendered cleanly as '#')
+    - Indented text or tracebacks
+    - Unicode characters
+    """
+    if message is None:
+        return
+    text = str(message)
+    if not text:
+        return
+    for line in text.splitlines():
+        line_clean = line.rstrip("\r\n")
+        if line_clean.strip():
+            lines.append(f"{prefix} {line_clean}")
+        else:
+            lines.append(prefix)
+
+
 def generate_python_code(
     workflow: Workflow,
     execution_order: list[int],
@@ -34,8 +57,9 @@ def generate_python_code(
     catalog = get_tool_catalog()
 
     # File Header
+    clean_wf_name = (workflow.metadata.name or "Workflow").replace("\n", " ").replace("\r", " ")
     lines.append('"""')
-    lines.append(f"Auto-generated Python translation of Alteryx workflow '{workflow.metadata.name}'.")
+    lines.append(f"Auto-generated Python translation of Alteryx workflow '{clean_wf_name}'.")
     lines.append('"""')
     lines.append("")
 
@@ -80,15 +104,15 @@ def generate_python_code(
         lines.append("")
         start_line = len(lines) + 1  # 1-indexed, starts at the tool comment header
         name_part = f" ({tool.name})" if tool.name and tool.name != tool.tool_type else ""
-        lines.append(f"# Alteryx Tool #{tool.tool_id}: {tool.tool_type}{name_part}")
-        lines.append(f"# Plugin: {tool.plugin or tool_def.xml_name}")
-        lines.append(f"# Translation: {tr.support_level.name}")
+        append_multiline_comment(lines, f"Alteryx Tool #{tool.tool_id}: {tool.tool_type}{name_part}")
+        append_multiline_comment(lines, f"Plugin: {tool.plugin or tool_def.xml_name}")
+        append_multiline_comment(lines, f"Translation: {tr.support_level.name}")
         if tr.description:
-            lines.append(f"# {tr.description}")
+            append_multiline_comment(lines, tr.description)
 
-        # Add diagnostic notes
+        # Add diagnostic notes safely line-by-line
         for diag in tr.diagnostics:
-            lines.append(f"# {diag.level.value.upper()}: {diag.message}")
+            append_multiline_comment(lines, f"{diag.level.value.upper()}: {diag.message}")
 
         # Code block
         code = tr.python_code
@@ -124,13 +148,36 @@ def generate_python_code(
 
     # Ensure single trailing newline
     full_code = "\n".join(lines).rstrip() + "\n"
-    
+
     # Strictly validate that the emitted Python is 100% syntactically valid
     import ast
     try:
         ast.parse(full_code)
-    except SyntaxError as e:
-        raise SyntaxError(f"Generated Python contains syntax error at line {e.lineno}: {e.msg}\nCode snippet:\n{e.text}") from e
+    except (SyntaxError, IndentationError) as e:
+        lineno = e.lineno or 1
+        all_lines = full_code.splitlines()
+        ctx_start = max(1, lineno - 3)
+        ctx_end = min(len(all_lines), lineno + 3)
+        nearby_lines = []
+        for i in range(ctx_start, ctx_end + 1):
+            marker = ">>>" if i == lineno else "   "
+            content = all_lines[i - 1] if i - 1 < len(all_lines) else ""
+            nearby_lines.append(f"{marker} {i:4d} | {content}")
+        context_block = "\n".join(nearby_lines)
+
+        origin_tool = "unknown tool"
+        for te in trace_entries:
+            if te.start_line <= lineno <= te.end_line:
+                origin_tool = f"Tool #{te.tool_id} ({te.tool_type}: {te.tool_name})"
+                break
+
+        msg = (
+            f"Generated Python contains {type(e).__name__} at line {lineno} "
+            f"(originating from {origin_tool}): {e.msg}\n"
+            f"Offending line: {repr(e.text or (all_lines[lineno - 1] if lineno <= len(all_lines) else ''))}\n"
+            f"Nearby code context:\n{context_block}"
+        )
+        raise SyntaxError(msg) from e
 
     # Calculate exact total_lines from final string
     total_lines = len(full_code.splitlines())

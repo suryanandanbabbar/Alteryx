@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
+from awa.model.translation import TranslationResult, SupportLevel
 from awa.model.source_info import SourceInfo
 from awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
 from awa.model.python_trace import ToolExplanation
@@ -202,11 +202,9 @@ def discover_source_fields(workflow: Workflow, graph: nx.DiGraph) -> dict[int, l
                 if sf.get("field"):
                     all_wf_fields.add(sf["field"])
 
-    unplaced = all_wf_fields - all_known_fields
-    if unplaced and len(input_tids) > 1:
-        target_tid = input_tids[1]
-        if target_tid not in has_explicit_schema:
-            input_fields[target_tid].extend(sorted(unplaced))
+    # 5. Do not arbitrarily place unplaced fields on input_tids[1].
+    # Fields that cannot be deterministically proven to belong to an input
+    # remain unassigned, maintaining truthful data lineage.
 
     # 6. Final registry consolidation
     registry = {}
@@ -215,6 +213,21 @@ def discover_source_fields(workflow: Workflow, graph: nx.DiGraph) -> dict[int, l
         registry[tid] = flds if flds else ["Record_Data"]
 
     return registry
+
+
+def _normalize_cols(cols: list[Any]) -> list[str]:
+    """Ensure all column names are non-empty strings and deduplicated."""
+    res: list[str] = []
+    for c in cols:
+        if isinstance(c, dict):
+            val = c.get("value") or c.get("name") or c.get("field") or ""
+            if val and str(val) not in res:
+                res.append(str(val))
+        elif c is not None:
+            c_str = str(c).strip()
+            if c_str and c_str not in res:
+                res.append(c_str)
+    return res
 
 
 def compute_tool_output_schema(
@@ -229,7 +242,7 @@ def compute_tool_output_schema(
     cfg = tool.configuration.parsed or {}
     ttype = tool.tool_type
     primary_in = input_vars[0] if input_vars else None
-    in_cols = list(stream_schemas.get(primary_in, [])) if primary_in else []
+    in_cols = _normalize_cols(list(stream_schemas.get(primary_in, []))) if primary_in else []
 
     # Source input data tools
     if source_registry is not None and tool.tool_id in source_registry:
@@ -327,8 +340,81 @@ def compute_tool_output_schema(
         if not discovered_pivoted_cols and header_field:
             discovered_pivoted_cols = [f"{header_field}_Values"]
         return {"Output": group_fields + discovered_pivoted_cols}
+    elif ttype in ("RegEx", "RegExTranslator"):
+        method = cfg.get("method", "")
+        out_cols = list(in_cols)
+        if method == "ParseComplex" or "parse_complex_fields" in cfg:
+            for pcf in cfg.get("parse_complex_fields", []):
+                fname = pcf.get("field")
+                if fname and fname not in out_cols:
+                    out_cols.append(fname)
+        elif method == "ParseSimple" or "parse_simple" in cfg:
+            simple = cfg.get("parse_simple", {})
+            if not simple.get("split_to_rows", False):
+                rname = simple.get("root_name") or cfg.get("field", "RegEx")
+                nfields = simple.get("num_fields", 1)
+                for i in range(1, nfields + 1):
+                    col_name = f"{rname}{i}"
+                    if col_name not in out_cols:
+                        out_cols.append(col_name)
+        elif method == "Match" or "match_field" in cfg:
+            mfield = cfg.get("match_field") or f"{cfg.get('field', 'RegEx')}_Matched"
+            if mfield not in out_cols:
+                out_cols.append(mfield)
+        elif hasattr(tool, "output_fields") and tool.output_fields:
+            for f in tool.output_fields:
+                if f.name and f.name not in out_cols:
+                    out_cols.append(f.name)
+        return {"Output": out_cols}
+    elif ttype in ("Download", "DownloadTranslator"):
+        out_cols = list(in_cols)
+        if "DownloadData" not in out_cols:
+            out_cols.append("DownloadData")
+        if "DownloadHeaders" not in out_cols:
+            out_cols.append("DownloadHeaders")
+        return {"Output": out_cols}
+    elif ttype in ("GenerateRows", "GenerateRowsTranslator"):
+        out_cols = list(in_cols)
+        cf = cfg.get("CreateField_Name") or cfg.get("createfield_name")
+        if isinstance(cf, dict):
+            cf_name = cf.get("value") or cf.get("name") or cf.get("field") or ""
+        else:
+            cf_name = str(cf) if cf else ""
+        if cf_name and cf_name not in out_cols:
+            out_cols.append(cf_name)
+        return {"Output": _normalize_cols(out_cols)}
+    elif ttype in ("RecordID", "RecordId", "RecordIdTranslator", "RecordIDTranslator"):
+        out_cols = list(in_cols)
+        f_name = cfg.get("fieldname") or cfg.get("FieldName") or "RecordID"
+        if f_name not in out_cols:
+            out_cols.insert(0, f_name)
+        return {"Output": out_cols}
+    elif ttype in ("DateTime", "DateTimeTranslator"):
+        out_cols = list(in_cols)
+        f_name = cfg.get("outputfieldname") or cfg.get("OutputFieldName") or "DateTime_Out"
+        if f_name not in out_cols:
+            out_cols.append(f_name)
+        return {"Output": out_cols}
+    elif ttype in ("TextToColumns", "TextToColumnsTranslator"):
+        out_cols = list(in_cols)
+        num_fields_str = cfg.get("numfields") or cfg.get("NumFields") or "1"
+        try:
+            nfields = int(num_fields_str)
+        except ValueError:
+            nfields = 1
+        base_f = cfg.get("field") or cfg.get("Field") or "Column"
+        for i in range(1, nfields + 1):
+            c_name = f"{base_f}_{i}"
+            if c_name not in out_cols:
+                out_cols.append(c_name)
+        return {"Output": out_cols}
     else:
-        return {"Output": in_cols}
+        out_cols = list(in_cols)
+        if hasattr(tool, "output_fields") and tool.output_fields:
+            for f in tool.output_fields:
+                if f.name and f.name not in out_cols:
+                    out_cols.append(f.name)
+        return {"Output": out_cols}
 
 
 def analyze_canonical(
@@ -368,7 +454,9 @@ def analyze_canonical(
     # 3. Translate tools and collect explanations using dynamic stream environment
     stream_env: dict[tuple[int, str], str] = {}
     stream_schemas: dict[str, list[str]] = {}
+    unknown_schema_streams: set[str] = set()
     workflow._stream_schemas = stream_schemas  # type: ignore[attr-defined]
+    workflow._unknown_schema_streams = unknown_schema_streams  # type: ignore[attr-defined]
 
     translations: dict[int, TranslationResult] = {}
     tool_explanations: dict[int, ToolExplanation] = {}
@@ -383,6 +471,15 @@ def analyze_canonical(
 
         # Compute output schemas for this tool
         out_schemas = compute_tool_output_schema(tool, input_vars, stream_schemas, source_registry, graph, workflow)
+
+        # Track unknown/dynamic schema streams
+        if (
+            result.support_level == SupportLevel.EXTERNAL_EXECUTION
+            or tool.tool_type in ("DynamicInput", "Download", "DownloadTranslator", "Python", "R", "RunCommand")
+            or any(iv in unknown_schema_streams for iv in input_vars)
+        ):
+            for var_name in result.output_map.values():
+                unknown_schema_streams.add(var_name)
 
         # Register output anchors in stream_env and stream_schemas
         for anchor, var_name in result.output_map.items():

@@ -70,9 +70,11 @@ class FilterTranslator(ToolTranslator):
                     f"{false_var} = {input_var}[~_filter_mask_{tool.tool_id}].copy()"
                 )
             except Exception as e:
+                clean_expr = (expression or "").replace("\n", " ").replace("\r", " ")
+                clean_err = str(e).replace("\n", " ").replace("\r", " ")
                 code = (
-                    f"# ERROR: Could not translate filter expression: {expression}\n"
-                    f"# Parse error: {e}\n"
+                    f"# ERROR: Could not translate filter expression: {clean_expr}\n"
+                    f"# Parse error: {clean_err}\n"
                     f"{true_var} = {input_var}.copy()\n"
                     f"{false_var} = {input_var}.iloc[0:0].copy()"
                 )

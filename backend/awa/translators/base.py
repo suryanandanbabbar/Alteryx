@@ -133,10 +133,12 @@ class ExternalExecutionTranslator(ToolTranslator):
         input_variables: list[str],
         workflow: Workflow,
     ) -> TranslationResult:
+        out_var = f"df_{tool.tool_id}"
         lines = [
             f"# External execution tool: {tool.tool_type} (Tool #{tool.tool_id})",
             f"# Plugin: {tool.plugin}",
             f"# This tool operates externally or depends on an external runtime environment.",
+            f"{out_var} = pd.DataFrame()  # External execution placeholder",
             f"raise NotImplementedError(",
             f"    \"Tool #{tool.tool_id} ({tool.tool_type}) requires external execution ({tool.plugin}).\"",
             f")",
@@ -157,9 +159,9 @@ class ExternalExecutionTranslator(ToolTranslator):
             tool_type=tool.tool_type,
             support_level=SupportLevel.EXTERNAL_EXECUTION,
             python_code=code,
-            imports=set(),
+            imports={"import pandas as pd"},
             input_variables=input_variables,
-            output_map={},
+            output_map={"Output": out_var},
             diagnostics=[diagnostic],
             description=f"External execution tool ({tool.tool_type})",
         )

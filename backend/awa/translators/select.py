@@ -48,6 +48,9 @@ class SelectTranslator(ToolTranslator):
 
         upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
 
+        unknown_streams = getattr(workflow, "_unknown_schema_streams", set())
+        is_unknown_upstream = input_var in unknown_streams
+
         for sf in select_fields:
             field_name = sf.get("field", "")
             selected = sf.get("selected", "True")
@@ -58,15 +61,27 @@ class SelectTranslator(ToolTranslator):
                 continue
 
             if upstream_schema is not None and field_name not in upstream_schema:
-                diagnostics.append(
-                    Diagnostic(
-                        level=DiagnosticLevel.WARNING,
-                        category="unresolved_field",
-                        tool_id=tool.tool_id,
-                        tool_type=tool.tool_type,
-                        message=f"Tool #{tool.tool_id} (Select) references configured field '{field_name}', but upstream stream does not expose that field. Available fields: {upstream_schema}",
+                if is_unknown_upstream:
+                    # Dynamic / external upstream stream — field is unknown, not known-absent
+                    diagnostics.append(
+                        Diagnostic(
+                            level=DiagnosticLevel.INFO,
+                            category="unknown_schema",
+                            tool_id=tool.tool_id,
+                            tool_type=tool.tool_type,
+                            message=f"Tool #{tool.tool_id} (Select) references field '{field_name}' from external/dynamic upstream stream '{input_var}'.",
+                        )
                     )
-                )
+                else:
+                    diagnostics.append(
+                        Diagnostic(
+                            level=DiagnosticLevel.WARNING,
+                            category="unresolved_field",
+                            tool_id=tool.tool_id,
+                            tool_type=tool.tool_type,
+                            message=f"Tool #{tool.tool_id} (Select) references configured field '{field_name}', but upstream stream does not expose that field. Available fields: {upstream_schema}",
+                        )
+                    )
 
             selected_cols.append(field_name)
 
