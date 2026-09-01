@@ -183,3 +183,39 @@ class TestPortfolioNavigationHierarchy:
         # Every output entry only contains allowed keys
         for out in evidence:
             assert set(out.keys()).issubset({"dataset", "table_or_sheet", "columns"})
+
+    def test_business_area_descriptions_present_and_domain_focused(self, client):
+        """Verify business-area descriptions are populated, domain-focused, and stable."""
+        zip_buf = io.BytesIO()
+        with zipfile.ZipFile(zip_buf, "w") as zf:
+            zf.writestr("Claims.yxmd", Path("Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes())
+            zf.writestr("FTSE.yxmd", Path("FTSE 100.yxmd").read_bytes())
+        zip_buf.seek(0)
+
+        resp = client.post(
+            "/api/portfolio/upload",
+            files=[("files", ("portfolio.zip", zip_buf.getvalue(), "application/zip"))],
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+
+        assert "business_area_descriptions" in data
+        descriptions = data["business_area_descriptions"]
+        assert isinstance(descriptions, dict)
+
+        # Must include all primary business domains + Unclassified
+        assert "Claims & Risk" in descriptions
+        assert "Sales & Distribution" in descriptions
+        assert "Legal" in descriptions
+        assert "Underwriting" in descriptions
+        assert "Other / Unclassified" in descriptions
+
+        for area, desc in descriptions.items():
+            assert isinstance(desc, str)
+            assert len(desc) > 20
+            # Must NOT reference specific tool ids or workflow filenames
+            assert "Demo_Claims" not in desc
+            assert "tool_" not in desc
+
+        # Other / Unclassified must explicitly mention evidence limitation
+        assert "evidence" in descriptions["Other / Unclassified"].lower()

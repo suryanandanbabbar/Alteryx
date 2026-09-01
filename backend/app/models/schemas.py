@@ -383,5 +383,6 @@ class PortfolioOverviewDTO(BaseModel):
     relationships: list[WorkflowRelationshipDTO]
     rationalisation_candidates: list[RationalisationCandidateDTO]
     business_area_counts: dict[str, int] = Field(default_factory=dict)
+    business_area_descriptions: dict[str, str] = Field(default_factory=dict)
     created_at: float
 

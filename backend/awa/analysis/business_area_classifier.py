@@ -46,6 +46,29 @@ ALLOWED_BUSINESS_AREAS: tuple[str, ...] = (
     "Sales & Distribution",
 )
 
+BUSINESS_AREA_DESCRIPTIONS: dict[str, str] = {
+    "Claims & Risk": (
+        "Claims & Risk business area encompasses multiple workflows that collectively "
+        "analyse claims performance, exposure, policy information, payments, and litigation or risk-related outcomes."
+    ),
+    "Sales & Distribution": (
+        "Sales & Distribution business area encompasses workflows that support customer, "
+        "product, sales performance, distribution, pipeline, and commercial reporting activities."
+    ),
+    "Legal": (
+        "Legal business area encompasses workflows supporting legal operations, "
+        "case-related information, regulatory analysis, legal reporting, and compliance-oriented data processing."
+    ),
+    "Underwriting": (
+        "Underwriting business area encompasses workflows that support risk assessment, "
+        "policy evaluation, underwriting decisions, pricing inputs, and portfolio analysis."
+    ),
+    "Other / Unclassified": (
+        "These workflows could not be confidently associated with a recognised "
+        "business area based on the available workflow output evidence."
+    ),
+}
+
 # ---------------------------------------------------------------------------
 # Domain Taxonomies for Deterministic Fallback
 # ---------------------------------------------------------------------------

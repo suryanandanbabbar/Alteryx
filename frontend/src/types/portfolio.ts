@@ -103,5 +103,6 @@ export interface PortfolioOverviewDTO {
   relationships: WorkflowRelationshipDTO[];
   rationalisation_candidates: RationalisationCandidateDTO[];
   business_area_counts?: Record<string, number>;
+  business_area_descriptions?: Record<string, string>;
   created_at: number;
 }

@@ -28,7 +28,10 @@ from awa.model.portfolio import (
     WorkflowRelationship,
 )
 from awa.analysis.sttm_extractor import _clean_table_name
-from awa.analysis.business_area_classifier import classify_workflow_business_area
+from awa.analysis.business_area_classifier import (
+    classify_workflow_business_area,
+    BUSINESS_AREA_DESCRIPTIONS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -558,6 +561,7 @@ def build_portfolio_analysis(
         relationships=relationships,
         rationalisation_candidates=candidates,
         business_area_counts=area_counts,
+        business_area_descriptions=dict(BUSINESS_AREA_DESCRIPTIONS),
     )
 
 

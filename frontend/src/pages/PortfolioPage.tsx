@@ -17,12 +17,13 @@ import {
   X,
 } from 'lucide-react';
 import { PortfolioOverviewDTO, PortfolioWorkflowSummaryDTO } from '../types/portfolio';
+import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
 
 interface PortfolioPageProps {
   portfolio: PortfolioOverviewDTO;
   selectedBusinessArea?: string | null;
   onSelectBusinessArea?: (area: string | null) => void;
-  onSelectWorkflow: (workflowId: string, businessArea?: string) => void;
+  onSelectWorkflow: (workflowId: string, businessArea?: string) => void | Promise<void>;
   onReset: () => void;
 }
 
@@ -79,6 +80,19 @@ const UNCLASSIFIED_DOMAIN: DomainConfig = {
   description: 'Workflows pending explicit business-domain attribution',
 };
 
+const DEFAULT_BUSINESS_AREA_DESCRIPTIONS: Record<string, string> = {
+  'Claims & Risk':
+    'Claims & Risk business area encompasses multiple workflows that collectively analyse claims performance, exposure, policy information, payments, and litigation or risk-related outcomes.',
+  'Sales & Distribution':
+    'Sales & Distribution business area encompasses workflows that support customer, product, sales performance, distribution, pipeline, and commercial reporting activities.',
+  'Legal':
+    'Legal business area encompasses workflows supporting legal operations, case-related information, regulatory analysis, legal reporting, and compliance-oriented data processing.',
+  'Underwriting':
+    'Underwriting business area encompasses workflows that support risk assessment, policy evaluation, underwriting decisions, pricing inputs, and portfolio analysis.',
+  'Other / Unclassified':
+    'These workflows could not be confidently associated with a recognised business area based on the available workflow output evidence.',
+};
+
 export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   portfolio,
   selectedBusinessArea,
@@ -100,6 +114,22 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [hoveredDomainCard, setHoveredDomainCard] = useState<string | null>(null);
   const [hoveredWorkflowId, setHoveredWorkflowId] = useState<string | null>(null);
+  const [inspectingWorkflow, setInspectingWorkflow] = useState<PortfolioWorkflowSummaryDTO | null>(null);
+  const [inspectError, setInspectError] = useState<string | null>(null);
+
+  const handleInspect = async (wf: PortfolioWorkflowSummaryDTO) => {
+    if (inspectingWorkflow) return; // Prevent double clicks / concurrent requests
+    setInspectingWorkflow(wf);
+    setInspectError(null);
+    try {
+      await onSelectWorkflow(wf.workflow_id, currentArea || undefined);
+    } catch (err: any) {
+      console.error('Workflow inspection error:', err);
+      setInspectError(
+        err?.message || `We couldn't complete the analysis for ${wf.filename}. Please try again.`
+      );
+    }
+  };
 
   const { metrics } = portfolio;
 
@@ -243,8 +273,10 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   // LEVEL 2: Dashboard Summary — Wide Horizontal Workflow Intelligence Cards
   // -------------------------------------------------------------------------
   if (currentArea) {
-    const areaMeta = CONFIGURED_BUSINESS_AREAS.find((a) => a.name === currentArea) || UNCLASSIFIED_DOMAIN;
-    const AreaIcon = areaMeta.icon;
+    const currentAreaDescription =
+      portfolio.business_area_descriptions?.[currentArea] ||
+      DEFAULT_BUSINESS_AREA_DESCRIPTIONS[currentArea] ||
+      `${currentArea} business area encompasses multiple workflows that support analytical operations and data pipelines.`;
 
     return (
       <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -313,8 +345,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
           </button>
         </div>
 
-        {/* Dashboard Summary Header */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {/* Business Area Contextual Header */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{
             fontSize: '11px',
             fontWeight: '700',
@@ -325,27 +357,28 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
             ETL PORTFOLIO
           </div>
 
-          <h1 style={{ fontSize: '32px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.02em', margin: 0 }}>
-            Dashboard Summary
+          <h1 style={{
+            fontSize: '34px',
+            fontWeight: '800',
+            color: 'var(--color-text)',
+            letterSpacing: '-0.02em',
+            lineHeight: '1.2',
+            margin: '2px 0 0 0',
+          }}>
+            {currentArea}
           </h1>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '4px' }}>
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '7px',
-              padding: '4px 12px',
-              borderRadius: '6px',
-              background: areaMeta.subtleBg,
-              border: `1px solid ${areaMeta.borderColor}`,
-              fontSize: '14px',
-              fontWeight: '700',
-              color: areaMeta.color,
-            }}>
-              <AreaIcon size={15} color={areaMeta.color} />
-              <span>{currentArea}</span>
-            </div>
+          <p style={{
+            fontSize: '15px',
+            lineHeight: '1.6',
+            color: 'var(--color-text-secondary)',
+            margin: '4px 0 0 0',
+            maxWidth: '960px',
+          }}>
+            {currentAreaDescription}
+          </p>
 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
             <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
               {currentAreaWorkflows.length} {currentAreaWorkflows.length === 1 ? 'Workflow' : 'Workflows'}
             </span>
@@ -512,7 +545,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
               return (
                 <div
                   key={wf.workflow_id}
-                  onClick={() => isSuccess && onSelectWorkflow(wf.workflow_id, currentArea)}
+                  onClick={() => isSuccess && !inspectingWorkflow && handleInspect(wf)}
                   onMouseEnter={() => setHoveredWorkflowId(wf.workflow_id)}
                   onMouseLeave={() => setHoveredWorkflowId(null)}
                   style={{
@@ -529,7 +562,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                       : '0 2px 6px rgba(0, 0, 0, 0.08)',
                     transform: isHovered ? 'translateY(-2px)' : 'none',
                     transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-                    cursor: isSuccess ? 'pointer' : 'default',
+                    cursor: isSuccess && !inspectingWorkflow ? 'pointer' : 'default',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '20px',
@@ -634,9 +667,12 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                     {/* Inspect Workflow Action CTA */}
                     {isSuccess && (
                       <button
+                        disabled={!!inspectingWorkflow}
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSelectWorkflow(wf.workflow_id, currentArea);
+                          if (!inspectingWorkflow) {
+                            handleInspect(wf);
+                          }
                         }}
                         style={{
                           display: 'inline-flex',
@@ -655,20 +691,30 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                             : 'var(--color-primary)',
                           fontSize: '13px',
                           fontWeight: '700',
-                          cursor: 'pointer',
+                          cursor: inspectingWorkflow ? 'not-allowed' : 'pointer',
+                          opacity: inspectingWorkflow ? (inspectingWorkflow.workflow_id === wf.workflow_id ? 1 : 0.5) : 1,
                           transition: 'all 0.18s ease',
                           whiteSpace: 'nowrap',
                           alignSelf: 'flex-start',
                         }}
                       >
-                        <span>Inspect Workflow</span>
-                        <ArrowRight
-                          size={14}
-                          style={{
-                            transform: isHovered ? 'translateX(3px)' : 'none',
-                            transition: 'transform 0.18s ease',
-                          }}
-                        />
+                        {inspectingWorkflow?.workflow_id === wf.workflow_id ? (
+                          <>
+                            <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                            <span>Analysing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Inspect Workflow</span>
+                            <ArrowRight
+                              size={14}
+                              style={{
+                                transform: isHovered ? 'translateX(3px)' : 'none',
+                                transition: 'transform 0.18s ease',
+                              }}
+                            />
+                          </>
+                        )}
                       </button>
                     )}
                   </div>
@@ -786,6 +832,20 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
               );
             })}
           </div>
+        )}
+
+        {/* Workflow Inspection Loading / Error Modal */}
+        {inspectingWorkflow && (
+          <AnalysisLoadingScreen
+            fileName={inspectingWorkflow.filename}
+            isOverlay={true}
+            error={inspectError}
+            onRetry={() => handleInspect(inspectingWorkflow)}
+            onCancel={() => {
+              setInspectingWorkflow(null);
+              setInspectError(null);
+            }}
+          />
         )}
       </div>
     );

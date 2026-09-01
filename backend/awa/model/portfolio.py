@@ -214,6 +214,7 @@ class PortfolioAnalysis:
     relationships: list[WorkflowRelationship]
     rationalisation_candidates: list[RationalisationCandidate]
     business_area_counts: dict[str, int] = field(default_factory=dict)
+    business_area_descriptions: dict[str, str] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
@@ -228,5 +229,6 @@ class PortfolioAnalysis:
             "relationships": [r.to_dict() for r in self.relationships],
             "rationalisation_candidates": [c.to_dict() for c in self.rationalisation_candidates],
             "business_area_counts": self.business_area_counts,
+            "business_area_descriptions": self.business_area_descriptions,
             "created_at": self.created_at,
         }

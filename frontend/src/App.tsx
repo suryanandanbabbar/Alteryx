@@ -85,6 +85,7 @@ export const App: React.FC = () => {
               setActiveSection('overview');
             } catch (err) {
               console.error('Failed to load workflow overview:', err);
+              throw err;
             }
           }}
           onReset={handleReset}
