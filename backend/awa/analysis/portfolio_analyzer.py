@@ -32,6 +32,11 @@ from awa.analysis.business_area_classifier import (
     classify_workflow_business_area,
     BUSINESS_AREA_DESCRIPTIONS,
 )
+from awa.analysis.workflow_complexity import calculate_workflow_complexity
+from awa.analysis.workflow_criticality import (
+    calculate_workflow_criticality,
+    PortfolioDependencyContext,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -414,6 +419,9 @@ def build_portfolio_analysis(
         # Classify business area using strict output evidence
         classification = classify_workflow_business_area(res, generator=generator)
 
+        # Deterministic Workflow Complexity Assessment
+        complexity = calculate_workflow_complexity(res)
+
         summaries.append(
             PortfolioWorkflowSummary(
                 workflow_id=wid,
@@ -433,6 +441,9 @@ def build_portfolio_analysis(
                 business_purpose=biz_purpose,
                 sttm_mappings_count=sttm_count,
                 business_area=classification,
+                complexity_score=complexity.score,
+                complexity_level=complexity.level,
+                complexity_factors=complexity.factors,
             )
         )
 
@@ -458,6 +469,28 @@ def build_portfolio_analysis(
         for tname, items in sorted(target_to_wfs.items())
         if len(items) >= 2
     ]
+
+    # 2b. Deterministic Workflow Criticality Assessment (using portfolio dependency context)
+    dep_context = PortfolioDependencyContext(
+        target_to_producers={t: [(w, f) for w, f in items] for t, items in target_to_wfs.items()},
+        source_to_consumers={s: [(w, f) for w, f in items] for s, items in source_to_wfs.items()},
+        shared_targets={s.dataset_name for s in shared_targets},
+        shared_sources={s.dataset_name for s in shared_sources},
+    )
+
+    for wf in summaries:
+        if wf.status == "SUCCESS":
+            criticality = calculate_workflow_criticality(
+                workflow_id=wf.workflow_id,
+                workflow_filename=wf.filename,
+                sources=wf.sources,
+                targets=wf.targets,
+                inspection_sinks=wf.inspection_sinks,
+                context=dep_context,
+            )
+            wf.criticality_score = criticality.score
+            wf.criticality_level = criticality.level
+            wf.criticality_factors = criticality.factors
 
     # 3. Compute Multi-Signal Relationships between all pairs of successful workflows
     relationships: list[WorkflowRelationship] = []

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
@@ -316,6 +316,12 @@ class PortfolioWorkflowSummaryDTO(BaseModel):
     business_purpose: str = ""
     sttm_mappings_count: int = 0
     business_area: BusinessAreaClassificationDTO = Field(default_factory=BusinessAreaClassificationDTO)
+    complexity_score: float = 0.0
+    complexity_level: Literal["HIGH", "MEDIUM", "LOW"] = "LOW"
+    complexity_factors: list[str] = Field(default_factory=list)
+    criticality_score: float = 0.0
+    criticality_level: Literal["HIGH", "MEDIUM", "LOW"] = "LOW"
+    criticality_factors: list[str] = Field(default_factory=list)
 
 
 class DeterministicSignalsDTO(BaseModel):

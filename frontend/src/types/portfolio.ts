@@ -29,6 +29,12 @@ export interface PortfolioWorkflowSummaryDTO {
   business_purpose: string;
   sttm_mappings_count: number;
   business_area?: BusinessAreaClassificationDTO;
+  complexity_score?: number;
+  complexity_level?: 'HIGH' | 'MEDIUM' | 'LOW';
+  complexity_factors?: string[];
+  criticality_score?: number;
+  criticality_level?: 'HIGH' | 'MEDIUM' | 'LOW';
+  criticality_factors?: string[];
 }
 
 export interface DeterministicSignalsDTO {

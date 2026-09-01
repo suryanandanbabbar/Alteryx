@@ -113,6 +113,14 @@ class TestPortfolioNavigationHierarchy:
             # 7. Analysis ID / workflow ID for Level 3 navigation
             assert "analysis_id" in wf or "workflow_id" in wf
             assert "business_area" in wf
+            # 8. Deterministic Complexity
+            assert "complexity_score" in wf
+            assert wf["complexity_level"] in ("HIGH", "MEDIUM", "LOW")
+            assert isinstance(wf["complexity_factors"], list)
+            # 9. Deterministic Criticality
+            assert "criticality_score" in wf
+            assert wf["criticality_level"] in ("HIGH", "MEDIUM", "LOW")
+            assert isinstance(wf["criticality_factors"], list)
 
     def test_connection_count_matches_canonical_graph(self):
         """Requirement 13 & 23: Connection count accurately reflects canonical workflow graph."""

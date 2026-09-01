@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ArrowRight,
   ArrowLeft,
@@ -15,9 +15,15 @@ import {
   Target,
   LucideIcon,
   X,
+  Info,
 } from 'lucide-react';
 import { PortfolioOverviewDTO, PortfolioWorkflowSummaryDTO } from '../types/portfolio';
 import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
+
+export type InfoPanel =
+  | { type: 'complexity'; workflowId: string }
+  | { type: 'criticality'; workflowId: string }
+  | null;
 
 interface PortfolioPageProps {
   portfolio: PortfolioOverviewDTO;
@@ -93,6 +99,212 @@ const DEFAULT_BUSINESS_AREA_DESCRIPTIONS: Record<string, string> = {
     'These workflows could not be confidently associated with a recognised business area based on the available workflow output evidence.',
 };
 
+// Color styling for deterministic complexity and criticality levels (HIGH -> Green, MEDIUM -> Yellow, LOW -> Red)
+export const getLevelBadgeStyle = (level?: 'HIGH' | 'MEDIUM' | 'LOW') => {
+  switch (level) {
+    case 'HIGH':
+      return {
+        color: '#22c55e',
+        background: 'rgba(34, 197, 94, 0.1)',
+        border: '1px solid rgba(34, 197, 94, 0.3)',
+      };
+    case 'MEDIUM':
+      return {
+        color: '#fbbf24',
+        background: 'rgba(251, 191, 36, 0.1)',
+        border: '1px solid rgba(251, 191, 36, 0.3)',
+      };
+    case 'LOW':
+    default:
+      return {
+        color: '#ef4444',
+        background: 'rgba(239, 68, 68, 0.1)',
+        border: '1px solid rgba(239, 68, 68, 0.3)',
+      };
+  }
+};
+
+interface DeterministicInfoPopoverProps {
+  type: 'complexity' | 'criticality';
+  score?: number;
+  level?: 'HIGH' | 'MEDIUM' | 'LOW';
+  factors?: string[];
+  onClose: () => void;
+}
+
+const DeterministicInfoPopover: React.FC<DeterministicInfoPopoverProps> = ({
+  type,
+  score = 0,
+  level = 'LOW',
+  factors = [],
+  onClose,
+}) => {
+  const isComplexity = type === 'complexity';
+  const title = isComplexity ? 'DETERMINISTIC COMPLEXITY' : 'DETERMINISTIC CRITICALITY';
+
+  return (
+    <div
+      role="dialog"
+      aria-label={`${title} explanation`}
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: 'absolute',
+        bottom: 'calc(100% + 12px)',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '320px',
+        maxWidth: 'calc(100vw - 48px)',
+        background: '#0d1527',
+        border: '1px solid var(--color-border)',
+        borderRadius: '8px',
+        boxShadow: '0 16px 36px -4px rgba(0, 0, 0, 0.75), 0 4px 12px rgba(0, 0, 0, 0.5)',
+        padding: '16px 18px',
+        zIndex: 100,
+        cursor: 'default',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        textAlign: 'left',
+      }}
+    >
+      {/* Downward Anchor Arrow */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '-6px',
+          left: '50%',
+          transform: 'translateX(-50%) rotate(45deg)',
+          width: '10px',
+          height: '10px',
+          background: '#0d1527',
+          borderRight: '1px solid var(--color-border)',
+          borderBottom: '1px solid var(--color-border)',
+        }}
+      />
+
+      {/* Header Row: Title & Close Button */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span
+          style={{
+            fontSize: '10.5px',
+            fontWeight: '800',
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            color: 'var(--color-text-subtle)',
+          }}
+        >
+          {title}
+        </span>
+        <button
+          type="button"
+          aria-label="Close popover"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onClose();
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '20px',
+            height: '20px',
+            borderRadius: '4px',
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--color-text-subtle)',
+            cursor: 'pointer',
+            padding: 0,
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'var(--color-text)';
+            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--color-text-subtle)';
+            e.currentTarget.style.background = 'transparent';
+          }}
+        >
+          <X size={13} />
+        </button>
+      </div>
+
+      {/* Score & Level Row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span
+          style={{
+            fontSize: '12px',
+            fontWeight: '800',
+            letterSpacing: '0.08em',
+            padding: '3px 10px',
+            borderRadius: '4px',
+            ...getLevelBadgeStyle(level),
+          }}
+        >
+          {level}
+        </span>
+        <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.01em' }}>
+          {Number(score).toFixed(1)} <span style={{ fontSize: '11px', color: 'var(--color-text-subtle)', fontWeight: '600' }}>/ 100</span>
+        </span>
+      </div>
+
+      {/* Hairline Divider */}
+      <div style={{ height: '1px', background: 'var(--color-border-subtle)' }} />
+
+      {/* Key Contributing Factors */}
+      <div>
+        <div
+          style={{
+            fontSize: '11px',
+            fontWeight: '700',
+            color: 'var(--color-text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            marginBottom: '8px',
+          }}
+        >
+          Key Contributing Factors
+        </div>
+
+        {factors && factors.length > 0 ? (
+          <ul
+            style={{
+              margin: 0,
+              padding: 0,
+              listStyle: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+            }}
+          >
+            {factors.map((f, i) => (
+              <li
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '7px',
+                  fontSize: '12px',
+                  lineHeight: '1.45',
+                  color: 'var(--color-text-secondary)',
+                }}
+              >
+                <span style={{ color: 'var(--color-primary)', fontWeight: '700', lineHeight: '1.4' }}>•</span>
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div style={{ fontSize: '12px', color: 'var(--color-text-subtle)', fontStyle: 'italic' }}>
+            No specific contributing factors recorded.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   portfolio,
   selectedBusinessArea,
@@ -116,6 +328,32 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   const [hoveredWorkflowId, setHoveredWorkflowId] = useState<string | null>(null);
   const [inspectingWorkflow, setInspectingWorkflow] = useState<PortfolioWorkflowSummaryDTO | null>(null);
   const [inspectError, setInspectError] = useState<string | null>(null);
+  const [activeInfoPanel, setActiveInfoPanel] = useState<InfoPanel>(null);
+
+  // Close active info popover on Escape or click outside
+  useEffect(() => {
+    if (!activeInfoPanel) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveInfoPanel(null);
+      }
+    };
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && !target.closest('.workflow-info-popover-container')) {
+        setActiveInfoPanel(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeInfoPanel]);
 
   const handleInspect = async (wf: PortfolioWorkflowSummaryDTO) => {
     if (inspectingWorkflow) return; // Prevent double clicks / concurrent requests
@@ -541,6 +779,9 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
             {filteredAreaWorkflows.map((wf: PortfolioWorkflowSummaryDTO) => {
               const isSuccess = wf.status === 'SUCCESS';
               const isHovered = hoveredWorkflowId === wf.workflow_id;
+              const isComplexityOpen = activeInfoPanel?.type === 'complexity' && activeInfoPanel.workflowId === wf.workflow_id;
+              const isCriticalityOpen = activeInfoPanel?.type === 'criticality' && activeInfoPanel.workflowId === wf.workflow_id;
+              const isPopoverActive = isComplexityOpen || isCriticalityOpen;
 
               return (
                 <div
@@ -566,6 +807,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '20px',
+                    zIndex: isPopoverActive ? 30 : (isHovered ? 2 : 1),
                   }}
                 >
                   {/* Top Row: Identity, Business Summary & Inspect Action */}
@@ -722,8 +964,9 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                   {/* Hairline Divider */}
                   <div style={{ height: '1px', background: 'var(--color-border-subtle)' }} />
 
-                  {/* Metrics Row: Tools & Connections */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                  {/* Metrics & Deterministic Classification Row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                    {/* Tools */}
                     <div style={{
                       display: 'inline-flex',
                       alignItems: 'baseline',
@@ -741,6 +984,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                       </span>
                     </div>
 
+                    {/* Connections */}
                     <div style={{
                       display: 'inline-flex',
                       alignItems: 'baseline',
@@ -756,6 +1000,220 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                       <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
                         Connections
                       </span>
+                    </div>
+
+                    <div style={{ width: '1px', height: '22px', background: 'var(--color-border)', margin: '0 4px' }} />
+
+                    {/* Deterministic Workflow Complexity */}
+                    <div
+                      className="workflow-info-popover-container"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setActiveInfoPanel((prev) =>
+                          prev?.type === 'complexity' && prev.workflowId === wf.workflow_id
+                            ? null
+                            : { type: 'complexity', workflowId: wf.workflow_id }
+                        );
+                      }}
+                      style={{
+                        position: 'relative',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        background: isComplexityOpen ? 'rgba(249, 115, 22, 0.12)' : 'var(--color-surface-secondary)',
+                        border: isComplexityOpen ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                        Complexity:
+                      </span>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        letterSpacing: '0.06em',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        ...getLevelBadgeStyle(wf.complexity_level || 'LOW'),
+                      }}>
+                        {wf.complexity_level || 'LOW'}
+                      </span>
+
+                      <button
+                        type="button"
+                        aria-haspopup="dialog"
+                        aria-expanded={isComplexityOpen}
+                        aria-label="View deterministic complexity explanation"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setActiveInfoPanel((prev) =>
+                            prev?.type === 'complexity' && prev.workflowId === wf.workflow_id
+                              ? null
+                              : { type: 'complexity', workflowId: wf.workflow_id }
+                          );
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setActiveInfoPanel((prev) =>
+                              prev?.type === 'complexity' && prev.workflowId === wf.workflow_id
+                                ? null
+                                : { type: 'complexity', workflowId: wf.workflow_id }
+                            );
+                          }
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          background: isComplexityOpen ? 'rgba(249, 115, 22, 0.25)' : 'transparent',
+                          border: 'none',
+                          color: isComplexityOpen ? 'var(--color-primary)' : 'var(--color-text-subtle)',
+                          cursor: 'pointer',
+                          padding: 0,
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isComplexityOpen) {
+                            e.currentTarget.style.color = 'var(--color-text)';
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isComplexityOpen) {
+                            e.currentTarget.style.color = 'var(--color-text-subtle)';
+                            e.currentTarget.style.background = 'transparent';
+                          }
+                        }}
+                      >
+                        <Info size={13} />
+                      </button>
+
+                      {/* Controlled Popover Dialog */}
+                      {isComplexityOpen && (
+                        <DeterministicInfoPopover
+                          type="complexity"
+                          score={wf.complexity_score ?? 0}
+                          level={wf.complexity_level || 'LOW'}
+                          factors={wf.complexity_factors || []}
+                          onClose={() => setActiveInfoPanel(null)}
+                        />
+                      )}
+                    </div>
+
+                    {/* Deterministic Workflow Criticality */}
+                    <div
+                      className="workflow-info-popover-container"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setActiveInfoPanel((prev) =>
+                          prev?.type === 'criticality' && prev.workflowId === wf.workflow_id
+                            ? null
+                            : { type: 'criticality', workflowId: wf.workflow_id }
+                        );
+                      }}
+                      style={{
+                        position: 'relative',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        background: isCriticalityOpen ? 'rgba(249, 115, 22, 0.12)' : 'var(--color-surface-secondary)',
+                        border: isCriticalityOpen ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                        Criticality:
+                      </span>
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: '800',
+                        letterSpacing: '0.06em',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        ...getLevelBadgeStyle(wf.criticality_level || 'LOW'),
+                      }}>
+                        {wf.criticality_level || 'LOW'}
+                      </span>
+
+                      <button
+                        type="button"
+                        aria-haspopup="dialog"
+                        aria-expanded={isCriticalityOpen}
+                        aria-label="View deterministic criticality explanation"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setActiveInfoPanel((prev) =>
+                            prev?.type === 'criticality' && prev.workflowId === wf.workflow_id
+                              ? null
+                              : { type: 'criticality', workflowId: wf.workflow_id }
+                          );
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setActiveInfoPanel((prev) =>
+                              prev?.type === 'criticality' && prev.workflowId === wf.workflow_id
+                                ? null
+                                : { type: 'criticality', workflowId: wf.workflow_id }
+                            );
+                          }
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          background: isCriticalityOpen ? 'rgba(249, 115, 22, 0.25)' : 'transparent',
+                          border: 'none',
+                          color: isCriticalityOpen ? 'var(--color-primary)' : 'var(--color-text-subtle)',
+                          cursor: 'pointer',
+                          padding: 0,
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isCriticalityOpen) {
+                            e.currentTarget.style.color = 'var(--color-text)';
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isCriticalityOpen) {
+                            e.currentTarget.style.color = 'var(--color-text-subtle)';
+                            e.currentTarget.style.background = 'transparent';
+                          }
+                        }}
+                      >
+                        <Info size={13} />
+                      </button>
+
+                      {/* Controlled Popover Dialog */}
+                      {isCriticalityOpen && (
+                        <DeterministicInfoPopover
+                          type="criticality"
+                          score={wf.criticality_score ?? 0}
+                          level={wf.criticality_level || 'LOW'}
+                          factors={wf.criticality_factors || []}
+                          onClose={() => setActiveInfoPanel(null)}
+                        />
+                      )}
                     </div>
                   </div>
 

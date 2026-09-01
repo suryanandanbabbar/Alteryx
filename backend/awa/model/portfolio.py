@@ -54,6 +54,12 @@ class PortfolioWorkflowSummary:
     sttm_mappings_count: int = 0
     business_area: BusinessAreaClassification = field(default_factory=BusinessAreaClassification)
     analysis_id: str = ""
+    complexity_score: float = 0.0
+    complexity_level: str = "LOW"  # "HIGH" | "MEDIUM" | "LOW"
+    complexity_factors: list[str] = field(default_factory=list)
+    criticality_score: float = 0.0
+    criticality_level: str = "LOW"  # "HIGH" | "MEDIUM" | "LOW"
+    criticality_factors: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -75,6 +81,12 @@ class PortfolioWorkflowSummary:
             "business_purpose": self.business_purpose,
             "sttm_mappings_count": self.sttm_mappings_count,
             "business_area": self.business_area.to_dict() if self.business_area else BusinessAreaClassification().to_dict(),
+            "complexity_score": self.complexity_score,
+            "complexity_level": self.complexity_level,
+            "complexity_factors": self.complexity_factors,
+            "criticality_score": self.criticality_score,
+            "criticality_level": self.criticality_level,
+            "criticality_factors": self.criticality_factors,
         }
 
 
