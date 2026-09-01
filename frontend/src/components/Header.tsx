@@ -6,9 +6,10 @@ interface HeaderProps {
   sectionTitle: string;
   workflowName?: string;
   onBackToPortfolio?: () => void;
+  backLabel?: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ sectionTitle, workflowName, onBackToPortfolio }) => {
+export const Header: React.FC<HeaderProps> = ({ sectionTitle, workflowName, onBackToPortfolio, backLabel }) => {
   const { theme, toggleTheme } = useTheme();
 
   return (
@@ -47,7 +48,7 @@ export const Header: React.FC<HeaderProps> = ({ sectionTitle, workflowName, onBa
             }}
             title="Return to Portfolio Overview"
           >
-            ← All Workflows
+            {backLabel || '← All Workflows'}
           </button>
         ) : (
           <span style={{

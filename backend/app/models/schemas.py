@@ -289,8 +289,17 @@ class AnalysisOverviewDTO(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class BusinessAreaClassificationDTO(BaseModel):
+    business_area: str = "UNCLASSIFIED"
+    confidence: str = "UNCLASSIFIED"
+    evidence: list[str] = Field(default_factory=list)
+    classification_source: str = "deterministic_fallback"
+    secondary_business_areas: list[str] = Field(default_factory=list)
+
+
 class PortfolioWorkflowSummaryDTO(BaseModel):
     workflow_id: str
+    analysis_id: str = ""
     filename: str
     relative_path: str
     status: str
@@ -306,6 +315,7 @@ class PortfolioWorkflowSummaryDTO(BaseModel):
     tool_types: list[str] = Field(default_factory=list)
     business_purpose: str = ""
     sttm_mappings_count: int = 0
+    business_area: BusinessAreaClassificationDTO = Field(default_factory=BusinessAreaClassificationDTO)
 
 
 class DeterministicSignalsDTO(BaseModel):
@@ -372,5 +382,6 @@ class PortfolioOverviewDTO(BaseModel):
     shared_targets: list[SharedDatasetDTO]
     relationships: list[WorkflowRelationshipDTO]
     rationalisation_candidates: list[RationalisationCandidateDTO]
+    business_area_counts: dict[str, int] = Field(default_factory=dict)
     created_at: float
 

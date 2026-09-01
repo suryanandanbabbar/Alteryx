@@ -2,8 +2,17 @@
  * TypeScript definitions for Multi-Workflow Portfolio Analysis and ETL Rationalisation.
  */
 
+export interface BusinessAreaClassificationDTO {
+  business_area: string;
+  confidence: string;
+  evidence: string[];
+  classification_source: string;
+  secondary_business_areas: string[];
+}
+
 export interface PortfolioWorkflowSummaryDTO {
   workflow_id: string;
+  analysis_id?: string;
   filename: string;
   relative_path: string;
   status: 'SUCCESS' | 'FAILED';
@@ -19,6 +28,7 @@ export interface PortfolioWorkflowSummaryDTO {
   tool_types: string[];
   business_purpose: string;
   sttm_mappings_count: number;
+  business_area?: BusinessAreaClassificationDTO;
 }
 
 export interface DeterministicSignalsDTO {
@@ -92,5 +102,6 @@ export interface PortfolioOverviewDTO {
   shared_targets: SharedDatasetDTO[];
   relationships: WorkflowRelationshipDTO[];
   rationalisation_candidates: RationalisationCandidateDTO[];
+  business_area_counts?: Record<string, number>;
   created_at: number;
 }

@@ -26,6 +26,7 @@ const SECTION_TITLES: Record<string, string> = {
 export const App: React.FC = () => {
   const [overview, setOverview] = useState<AnalysisOverviewDTO | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioOverviewDTO | null>(null);
+  const [selectedBusinessArea, setSelectedBusinessArea] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<string>('overview');
   const [selectedToolId, setSelectedToolId] = useState<number | null>(null);
 
@@ -33,9 +34,11 @@ export const App: React.FC = () => {
     if (isPortfolioResponse(result)) {
       setPortfolio(result);
       setOverview(null);
+      setSelectedBusinessArea(null);
     } else {
       setOverview(result);
       setPortfolio(null);
+      setSelectedBusinessArea(null);
     }
     setActiveSection('overview');
     setSelectedToolId(null);
@@ -44,6 +47,7 @@ export const App: React.FC = () => {
   const handleReset = () => {
     setOverview(null);
     setPortfolio(null);
+    setSelectedBusinessArea(null);
     setActiveSection('overview');
     setSelectedToolId(null);
   };
@@ -69,8 +73,13 @@ export const App: React.FC = () => {
       <div style={{ minHeight: '100vh', background: 'var(--color-bg)', padding: '32px 40px', boxSizing: 'border-box' }}>
         <PortfolioPage
           portfolio={portfolio}
-          onSelectWorkflow={async (workflowId) => {
+          selectedBusinessArea={selectedBusinessArea}
+          onSelectBusinessArea={(area) => setSelectedBusinessArea(area)}
+          onSelectWorkflow={async (workflowId, businessArea) => {
             try {
+              if (businessArea) {
+                setSelectedBusinessArea(businessArea);
+              }
               const wfOverview = await api.getOverview(workflowId);
               setOverview(wfOverview);
               setActiveSection('overview');
@@ -114,6 +123,7 @@ export const App: React.FC = () => {
           sectionTitle={sectionTitle}
           workflowName={overview.source.original_filename}
           onBackToPortfolio={portfolio ? () => setOverview(null) : undefined}
+          backLabel={selectedBusinessArea ? `← Back to ${selectedBusinessArea}` : '← All Workflows'}
         />
 
         {/* Scrollable Page Body */}

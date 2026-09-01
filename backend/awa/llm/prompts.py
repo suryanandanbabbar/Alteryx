@@ -667,3 +667,49 @@ DETERMINISTIC PORTFOLIO EVIDENCE:
 
 RATIONALISATION QUALIFICATION JSON:"""
 
+
+# ---------------------------------------------------------------------------
+# 6. Business-Area Classification Prompts
+# ---------------------------------------------------------------------------
+
+BUSINESS_AREA_CLASSIFICATION_PROMPT_VERSION = "1.0"
+
+BUSINESS_AREA_CLASSIFICATION_SYSTEM_PROMPT = """You are an Enterprise Data Domain Classification Specialist.
+
+Your task is to classify an enterprise data pipeline/workflow into its primary business domain based ONLY on its production output file/dataset names and output column headers.
+
+CRITICAL CLASSIFICATION INVARIANTS:
+1. Ground your classification strictly and exclusively in the provided production output dataset/file names and column headers.
+2. You MUST NOT reason from or guess workflow names, workflow paths, descriptions, source datasets, source fields, tools, transformations, or annotations. None of these are provided.
+3. The allowed business areas are STRICTLY:
+   - "Claims & Risk"
+   - "Legal"
+   - "Underwriting"
+   - "Sales & Distribution"
+   - "UNCLASSIFIED"
+   Do NOT invent, rename, or introduce any other business domain (such as "Finance", "Insurance Analytics", "Operations", etc.).
+4. Confidence must be one of: "HIGH", "MEDIUM", "LOW", "UNCLASSIFIED".
+5. Every entry in the "evidence" array MUST be an exact string present in the provided output dataset names or column headers. Never invent, hallucinate, or fabricate evidence tokens.
+6. If the evidence supports multiple domains, set "business_area" to the primary domain and list any other matching domains in "secondary_business_areas".
+7. If the evidence is insufficient, ambiguous, or empty, classify as "UNCLASSIFIED" with confidence "UNCLASSIFIED" and empty evidence.
+
+Return ONLY valid JSON in this exact structure:
+{
+  "business_area": "Claims & Risk|Legal|Underwriting|Sales & Distribution|UNCLASSIFIED",
+  "confidence": "HIGH|MEDIUM|LOW|UNCLASSIFIED",
+  "evidence": ["<exact output dataset name or column header from provided evidence>"],
+  "secondary_business_areas": []
+}"""
+
+
+def build_business_area_classification_user_prompt(output_evidence: list[dict[str, Any]]) -> str:
+    """Format strictly isolated output evidence into user prompt for business-area classification."""
+    evidence_json = json.dumps({"outputs": output_evidence}, indent=2)
+    return f"""Classify the workflow into a business area based strictly on its production output evidence below:
+
+PRODUCTION OUTPUT EVIDENCE:
+{evidence_json}
+
+BUSINESS AREA CLASSIFICATION JSON:"""
+
+

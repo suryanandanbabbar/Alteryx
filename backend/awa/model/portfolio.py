@@ -15,6 +15,25 @@ from typing import Any
 
 
 @dataclass
+class BusinessAreaClassification:
+    """Classification of a workflow into an enterprise business domain."""
+    business_area: str = "UNCLASSIFIED"  # "Claims & Risk" | "Legal" | "Underwriting" | "Sales & Distribution" | "UNCLASSIFIED"
+    confidence: str = "UNCLASSIFIED"  # "HIGH" | "MEDIUM" | "LOW" | "UNCLASSIFIED"
+    evidence: list[str] = field(default_factory=list)  # Only actual output dataset names or column headers
+    classification_source: str = "deterministic_fallback"  # "llm" | "deterministic_fallback"
+    secondary_business_areas: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "business_area": self.business_area,
+            "confidence": self.confidence,
+            "evidence": self.evidence,
+            "classification_source": self.classification_source,
+            "secondary_business_areas": self.secondary_business_areas,
+        }
+
+
+@dataclass
 class PortfolioWorkflowSummary:
     """Canonical summary of an individual workflow within a portfolio."""
     workflow_id: str
@@ -33,10 +52,13 @@ class PortfolioWorkflowSummary:
     tool_types: list[str] = field(default_factory=list)
     business_purpose: str = ""
     sttm_mappings_count: int = 0
+    business_area: BusinessAreaClassification = field(default_factory=BusinessAreaClassification)
+    analysis_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "workflow_id": self.workflow_id,
+            "analysis_id": self.analysis_id or self.workflow_id,
             "filename": self.filename,
             "relative_path": self.relative_path,
             "status": self.status,
@@ -52,6 +74,7 @@ class PortfolioWorkflowSummary:
             "tool_types": self.tool_types,
             "business_purpose": self.business_purpose,
             "sttm_mappings_count": self.sttm_mappings_count,
+            "business_area": self.business_area.to_dict() if self.business_area else BusinessAreaClassification().to_dict(),
         }
 
 
@@ -190,6 +213,7 @@ class PortfolioAnalysis:
     shared_targets: list[SharedDataset]
     relationships: list[WorkflowRelationship]
     rationalisation_candidates: list[RationalisationCandidate]
+    business_area_counts: dict[str, int] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
@@ -203,5 +227,6 @@ class PortfolioAnalysis:
             "shared_targets": [t.to_dict() for t in self.shared_targets],
             "relationships": [r.to_dict() for r in self.relationships],
             "rationalisation_candidates": [c.to_dict() for c in self.rationalisation_candidates],
+            "business_area_counts": self.business_area_counts,
             "created_at": self.created_at,
         }

@@ -84,8 +84,10 @@ def process_portfolio_uploads(
             logger.warning("Analysis failed for portfolio workflow '%s': %s", filename, exc)
             raw_results.append((filename, rel_path, exc))
 
-    # 1. Build deterministic portfolio analysis
-    portfolio = build_portfolio_analysis(raw_results, portfolio_name=portfolio_name)
+    # 1. Build portfolio analysis with business domain classification
+    from awa.llm import get_default_generator
+    generator = get_default_generator()
+    portfolio = build_portfolio_analysis(raw_results, portfolio_name=portfolio_name, generator=generator)
 
     # 2. Enrich with portfolio LLM qualification (preserves deterministic baseline on failure)
     enriched_portfolio = enrich_portfolio_with_llm(portfolio)

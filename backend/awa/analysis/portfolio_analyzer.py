@@ -28,6 +28,7 @@ from awa.model.portfolio import (
     WorkflowRelationship,
 )
 from awa.analysis.sttm_extractor import _clean_table_name
+from awa.analysis.business_area_classifier import classify_workflow_business_area
 
 logger = logging.getLogger(__name__)
 
@@ -356,6 +357,7 @@ def build_portfolio_analysis(
     raw_workflows: list[tuple[str, str, CanonicalAnalysisResult | Exception]],
     portfolio_name: str = "ETL Portfolio",
     portfolio_id: str | None = None,
+    generator: Any | None = None,
 ) -> PortfolioAnalysis:
     """Build authoritative PortfolioAnalysis from individual canonical workflow results.
 
@@ -363,6 +365,7 @@ def build_portfolio_analysis(
         raw_workflows: List of (filename, relative_path, CanonicalAnalysisResult | Exception)
         portfolio_name: Display name for the portfolio
         portfolio_id: Optional fixed portfolio ID; auto-generated if omitted.
+        generator: Optional LLMNarrativeGenerator for semantic classification/enrichment.
     """
     pid = portfolio_id or f"portfolio_{uuid.uuid4().hex[:12]}"
     summaries: list[PortfolioWorkflowSummary] = []
@@ -405,14 +408,18 @@ def build_portfolio_analysis(
         biz_purpose = res.business_summary.business_purpose if res.business_summary else ""
         sttm_count = len(res.sttm.mappings) if res.sttm else 0
 
+        # Classify business area using strict output evidence
+        classification = classify_workflow_business_area(res, generator=generator)
+
         summaries.append(
             PortfolioWorkflowSummary(
                 workflow_id=wid,
+                analysis_id=wid,
                 filename=filename,
                 relative_path=rel_path,
                 status="SUCCESS",
                 node_count=len(res.workflow.tools),
-                connection_count=len(res.workflow.connections),
+                connection_count=res.metrics.total_connections if res.metrics else len(res.workflow.connections),
                 source_count=len(srcs),
                 target_count=len(tgts),
                 sources=srcs,
@@ -422,6 +429,7 @@ def build_portfolio_analysis(
                 tool_types=tool_seq,
                 business_purpose=biz_purpose,
                 sttm_mappings_count=sttm_count,
+                business_area=classification,
             )
         )
 
@@ -521,6 +529,24 @@ def build_portfolio_analysis(
         tool_distribution=tool_counter,
     )
 
+    # 6. Aggregate business area counts
+    area_counts: dict[str, int] = {
+        "Claims & Risk": 0,
+        "Legal": 0,
+        "Underwriting": 0,
+        "Sales & Distribution": 0,
+    }
+    unclassified_count = 0
+    for s in success_summaries:
+        area = s.business_area.business_area if s.business_area else "UNCLASSIFIED"
+        if area in area_counts:
+            area_counts[area] += 1
+        else:
+            unclassified_count += 1
+
+    if unclassified_count > 0:
+        area_counts["Other / Unclassified"] = unclassified_count
+
     return PortfolioAnalysis(
         portfolio_id=pid,
         portfolio_name=portfolio_name,
@@ -531,6 +557,7 @@ def build_portfolio_analysis(
         shared_targets=shared_targets,
         relationships=relationships,
         rationalisation_candidates=candidates,
+        business_area_counts=area_counts,
     )
 
 

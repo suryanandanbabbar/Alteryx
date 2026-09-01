@@ -342,12 +342,13 @@ class TestPortfolioAnalysis:
         ])
         enrich_portfolio_with_llm(portfolio)
 
-        # Invariant: Only the portfolio rationalisation LLM is called (at most 1 call), NOT individual workflow LLMs
+        # Invariant: Only portfolio-level LLMs are called, NOT individual workflow LLMs
         for call in call_log:
-            assert "You are a Principal Enterprise Data Architect" in call
+            assert "Principal Enterprise Data Architect" in call or "Enterprise Data Domain Classification Specialist" in call
             # Never individual workflow prompts
             assert "tool specifications" not in call.lower()
             assert "source-to-target" not in call.lower()
+            assert "executive summary" not in call.lower()
 
     def test_case_insensitive_workflow_extensions(self, client):
         """Case-insensitive workflow extensions (.YXMD, .YXWZ, .XML) are recognised and accepted."""
