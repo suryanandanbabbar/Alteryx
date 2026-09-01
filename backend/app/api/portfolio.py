@@ -12,6 +12,7 @@ from backend.app.models.schemas import (
     AnalysisOverviewDTO,
     PortfolioOverviewDTO,
     PortfolioWorkflowSummaryDTO,
+    RationalisationAnalysisDTO,
 )
 from backend.app.services.analyzer import to_overview_dto
 from backend.app.services.portfolio_service import (
@@ -142,3 +143,56 @@ def get_portfolio_workflow_analysis(portfolio_id: str, workflow_id: str):
             detail=f"Workflow with ID '{workflow_id}' not found or session has expired.",
         )
     return to_overview_dto(res)
+
+
+@router.get("/{portfolio_id}/rationalisation", response_model=RationalisationAnalysisDTO)
+def get_portfolio_rationalisation(portfolio_id: str, use_llm: bool = True):
+    """Retrieve full ETL rationalisation analysis for a portfolio."""
+    storage = get_storage()
+    portfolio = storage.get_portfolio(portfolio_id)
+    if portfolio is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Portfolio with ID '{portfolio_id}' not found or session has expired.",
+        )
+
+    # Collect successful workflow CanonicalAnalysisResults
+    successful_results: dict[str, Any] = {}
+    for wf in portfolio.workflows:
+        if wf.status == "SUCCESS":
+            res = storage.get(wf.workflow_id)
+            if res:
+                successful_results[wf.workflow_id] = res
+
+    from awa.analysis.rationalisation_analyzer import build_rationalisation_analysis
+    from awa.llm import get_default_generator
+
+    generator = None
+    if use_llm:
+        try:
+            gen = get_default_generator()
+            if getattr(gen, "client", None) and getattr(gen.client, "is_available", False):
+                generator = gen
+            else:
+                logger.info("[Rationalisation] LLM client unavailable or disabled — proceeding with deterministic baseline.")
+        except Exception as e:
+            logger.warning("[Rationalisation] Could not obtain LLM generator: %s — proceeding with deterministic baseline.", e)
+
+    try:
+        analysis = build_rationalisation_analysis(
+            portfolio=portfolio,
+            successful_results=successful_results,
+            generator=generator,
+            use_llm=bool(use_llm and generator is not None),
+        )
+    except Exception as e:
+        logger.exception("[Rationalisation] Unexpected error during rationalisation: %s — falling back to deterministic baseline.", e)
+        analysis = build_rationalisation_analysis(
+            portfolio=portfolio,
+            successful_results=successful_results,
+            generator=None,
+            use_llm=False,
+        )
+
+    return RationalisationAnalysisDTO(**analysis.to_dict())
+

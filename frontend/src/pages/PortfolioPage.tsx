@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { PortfolioOverviewDTO, PortfolioWorkflowSummaryDTO } from '../types/portfolio';
 import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
+import { RationalisationPage } from './RationalisationPage';
 
 export type InfoPanel =
   | { type: 'complexity'; workflowId: string }
@@ -329,6 +330,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   const [inspectingWorkflow, setInspectingWorkflow] = useState<PortfolioWorkflowSummaryDTO | null>(null);
   const [inspectError, setInspectError] = useState<string | null>(null);
   const [activeInfoPanel, setActiveInfoPanel] = useState<InfoPanel>(null);
+  const [showRationalisation, setShowRationalisation] = useState<boolean>(false);
 
   // Close active info popover on Escape or click outside
   useEffect(() => {
@@ -506,6 +508,41 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
       </div>
     );
   };
+
+  // -------------------------------------------------------------------------
+  // ETL RATIONALISATION: Whole-Estate Portfolio Intelligence Screen
+  // -------------------------------------------------------------------------
+  if (showRationalisation) {
+    return (
+      <>
+        {inspectingWorkflow && (
+          <AnalysisLoadingScreen
+            fileName={inspectingWorkflow.filename}
+            isOverlay={true}
+            error={inspectError}
+            onRetry={() => handleInspect(inspectingWorkflow)}
+            onCancel={() => {
+              setInspectingWorkflow(null);
+              setInspectError(null);
+            }}
+          />
+        )}
+        <RationalisationPage
+          portfolioId={portfolio.portfolio_id}
+          onBackToPortfolio={() => setShowRationalisation(false)}
+          onSelectWorkflow={(wid, area) => {
+            const wf = portfolio.workflows.find((w) => w.workflow_id === wid);
+            if (wf) {
+              handleInspect(wf);
+            } else {
+              onSelectWorkflow(wid, area);
+            }
+          }}
+          workflows={portfolio.workflows}
+        />
+      </>
+    );
+  }
 
   // -------------------------------------------------------------------------
   // LEVEL 2: Dashboard Summary — Wide Horizontal Workflow Intelligence Cards
@@ -1594,6 +1631,140 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
             </div>
           );
         })}
+      </div>
+
+      {/* Level 1 ETL Rationalisation CTA Card */}
+      <div
+        onClick={() => setShowRationalisation(true)}
+        style={{
+          marginTop: '36px',
+          padding: '28px 32px',
+          borderRadius: '12px',
+          background: 'linear-gradient(135deg, rgba(6, 78, 59, 0.25) 0%, rgba(15, 23, 42, 0.8) 50%, rgba(30, 58, 138, 0.2) 100%)',
+          border: '1px solid rgba(16, 185, 129, 0.35)',
+          boxShadow: '0 8px 30px -8px rgba(0, 0, 0, 0.45)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '20px',
+          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = 'rgba(52, 211, 153, 0.7)';
+          e.currentTarget.style.transform = 'translateY(-2px)';
+          e.currentTarget.style.boxShadow = '0 14px 36px -8px rgba(16, 185, 129, 0.25)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+          e.currentTarget.style.transform = 'none';
+          e.currentTarget.style.boxShadow = '0 8px 30px -8px rgba(0, 0, 0, 0.45)';
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div
+            style={{
+              width: '52px',
+              height: '52px',
+              borderRadius: '12px',
+              background: 'rgba(16, 185, 129, 0.15)',
+              border: '1px solid rgba(52, 211, 153, 0.4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#34d399',
+              flexShrink: 0,
+            }}
+          >
+            <ShieldCheck size={26} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '800',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  color: '#34d399',
+                  background: 'rgba(6, 78, 59, 0.5)',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  border: '1px solid rgba(52, 211, 153, 0.3)',
+                }}
+              >
+                Cross-Workflow Estate Intelligence
+              </span>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  color: 'var(--color-text-muted)',
+                }}
+              >
+                {portfolio.workflows.filter(w => w.status === 'SUCCESS').length} Workflows Analyzed
+              </span>
+            </div>
+            <h2
+              style={{
+                fontSize: '20px',
+                fontWeight: '800',
+                color: '#ffffff',
+                margin: '0 0 6px 0',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              ETL RATIONALISATION
+            </h2>
+            <p
+              style={{
+                fontSize: '13.5px',
+                color: 'var(--color-text-secondary)',
+                margin: 0,
+                lineHeight: '1.45',
+                maxWidth: '650px',
+              }}
+            >
+              Identify opportunities to consolidate pipelines, extract reusable logic, and retire redundant workflows across your ETL estate.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowRationalisation(true);
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              background: '#10b981',
+              color: '#022c22',
+              fontSize: '13.5px',
+              fontWeight: '800',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#34d399';
+              e.currentTarget.style.transform = 'scale(1.02)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#10b981';
+              e.currentTarget.style.transform = 'none';
+            }}
+          >
+            <span>View Rationalisation</span>
+            <ArrowRight size={16} strokeWidth={2.5} />
+          </button>
+        </div>
       </div>
     </div>
   );

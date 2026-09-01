@@ -143,23 +143,254 @@ class WorkflowRelationship:
 
 
 @dataclass
+class DeterministicMetrics:
+    source_overlap: float = 0.0
+    target_overlap: float = 0.0
+    transformation_similarity: float = 0.0
+    schema_similarity: float = 0.0
+    grain_similarity: float = 0.0
+    dag_similarity: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_overlap": round(self.source_overlap, 3),
+            "target_overlap": round(self.target_overlap, 3),
+            "transformation_similarity": round(self.transformation_similarity, 3),
+            "schema_similarity": round(self.schema_similarity, 3),
+            "grain_similarity": round(self.grain_similarity, 3),
+            "dag_similarity": round(self.dag_similarity, 3),
+        }
+
+
+@dataclass
+class RiskContext:
+    complexity_by_workflow: dict[str, str] = field(default_factory=dict)
+    criticality_by_workflow: dict[str, str] = field(default_factory=dict)
+    risk_level: str = "LOW"  # HIGH | MEDIUM | LOW
+    risk_notes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "complexity_by_workflow": self.complexity_by_workflow,
+            "criticality_by_workflow": self.criticality_by_workflow,
+            "risk_level": self.risk_level,
+            "risk_notes": self.risk_notes,
+        }
+
+
+@dataclass
+class OutputEvidence:
+    production_targets: dict[str, list[str]] = field(default_factory=dict)
+    inspection_sinks: dict[str, list[str]] = field(default_factory=dict)
+    output_schemas: dict[str, list[str]] = field(default_factory=dict)
+    output_grains: dict[str, list[str]] = field(default_factory=dict)
+    is_equivalent_target: bool = False
+    is_equivalent_schema: bool = False
+    is_equivalent_grain: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "production_targets": self.production_targets,
+            "inspection_sinks": self.inspection_sinks,
+            "output_schemas": self.output_schemas,
+            "output_grains": self.output_grains,
+            "is_equivalent_target": self.is_equivalent_target,
+            "is_equivalent_schema": self.is_equivalent_schema,
+            "is_equivalent_grain": self.is_equivalent_grain,
+        }
+
+
+@dataclass
+class DependencyEvidence:
+    downstream_consumers: dict[str, list[str]] = field(default_factory=dict)
+    upstream_producers: dict[str, list[str]] = field(default_factory=dict)
+    shared_sources: list[str] = field(default_factory=list)
+    shared_targets: list[str] = field(default_factory=list)
+    dependency_status: str = "NOT_FOUND_IN_PORTFOLIO"  # KNOWN | NOT_FOUND_IN_PORTFOLIO | NOT_DETERMINABLE
+    dependency_notes: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "downstream_consumers": self.downstream_consumers,
+            "upstream_producers": self.upstream_producers,
+            "shared_sources": self.shared_sources,
+            "shared_targets": self.shared_targets,
+            "dependency_status": self.dependency_status,
+            "dependency_notes": self.dependency_notes,
+        }
+
+
+@dataclass
+class WorkflowFingerprint:
+    """Deterministic structural and semantic fingerprint of a single workflow."""
+    workflow_id: str
+    workflow_name: str
+    sources: list[str] = field(default_factory=list)
+    source_types: dict[str, str] = field(default_factory=dict)
+    source_fields: dict[str, list[str]] = field(default_factory=dict)
+    production_targets: list[str] = field(default_factory=list)
+    inspection_sinks: list[str] = field(default_factory=list)
+    output_schemas: dict[str, list[str]] = field(default_factory=dict)
+    output_grain: list[str] = field(default_factory=list)
+    tool_types: list[str] = field(default_factory=list)
+    transformation_signatures: list[str] = field(default_factory=list)
+    filters: list[str] = field(default_factory=list)
+    join_keys: list[str] = field(default_factory=list)
+    aggregations: list[str] = field(default_factory=list)
+    formulas: list[str] = field(default_factory=list)
+    has_python: bool = False
+    has_r: bool = False
+    has_macros: bool = False
+    node_count: int = 0
+    edge_count: int = 0
+    dag_depth: int = 0
+    branch_points: int = 0
+    merge_points: int = 0
+    topological_sequence: list[str] = field(default_factory=list)
+    complexity_level: str = "LOW"
+    complexity_score: float = 0.0
+    criticality_level: str = "LOW"
+    criticality_score: float = 0.0
+    downstream_consumers: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "workflow_id": self.workflow_id,
+            "workflow_name": self.workflow_name,
+            "sources": self.sources,
+            "source_types": self.source_types,
+            "source_fields": self.source_fields,
+            "production_targets": self.production_targets,
+            "inspection_sinks": self.inspection_sinks,
+            "output_schemas": self.output_schemas,
+            "output_grain": self.output_grain,
+            "tool_types": self.tool_types,
+            "transformation_signatures": self.transformation_signatures,
+            "filters": self.filters,
+            "join_keys": self.join_keys,
+            "aggregations": self.aggregations,
+            "formulas": self.formulas,
+            "has_python": self.has_python,
+            "has_r": self.has_r,
+            "has_macros": self.has_macros,
+            "node_count": self.node_count,
+            "edge_count": self.edge_count,
+            "dag_depth": self.dag_depth,
+            "branch_points": self.branch_points,
+            "merge_points": self.merge_points,
+            "topological_sequence": self.topological_sequence,
+            "complexity_level": self.complexity_level,
+            "complexity_score": self.complexity_score,
+            "criticality_level": self.criticality_level,
+            "criticality_score": self.criticality_score,
+            "downstream_consumers": self.downstream_consumers,
+        }
+
+
+@dataclass
+class WorkflowComparisonEvidence:
+    """Pairwise cross-workflow deterministic comparison evidence."""
+    workflow_a_id: str
+    workflow_a_name: str
+    workflow_b_id: str
+    workflow_b_name: str
+    metrics: DeterministicMetrics
+    shared_logic: list[str] = field(default_factory=list)
+    unique_a: list[str] = field(default_factory=list)
+    unique_b: list[str] = field(default_factory=list)
+    shared_sources: list[str] = field(default_factory=list)
+    shared_targets: list[str] = field(default_factory=list)
+    distinct_targets_a: list[str] = field(default_factory=list)
+    distinct_targets_b: list[str] = field(default_factory=list)
+    schema_differences: list[str] = field(default_factory=list)
+    grain_differences: list[str] = field(default_factory=list)
+    dependency_evidence: DependencyEvidence = field(default_factory=DependencyEvidence)
+    opportunity_score: float = 0.0
+    confidence: str = "HIGH"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "workflow_a_id": self.workflow_a_id,
+            "workflow_a_name": self.workflow_a_name,
+            "workflow_b_id": self.workflow_b_id,
+            "workflow_b_name": self.workflow_b_name,
+            "metrics": self.metrics.to_dict(),
+            "shared_logic": self.shared_logic,
+            "unique_a": self.unique_a,
+            "unique_b": self.unique_b,
+            "shared_sources": self.shared_sources,
+            "shared_targets": self.shared_targets,
+            "distinct_targets_a": self.distinct_targets_a,
+            "distinct_targets_b": self.distinct_targets_b,
+            "schema_differences": self.schema_differences,
+            "grain_differences": self.grain_differences,
+            "dependency_evidence": self.dependency_evidence.to_dict(),
+            "opportunity_score": round(self.opportunity_score, 1),
+            "confidence": self.confidence,
+        }
+
+
+@dataclass
 class RationalisationCandidate:
     """ETL Rationalisation candidate recommendation derived from deterministic signals and LLM qualification."""
     workflow_ids: list[str]
     workflow_names: list[str]
     recommendation_type: str  # CONSOLIDATE | RETIRE_CANDIDATE | SHARED_LOGIC | REVIEW
+    candidate_id: str = ""
     reasoning: str = ""
     evidence: list[str] = field(default_factory=list)
     confidence: str = "HIGH"  # HIGH | MEDIUM | LOW
+    opportunity_score: float = 0.0
+    shared_logic: list[str] = field(default_factory=list)
+    unique_functionality: dict[str, list[str]] = field(default_factory=dict)
+    proposed_strategy: str = ""
+    validation_requirements: list[str] = field(default_factory=list)
+    deterministic_metrics: DeterministicMetrics = field(default_factory=DeterministicMetrics)
+    output_evidence: OutputEvidence = field(default_factory=OutputEvidence)
+    dependency_evidence: DependencyEvidence = field(default_factory=DependencyEvidence)
+    risk_context: RiskContext = field(default_factory=RiskContext)
+    admissible_recommendations: list[str] = field(default_factory=list)
+    llm_enrichment_status: str = "DETERMINISTIC_BASELINE"
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "candidate_id": self.candidate_id or f"cand_{'_'.join(self.workflow_ids)}",
             "workflow_ids": self.workflow_ids,
             "workflow_names": self.workflow_names,
             "recommendation_type": self.recommendation_type,
+            "confidence": self.confidence,
+            "opportunity_score": round(self.opportunity_score, 1),
             "reasoning": self.reasoning,
             "evidence": self.evidence,
-            "confidence": self.confidence,
+            "shared_logic": self.shared_logic,
+            "unique_functionality": self.unique_functionality,
+            "proposed_strategy": self.proposed_strategy,
+            "validation_requirements": self.validation_requirements,
+            "deterministic_metrics": self.deterministic_metrics.to_dict() if hasattr(self.deterministic_metrics, "to_dict") else self.deterministic_metrics,
+            "output_evidence": self.output_evidence.to_dict() if hasattr(self.output_evidence, "to_dict") else self.output_evidence,
+            "dependency_evidence": self.dependency_evidence.to_dict() if hasattr(self.dependency_evidence, "to_dict") else self.dependency_evidence,
+            "risk_context": self.risk_context.to_dict() if hasattr(self.risk_context, "to_dict") else self.risk_context,
+            "admissible_recommendations": self.admissible_recommendations,
+            "llm_enrichment_status": self.llm_enrichment_status,
+        }
+
+
+@dataclass
+class RationalisationAnalysis:
+    """Full rationalisation analysis response across the portfolio."""
+    portfolio_id: str
+    candidates: list[RationalisationCandidate] = field(default_factory=list)
+    total_opportunities: int = 0
+    recommendation_counts: dict[str, int] = field(default_factory=dict)
+    analysed_workflow_count: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "portfolio_id": self.portfolio_id,
+            "candidates": [c.to_dict() for c in self.candidates],
+            "total_opportunities": self.total_opportunities,
+            "recommendation_counts": self.recommendation_counts,
+            "analysed_workflow_count": self.analysed_workflow_count,
         }
 
 

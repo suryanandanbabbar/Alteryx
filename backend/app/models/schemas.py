@@ -347,13 +347,68 @@ class WorkflowRelationshipDTO(BaseModel):
     evidence: list[str] = Field(default_factory=list)
 
 
+class DeterministicMetricsDTO(BaseModel):
+    source_overlap: float = 0.0
+    target_overlap: float = 0.0
+    transformation_similarity: float = 0.0
+    schema_similarity: float = 0.0
+    grain_similarity: float = 0.0
+    dag_similarity: float = 0.0
+
+
+class RiskContextDTO(BaseModel):
+    complexity_by_workflow: dict[str, str] = Field(default_factory=dict)
+    criticality_by_workflow: dict[str, str] = Field(default_factory=dict)
+    risk_level: str = "LOW"
+    risk_notes: list[str] = Field(default_factory=list)
+
+
+class OutputEvidenceDTO(BaseModel):
+    production_targets: dict[str, list[str]] = Field(default_factory=dict)
+    inspection_sinks: dict[str, list[str]] = Field(default_factory=dict)
+    output_schemas: dict[str, list[str]] = Field(default_factory=dict)
+    output_grains: dict[str, list[str]] = Field(default_factory=dict)
+    is_equivalent_target: bool = False
+    is_equivalent_schema: bool = False
+    is_equivalent_grain: bool = False
+
+
+class DependencyEvidenceDTO(BaseModel):
+    downstream_consumers: dict[str, list[str]] = Field(default_factory=dict)
+    upstream_producers: dict[str, list[str]] = Field(default_factory=dict)
+    shared_sources: list[str] = Field(default_factory=list)
+    shared_targets: list[str] = Field(default_factory=list)
+    dependency_status: str = "NOT_FOUND_IN_PORTFOLIO"
+    dependency_notes: str = ""
+
+
 class RationalisationCandidateDTO(BaseModel):
+    candidate_id: str = ""
     workflow_ids: list[str]
     workflow_names: list[str]
-    recommendation_type: str
+    recommendation_type: Literal["CONSOLIDATE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW", "NO_ACTION"]
+    confidence: Literal["HIGH", "MEDIUM", "LOW"] = "HIGH"
+    opportunity_score: float = 0.0
     reasoning: str = ""
     evidence: list[str] = Field(default_factory=list)
-    confidence: str = "HIGH"
+    shared_logic: list[str] = Field(default_factory=list)
+    unique_functionality: dict[str, list[str]] = Field(default_factory=dict)
+    proposed_strategy: str = ""
+    validation_requirements: list[str] = Field(default_factory=list)
+    deterministic_metrics: DeterministicMetricsDTO = Field(default_factory=DeterministicMetricsDTO)
+    output_evidence: OutputEvidenceDTO = Field(default_factory=OutputEvidenceDTO)
+    dependency_evidence: DependencyEvidenceDTO = Field(default_factory=DependencyEvidenceDTO)
+    risk_context: RiskContextDTO = Field(default_factory=RiskContextDTO)
+    admissible_recommendations: list[str] = Field(default_factory=list)
+    llm_enrichment_status: str = "DETERMINISTIC_BASELINE"
+
+
+class RationalisationAnalysisDTO(BaseModel):
+    portfolio_id: str
+    candidates: list[RationalisationCandidateDTO] = Field(default_factory=list)
+    total_opportunities: int = 0
+    recommendation_counts: dict[str, int] = Field(default_factory=dict)
+    analysed_workflow_count: int = 0
 
 
 class SharedDatasetDTO(BaseModel):

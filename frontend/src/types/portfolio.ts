@@ -67,13 +67,68 @@ export interface WorkflowRelationshipDTO {
   evidence: string[];
 }
 
+export interface DeterministicMetricsDTO {
+  source_overlap: number;
+  target_overlap: number;
+  transformation_similarity: number;
+  schema_similarity: number;
+  grain_similarity: number;
+  dag_similarity: number;
+}
+
+export interface RiskContextDTO {
+  complexity_by_workflow: Record<string, string>;
+  criticality_by_workflow: Record<string, string>;
+  risk_level: 'HIGH' | 'MEDIUM' | 'LOW';
+  risk_notes: string[];
+}
+
+export interface OutputEvidenceDTO {
+  production_targets: Record<string, string[]>;
+  inspection_sinks: Record<string, string[]>;
+  output_schemas: Record<string, string[]>;
+  output_grains: Record<string, string[]>;
+  is_equivalent_target: boolean;
+  is_equivalent_schema: boolean;
+  is_equivalent_grain: boolean;
+}
+
+export interface DependencyEvidenceDTO {
+  downstream_consumers: Record<string, string[]>;
+  upstream_producers: Record<string, string[]>;
+  shared_sources: string[];
+  shared_targets: string[];
+  dependency_status: string;
+  dependency_notes: string;
+}
+
 export interface RationalisationCandidateDTO {
+  candidate_id: string;
   workflow_ids: string[];
   workflow_names: string[];
-  recommendation_type: 'CONSOLIDATE' | 'RETIRE_CANDIDATE' | 'SHARED_LOGIC' | 'REVIEW';
+  recommendation_type: 'CONSOLIDATE' | 'RETIRE_CANDIDATE' | 'SHARED_LOGIC' | 'REVIEW' | 'NO_ACTION';
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  opportunity_score: number;
   reasoning: string;
   evidence: string[];
-  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  shared_logic: string[];
+  unique_functionality: Record<string, string[]>;
+  proposed_strategy: string;
+  validation_requirements: string[];
+  deterministic_metrics: DeterministicMetricsDTO;
+  output_evidence: OutputEvidenceDTO;
+  dependency_evidence: DependencyEvidenceDTO;
+  risk_context: RiskContextDTO;
+  admissible_recommendations: string[];
+  llm_enrichment_status: string;
+}
+
+export interface RationalisationAnalysisDTO {
+  portfolio_id: string;
+  candidates: RationalisationCandidateDTO[];
+  total_opportunities: number;
+  recommendation_counts: Record<string, number>;
+  analysed_workflow_count: number;
 }
 
 export interface SharedDatasetDTO {

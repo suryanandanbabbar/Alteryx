@@ -7,7 +7,7 @@ import {
   DiagramDTO,
   PythonOutputDTO,
 } from '../types/workflow';
-import { PortfolioOverviewDTO } from '../types/portfolio';
+import { PortfolioOverviewDTO, RationalisationAnalysisDTO } from '../types/portfolio';
 
 const BASE_URL = '/api';
 
@@ -95,6 +95,11 @@ export const api = {
     return handleResponse<AnalysisOverviewDTO>(res);
   },
 
+  async getPortfolioRationalisation(portfolioId: string, useLlm: boolean = true): Promise<RationalisationAnalysisDTO> {
+    const res = await fetch(`${BASE_URL}/portfolio/${portfolioId}/rationalisation?use_llm=${useLlm}`);
+    return handleResponse<RationalisationAnalysisDTO>(res);
+  },
+
   async getOverview(analysisId: string): Promise<AnalysisOverviewDTO> {
     const res = await fetch(`${BASE_URL}/analysis/${analysisId}/overview`);
     return handleResponse<AnalysisOverviewDTO>(res);
@@ -160,3 +165,6 @@ export const api = {
     window.URL.revokeObjectURL(blobUrl);
   },
 };
+
+export const apiClient = api;
+
