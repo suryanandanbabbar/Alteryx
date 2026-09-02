@@ -213,12 +213,35 @@ class AzureLlamaClient(LLMClient):
                 logger.warning("[LLM] generation response contained no choices")
                 return None
 
-            first_choice = choices[0]
-            message = first_choice.get("message", {})
-            content = message.get("content") or ""
+            first_choice = choices[0] if isinstance(choices, list) and choices else {}
+            message = first_choice.get("message", {}) if isinstance(first_choice, dict) else {}
+            content = message.get("content") if isinstance(message, dict) else None
+            if content is None and isinstance(first_choice, dict):
+                content = first_choice.get("text")
 
-            logger.info("[LLM] response received HTTP status=200 choices=1")
-            return str(content).strip() if content else None
+            # Handle multi-part content list (e.g. [{"type": "text", "text": "..."}])
+            if isinstance(content, list):
+                parts = []
+                for p in content:
+                    if isinstance(p, dict):
+                        parts.append(p.get("text") or p.get("content") or "")
+                    elif isinstance(p, str):
+                        parts.append(p)
+                content_str = "".join(parts).strip()
+            elif isinstance(content, dict):
+                content_str = json.dumps(content)
+            elif content:
+                content_str = str(content).strip()
+            else:
+                content_str = ""
+
+            logger.info(
+                "[LLM] response received HTTP status=200 choices=%d content_type=%s length=%d",
+                len(choices),
+                type(content).__name__ if content is not None else "None",
+                len(content_str),
+            )
+            return content_str if content_str else None
 
         except urllib.error.HTTPError as e:
             error_body = ""

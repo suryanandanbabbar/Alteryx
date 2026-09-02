@@ -218,11 +218,15 @@ class WorkflowFacts:
     major_transformations: list[str] = dc_field(default_factory=list)
     business_rules: list[str] = dc_field(default_factory=list)
     business_outputs: list[dict[str, Any]] = dc_field(default_factory=list)
+    key_calculations: list[str] = dc_field(default_factory=list)
+    filtering_criteria: list[str] = dc_field(default_factory=list)
+    joins_and_merges: list[str] = dc_field(default_factory=list)
+    aggregations: list[str] = dc_field(default_factory=list)
     one_line_purpose: str = ""
     why_it_matters: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "workflow_name": self.name,
             "workflow_version": self.version,
             "description": self.description,
@@ -232,9 +236,20 @@ class WorkflowFacts:
             "major_transformations": self.major_transformations,
             "business_rules": self.business_rules,
             "business_outputs": self.business_outputs,
-            "one_line_purpose": self.one_line_purpose,
-            "why_it_matters": self.why_it_matters,
         }
+        if self.key_calculations:
+            d["key_calculations"] = self.key_calculations
+        if self.filtering_criteria:
+            d["filtering_criteria"] = self.filtering_criteria
+        if self.joins_and_merges:
+            d["joins_and_merges"] = self.joins_and_merges
+        if self.aggregations:
+            d["aggregations"] = self.aggregations
+        if self.one_line_purpose:
+            d["one_line_purpose"] = self.one_line_purpose
+        if self.why_it_matters:
+            d["why_it_matters"] = self.why_it_matters
+        return d
 
 
 @dataclass

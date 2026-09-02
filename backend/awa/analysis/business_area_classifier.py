@@ -409,7 +409,7 @@ def compose_deterministic_business_purpose(
             cat = getattr(r, "category", "")
             if cat and cat.lower() not in rule_cats:
                 rule_cats.append(cat.lower())
-    rule_str = f"applying {', '.join(rule_cats[:2])} business rules" if rule_cats else "applying automated transformation logic"
+    rule_str = f"{', '.join(rule_cats[:2])} business rules" if rule_cats else "automated transformation logic"
 
     # Published deliverables
     out_names: list[str] = []
@@ -428,27 +428,54 @@ def compose_deterministic_business_purpose(
                 if fp_clean and len(fp_clean) > 2 and fp_clean not in out_names:
                     out_names.append(fp_clean)
 
-    out_deliverable_str = f"{', '.join(out_names[:3])} reporting deliverables" if out_names else "standardized analytical outputs"
+    out_deliverable_str = f"{', '.join(out_names[:2])} deliverable" if out_names else "analytical deliverables"
 
-    # 3. Assemble polished contextual narrative (~40-75 words)
+    # Concrete processing actions from transformations
+    trans_actions: list[str] = []
+    if business_summary and getattr(business_summary, "transformations", None):
+        cats = {t.category.lower() for t in business_summary.transformations if getattr(t, "category", None)}
+        if any("join" in c or "enrich" in c for c in cats):
+            trans_actions.append("combines multi-source records")
+        if any("filter" in c or "select" in c for c in cats):
+            trans_actions.append("filters relevant populations")
+        if any("calc" in c or "deriv" in c for c in cats):
+            trans_actions.append("calculates derived measures")
+        if any("aggregat" in c or "sum" in c for c in cats):
+            trans_actions.append("aggregates category totals")
+
+    proc_clause = f"It {', '.join(trans_actions[:2])}, enforces {rule_str}," if trans_actions else f"It integrates source records, enforces {rule_str},"
+
+    # Domain-specific operational outcome
+    if business_area == "Underwriting":
+        outcome_str = "to provide standardized risk evaluation criteria for underwriting policy decisions"
+    elif business_area == "Claims & Risk":
+        outcome_str = "to produce validated loss records that support claim adjudication and reserve accounting"
+    elif business_area == "Sales & Distribution":
+        outcome_str = "to deliver structured performance measures that support sales distribution and reporting"
+    elif business_area == "Legal":
+        outcome_str = "to generate structured compliance records that support legal review and reporting"
+    else:
+        outcome_str = "to produce structured operational outputs that support subsequent business processing"
+
+    # 3. Assemble polished Executive Business Summary (~40-75 words)
     if business_area in ("Underwriting", "Claims & Risk", "Sales & Distribution", "Legal"):
         return (
-            f"Supports {func.lower()} by {inp_str} to reconcile and standardize operational data across "
-            f"{stage_count} processing stages. It enforces {rule_str}, performing multi-source transformations "
-            f"to publish {out_deliverable_str} for enterprise decision support."
+            f"The workflow supports {func.lower()} by {inp_str}. "
+            f"{proc_clause} and produces the {out_deliverable_str} "
+            f"{outcome_str}."
         )
     else:
         # Technical utility or unclassified
         if inp_names or out_names:
             return (
-                f"Automates operational data preparation and transformation by {inp_str} across {stage_count} "
-                f"processing stages. It executes {rule_str} and publishes {out_deliverable_str}; specific enterprise "
-                f"business function could not be fully determined from workflow metadata."
+                f"The workflow executes operational data preparation by {inp_str}. "
+                f"{proc_clause} and produces the {out_deliverable_str} "
+                f"to support downstream operational processing."
             )
         return (
-            f"Automates operational data transformation and record preparation across {stage_count} "
-            f"processing stages. Primary enterprise business domain could not be fully determined "
-            f"from available workflow metadata and deliverable definitions."
+            f"The workflow performs automated operational data processing across {stage_count} processing stages. "
+            f"Available workflow configuration does not specify external input datasets or persistent destination deliverables, "
+            f"executing localized internal transformation logic."
         )
 
 

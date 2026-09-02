@@ -269,6 +269,44 @@ def extract_workflow_facts(workflow: Workflow, business_summary: WorkflowBusines
         for out in business_summary.business_outputs
     ]
 
+    key_calculations: list[str] = []
+    filtering_criteria: list[str] = []
+    joins_and_merges: list[str] = []
+    aggregations: list[str] = []
+
+    if workflow and hasattr(workflow, "tools") and workflow.tools:
+        for tool in workflow.tools.values():
+            cfg = getattr(tool.configuration, "parsed", {}) or {}
+            if tool.tool_type in ("Formula", "MultiFieldFormula"):
+                for ff in cfg.get("formula_fields", []):
+                    f_name = ff.get("field")
+                    f_expr = ff.get("expression")
+                    if f_name:
+                        desc = f"Calculates '{f_name}'" + (f" using formula: {f_expr[:80]}" if f_expr else "")
+                        if desc not in key_calculations:
+                            key_calculations.append(desc)
+            elif tool.tool_type == "Filter":
+                expr = cfg.get("expression") or cfg.get("Expression") or cfg.get("filter_predicate") or ""
+                if expr and len(str(expr)) > 2:
+                    desc = f"Filters records where: {str(expr)[:100]}"
+                    if desc not in filtering_criteria:
+                        filtering_criteria.append(desc)
+            elif tool.tool_type == "Join":
+                left_k = cfg.get("left_keys") or []
+                right_k = cfg.get("right_keys") or []
+                if left_k or right_k:
+                    desc = f"Joins records on left key {left_k} = right key {right_k}"
+                    if desc not in joins_and_merges:
+                        joins_and_merges.append(desc)
+            elif tool.tool_type == "Summarize":
+                for sf in cfg.get("summarize_fields", []):
+                    fld = sf.get("field", "")
+                    act = sf.get("action", "")
+                    if fld and act:
+                        desc = f"Aggregates {fld} ({act})"
+                        if desc not in aggregations:
+                            aggregations.append(desc)
+
     return WorkflowFacts(
         name=workflow.metadata.name or "Alteryx Workflow",
         version=workflow.metadata.version or "2024.1",
@@ -279,6 +317,10 @@ def extract_workflow_facts(workflow: Workflow, business_summary: WorkflowBusines
         major_transformations=major_trans,
         business_rules=rules,
         business_outputs=outputs,
+        key_calculations=key_calculations[:5],
+        filtering_criteria=filtering_criteria[:5],
+        joins_and_merges=joins_and_merges[:5],
+        aggregations=aggregations[:5],
         one_line_purpose=business_summary.one_line_purpose or "",
         why_it_matters=business_summary.why_it_matters or "",
     )
@@ -482,9 +524,88 @@ DISALLOWED_PURPOSE_INDICATORS: tuple[str, ...] = (
     "```",
 )
 
+BANNED_PURPOSE_BUZZWORDS: tuple[str, ...] = (
+    "leverages data",
+    "leveraging data",
+    "leverage data",
+    "streamlines processes",
+    "streamline processes",
+    "streamlining processes",
+    "streamlines business processes",
+    "streamline business processes",
+    "enhances efficiency",
+    "enhance efficiency",
+    "enhancing efficiency",
+    "improves efficiency",
+    "improving efficiency",
+    "improve efficiency",
+    "drives insights",
+    "driving insights",
+    "drive insights",
+    "actionable insights",
+    "provides actionable insights",
+    "valuable insights",
+    "provides valuable insights",
+    "key insights",
+    "supports informed decision-making",
+    "support informed decision-making",
+    "informed decision-making",
+    "informed decisions",
+    "improves operational efficiency",
+    "improve operational efficiency",
+    "operational efficiency",
+    "creates business value",
+    "creating business value",
+    "create business value",
+    "business value",
+    "optimizes operations",
+    "optimizing operations",
+    "optimize operations",
+    "facilitates strategic decisions",
+    "facilitate strategic decisions",
+    "strategic decisions",
+    "ensures data-driven decisions",
+    "ensure data-driven decisions",
+    "data-driven decisions",
+    "transforms raw data into actionable intelligence",
+    "actionable intelligence",
+)
 
-def _is_clean_business_purpose(text: str | None) -> bool:
-    """Validate that text is a concise, polished business purpose and not LLM reasoning, analysis, or prompt text."""
+GENERIC_PURPOSE_FILLER_PATTERNS: tuple[str, ...] = (
+    "processes operational data to generate business deliverables and decision outputs",
+    "processes data to generate business deliverables",
+    "processes data and generates analytical outputs",
+    "processes data to support decision-making",
+    "transforms data to support informed decision-making",
+    "transforms data to support",
+    "automates data processing to generate business deliverables",
+    "to generate business deliverables and decision outputs",
+    "generate business deliverables and decision outputs",
+    "data processing to generate business deliverables",
+    "automates underwriting data processing",
+    "automates claims data processing",
+    "automates sales data processing",
+    "processes operational data to generate",
+)
+
+
+def _is_clean_business_purpose(
+    text: str | None,
+    facts: WorkflowFacts | None = None,
+) -> bool:
+    """Validate that text is a concise, evidence-grounded Executive Business Summary.
+
+    Rejects:
+    - Non-string, empty, or whitespace-only inputs
+    - Raw JSON, code blocks, markdown headers, bulleted lists, or multiple paragraphs
+    - Word counts outside 20 to 160 words (target: ~75-120 words)
+    - Prompt leakage or classification hierarchy reasoning ('tier 1', etc.)
+    - Conversational lead-ins ('here is', 'based on the facts', etc.)
+    - Banned corporate buzzwords ('leverages data', 'actionable insights', etc.)
+    - Generic filler without concrete processing details ('processes data to support decision-making')
+    - Tool ID dumping without business translation ('Tool #1', 'Tool_')
+    - Unsupported claims (e.g. customer or statutory claims without evidence in facts)
+    """
     if not text or not isinstance(text, str):
         return False
 
@@ -497,15 +618,17 @@ def _is_clean_business_purpose(text: str | None) -> bool:
         return False
     if "```" in cleaned:
         return False
-    if "\n\n" in cleaned or "\n#" in cleaned or "\n- " in cleaned or "\n1. " in cleaned:
+    if "\n\n" in cleaned or "\n#" in cleaned or "\n- " in cleaned or "\n1. " in cleaned or "\n* " in cleaned:
         return False
 
-    # Word count: strictly one polished paragraph ~40-75 words; reject verbose reasoning dumps (> 110 words)
+    # Word count: reject < 5 words (trivial fragments) or > 160 words (rambling reasoning dumps)
     words = cleaned.split()
-    if len(words) < 5 or len(words) > 110:
+    if len(words) < 5 or len(words) > 160:
         return False
 
     lower_text = cleaned.lower()
+
+    # Disallow prompt leakage and classification indicators
     for indicator in DISALLOWED_PURPOSE_INDICATORS:
         if indicator in lower_text:
             return False
@@ -519,6 +642,43 @@ def _is_clean_business_purpose(text: str | None) -> bool:
     for start in disallowed_starts:
         if lower_text.startswith(start):
             return False
+
+    # Disallow banned buzzwords
+    for bw in BANNED_PURPOSE_BUZZWORDS:
+        if bw in lower_text:
+            return False
+
+    # Disallow generic filler patterns
+    for gf in GENERIC_PURPOSE_FILLER_PATTERNS:
+        if gf in lower_text:
+            return False
+
+    # Disallow raw tool ID dumping without business translation (e.g. "tool #1", "tool_3")
+    if re.search(r"\btool\s*#\d+\b", lower_text) or re.search(r"\btool_\d+\b", lower_text):
+        return False
+
+    # Evidence grounding checks (when facts package is available)
+    if facts is not None:
+        facts_text = (
+            f"{facts.name} {facts.description} {facts.one_line_purpose} {facts.why_it_matters} "
+            f"{' '.join(str(i) for i in facts.source_inputs)} "
+            f"{' '.join(str(o) for o in facts.business_outputs)}"
+        ).lower()
+
+        # Check for hallucinated financial dollar figures
+        if re.search(r"\$\d+", lower_text):
+            if not re.search(r"\$\d+", facts_text):
+                return False
+
+        # Check for hallucinated strict SLA / sub-second execution promises
+        if any(sla in lower_text for sla in ("strict sla", "24/7", "sub-second", "real-time execution")):
+            if not any(sla in facts_text for sla in ("sla", "real-time", "24/7")):
+                return False
+
+        # Check for hallucinated specific regulatory acts / statutory mandates
+        if any(reg in lower_text for reg in ("statutory mandate", "regulatory mandate", "dodd-frank", "sox compliance", "hipaa")):
+            if not any(reg in facts_text for reg in ("statutory", "regulatory", "compliance", "sec", "naic", "sox", "hipaa")):
+                return False
 
     return True
 
@@ -572,34 +732,162 @@ def _extract_structured_purpose_payload(raw_response: str | None) -> dict[str, A
     return None
 
 
-def _extract_structured_criticality_payload(raw_response: str | None) -> dict[str, Any] | None:
-    """Extract structured JSON payload containing criticality_score and criticality_level."""
-    if not raw_response or not isinstance(raw_response, str):
+KNOWN_CONTAINER_KEYS: tuple[str, ...] = (
+    "criticality_assessment",
+    "assessment",
+    "criticality",
+    "result",
+    "output",
+    "response",
+    "data",
+)
+
+BANNED_CRITICALITY_BOILERPLATE: tuple[str, ...] = (
+    "minimal operational blast radius",
+    "manageable blast radius",
+    "blast radius",
+    "core deliverables",
+    "standard production role",
+    "localized operational impact",
+)
+
+
+def _normalize_criticality_dict(d: dict[str, Any]) -> dict[str, Any] | None:
+    """Normalize and unwrap known container keys and key casings if structurally complete."""
+    if not isinstance(d, dict):
+        return None
+
+    # 1. If wrapped in known container key, unwrap first
+    for k in KNOWN_CONTAINER_KEYS:
+        if k in d and isinstance(d[k], dict):
+            sub = _normalize_criticality_dict(d[k])
+            if sub is not None:
+                return sub
+
+    # 2. Extract and normalize fields
+    score = d.get("criticality_score")
+    if score is None:
+        score = d.get("criticalityScore")
+    if score is None and ("criticality_level" in d or "criticalityLevel" in d or "level" in d):
+        score = d.get("score")
+
+    level = d.get("criticality_level") or d.get("criticalityLevel") or d.get("level")
+    justification = (
+        d.get("criticality_justification")
+        or d.get("criticalityJustification")
+        or d.get("justification")
+    )
+
+    # Must be structurally complete with at least score, level, and justification
+    if score is None or level is None or justification is None:
+        return None
+
+    # Normalize score if string representation of float/int
+    if isinstance(score, str):
+        try:
+            score = float(score.split("/")[0].strip())
+        except (ValueError, TypeError):
+            return None
+    elif not isinstance(score, (int, float)):
+        return None
+
+    if math.isnan(score) or math.isinf(score):
+        return None
+
+    normalized = dict(d)
+    normalized["criticality_score"] = float(score)
+    normalized["criticality_level"] = str(level).strip().upper()
+    normalized["criticality_justification"] = str(justification).strip()
+
+    # Normalize remaining expected prose keys if camelCased or aliased
+    if "business_consequence" not in normalized:
+        normalized["business_consequence"] = d.get("businessConsequence") or d.get("consequence") or ""
+    if "dependency_impact" not in normalized:
+        normalized["dependency_impact"] = d.get("dependencyImpact") or ""
+    if "affected_scope" not in normalized:
+        normalized["affected_scope"] = d.get("affectedScope") or d.get("scope") or ""
+    if "migration_implication" not in normalized:
+        normalized["migration_implication"] = d.get("migrationImplication") or ""
+    if "factor_assessments" not in normalized:
+        normalized["factor_assessments"] = d.get("factorAssessments") or d.get("factors") or {}
+
+    return normalized
+
+
+def _try_parse_json_candidate(candidate_str: str) -> dict[str, Any] | None:
+    """Attempt to parse a candidate JSON string, with safe isolated trailing comma repair."""
+    s = candidate_str.strip()
+    if not (s.startswith("{") and s.endswith("}")):
+        return None
+
+    # Step A: Direct standard json.loads
+    try:
+        obj = json.loads(s)
+        if isinstance(obj, dict):
+            norm = _normalize_criticality_dict(obj)
+            if norm is not None:
+                return norm
+    except Exception:
+        pass
+
+    # Step B: Safe trailing comma repair isolated strictly to this candidate block
+    try:
+        repaired = re.sub(r",\s*([\]}])", r"\1", s)
+        obj = json.loads(repaired)
+        if isinstance(obj, dict):
+            norm = _normalize_criticality_dict(obj)
+            if norm is not None:
+                return norm
+    except Exception:
+        pass
+
+    return None
+
+
+def _extract_structured_criticality_payload(raw_response: Any) -> dict[str, Any] | None:
+    """Extract structured JSON payload containing complete criticality assessment fields."""
+    if raw_response is None:
+        return None
+
+    # If already a dictionary
+    if isinstance(raw_response, dict):
+        return _normalize_criticality_dict(raw_response)
+
+    # If wrapper object with .content or .text
+    if hasattr(raw_response, "content") and isinstance(getattr(raw_response, "content"), (str, dict)):
+        return _extract_structured_criticality_payload(getattr(raw_response, "content"))
+    if hasattr(raw_response, "text") and isinstance(getattr(raw_response, "text"), (str, dict)):
+        return _extract_structured_criticality_payload(getattr(raw_response, "text"))
+
+    if not isinstance(raw_response, str):
         return None
 
     text = raw_response.strip()
     if not text:
         return None
 
-    # 1. Direct parse if response is clean JSON
-    try:
-        parsed = json.loads(text)
-        if isinstance(parsed, dict) and "criticality_score" in parsed:
-            return parsed
-    except Exception:
-        pass
+    # Handle <think> tags if emitted by reasoning models
+    if "<think>" in text.lower() and "</think>" in text.lower():
+        text_after_think = re.sub(r"^[\s\S]*?</think>\s*", "", text, flags=re.IGNORECASE).strip()
+        if text_after_think:
+            res = _try_parse_json_candidate(text_after_think)
+            if res is not None:
+                return res
+            text = text_after_think
+
+    # 1. Direct candidate check if entire string is JSON
+    res = _try_parse_json_candidate(text)
+    if res is not None:
+        return res
 
     # 2. Extract from markdown code blocks
     code_blocks = re.findall(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
     for block in code_blocks:
-        try:
-            parsed = json.loads(block.strip())
-            if isinstance(parsed, dict) and "criticality_score" in parsed:
-                return parsed
-        except Exception:
-            pass
+        res = _try_parse_json_candidate(block.strip())
+        if res is not None:
+            return res
 
-    # 3. Progressive JSON scanning
+    # 3. Progressive JSON scanning using JSONDecoder on balanced { ... } candidates
     decoder = json.JSONDecoder()
     pos = 0
     while True:
@@ -608,8 +896,10 @@ def _extract_structured_criticality_payload(raw_response: str | None) -> dict[st
             break
         try:
             obj, end = decoder.raw_decode(text, idx=start)
-            if isinstance(obj, dict) and "criticality_score" in obj:
-                return obj
+            if isinstance(obj, dict):
+                norm = _normalize_criticality_dict(obj)
+                if norm is not None:
+                    return norm
             pos = end
         except Exception:
             pos = start + 1
@@ -630,7 +920,7 @@ def _validate_criticality_assessment(
         return False, f"Missing or non-numeric criticality_score: {raw_score}"
 
     score = float(raw_score)
-    if score < 0.0 or score > 100.0:
+    if math.isnan(score) or math.isinf(score) or score < 0.0 or score > 100.0:
         return False, f"criticality_score out of range [0, 100]: {score}"
 
     level = str(parsed.get("criticality_level", "")).upper()
@@ -659,7 +949,7 @@ def _validate_criticality_assessment(
     if len(justification.split()) < 15:
         return False, f"criticality_justification too short: {len(justification.split())} words"
 
-    # 3. Anti-hallucination / Prompt Leakage / Generic Boilerplate
+    # 3. Anti-hallucination / Prompt Leakage / Banned Boilerplate
     lower_just = justification.lower()
     leakage_terms = [
         "tier 1", "tier 2", "tier 3", "prompt version", "as an ai", "system prompt",
@@ -668,6 +958,10 @@ def _validate_criticality_assessment(
     for lt in leakage_terms:
         if lt in lower_just:
             return False, f"Detected leakage term '{lt}' in justification"
+
+    for bp in BANNED_CRITICALITY_BOILERPLATE:
+        if bp in lower_just:
+            return False, f"Detected banned boilerplate phrase '{bp}' in justification"
 
     generic_fillers = [
         "this workflow is very important to the business",
@@ -686,8 +980,8 @@ def _validate_criticality_assessment(
     downstream_fa = factors.get("downstream_dependency")
     if isinstance(downstream_fa, dict):
         fa_rating = str(downstream_fa.get("assessment", "")).upper()
-        if fa_rating == "HIGH" and not evidence.downstream_consumers:
-            return False, "downstream_dependency assessed as HIGH but workflow has 0 downstream consumers in evidence"
+        if fa_rating in ("HIGH", "MEDIUM") and not evidence.downstream_consumers:
+            return False, "downstream_dependency assessed as HIGH/MEDIUM but workflow has 0 downstream consumers in evidence"
 
     cust_fa = factors.get("customer_impact")
     if isinstance(cust_fa, dict):
@@ -695,6 +989,9 @@ def _validate_criticality_assessment(
         if fa_rating == "HIGH" and not any(
             "customer" in s.lower() or "claimant" in s.lower() or "policyholder" in s.lower()
             for s in evidence.semantic_impact_signals
+        ) and not any(
+            w in (evidence.business_purpose or "").lower() or w in (evidence.business_function or "").lower()
+            for w in ("customer", "claimant", "policyholder")
         ):
             return False, "customer_impact assessed as HIGH without customer/claimant impact signals in evidence"
 
@@ -704,6 +1001,9 @@ def _validate_criticality_assessment(
         if fa_rating == "HIGH" and not any(
             "client" in s.lower() or "broker" in s.lower() or "agent" in s.lower()
             for s in evidence.semantic_impact_signals
+        ) and not any(
+            w in (evidence.business_purpose or "").lower() or w in (evidence.business_function or "").lower()
+            for w in ("client", "broker", "agent", "producer", "distributor")
         ):
             return False, "client_impact assessed as HIGH without client/broker/partner signals in evidence"
 
@@ -756,7 +1056,7 @@ def compose_deterministic_criticality_fallback(
     else:
         rating = "LOW"
         ev_str = "No downstream workflow consumers detected"
-        rat_str = "Blast radius is confined to this workflow."
+        rat_str = "Operational impact is confined to this workflow."
     factor_assessments["downstream_dependency"] = FactorAssessment("downstream_dependency", rating, ev_str, rat_str)
 
     # 3. output_consumers
@@ -778,7 +1078,7 @@ def compose_deterministic_criticality_fallback(
     pos = evidence.dependency_position
     if pos == "Midstream Integration Hub":
         rating = "HIGH"
-        rat_str = "Critical midstream pipeline juncture; failure impacts both upstream intake and downstream consumers."
+        rat_str = "Midstream juncture; failure interrupts both upstream intake and downstream consumers."
     elif pos == "Upstream Root Producer":
         rating = "HIGH"
         rat_str = "Foundational root producer feeding downstream processes."
@@ -826,7 +1126,7 @@ def compose_deterministic_criticality_fallback(
     else:
         rating = "NOT_ESTABLISHED"
         ev_str = "Specific enterprise breadth not documented in metadata"
-        rat_str = "Assumed localized or departmental operational scope."
+        rat_str = "Localized or departmental operational scope."
     factor_assessments["business_scope"] = FactorAssessment("business_scope", rating, ev_str, rat_str)
 
     # 8. customer_impact
@@ -864,38 +1164,83 @@ def compose_deterministic_criticality_fallback(
         rat_str = "SLA, schedule, and ownership are not established."
     factor_assessments["operational_context"] = FactorAssessment("operational_context", rating, ev_str, rat_str)
 
-    # Synthesize concise, business-facing prose
-    targets_desc = ", ".join(evidence.production_targets[:2]) if evidence.production_targets else "operational outputs"
+    # Synthesize concise, evidence-grounded business prose (NO blast radius boilerplate)
+    targets_desc = ", ".join(evidence.production_targets[:2]) if evidence.production_targets else ""
+    consumers_desc = ", ".join(evidence.downstream_consumers[:2]) if evidence.downstream_consumers else ""
+    func_desc = evidence.business_function or "data transformation"
+
     if level == "HIGH":
-        justification = (
-            f"This workflow operates as a high-criticality business asset ({evidence.dependency_position}), "
-            f"driven by {len(evidence.downstream_consumers) and 'downstream workflow dependencies' or 'critical production deliverables'}. "
-            f"Disruption would propagate across dependent processes and interrupt delivery of core deliverables ({targets_desc})."
+        if consumers_desc and targets_desc:
+            justification = (
+                f"The workflow performs critical {func_desc}, generating {targets_desc}. "
+                f"It feeds downstream workflows including {consumers_desc}, meaning interruption directly halts dependent operations. "
+                f"The combination of production deliverables and downstream dependencies justifies a High criticality rating."
+            )
+        elif targets_desc:
+            justification = (
+                f"The workflow supports essential {func_desc} by producing {targets_desc}. "
+                f"Although downstream workflow consumers are not detected in the portfolio, the output represents a primary business deliverable. "
+                f"The business consequence of delayed or missing deliverables establishes High operational significance."
+            )
+        else:
+            justification = (
+                f"The workflow performs high-priority {func_desc}. "
+                f"Interruption would create immediate disruption to related business activities, supporting a High criticality assessment."
+            )
+        consequence = (
+            f"Failure to execute halts delivery of {targets_desc or 'key deliverables'}, "
+            f"causing downstream delays and requiring operational intervention."
         )
-        consequence = f"Failure to execute halts generation of critical deliverables ({targets_desc}), creating operational delays across dependent business processes."
-        migration = "High-priority migration asset. Downstream consumer interfaces and data contracts must be validated and tested prior to cutover."
+        migration = (
+            "High-priority migration component. Ensure output schemas, database interfaces, and upstream dependencies are rigorously tested before cutover."
+        )
     elif level == "MEDIUM":
-        justification = (
-            f"This workflow fulfills a standard production role generating operational deliverables ({targets_desc}). "
-            f"While it maintains localized operational importance, available evidence indicates manageable blast radius "
-            f"without multi-hop dependency disruption."
+        if targets_desc and consumers_desc:
+            justification = (
+                f"The workflow supports {func_desc}, producing {targets_desc} for downstream consumption by {consumers_desc}. "
+                f"While interruption causes bounded disruption to those dependents, it does not create enterprise-wide propagation, justifying a Medium rating."
+            )
+        elif targets_desc:
+            justification = (
+                f"The workflow produces operational deliverable {targets_desc} supporting {func_desc}. "
+                f"Because no downstream portfolio workflows consume this output directly, operational impact is localized to the immediate business deliverable."
+            )
+        else:
+            justification = (
+                f"The workflow provides intermediate data preparation supporting {func_desc}. "
+                f"Operational impact remains moderate and bounded to localized processing schedules."
+            )
+        consequence = (
+            f"Failure delays scheduled generation of {targets_desc or 'operational outputs'}, "
+            f"requiring manual reprocessing without halting multi-hop pipeline processes."
         )
-        consequence = f"Failure would delay generation of scheduled operational deliverables ({targets_desc}), requiring manual reconciliation or reprocessing."
-        migration = "Standard migration candidate. Preserve output schemas and verify input source availability prior to deployment."
-    else:
-        justification = (
-            f"This workflow exhibits minimal operational blast radius with no detected downstream dependencies or shared enterprise outputs. "
-            f"Interruption would remain confined to local informational execution without cascading impact across the portfolio."
+        migration = (
+            "Standard migration priority. Validate source data connections and deliverable destinations during migration testing."
         )
-        consequence = "Failure would impact local informational reporting without disrupting upstream feeds or downstream business consumers."
-        migration = "Low-risk migration candidate. Well-suited for standard conversion or consolidation review."
+    else:  # LOW
+        if targets_desc:
+            justification = (
+                f"The workflow generates {targets_desc} for localized informational review supporting {func_desc}. "
+                f"With zero downstream workflow dependencies, an execution failure remains isolated to this process without cascading disruption."
+            )
+        else:
+            justification = (
+                f"The workflow performs exploratory or self-contained processing for {func_desc} without generating persistent deliverables or feeding downstream processes. "
+                f"Because interruption creates no downstream dependency impact, a Low criticality rating is appropriate."
+            )
+        consequence = (
+            f"Interruption affects only the immediate execution of {evidence.workflow_filename} without interrupting downstream workflows or external systems."
+        )
+        migration = (
+            "Low migration complexity. Candidate for straightforward lift-and-shift or consolidation review."
+        )
 
     if evidence.downstream_consumers:
-        dep_impact = f"Disruption propagates to {len(evidence.downstream_consumers)} downstream workflow consumer(s) ({', '.join(evidence.downstream_consumers[:2])})."
+        dep_impact = f"Interruption propagates to {len(evidence.downstream_consumers)} downstream workflow(s): {consumers_desc}."
     elif evidence.upstream_producers:
-        dep_impact = "Consumes upstream workflow data as a leaf node; disruption does not propagate further downstream."
+        dep_impact = "Consumes data from upstream workflows as a terminal process; disruption does not propagate downstream."
     else:
-        dep_impact = "Operates as an isolated process; disruption does not propagate to other workflows in the portfolio."
+        dep_impact = "Operates as an independent process with no detected workflow dependencies across the portfolio."
 
     if has_enterprise:
         affected = "Enterprise-wide operational processing."
@@ -1166,7 +1511,7 @@ class LLMNarrativeGenerator:
                 valid_areas = set(ALLOWED_BUSINESS_AREAS) | {"Other / Unclassified", "UNCLASSIFIED"}
 
                 # Strictly validate that business_purpose is clean/concise and business_area_tag is allowed
-                if _is_clean_business_purpose(llm_purpose) and llm_tag in valid_areas:
+                if _is_clean_business_purpose(llm_purpose, facts) and llm_tag in valid_areas:
                     # Ingest or infer business_function
                     if not llm_func:
                         llm_func = classify_business_function_deterministic(
@@ -1240,7 +1585,7 @@ class LLMNarrativeGenerator:
                 else:
                     logger.warning(
                         "[LLM] Structured output rejected (valid_purpose=%s, valid_tag=%s). Using deterministic fallback.",
-                        _is_clean_business_purpose(llm_purpose),
+                        _is_clean_business_purpose(llm_purpose, facts),
                         llm_tag in valid_areas,
                     )
             else:

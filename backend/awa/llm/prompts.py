@@ -8,7 +8,7 @@ from typing import Any
 from .schemas import ToolFacts, WorkflowFacts
 
 TOOL_PROMPT_VERSION = "2.0"
-WORKFLOW_PURPOSE_PROMPT_VERSION = "3.2"
+WORKFLOW_PURPOSE_PROMPT_VERSION = "4.0"
 EXEC_SUMMARY_PROMPT_VERSION = "2.0"
 METHODS_OF_ANALYSIS_PROMPT_VERSION = "2.0"
 FINDINGS_PROMPT_VERSION = "2.0"
@@ -16,7 +16,7 @@ CONCLUSIONS_PROMPT_VERSION = "2.0"
 TOOL_SPECIFICATIONS_PROMPT_VERSION = "1.0"
 PROCESS_STAGES_PROMPT_VERSION = "2.0"
 STTM_PROMPT_VERSION = "1.0"
-CRITICALITY_ASSESSMENT_PROMPT_VERSION = "2.0"
+CRITICALITY_ASSESSMENT_PROMPT_VERSION = "3.0"
 
 # ---------------------------------------------------------------------------
 # 1. Tool "What It Does" & Tool Specifications Prompts
@@ -251,8 +251,55 @@ def build_business_area_definitions_block(descriptions: dict[str, str] | None = 
 def build_workflow_purpose_system_prompt(descriptions: dict[str, str] | None = None) -> str:
     """Build the system prompt for workflow business purpose, function, and business area tagging."""
     definitions_block = build_business_area_definitions_block(descriptions)
-    return f"""You are a Senior Business Intelligence Analyst analyzing an automated enterprise ETL workflow.
-Your task is to determine the workflow's Primary Business Function, write its Business Purpose, and assign its normalized Business Area Tag.
+    return f"""You are a Senior Business Intelligence Analyst evaluating an automated enterprise ETL workflow to author an Executive Business Summary.
+Your task is to determine the workflow's Primary Business Function, write its Business Purpose as an evidence-grounded Executive Business Summary, and assign its normalized Business Area Tag.
+
+EXECUTIVE WRITING STANDARD (UNIVERSITY OF NEWCASTLE STANDARD):
+Apply the formal business report executive summary standard: do NOT merely describe what the workflow 'is about' or state that it 'processes data' or 'supports decision-making'. Tell the reader what the workflow actually does, how it does it, what it produces, and what that result means or enables.
+A business stakeholder who has never seen the Alteryx workflow (YXMD) must finish reading the paragraph and clearly understand:
+1. What business process or activity the workflow performs.
+2. Why the workflow exists / what business objective it serves.
+3. What important data or inputs it uses and why they matter.
+4. How it processes that information (meaningful transformations, joins, filtering, calculations, enrichment, aggregations).
+5. What output/deliverable it produces (identifying the deliverable files/tables).
+6. Who or what consumes the result, when supported by evidence.
+7. What business process, decision, reporting activity, or operational outcome the result supports.
+8. Why the workflow matters in practical business terms, without inventing impact.
+
+REQUIRED NARRATIVE MODEL (SEMANTIC PROGRESSION):
+Generate the Business Purpose as one coherent executive-style paragraph following this natural progression:
+BUSINESS PROCESS / OBJECTIVE → INPUTS → PROCESSING → BUSINESS RULES / LOGIC → OUTPUT / RESULT → CONSUMER / USE → BUSINESS OUTCOME / IMPACT.
+Do NOT output these as headings, labels, or a bulleted checklist. Weave them into a single, cohesive, readable executive paragraph.
+If the evidence does not establish an element (e.g. consumer is unknown), omit it or use bounded factual language. NEVER invent missing business context.
+
+EXPLAIN HOW, NOT JUST WHAT:
+'Processes data' is NOT an explanation. Translate technical operations into meaningful business language:
+- If datasets are joined, explain what business information is being combined.
+- If records are filtered, explain what population is being selected and why.
+- If it calculates a metric, explain what is being calculated and what the resulting measure represents.
+- If it aggregates records, describe the business-level aggregation rather than merely saying 'summarizes data'.
+- If it applies rules, describe the business-relevant rule outcome.
+- If it creates a deliverable (Excel, CSV, database table), name the deliverable and what it is used for.
+- Do NOT dump Alteryx tool names (#1, Filter tool, Select tool) into the paragraph. Translate tools into business actions.
+
+BANNED BUZZWORDS (STRICTLY PROHIBITED):
+Do NOT use generic corporate filler or buzzwords:
+- 'leverages data' / 'leveraging data'
+- 'streamlines processes' / 'streamlines business processes'
+- 'enhances efficiency' / 'improves operational efficiency'
+- 'drives insights' / 'provides actionable insights' / 'valuable insights'
+- 'supports informed decision-making'
+- 'creates business value'
+- 'optimizes operations'
+- 'facilitates strategic decisions'
+- 'ensures data-driven decisions'
+- 'transforms raw data into actionable intelligence'
+- 'processes data to generate deliverables'
+If a decision is supported, name the decision. If an output is produced, name the output deliverable. If a process is enabled, name the process. If impact cannot be established, do not manufacture one.
+
+TARGET LENGTH & INFORMATION DENSITY:
+Target approximately 75–120 words (approximately 90 words as normal target).
+Optimize for information density, clarity, and business usefulness. Do not pad with filler.
 
 NON-NEGOTIABLE ARCHITECTURAL PRINCIPLE:
 DATA DOMAIN IS NOT BUSINESS FUNCTION. Classify a workflow according to the PRIMARY BUSINESS FUNCTION it performs, not merely the business domain of the data it consumes.
@@ -267,26 +314,21 @@ CLASSIFICATION EVIDENCE HIERARCHY (Apply strictly in order):
 6. Tier 6: Process evidence / transformations.
 7. Tier 7: Input/output data domain tokens (SUPPORTING CONTEXT ONLY - CANNOT OVERRIDE TIERS 1-4).
 
-BUSINESS PURPOSE SEMANTIC STRUCTURE:
-The generated business purpose must follow this structure:
-[PRIMARY BUSINESS FUNCTION] + [WHAT THE WORKFLOW DOES] + [BUSINESS OUTCOME/DECISION] + [IMPORTANT SUPPORTING INPUTS]
-It must lead with the primary business function, NOT raw file names, tool IDs, or supporting data feeds.
-
 ALLOWED BUSINESS AREAS & RICH BOUNDARIES:
 {definitions_block}
 
 ATOMIC JSON CONTRACT:
 Return ONLY a valid JSON object with EXACTLY these three keys:
 {{
-  "business_purpose": "Exactly ONE concise paragraph (40-75 words) describing primary function and business outcome, with data domains presented as supporting inputs.",
-  "business_function": "Concise statement of primary business function (e.g. 'Underwriting decisioning and risk assessment')",
+  "business_purpose": "One coherent executive-style paragraph (~75-120 words) explaining the business process, inputs, processing/calculations/rules, output deliverable, and operational outcome enabled.",
+  "business_function": "Concise statement of primary business function (e.g. 'Underwriting Risk Assessment & Rating')",
   "business_area_tag": "Must strictly be one of: Underwriting, Claims & Risk, Sales & Distribution, Legal, or UNCLASSIFIED"
 }}
 
 CRITICAL OUTPUT CONSTRAINTS:
 1. Output MUST be ONLY the raw JSON object. Start immediately with '{{' and end with '}}'.
 2. Do NOT output any conversational preamble, introductory text, chain-of-thought, thinking, reasoning, or markdown analysis.
-3. The 'business_purpose' value MUST be a single polished business paragraph (40-75 words). It must NOT contain classification reasoning, analysis steps, 'Tier 1', 'evidence hierarchy', or explanations of why other business areas were rejected.
+3. The 'business_purpose' value MUST be a single polished executive paragraph (~75-120 words). It must NOT contain classification reasoning, analysis steps, 'Tier 1', 'evidence hierarchy', or explanations of why other business areas were rejected.
 4. Do NOT include markdown code blocks, backticks, conversational preamble, or extra keys."""
 
 
@@ -297,7 +339,7 @@ def build_workflow_purpose_user_prompt(facts: WorkflowFacts) -> str:
     """Format deterministic workflow facts for Business Purpose, Function, and Area Tag generation."""
     facts_dict = facts.to_dict()
     facts_json = json.dumps(facts_dict, indent=2)
-    return f"""Analyze these deterministic workflow facts as a Senior Business Intelligence Analyst and return the primary business function, purpose, and business area tag:
+    return f"""Analyze these deterministic workflow facts and draft an evidence-grounded Executive Business Summary (~75-120 words) explaining the business process, inputs, processing/rules, outputs, and supported outcome:
 
 FACTS:
 {facts_json}
@@ -928,41 +970,41 @@ def build_portfolio_business_area_classification_user_prompt(
 
 CRITICALITY_ASSESSMENT_SYSTEM_PROMPT = """You are a senior enterprise data architect and business intelligence assessor evaluating the business criticality of an ETL workflow for portfolio rationalisation and cloud migration planning.
 
-Your job is to evaluate the business significance of the workflow across 10 agreed criticality dimensions, using ONLY the supplied factual evidence. You are the business reasoning layer over deterministic evidence.
+You are the PRIMARY BUSINESS MATERIALITY ASSESSOR. The deterministic metrics provide factual context, but you must make the contextual judgment of the workflow's business significance based on the supplied evidence. Do not merely narrate or copy a predetermined score.
+
+CRITICALITY EVALUATION PRINCIPLES:
+1. BUSINESS MATERIALITY OVER BLAST RADIUS: Assess the broader business consequence of workflow failure, not just technical dependency counts. Technical complexity (e.g. node count, tool diversity) is NOT criticality.
+2. CONTEXTUAL EVALUATION: A single highly consequential output (e.g. binding underwriting decision or regulatory report) may justify HIGH, whereas multiple low-materiality outputs may remain LOW or MEDIUM. Midstream dependency indicates propagation risk, but business materiality determines actual criticality.
+3. EXPLAIN WHY: Your rationale must explain why the selected score and level are appropriate in practical business terms.
+4. EVIDENCE GROUNDING: Only assert customer, client, enterprise, regulatory, or financial impact when genuinely supported by the supplied business purpose, business function, outputs, or operational evidence. When a dimension lacks supporting evidence, mark it "NOT_ESTABLISHED".
+5. BANNED REPETITIVE PHRASES: Do NOT use boilerplate templates such as "minimal operational blast radius", "manageable blast radius", "core deliverables", "standard production role", or "localized operational impact".
 
 CRITICALITY DIMENSIONS TO EVALUATE:
-1. production_outputs: What production deliverables does the workflow create, and what business role do they serve? (Note: inspection sinks such as Browse/BrowseV2 are NOT production deliverables).
-2. downstream_dependency: Which downstream workflows/processes rely on these outputs, and how much disruption could propagate?
-3. output_consumers: Are outputs shared across multiple workflows or business processes in the enterprise?
-4. dependency_position: Is the workflow an isolated process, leaf consumer, upstream root producer, or midstream integration hub?
-5. shared_sources: Does the workflow participate in a shared source ecosystem where failure could affect broader processing?
-6. business_deliverables: Does the business purpose indicate mandatory reporting, regulatory compliance, financial reconciliation, executive board packs, or core master data?
-7. business_scope: Does the workflow operate across an entire enterprise/portfolio/multi-region, or is it departmental/local?
-8. customer_impact: Could interruption affect customers, policyholders, claimants, eligibility, payments, or coverage? (Only when supported by evidence).
-9. client_impact: Could interruption affect external clients, brokers, agents, producers, or distributors? (Only when supported by evidence).
-10. operational_context: Documented operational constraints such as schedule or ownership when genuinely available.
+1. production_outputs: Materiality of configured deliverables (inspection sinks such as Browse/BrowseV2 are NOT production deliverables).
+2. downstream_dependency: Direct downstream workflow consumers and how failure propagates.
+3. output_consumers: Cross-workflow reuse or shared enterprise deliverables across the portfolio.
+4. dependency_position: Role in pipeline (isolated, leaf consumer, upstream root producer, or midstream integration hub).
+5. shared_sources: Participation in shared enterprise data sources or master data ecosystems.
+6. business_deliverables: Purpose of deliverable (regulatory filing, executive reporting, core ledger, or operational dataset).
+7. business_scope: Organisational footprint (departmental, line-of-business, regional, or enterprise-wide).
+8. customer_impact: Impact on policyholders, claimants, or customers regarding benefits, claims, or coverage.
+9. client_impact: Impact on external brokers, agents, producers, or commercial partners.
+10. operational_context: Documented operational constraints (e.g. schedules, SLAs) when explicitly available.
 
-CALIBRATED SCORING FRAMEWORK:
-- 0–34 = LOW: Minimal operational blast radius, exploratory or ad-hoc processing, no downstream dependencies, localized disruption.
-- 35–69 = MEDIUM: Standard operational production processing, generates business deliverables with moderate localized impact, but limited or no multi-hop downstream propagation.
-- 70–100 = HIGH: Mission-critical decision engine, midstream integration hub, statutory/regulatory filing, core financial ledger, or direct claimant/policyholder/customer impact with broad downstream disruption.
-
-EVIDENCE INTEGRITY & HALLUCINATION CONTROLS:
-1. Ground every assessment strictly in the supplied evidence. Never invent customer counts, revenue numbers, SLAs, frequencies, or regulatory penalties.
-2. Never invent downstream workflows or consumers. If downstream consumers are empty, downstream dependency must be rated LOW or NOT_ESTABLISHED.
-3. Never infer customer or regulatory impact merely from a filename or table name without functional support.
-4. Technical complexity is NOT criticality. Do NOT use tool count, node count, or workflow size as a proxy for business impact.
-5. When evidence for a dimension is missing, mark it "NOT_ESTABLISHED" with evidence="None in supplied workflow evidence".
+CALIBRATION ANCHORS (Guidance only — weigh actual evidence together):
+- LOW (0–34): Evidence indicates limited business consequence and/or localized processing, with no established downstream propagation or customer/client impact.
+- MEDIUM (35–69): Meaningful operational or production role with material but bounded consequence, or localized dependency without broad critical disruption.
+- HIGH (70–100): Evidence supports consequential business impact, significant decision/output materiality, broad customer/client/enterprise/regulatory/financial consequence, or substantial dependency propagation.
 
 Return a JSON object conforming strictly to this format:
 {
   "criticality_score": <number between 0 and 100>,
   "criticality_level": "LOW" | "MEDIUM" | "HIGH",
-  "criticality_justification": "<concise business-facing explanation (40-80 words) of why this rating is appropriate>",
-  "business_consequence": "<1-2 sentences on what could happen if the workflow stops>",
-  "dependency_impact": "<1-2 sentences on how dependency position and downstream consumption affect potential disruption>",
-  "affected_scope": "<supported business/customer/enterprise scope, or bounded statement that scope is not established>",
-  "migration_implication": "<1-2 sentences on action-oriented migration or rationalisation guidance>",
+  "criticality_justification": "<workflow-specific business explanation (40-80 words) of why this rating is appropriate>",
+  "business_consequence": "<1-2 sentences on what specifically happens if the workflow stops executing>",
+  "dependency_impact": "<1-2 sentences on propagation risk based on downstream consumers and pipeline position>",
+  "affected_scope": "<supported business, customer, client, or enterprise scope, or bounded statement that scope is not established>",
+  "migration_implication": "<1-2 sentences on practical migration priority and interface testing guidance>",
   "confidence": "HIGH" | "MEDIUM" | "LOW",
   "factor_assessments": {
     "production_outputs": {"assessment": "HIGH"|"MEDIUM"|"LOW"|"NOT_ESTABLISHED", "evidence": "...", "rationale": "..."},
@@ -997,7 +1039,7 @@ def build_criticality_assessment_user_prompt(evidence: Any) -> str:
 
     ref_str = ""
     if evidence.deterministic_reference_score is not None:
-        ref_str = f"Diagnostic / Legacy Reference Score (for audit only, do not mechanically copy): {evidence.deterministic_reference_score} ({evidence.deterministic_reference_level})\n"
+        ref_str = f"Diagnostic / Legacy Reference Score (factual baseline for reference only, not an authority): {evidence.deterministic_reference_score} ({evidence.deterministic_reference_level})\n"
 
     return f"""FACTUAL WORKFLOW EVIDENCE PACKAGE:
 Workflow ID: {evidence.workflow_id}
@@ -1030,13 +1072,7 @@ OPERATIONAL METADATA:
 {op_str}
 
 {ref_str}
-CALIBRATION ANCHORS FOR YOUR REFERENCE:
-- Anchor A (LOW: score ~15-25): Standalone technical utility or exploratory reporting with 0 downstream consumers and localized informational outputs.
-- Anchor B (MEDIUM: score ~45-60): Standard production reporting generating scheduled deliverables for internal operational use, with localized consequence and no multi-hop downstream propagation.
-- Anchor C (HIGH: score ~75-85): Midstream integration hub or statutory reporting engine with multiple downstream workflows directly relying on its deliverables.
-- Anchor D (HIGH: score ~85-95): Core decision engine or financial/claims ledger directly adjudicating customer/claimant benefits or driving regulatory filings with severe operational blast radius.
-
-Evaluate the business significance of this workflow across all 10 dimensions and return ONLY the structured JSON response."""
+Evaluate the business significance of this workflow across all 10 dimensions. Decide the final score and level using business judgment over the evidence, and return ONLY the structured JSON response."""
 
 
 
