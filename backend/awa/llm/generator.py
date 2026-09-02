@@ -648,6 +648,7 @@ class LLMNarrativeGenerator:
         business_summary: WorkflowBusinessSummary,
         workflow_id: str = "",
         output_evidence: list[dict[str, Any]] | None = None,
+        input_sources: list[str] | None = None,
     ) -> BusinessPurposeResult:
         """Generate a canonical workflow-level Business Purpose description, Function, and normalized Business Area Tag.
 
@@ -666,14 +667,39 @@ class LLMNarrativeGenerator:
             BUSINESS_AREA_TAXONOMY_VERSION,
         )
 
-        wf_name = workflow.metadata.name if (workflow and workflow.metadata) else ""
+        wf_name = (
+            (workflow.metadata.name if (workflow and workflow.metadata and workflow.metadata.name) else "")
+            or (workflow_id if (workflow_id and not workflow_id.startswith("wf_") and not workflow_id.startswith("analysis_")) else "")
+        )
+
+        # Build complete input sources if not explicitly supplied
+        if input_sources is None:
+            resolved_sources: list[str] = []
+            if business_summary and business_summary.source_inputs:
+                for inp in business_summary.source_inputs:
+                    val = inp.source_filename or inp.name or inp.raw_source
+                    if val and val.lower() not in ("in-memory configuration", "standard input stream"):
+                        resolved_sources.append(val)
+            if workflow and workflow.tools:
+                for tid, tool in workflow.tools.items():
+                    if tool.tool_type in ("DbFileInput", "FileInput", "TextInput", "Directory", "DynamicInput"):
+                        cfg = tool.configuration.parsed if (tool.configuration and hasattr(tool.configuration, "parsed") and isinstance(tool.configuration.parsed, dict)) else (tool.configuration if isinstance(tool.configuration, dict) else {})
+                        fp = cfg.get("file_path") or cfg.get("File") or cfg.get("source_file") or cfg.get("table_name")
+                        if fp and str(fp) not in resolved_sources:
+                            resolved_sources.append(str(fp))
+            input_sources = resolved_sources
+
+        existing_func = getattr(business_summary, "business_function", "") or ""
+
         det_class = classify_business_area_deterministic(
             output_evidence or [],
             business_purpose=business_summary.business_purpose or "",
             workflow_name=wf_name,
+            business_function=existing_func,
+            input_sources=input_sources or [],
         )
-        fallback_tag = det_class.business_area
-        fallback_func = classify_business_function_deterministic(
+        fallback_tag = "Other / Unclassified" if det_class.business_area in ("UNCLASSIFIED", "Other / Unclassified") else det_class.business_area
+        fallback_func = existing_func or classify_business_function_deterministic(
             fallback_tag,
             workflow_name=wf_name,
             business_purpose=business_summary.business_purpose or "",

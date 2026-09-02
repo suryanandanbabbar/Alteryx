@@ -200,34 +200,40 @@ TIER1_FUNCTIONAL_PATTERNS: dict[str, list[re.Pattern]] = {
     "Underwriting": [
         re.compile(r"\bunderwriting\b", re.IGNORECASE),
         re.compile(r"\b(underwrite|underwriter)\b", re.IGNORECASE),
-        re.compile(r"\b(policy|policyholder|applicant)[\s_]+(eligibility|rating|risk[\s_]+score|pricing|decision)\b", re.IGNORECASE),
-        re.compile(r"\b(premium|rate|pricing)[\s_]+(calculator|calc|model|engine|matrix|algorithm)\b", re.IGNORECASE),
+        re.compile(r"\b(policy|policyholder|applicant)[\s_]+(eligibility|rating|risk[\s_]+score|pricing|decision|scoring)\b", re.IGNORECASE),
+        re.compile(r"\b(premium|rate|pricing)[\s_]+(calculator|calc|model|engine|matrix|algorithm|summary|schedule)\b", re.IGNORECASE),
         re.compile(r"\bdecision[\s_]+engine\b", re.IGNORECASE),
         re.compile(r"\b(coverage|binder)[\s_]+(acceptance|rejection|evaluation)\b", re.IGNORECASE),
         re.compile(r"\brisk[\s_]+appetite\b", re.IGNORECASE),
         re.compile(r"\brating[\s_]+engine\b", re.IGNORECASE),
+        re.compile(r"\bpolicy[\s_]+pricing\b", re.IGNORECASE),
+        re.compile(r"\bexperience[\s_]+rating\b", re.IGNORECASE),
     ],
     "Claims & Risk": [
-        re.compile(r"\b(claim|claims)[\s_]+(intake|triage|adjudication|processing|settlement|fraud|investigation|reserves?|aging|severity|litigation)\b", re.IGNORECASE),
+        re.compile(r"\b(claim|claims)[\s_]+(intake|triage|adjudication|processing|settlement|fraud|investigation|reserves?|aging|severity|litigation|volume|extract|summary|loss|reporting|audit)\b", re.IGNORECASE),
         re.compile(r"\b(claim[\s_]+reserve|loss[\s_]+reserve|claims?[\s_]+loss)\b", re.IGNORECASE),
         re.compile(r"\bclaims?[\s_]+fraud\b", re.IGNORECASE),
         re.compile(r"\b(subrogation|salvage)\b", re.IGNORECASE),
         re.compile(r"\bclaims?[\s_]+volume\b", re.IGNORECASE),
         re.compile(r"\bopen[\s_]+claims?\b", re.IGNORECASE),
+        re.compile(r"\bclaims?[\s_]+exposure\b", re.IGNORECASE),
     ],
     "Sales & Distribution": [
-        re.compile(r"\b(sales|territory)[\s_]+(analytics|performance|quota|distribution|pipeline|forecast)\b", re.IGNORECASE),
+        re.compile(r"\b(sales|territory)[\s_]+(analytics|performance|quota|distribution|pipeline|forecast|report|reporting|summary|revenue|commission)\b", re.IGNORECASE),
         re.compile(r"\b(broker|agent|producer)[\s_]+(commission|compensation|incentive|performance|quota)\b", re.IGNORECASE),
         re.compile(r"\bdistribution[\s_]+channel\b", re.IGNORECASE),
         re.compile(r"\bsales[\s_]+pipeline\b", re.IGNORECASE),
         re.compile(r"\bgross[\s_]+sales\b", re.IGNORECASE),
+        re.compile(r"\bnet[\s_]+sales\b", re.IGNORECASE),
+        re.compile(r"\bclient[\s_]+acquisition\b", re.IGNORECASE),
     ],
     "Legal": [
         re.compile(r"\blegal\b", re.IGNORECASE),
-        re.compile(r"\b(regulatory|statutory|compliance)[\s_]+(reporting|report|filing|submission|audit|disclosure)\b", re.IGNORECASE),
+        re.compile(r"\b(regulatory|statutory|compliance)[\s_]+(reporting|report|filing|submission|audit|disclosure|extract)\b", re.IGNORECASE),
         re.compile(r"\b(legal[\s_]+matter|court[\s_]+docket|litigation[\s_]+tracking|subpoena|case[\s_]+filing)\b", re.IGNORECASE),
-        re.compile(r"\bcontract[\s_]+(compliance|review|clause|analytics)\b", re.IGNORECASE),
+        re.compile(r"\bcontract[\s_]+(compliance|review|clause|analytics|management)\b", re.IGNORECASE),
         re.compile(r"\binsurance[\s_]+commissioner\b", re.IGNORECASE),
+        re.compile(r"\bmatter[\s_]+management\b", re.IGNORECASE),
     ],
 }
 
@@ -235,25 +241,25 @@ TIER2_PURPOSE_PATTERNS: dict[str, list[re.Pattern]] = {
     "Underwriting": [
         re.compile(r"\b(supports?|performs?|automates?|executes?)[\s_]+underwriting\b", re.IGNORECASE),
         re.compile(r"\bunderwriting[\s_]+decisioning\b", re.IGNORECASE),
-        re.compile(r"\b(calculate|calculates|determining|evaluates?)[\s_]+(policyholder[\s_]+risk|policy[\s_]+eligibility|premiums?|rating)\b", re.IGNORECASE),
-        re.compile(r"\bassess(es)?[\s_]+policyholder[\s_]+risk\b", re.IGNORECASE),
+        re.compile(r"\b(calculat(e|es|ing|ed)|determin(e|es|ing|ed)|evaluat(e|es|ing|ed)|assess(es|ing|ed)?)[\s_]+(policyholder[\s_]+risk|policy[\s_]+eligibility|premiums?|rating|pricing)\b", re.IGNORECASE),
+        re.compile(r"\bassess(es|ing|ed)?[\s_]+policyholder[\s_]+risk\b", re.IGNORECASE),
         re.compile(r"\brisk[\s_]+scores?[\s_]+for[\s_]+policyholder\b", re.IGNORECASE),
-        re.compile(r"\bcalculate(s)?[\s_]+policy[\s_]+pricing\b", re.IGNORECASE),
+        re.compile(r"\bcalculat(e|es|ing|ed)[\s_]+policy[\s_]+pricing\b", re.IGNORECASE),
     ],
     "Claims & Risk": [
-        re.compile(r"\b(adjudicates?|processes?|settles?|investigates?)[\s_]+(insurance[\s_]+)?claims?\b", re.IGNORECASE),
-        re.compile(r"\b(detects?|identif(y|ies))[\s_]+(suspicious[\s_]+claims?|claims?[\s_]+fraud)\b", re.IGNORECASE),
-        re.compile(r"\bcalculates?[\s_]+(claims?|loss)[\s_]+reserves?\b", re.IGNORECASE),
+        re.compile(r"\b(adjudicat(e|es|ing|ed)|process(es|ing|ed)|settl(e|es|ing|ed)|investigat(e|es|ing|ed)|manag(e|es|ing|ed))[\s_]+(insurance[\s_]+)?claims?\b", re.IGNORECASE),
+        re.compile(r"\b(detect(s|ing|ed)?|identif(y|ies|ying|ied))[\s_]+(suspicious[\s_]+claims?|claims?[\s_]+fraud)\b", re.IGNORECASE),
+        re.compile(r"\bcalculat(e|es|ing|ed)[\s_]+(claims?|loss)[\s_]+reserves?\b", re.IGNORECASE),
         re.compile(r"\bclaims?[\s_]+performance[\s_]+and[\s_]+loss\b", re.IGNORECASE),
         re.compile(r"\bmanage(s)?[\s_]+auto[\s_]+claims\b", re.IGNORECASE),
     ],
     "Sales & Distribution": [
-        re.compile(r"\b(tracks?|analyzes?|measures?)[\s_]+(sales[\s_]+territory|sales[\s_]+pipeline|broker[\s_]+commissions?|agent[\s_]+performance)\b", re.IGNORECASE),
+        re.compile(r"\b(track(s|ing|ed)?|analyz(e|es|ing|ed)|measur(e|es|ing|ed)|aggregat(e|es|ing|ed))[\s_]+(sales[\s_]+territory|sales[\s_]+pipeline|broker[\s_]+commissions?|agent[\s_]+performance|sales[\s_]+volume)\b", re.IGNORECASE),
         re.compile(r"\bcommercial[\s_]+client[\s_]+acquisition\b", re.IGNORECASE),
     ],
     "Legal": [
-        re.compile(r"\b(generates?|produces?|submits?|extracts?)[\s_]+(regulatory[\s_]+compliance|statutory[\s_]+filing|legal[\s_]+audit)\b", re.IGNORECASE),
-        re.compile(r"\btracks?[\s_]+(litigation|court[\s_]+cases?|legal[\s_]+matters?)\b", re.IGNORECASE),
+        re.compile(r"\b(generat(e|es|ing|ed)|produc(e|es|ing|ed)|submit(s|ting|ted)?|extract(s|ing|ed)?)[\s_]+(regulatory[\s_]+compliance|statutory[\s_]+filing|legal[\s_]+audit|compliance[\s_]+reporting)\b", re.IGNORECASE),
+        re.compile(r"\btrack(s|ing|ed)?[\s_]+(litigation|court[\s_]+cases?|legal[\s_]+matters?)\b", re.IGNORECASE),
         re.compile(r"\blegal[\s_]+regulatory\b", re.IGNORECASE),
         re.compile(r"\bregulatory[\s_]+compliance\b", re.IGNORECASE),
     ],
@@ -307,6 +313,7 @@ def classify_business_area_deterministic(
     business_purpose: str = "",
     workflow_name: str = "",
     business_function: str = "",
+    input_sources: list[str] | None = None,
 ) -> BusinessAreaClassification:
     """Classify workflow business area deterministically enforcing the 7-Tier Classification Evidence Hierarchy.
 
@@ -322,9 +329,9 @@ def classify_business_area_deterministic(
     Critical Invariant: Lower-tier data-domain evidence (Tier 7) cannot override explicit
     higher-tier functional evidence (Tiers 1-4).
     """
-    if not output_evidence and not business_purpose and not workflow_name and not business_function:
+    if not output_evidence and not business_purpose and not workflow_name and not business_function and not input_sources:
         return BusinessAreaClassification(
-            business_area="UNCLASSIFIED",
+            business_area="Other / Unclassified",
             confidence="UNCLASSIFIED",
             evidence=[],
             classification_source="deterministic_fallback",
@@ -338,7 +345,9 @@ def classify_business_area_deterministic(
     # Tier 1: Explicit primary business-function phrase in workflow name/title (+100)
     # -----------------------------------------------------------------------
     if workflow_name:
-        clean_wf_name = workflow_name.replace("_", " ")
+        clean_wf_name = re.sub(r"\.[a-zA-Z0-9]+$", "", workflow_name).replace("_", " ")
+        # Expand camelCase (e.g. ClaimsVolumeExtract -> Claims Volume Extract)
+        clean_wf_name = re.sub(r"([a-z])([A-Z])", r"\1 \2", clean_wf_name)
         for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
             for pat in patterns:
                 m = pat.search(clean_wf_name)
@@ -416,6 +425,15 @@ def classify_business_area_deterministic(
                     data_domain_scores[domain] += len(matching_col)
                     evidence_log[domain].append(col)
 
+    if input_sources:
+        for src in input_sources:
+            src_tokens = _tokenize_text(src)
+            for domain, keywords in DOMAIN_TAXONOMY.items():
+                matching_src = [t for t in src_tokens if t in keywords]
+                if matching_src:
+                    data_domain_scores[domain] += len(matching_src)
+                    evidence_log[domain].append(f"Input source: {src}")
+
     # Add bounded Tier 7 points (max 15 so data domain NEVER outvotes Tier 1 or Tier 2 functional evidence)
     for domain in ALLOWED_BUSINESS_AREAS:
         raw_pts = data_domain_scores[domain]
@@ -429,7 +447,7 @@ def classify_business_area_deterministic(
 
     if top_score == 0:
         return BusinessAreaClassification(
-            business_area="UNCLASSIFIED",
+            business_area="Other / Unclassified",
             confidence="UNCLASSIFIED",
             evidence=[],
             classification_source="deterministic_fallback",
@@ -481,18 +499,22 @@ def classify_workflow_business_area(
     elif getattr(result, "workflow", None) and getattr(result.workflow, "metadata", None) and getattr(result.workflow.metadata, "name", None):
         wf_name = str(result.workflow.metadata.name)
 
-    # Workflows with no production outputs and no business purpose are UNCLASSIFIED
-    if not output_evidence and not biz_purpose:
+    # Workflows with no production outputs and no business purpose are Other / Unclassified
+    if not output_evidence and not biz_purpose and not wf_name:
         return BusinessAreaClassification(
-            business_area="UNCLASSIFIED",
-            confidence="UNCLASSIFIED",
+            business_area="Other / Unclassified",
+            confidence="LOW",
             evidence=[],
             classification_source="deterministic_fallback",
             secondary_business_areas=[],
         )
 
+    input_srcs = [str(s) for s in getattr(result, "sources", [])] if hasattr(result, "sources") else []
     deterministic_baseline = classify_business_area_deterministic(
-        output_evidence, business_purpose=biz_purpose
+        output_evidence,
+        business_purpose=biz_purpose,
+        workflow_name=wf_name,
+        input_sources=input_srcs,
     )
 
     # If no LLM generator provided, return deterministic baseline
@@ -777,9 +799,11 @@ def _validate_portfolio_llm_classification_response(
             continue
 
         area = item.get("business_area", "")
-        if area not in ALLOWED_BUSINESS_AREAS and area != "UNCLASSIFIED":
+        if area not in ALLOWED_BUSINESS_AREAS and area not in ("UNCLASSIFIED", "Other / Unclassified"):
             logger.warning("Rejected invalid business area from LLM for workflow '%s': '%s'", wf_id, area)
             continue
+        if area == "UNCLASSIFIED":
+            area = "Other / Unclassified"
 
         conf = item.get("confidence", "MEDIUM")
         if conf not in ("HIGH", "MEDIUM", "LOW", "UNCLASSIFIED"):
@@ -847,9 +871,11 @@ def _validate_llm_classification_response(
         return None
 
     area = data.get("business_area", "")
-    if area not in ALLOWED_BUSINESS_AREAS and area != "UNCLASSIFIED":
+    if area not in ALLOWED_BUSINESS_AREAS and area not in ("UNCLASSIFIED", "Other / Unclassified"):
         logger.warning("Rejected unsupported business area: '%s'", area)
         return None
+    if area == "UNCLASSIFIED":
+        area = "Other / Unclassified"
 
     conf = data.get("confidence", "MEDIUM")
     if conf not in ("HIGH", "MEDIUM", "LOW", "UNCLASSIFIED"):

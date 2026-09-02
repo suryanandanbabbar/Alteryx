@@ -1,7 +1,7 @@
 import React from 'react';
 import { FileText, Table, Sparkles } from 'lucide-react';
 
-export type ReportType = 'business' | 'tool-specifications' | 'technical' | 'sttm';
+export type ReportType = 'business' | 'tool-specifications' | 'technical' | 'sttm' | 'portfolio-xlsx';
 
 interface DocumentGenerationModalProps {
   type: ReportType;
@@ -10,15 +10,20 @@ interface DocumentGenerationModalProps {
 export const DocumentGenerationModal: React.FC<DocumentGenerationModalProps> = ({ type }) => {
   const isBusiness = type === 'business';
   const isSttm = type === 'sttm';
+  const isPortfolio = type === 'portfolio-xlsx';
   const title = isBusiness
     ? 'Preparing Business Report'
     : isSttm
     ? 'Preparing Source-to-Target Mapping'
+    : isPortfolio
+    ? 'Preparing Portfolio Workbook'
     : 'Preparing Tool Specifications';
   const subtitle = isBusiness
     ? 'Generating your Business Report... AI-generated analysis is being prepared.'
     : isSttm
     ? 'Generating your Source-to-Target Mapping... AI-powered lineage analysis is being prepared.'
+    : isPortfolio
+    ? 'Generating your ETL Portfolio Overview (.xlsx)... Projecting canonical workflow features, technical inventory, and rationalisation analysis.'
     : 'Generating your Tool Specifications... AI-generated tool analysis is being prepared.';
 
   return (

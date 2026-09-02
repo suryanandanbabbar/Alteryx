@@ -164,6 +164,42 @@ export const api = {
     document.body.removeChild(link);
     window.URL.revokeObjectURL(blobUrl);
   },
+
+  async downloadPortfolioXlsx(portfolioId: string, portfolioName?: string): Promise<void> {
+    const url = `${BASE_URL}/portfolio/${portfolioId}/export/xlsx`;
+    const res = await fetch(url);
+
+    if (!res.ok) {
+      let errorMsg = `Download failed with status ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson.detail) {
+          errorMsg = typeof errJson.detail === 'object' ? errJson.detail.message || errorMsg : errJson.detail;
+        }
+      } catch {
+        // Non-JSON response error
+      }
+      throw new ApiError(errorMsg, res.status);
+    }
+
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition') || '';
+    let filename = `${portfolioName || 'ETL_Portfolio'}_Overview.xlsx`;
+
+    const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
+    if (filenameMatch && filenameMatch[1]) {
+      filename = filenameMatch[1];
+    }
+
+    const blobUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(blobUrl);
+  },
 };
 
 export const apiClient = api;

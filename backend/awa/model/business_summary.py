@@ -273,7 +273,7 @@ class WorkflowBusinessSummary:
     confidence_level: str = "High"
     business_function: str = ""
     business_area_tag: str = "UNCLASSIFIED"
-    business_area_tag_source: str = "deterministic_fallback"
+    business_area_tag_source: str = ""
     business_area_taxonomy_version: str = "3.0"
     classification_conflict: bool = False
     classification_evidence: list[str] = dc_field(default_factory=list)

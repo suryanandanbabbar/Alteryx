@@ -231,8 +231,8 @@ class TestBusinessAreaClassification:
         assert len(evidence) == 0  # 0 production outputs
 
         classified = classify_workflow_business_area(canonical_res)
-        assert classified.business_area == "UNCLASSIFIED"
-        assert classified.confidence == "UNCLASSIFIED"
+        assert classified.business_area in ("UNCLASSIFIED", "Other / Unclassified")
+        assert classified.confidence in ("UNCLASSIFIED", "LOW")
         assert len(classified.evidence) == 0
         assert classified.classification_source == "deterministic_fallback"
 

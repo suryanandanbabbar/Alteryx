@@ -17,7 +17,10 @@ import {
   X,
   Info,
   Layers,
+  Download,
 } from 'lucide-react';
+import { api } from '../api/client';
+import { DocumentGenerationModal } from '../components/DocumentGenerationModal';
 import { PortfolioOverviewDTO, PortfolioWorkflowSummaryDTO } from '../types/portfolio';
 import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
 import { RationalisationPage } from './RationalisationPage';
@@ -332,6 +335,21 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   const [inspectError, setInspectError] = useState<string | null>(null);
   const [activeInfoPanel, setActiveInfoPanel] = useState<InfoPanel>(null);
   const [showRationalisation, setShowRationalisation] = useState<boolean>(false);
+  const [downloadingXlsx, setDownloadingXlsx] = useState<boolean>(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const handleDownloadPortfolioXlsx = async () => {
+    if (downloadingXlsx) return;
+    setDownloadError(null);
+    setDownloadingXlsx(true);
+    try {
+      await api.downloadPortfolioXlsx(portfolio.portfolio_id, portfolio.portfolio_name);
+    } catch (err: any) {
+      setDownloadError(err.message || 'Failed to generate portfolio workbook. Please try again.');
+    } finally {
+      setDownloadingXlsx(false);
+    }
+  };
 
   // Close active info popover on Escape or click outside
   useEffect(() => {
@@ -374,49 +392,42 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
 
   const { metrics } = portfolio;
 
-  // Derive business area counts reactively from workflows
+  // Derive business area counts reactively from canonical workflow tags
   const areaCounts: Record<string, number> = useMemo(() => {
     const counts: Record<string, number> = {
       'Claims & Risk': 0,
       'Legal': 0,
       'Underwriting': 0,
       'Sales & Distribution': 0,
+      'Other / Unclassified': 0,
     };
-    let unclassified = 0;
 
     for (const w of portfolio.workflows) {
       if (w.status === 'SUCCESS') {
-        const area = w.business_area?.business_area;
-        if (area && counts[area] !== undefined) {
-          counts[area]++;
-        } else {
-          unclassified++;
-        }
+        const rawTag = w.business_area_tag || w.business_area?.business_area;
+        const tag = rawTag && counts[rawTag] !== undefined && rawTag !== 'UNCLASSIFIED'
+          ? rawTag
+          : 'Other / Unclassified';
+        counts[tag]++;
       }
     }
 
-    return { ...counts, 'Other / Unclassified': unclassified };
+    return counts;
   }, [portfolio.workflows]);
 
   // Determine visible business area cards:
-  // Every configured business area must ALWAYS be displayed as a card, even when 0 workflows belong to it.
+  // All 5 configured business areas must ALWAYS be displayed as cards, even when 0 workflows belong to them.
   const visibleAreas = useMemo(() => {
-    const result = [...CONFIGURED_BUSINESS_AREAS];
-    if ((areaCounts['Other / Unclassified'] || 0) > 0) {
-      result.push(UNCLASSIFIED_DOMAIN);
-    }
-    return result;
-  }, [areaCounts]);
+    return [...CONFIGURED_BUSINESS_AREAS, UNCLASSIFIED_DOMAIN];
+  }, []);
 
   // Workflows for currently selected domain (Level 2)
   const currentAreaWorkflows = useMemo(() => {
     if (!currentArea) return [];
     return portfolio.workflows.filter((w) => {
-      if (currentArea === 'Other / Unclassified') {
-        const area = w.business_area?.business_area;
-        return !area || area === 'UNCLASSIFIED' || area === 'Other / Unclassified';
-      }
-      return w.business_area?.business_area === currentArea;
+      const rawTag = w.business_area_tag || w.business_area?.business_area;
+      const tag = rawTag && rawTag !== 'UNCLASSIFIED' ? rawTag : 'Other / Unclassified';
+      return tag === currentArea;
     });
   }, [portfolio.workflows, currentArea]);
 
@@ -1391,6 +1402,54 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
       gap: '40px',
       position: 'relative',
     }}>
+      {/* Portfolio XLSX Generation Modal */}
+      {downloadingXlsx && <DocumentGenerationModal type="portfolio-xlsx" />}
+
+      {/* Download Error Alert Banner */}
+      {downloadError && (
+        <div style={{
+          padding: '12px 16px',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--color-error-subtle)',
+          border: '1px solid rgba(220, 38, 38, 0.3)',
+          color: 'var(--color-error)',
+          fontSize: '13px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+        }}>
+          <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>{downloadError}</div>
+          <button
+            onClick={() => handleDownloadPortfolioXlsx()}
+            style={{
+              padding: '4px 8px',
+              fontSize: '11px',
+              fontWeight: 600,
+              background: 'transparent',
+              border: '1px solid currentColor',
+              color: 'inherit',
+              borderRadius: '4px',
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => setDownloadError(null)}
+            style={{
+              padding: '4px',
+              background: 'transparent',
+              border: 'none',
+              color: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Executive Hero Header */}
       <div style={{
         display: 'flex',
@@ -1524,8 +1583,48 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
               e.currentTarget.style.transform = 'none';
             }}
           >
-            <span>ETL rationalisation</span>
+            <span>ETL Rationalisation</span>
             <span style={{ color: '#34d399', fontWeight: '700', marginLeft: '4px' }}>View →</span>
+          </button>
+
+          {/* Download Portfolio XLSX Action */}
+          <button
+            onClick={handleDownloadPortfolioXlsx}
+            disabled={downloadingXlsx}
+            title="Download overall ETL Portfolio Overview spreadsheet (.xlsx)"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 14px',
+              fontSize: '12px',
+              fontWeight: '600',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid rgba(56, 189, 248, 0.45)',
+              background: 'linear-gradient(135deg, rgba(3, 105, 161, 0.4) 0%, rgba(15, 23, 42, 0.85) 100%)',
+              color: '#f0f9ff',
+              boxShadow: '0 2px 8px rgba(56, 189, 248, 0.15)',
+              cursor: downloadingXlsx ? 'not-allowed' : 'pointer',
+              opacity: downloadingXlsx ? 0.7 : 1,
+              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            onMouseEnter={(e) => {
+              if (downloadingXlsx) return;
+              e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.8)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(3, 105, 161, 0.6) 0%, rgba(15, 23, 42, 0.95) 100%)';
+              e.currentTarget.style.boxShadow = '0 4px 14px rgba(56, 189, 248, 0.3)';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              if (downloadingXlsx) return;
+              e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.45)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(3, 105, 161, 0.4) 0%, rgba(15, 23, 42, 0.85) 100%)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(56, 189, 248, 0.15)';
+              e.currentTarget.style.transform = 'none';
+            }}
+          >
+            <Download size={14} color="#38bdf8" />
+            <span>Download Portfolio XLSX</span>
           </button>
 
           {/* Secondary Utility Action */}

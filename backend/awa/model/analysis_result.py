@@ -94,8 +94,10 @@ class CanonicalAnalysisResult:
 
     @property
     def business_area_tag(self) -> str:
-        """Canonical normalized business area tag from business_summary."""
-        return getattr(self.business_summary, "business_area_tag", "UNCLASSIFIED") if self.business_summary else "UNCLASSIFIED"
+        """Canonical business area tag from business_summary."""
+        if self.business_summary and self.business_summary.business_area_tag:
+            return self.business_summary.business_area_tag.strip()
+        return ""
 
     @property
     def business_area_tag_source(self) -> str:

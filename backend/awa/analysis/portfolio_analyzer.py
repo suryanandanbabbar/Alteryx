@@ -47,6 +47,14 @@ from awa.analysis.workflow_criticality import (
 
 logger = logging.getLogger(__name__)
 
+ALL_PORTFOLIO_BUSINESS_AREAS: tuple[str, ...] = (
+    "Claims & Risk",
+    "Legal",
+    "Underwriting",
+    "Sales & Distribution",
+    "Other / Unclassified",
+)
+
 
 def _get_cfg_dict(tool) -> dict:
     if not tool or not tool.configuration:
@@ -432,25 +440,40 @@ def build_portfolio_analysis(
 
         # Read canonical upload-time business-area tag (no secondary portfolio LLM classification)
         raw_tag = getattr(res, "business_area_tag", "")
-        tag = raw_tag if isinstance(raw_tag, str) else "UNCLASSIFIED"
+        tag = raw_tag.strip() if isinstance(raw_tag, str) else ""
         raw_source = getattr(res, "business_area_tag_source", "")
         tag_source = raw_source if isinstance(raw_source, str) else "deterministic_fallback"
 
-        # Backward compatibility for legacy analysis results where tag might be missing or UNCLASSIFIED
-        if not tag or tag not in set(ALLOWED_BUSINESS_AREAS) | {"Other / Unclassified"}:
+        valid_buckets = set(ALLOWED_BUSINESS_AREAS) | {"Other / Unclassified"}
+
+        # Only run deterministic fallback when canonical tag is missing, empty, UNCLASSIFIED, or invalid
+        if not tag or tag == "UNCLASSIFIED" or tag not in valid_buckets:
             out_ev = extract_output_evidence_for_workflow(res)
+            input_srcs = srcs
             det = classify_business_area_deterministic(
                 out_ev,
                 business_purpose=biz_purpose,
                 workflow_name=filename,
                 business_function=biz_func,
+                input_sources=input_srcs,
             )
-            tag = det.business_area
+            tag = det.business_area if det.business_area in valid_buckets else "Other / Unclassified"
             tag_source = "deterministic_fallback"
             if not biz_func:
                 biz_func = classify_business_function_deterministic(
                     tag, workflow_name=filename, business_purpose=biz_purpose
                 )
+
+        # Ensure canonical tag is strictly one of the 5 allowed buckets
+        if tag not in valid_buckets:
+            tag = "Other / Unclassified"
+
+        # Keep canonical result business summary in sync if missing
+        if hasattr(res, "business_summary") and res.business_summary:
+            if getattr(res.business_summary, "business_area_tag", None) in (None, "", "UNCLASSIFIED"):
+                res.business_summary.business_area_tag = tag
+            if not getattr(res.business_summary, "business_function", None) and biz_func:
+                res.business_summary.business_function = biz_func
 
         classification = BusinessAreaClassification(
             business_area=tag,
@@ -614,24 +637,27 @@ def build_portfolio_analysis(
         tool_distribution=tool_counter,
     )
 
-    # 6. Aggregate business areas and materialise EVERY business area
+    # 6. Aggregate business areas and materialise ALL 5 configured business areas
+    ALL_PORTFOLIO_BUSINESS_AREAS = (
+        "Claims & Risk",
+        "Legal",
+        "Underwriting",
+        "Sales & Distribution",
+        "Other / Unclassified",
+    )
     workflows_by_area: dict[str, list[PortfolioWorkflowSummary]] = {
-        area: [] for area in ALLOWED_BUSINESS_AREAS
+        area: [] for area in ALL_PORTFOLIO_BUSINESS_AREAS
     }
-    unclassified_workflows: list[PortfolioWorkflowSummary] = []
 
     for s in success_summaries:
-        area = s.business_area.business_area if s.business_area else "UNCLASSIFIED"
-        if area in workflows_by_area:
-            workflows_by_area[area].append(s)
-        else:
-            unclassified_workflows.append(s)
+        tag = s.business_area_tag if s.business_area_tag in workflows_by_area else "Other / Unclassified"
+        workflows_by_area[tag].append(s)
 
     # Materialise EVERY configured business area (even with 0 workflows)
     area_counts: dict[str, int] = {}
     business_area_groups: list[BusinessAreaGroup] = []
 
-    for area in ALLOWED_BUSINESS_AREAS:
+    for area in ALL_PORTFOLIO_BUSINESS_AREAS:
         wfs = workflows_by_area[area]
         area_counts[area] = len(wfs)
         business_area_groups.append(
@@ -643,24 +669,12 @@ def build_portfolio_analysis(
             )
         )
 
-    # If unclassified workflows exist, also materialise Other / Unclassified
-    if unclassified_workflows:
-        area_counts["Other / Unclassified"] = len(unclassified_workflows)
-        business_area_groups.append(
-            BusinessAreaGroup(
-                business_area="Other / Unclassified",
-                workflow_count=len(unclassified_workflows),
-                workflows=unclassified_workflows,
-                description=BUSINESS_AREA_DESCRIPTIONS.get("Other / Unclassified", ""),
-            )
-        )
-
     total_wf = len(summaries)
     attempted_wf = len(success_summaries)
     structured_success = sum(1 for s in success_summaries if s.business_area_tag_source == "llm")
     fallback_count = sum(1 for s in success_summaries if s.business_area_tag_source != "llm")
     conflict_count = sum(1 for s in success_summaries if getattr(s.business_area, "classification_conflict", False))
-    unclassified_count = len(unclassified_workflows)
+    unclassified_count = len(workflows_by_area["Other / Unclassified"])
     valid_tags_count = total_wf - unclassified_count
     criticality_impacted = sum(
         1 for s in success_summaries

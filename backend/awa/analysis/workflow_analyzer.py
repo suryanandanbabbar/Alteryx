@@ -593,54 +593,61 @@ def analyze_canonical(
         import logging as _llm_log
         _llm_logger = _llm_log.getLogger("awa.llm")
         gen = get_default_generator()
+
+        # 0. Generate canonical workflow Business Purpose, Function, and Area Tag (Prompt Version 3.0)
+        # Always executed regardless of LLM availability (delegates to deterministic fallback when LLM is unavailable)
+        try:
+            from awa.analysis.business_area_classifier import extract_output_evidence_for_workflow
+            from awa.analysis.portfolio_analyzer import _extract_workflow_sources
+            temp_res = CanonicalAnalysisResult(
+                analysis_id=aid,
+                source=sinfo,
+                workflow=workflow,
+                graph=graph,
+                execution_order=exec_order,
+                translations=translations,
+                consumed_anchors=consumed,
+                lineage_paths=lineage_paths,
+                metrics=metrics,
+                dag_layout=dag_layout,
+                python_trace=trace_map,
+                tool_explanations=tool_explanations,
+                required_libraries=required_libs,
+                diagnostics=all_diags,
+                business_summary=business_summary,
+            )
+            output_ev = extract_output_evidence_for_workflow(temp_res)
+            input_sources = _extract_workflow_sources(temp_res)
+            wf_key = sinfo.original_filename if (sinfo and sinfo.original_filename) else aid
+
+            purpose_res = gen.generate_business_purpose(
+                workflow,
+                business_summary,
+                workflow_id=wf_key,
+                output_evidence=output_ev,
+                input_sources=input_sources,
+            )
+            business_summary.business_purpose = purpose_res.business_purpose
+            business_summary.business_function = purpose_res.business_function
+            business_summary.business_area_tag = purpose_res.business_area_tag
+            business_summary.business_area_tag_source = purpose_res.source
+            business_summary.business_area_taxonomy_version = purpose_res.business_area_taxonomy_version
+            business_summary.classification_conflict = purpose_res.classification_conflict
+            business_summary.classification_evidence = purpose_res.classification_evidence
+            _llm_logger.info(
+                "Canonical purpose/tag generated: aid=%s tag='%s' function='%s' source='%s' conflict=%s len=%d",
+                aid,
+                purpose_res.business_area_tag,
+                purpose_res.business_function,
+                purpose_res.source,
+                purpose_res.classification_conflict,
+                len(purpose_res.business_purpose),
+            )
+        except Exception as purp_err:
+            _llm_logger.warning("Canonical purpose/tag generation failed for %s: %s", aid, type(purp_err).__name__)
+
         if gen.client.is_available:
             _llm_logger.info("LLM enrichment: starting generation for analysis %s", aid)
-
-            # 0. Generate canonical workflow Business Purpose and Business Area Tag (Prompt Version 3.0)
-            try:
-                from awa.analysis.business_area_classifier import extract_output_evidence_for_workflow
-                temp_res = CanonicalAnalysisResult(
-                    analysis_id=aid,
-                    source=sinfo,
-                    workflow=workflow,
-                    graph=graph,
-                    execution_order=exec_order,
-                    translations=translations,
-                    consumed_anchors=consumed,
-                    lineage_paths=lineage_paths,
-                    metrics=metrics,
-                    dag_layout=dag_layout,
-                    python_trace=trace_map,
-                    tool_explanations=tool_explanations,
-                    required_libraries=required_libs,
-                    diagnostics=all_diags,
-                    business_summary=business_summary,
-                )
-                output_ev = extract_output_evidence_for_workflow(temp_res)
-                purpose_res = gen.generate_business_purpose(
-                    workflow,
-                    business_summary,
-                    workflow_id=aid,
-                    output_evidence=output_ev,
-                )
-                business_summary.business_purpose = purpose_res.business_purpose
-                business_summary.business_function = purpose_res.business_function
-                business_summary.business_area_tag = purpose_res.business_area_tag
-                business_summary.business_area_tag_source = purpose_res.source
-                business_summary.business_area_taxonomy_version = purpose_res.business_area_taxonomy_version
-                business_summary.classification_conflict = purpose_res.classification_conflict
-                business_summary.classification_evidence = purpose_res.classification_evidence
-                _llm_logger.info(
-                    "LLM purpose/tag generated: aid=%s tag='%s' function='%s' source='%s' conflict=%s len=%d",
-                    aid,
-                    purpose_res.business_area_tag,
-                    purpose_res.business_function,
-                    purpose_res.source,
-                    purpose_res.classification_conflict,
-                    len(purpose_res.business_purpose),
-                )
-            except Exception as purp_err:
-                _llm_logger.warning("LLM purpose/tag generation failed: %s", purp_err)
 
             # 1. Generate dynamic Process Stages for Overview page
             try:
@@ -740,6 +747,7 @@ def analyze_canonical(
     if business_summary and (not getattr(business_summary, "business_area_tag", None) or business_summary.business_area_tag == "UNCLASSIFIED"):
         try:
             from awa.analysis.business_area_classifier import extract_output_evidence_for_workflow
+            from awa.analysis.portfolio_analyzer import _extract_workflow_sources
             from awa.llm import get_default_generator
             temp_res = CanonicalAnalysisResult(
                 analysis_id=aid,
@@ -759,14 +767,28 @@ def analyze_canonical(
                 business_summary=business_summary,
             )
             out_ev = extract_output_evidence_for_workflow(temp_res)
+            input_sources = _extract_workflow_sources(temp_res)
+            wf_key = sinfo.original_filename if sinfo and sinfo.original_filename else aid
             fallback_res = get_default_generator().generate_business_purpose(
-                workflow, business_summary, workflow_id=aid, output_evidence=out_ev
+                workflow, business_summary, workflow_id=wf_key, output_evidence=out_ev, input_sources=input_sources
             )
             business_summary.business_purpose = fallback_res.business_purpose
-            business_summary.business_area_tag = fallback_res.business_area_tag
+            business_summary.business_function = fallback_res.business_function
+            resolved_tag = fallback_res.business_area_tag
+            business_summary.business_area_tag = "Other / Unclassified" if resolved_tag in ("UNCLASSIFIED", "Other / Unclassified") else resolved_tag
             business_summary.business_area_tag_source = fallback_res.source
-        except Exception:
-            pass
+            business_summary.business_area_taxonomy_version = fallback_res.business_area_taxonomy_version
+            business_summary.classification_conflict = fallback_res.classification_conflict
+            business_summary.classification_evidence = fallback_res.classification_evidence
+        except Exception as fb_err:
+            import logging as _fb_log
+            _fb_log.getLogger("awa.analysis.workflow_analyzer").warning(
+                "Deterministic fallback failed for workflow %s: %s", aid, type(fb_err).__name__
+            )
+
+    if business_summary and getattr(business_summary, "business_area_tag", None) in (None, "", "UNCLASSIFIED"):
+        business_summary.business_area_tag = "Other / Unclassified"
+        business_summary.business_area_tag_source = "deterministic_fallback"
 
     return CanonicalAnalysisResult(
         analysis_id=aid,
