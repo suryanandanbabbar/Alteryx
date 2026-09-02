@@ -549,7 +549,7 @@ def build_portfolio_analysis(
         shared_sources={s.dataset_name for s in shared_sources},
     )
 
-    from awa.llm.generator import compose_deterministic_criticality_fallback
+    from awa.llm.generator import LLMNarrativeGenerator
 
     for wf in summaries:
         if wf.status == "SUCCESS":
@@ -599,9 +599,9 @@ def build_portfolio_analysis(
                         "downstream_consumer_count": len(dep_context.source_to_consumers.get(wf.targets[0], [])) if wf.targets else 0,
                     },
                 )
-                # Single canonical LLM generation owner is canonical upload analysis;
-                # portfolio aggregation strictly uses deterministic fallback when evaluating new cross-workflow context.
-                crit_res = compose_deterministic_criticality_fallback(ev)
+                # When cross-workflow portfolio dependencies alter evidence, invoke canonical LLM assessment service
+                gen_inst = generator or LLMNarrativeGenerator()
+                crit_res = gen_inst.generate_criticality_assessment(ev)
                 wf.criticality_score = crit_res.criticality_score
                 wf.criticality_level = crit_res.criticality_level
                 wf.criticality_factors = crit_res.criticality_factors

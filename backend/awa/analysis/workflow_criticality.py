@@ -378,7 +378,7 @@ def build_criticality_evidence_package(
 
     shared_sources_consumed = [s for s in sources if s in ctx.shared_sources]
 
-    # Semantic business impact signals
+    # Semantic business impact signals (Primary: business_function and business_purpose)
     semantic_signals: list[str] = []
     combined_text = f"{business_function} {business_purpose}".strip()
     if combined_text:
@@ -390,6 +390,16 @@ def build_criticality_evidence_package(
             semantic_signals.append("Customer / claimant / policyholder benefit or coverage impact")
         if CLIENT_PATTERN.search(combined_text):
             semantic_signals.append("External client / broker / agent deliverable or commission")
+
+    # Supplementary signals from output targets (supporting signals only)
+    if targets:
+        target_names_combined = " ".join(targets)
+        if DELIVERABLE_PATTERN.search(target_names_combined) and not any("reporting deliverable" in s for s in semantic_signals):
+            semantic_signals.append("Output naming indicates financial, statutory, or official reporting deliverable")
+        if CUSTOMER_PATTERN.search(target_names_combined) and not any("Customer" in s for s in semantic_signals):
+            semantic_signals.append("Output naming indicates customer or claimant dataset")
+        if CLIENT_PATTERN.search(target_names_combined) and not any("client" in s.lower() for s in semantic_signals):
+            semantic_signals.append("Output naming indicates external partner or broker dataset")
 
     # Calculate deterministic baseline for audit/reference
     det_crit = calculate_workflow_criticality(

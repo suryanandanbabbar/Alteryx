@@ -250,8 +250,8 @@ def test_deterministic_fallback_low_isolated():
     result = compose_deterministic_criticality_fallback(evidence)
     assert result.criticality_level == "LOW"
     assert result.criticality_score == 22.0
-    assert result.source == "deterministic_fallback"
-    assert "minimal operational blast radius" in result.criticality_justification.lower()
+    assert "zero downstream workflow dependencies" in result.criticality_justification.lower()
+    assert "blast radius" not in result.criticality_justification.lower()
     assert result.factor_assessments["downstream_dependency"].assessment == "LOW"
     assert result.factor_assessments["customer_impact"].assessment == "NOT_ESTABLISHED"
 

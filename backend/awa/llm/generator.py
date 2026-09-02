@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 from typing import Any
 import networkx as nx
@@ -981,7 +982,7 @@ def _validate_criticality_assessment(
     if isinstance(downstream_fa, dict):
         fa_rating = str(downstream_fa.get("assessment", "")).upper()
         if fa_rating in ("HIGH", "MEDIUM") and not evidence.downstream_consumers:
-            return False, "downstream_dependency assessed as HIGH/MEDIUM but workflow has 0 downstream consumers in evidence"
+            return False, f"downstream_dependency assessed as {fa_rating} but workflow has 0 downstream consumers in evidence"
 
     cust_fa = factors.get("customer_impact")
     if isinstance(cust_fa, dict):
@@ -1643,6 +1644,22 @@ class LLMNarrativeGenerator:
 
         try:
             raw_response = self.client.generate(system_prompt, user_prompt)
+
+            raw_type = type(raw_response).__name__
+            raw_len = len(raw_response) if isinstance(raw_response, (str, list, dict)) else 0
+            raw_snippet = repr(raw_response)[:100].replace("\n", " ") if raw_response is not None else "None"
+            if self.client and hasattr(self.client, "config"):
+                api_key = getattr(self.client.config, "api_key", "")
+                if api_key and len(api_key) > 8:
+                    raw_snippet = raw_snippet.replace(api_key, "[REDACTED]")
+
+            logger.debug(
+                "[CRITICALITY PARSE DEBUG] stage=raw_received raw_type=%s length=%d snippet=%.100s",
+                raw_type,
+                raw_len,
+                raw_snippet,
+            )
+
             parsed = _extract_structured_criticality_payload(raw_response)
 
             if isinstance(parsed, dict):
@@ -1688,18 +1705,22 @@ class LLMNarrativeGenerator:
                     )
                     self._cache.set(cache_key, result)
                     logger.info(
-                        "[LLM] criticality_assessment accepted: score=%.1f, level=%s, factors=%d",
+                        "[LLM CRITICALITY] criticality_assessment accepted: stage=accepted score=%.1f level=%s factors=%d",
                         result.criticality_score,
                         result.criticality_level,
                         len(result.factor_assessments),
                     )
                     return result
                 else:
-                    logger.warning("[LLM] Criticality assessment validation rejected: %s. Using fallback.", reason)
+                    logger.warning("[LLM CRITICALITY] Criticality assessment validation rejected: stage=validation reason=%s. Using fallback.", reason)
             else:
-                logger.warning("[LLM] Output did not contain valid structured JSON for criticality. Using fallback.")
+                logger.warning(
+                    "[LLM CRITICALITY] Output did not contain valid structured JSON for criticality. stage=extraction raw_type=%s length=%d. Using fallback.",
+                    raw_type,
+                    raw_len,
+                )
         except Exception as exc:
-            logger.warning("[LLM] generate_criticality_assessment failed: %s. Using fallback.", exc)
+            logger.warning("[LLM CRITICALITY] generate_criticality_assessment failed: %s. Using fallback.", exc)
 
         return fallback_result
 
