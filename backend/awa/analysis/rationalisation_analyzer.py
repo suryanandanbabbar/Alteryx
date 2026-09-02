@@ -97,6 +97,109 @@ def normalize_expression(expr: str) -> str:
     return norm
 
 
+DISALLOWED_EVIDENCE_TOKENS: tuple[str, ...] = (
+    "=",
+    ":",
+    "=:",
+    ":=",
+    "join on =",
+    "join on :",
+    "join on:",
+    "join on",
+    "shared join key: =",
+    "shared join key:",
+    "shared join key",
+    "formula: =",
+    "formula:",
+    "filter: =",
+    "filter:",
+    "summarize: =",
+    "summarize:",
+    "summarize aggregations",
+    "aggregation: =",
+    "aggregation:",
+    "target: =",
+    "target:",
+)
+
+GENERIC_TOOL_MARKERS: tuple[str, ...] = (
+    "join operation",
+    "filter operation",
+    "summarize aggregations",
+    "summarize operation",
+    "formula calculation",
+    "multirowformula calculation",
+)
+
+
+def is_meaningful_evidence(item: str | None) -> bool:
+    """Determine whether an evidence string represents concrete, valid operational logic.
+
+    Rejects:
+    - None, empty, or whitespace-only strings
+    - Synthetic/placeholder tokens: '=', ':', 'Join on =', 'Shared join key: ='
+    - Label-only prefixes without values: 'Join on:', 'Formula:', 'Filter:'
+    - Generic tool-presence markers: 'Join operation', 'Filter operation'
+    """
+    if not item or not isinstance(item, str):
+        return False
+    clean = item.strip()
+    if not clean:
+        return False
+    lower = clean.lower()
+    if lower in DISALLOWED_EVIDENCE_TOKENS or lower in GENERIC_TOOL_MARKERS:
+        return False
+    # Check prefixes with empty or synthetic values
+    for prefix in (
+        "shared join key:",
+        "shared join key",
+        "join on:",
+        "join on",
+        "formula:",
+        "formula",
+        "filter:",
+        "filter",
+        "shared filter predicate:",
+        "summarize:",
+        "summarize aggregations",
+        "aggregation:",
+        "target:",
+    ):
+        if lower.startswith(prefix):
+            val = clean[len(prefix):].strip()
+            if not val or val in ("=", ":", "=:", ":=") or val.replace("=", "").replace(":", "").strip() == "":
+                return False
+            if val.lower() in ("operation", "calculation", "aggregations"):
+                return False
+    return True
+
+
+def format_summarize_fields(summarize_fields: list[dict[str, Any]]) -> str:
+    """Format structured Summarize fields with stable ordering (GroupBy first, then aggregates)."""
+    group_bys: list[str] = []
+    aggregates: list[str] = []
+    for sf in summarize_fields:
+        if not isinstance(sf, dict):
+            continue
+        field = str(sf.get("field") or "").strip()
+        action = str(sf.get("action") or "").strip()
+        rename = str(sf.get("rename") or "").strip()
+        if not field and not action:
+            continue
+        if action.lower() == "groupby":
+            group_bys.append(f"GroupBy({field})")
+        else:
+            if rename and rename.lower() != field.lower():
+                aggregates.append(f"{action}({field}) as {rename}")
+            else:
+                aggregates.append(f"{action}({field})")
+
+    group_bys.sort()
+    aggregates.sort()
+    ordered = group_bys + aggregates
+    return ", ".join(ordered)
+
+
 def build_workflow_fingerprint(
     summary: PortfolioWorkflowSummary,
     canonical_res: CanonicalAnalysisResult,
@@ -213,7 +316,7 @@ def build_workflow_fingerprint(
             if expr:
                 norm_expr = normalize_expression(expr)
                 filters.append(norm_expr)
-                transformation_signatures.append(f"Filter: {norm_expr[:60]}")
+                transformation_signatures.append(f"Filter: {norm_expr}")
             else:
                 transformation_signatures.append("Filter operation")
 
@@ -221,22 +324,56 @@ def build_workflow_fingerprint(
             join_fields = getattr(cfg, "join_fields", []) or parsed_dict.get("join_fields", []) or []
             jk = []
             if join_fields:
-                jk = sorted([f"{getattr(jf, 'left_field', '') or jf.get('left_field', '')}={getattr(jf, 'right_field', '') or jf.get('right_field', '')}" for jf in join_fields if isinstance(jf, dict) or hasattr(jf, 'left_field')])
+                for jf in join_fields:
+                    left = ""
+                    right = ""
+                    if isinstance(jf, dict):
+                        left = str(jf.get("left") or jf.get("left_field") or "").strip()
+                        right = str(jf.get("right") or jf.get("right_field") or "").strip()
+                    elif hasattr(jf, "left") or hasattr(jf, "left_field"):
+                        left = str(getattr(jf, "left", "") or getattr(jf, "left_field", "")).strip()
+                        right = str(getattr(jf, "right", "") or getattr(jf, "right_field", "")).strip()
+                    if left and right:
+                        jk.append(f"{left}={right}")
+                    elif left or right:
+                        jk.append(left or right)
             elif "<joininfo" in raw_xml_str.lower():
                 lefts = re.findall(r'<JoinInfo\s+connection=["\']Left["\']>\s*<Field\s+field=["\']([^"\']+)["\']', raw_xml_str, re.IGNORECASE)
                 rights = re.findall(r'<JoinInfo\s+connection=["\']Right["\']>\s*<Field\s+field=["\']([^"\']+)["\']', raw_xml_str, re.IGNORECASE)
                 for l, r in zip(lefts, rights):
-                    jk.append(f"{l}={r}")
-            if jk:
-                join_keys.extend(jk)
-                transformation_signatures.append(f"Join on {', '.join(jk)}")
+                    l_clean = l.strip()
+                    r_clean = r.strip()
+                    if l_clean and r_clean:
+                        jk.append(f"{l_clean}={r_clean}")
+                    elif l_clean or r_clean:
+                        jk.append(l_clean or r_clean)
+
+            # Filter out any malformed tokens: NEVER permit '=' or empty strings
+            valid_jk = [k for k in jk if k and k.strip() and k.strip() != "="]
+            if valid_jk:
+                unique_jk = sorted(list(set(valid_jk)))
+                join_keys.extend(unique_jk)
+                transformation_signatures.append(f"Join on: {', '.join(unique_jk)}")
             else:
                 transformation_signatures.append("Join operation")
 
         elif ttype == "Summarize":
-            cfg_str = str(parsed_dict) if parsed_dict else raw_xml_str
-            aggregations.append(normalize_expression(cfg_str)[:60])
-            transformation_signatures.append(f"Summarize aggregations ({len(aggregations)})")
+            sum_fields = getattr(cfg, "summarize_fields", []) or parsed_dict.get("summarize_fields", []) or []
+            if not sum_fields and "<summarizefield" in raw_xml_str.lower():
+                matches = re.findall(
+                    r'<SummarizeField\s+field=["\']([^"\']+)["\']\s+action=["\']([^"\']+)["\'](?:\s+rename=["\']([^"\']*)["\'])?',
+                    raw_xml_str,
+                    re.IGNORECASE,
+                )
+                for fld, act, ren in matches:
+                    sum_fields.append({"field": fld, "action": act, "rename": ren or ""})
+
+            formatted_sum = format_summarize_fields(sum_fields) if sum_fields else ""
+            if formatted_sum:
+                aggregations.append(formatted_sum)
+                transformation_signatures.append(f"Summarize: {formatted_sum}")
+            else:
+                transformation_signatures.append("Summarize operation")
 
         elif ttype in ("Formula", "MultiRowFormula"):
             formula_fields = getattr(cfg, "formula_fields", []) or parsed_dict.get("formula_fields", []) or []
@@ -244,15 +381,35 @@ def build_workflow_fingerprint(
             for ff in formula_fields:
                 f_name = getattr(ff, "field_name", "") or (ff.get("field_name", "") if isinstance(ff, dict) else "")
                 f_expr = getattr(ff, "expression", "") or (ff.get("expression", "") if isinstance(ff, dict) else "")
+                f_name = str(f_name).strip()
+                f_expr = str(f_expr).strip()
                 if f_name or f_expr:
-                    norm_f = f"{f_name}={normalize_expression(f_expr)[:40]}"
+                    norm_expr = normalize_expression(f_expr)
+                    if f_name and norm_expr:
+                        norm_f = f"{f_name}={norm_expr}"
+                    elif norm_expr:
+                        norm_f = norm_expr
+                    else:
+                        norm_f = f_name
                     formulas.append(norm_f)
                     transformation_signatures.append(f"Formula: {norm_f}")
                     found_f = True
             if not found_f and "<formulafield" in raw_xml_str.lower():
-                matches = re.findall(r'<FormulaField\s+field=["\']([^"\']+)["\']\s+expression=["\']([^"\']+)["\']', raw_xml_str, re.IGNORECASE)
+                matches = re.findall(
+                    r'<FormulaField\s+field=["\']([^"\']+)["\']\s+expression=["\']([^"\']+)["\']',
+                    raw_xml_str,
+                    re.IGNORECASE,
+                )
                 for f_name, f_expr in matches:
-                    norm_f = f"{f_name}={normalize_expression(f_expr)[:40]}"
+                    f_name = f_name.strip()
+                    f_expr = f_expr.strip()
+                    norm_expr = normalize_expression(f_expr)
+                    if f_name and norm_expr:
+                        norm_f = f"{f_name}={norm_expr}"
+                    elif norm_expr:
+                        norm_f = norm_expr
+                    else:
+                        norm_f = f_name
                     formulas.append(norm_f)
                     transformation_signatures.append(f"Formula: {norm_f}")
                     found_f = True
@@ -393,22 +550,36 @@ def compare_workflows(
     sig_a = set(fp_a.transformation_signatures)
     sig_b = set(fp_b.transformation_signatures)
     transformation_similarity = _jaccard_similarity(sig_a, sig_b)
-    shared_logic = sorted(list(sig_a & sig_b))
-    unique_a = sorted(list(sig_a - sig_b))
-    unique_b = sorted(list(sig_b - sig_a))
 
-    # Check join keys and formulas explicitly
+    # Exclude generic tool-presence markers from shared logic and unique functionality
+    shared_logic = sorted([s for s in (sig_a & sig_b) if is_meaningful_evidence(s)])
+    unique_a = sorted([s for s in (sig_a - sig_b) if is_meaningful_evidence(s)])
+    unique_b = sorted([s for s in (sig_b - sig_a) if is_meaningful_evidence(s)])
+
+    # Check join keys: deduplicate when join condition already represents the join key
     shared_joins = set(fp_a.join_keys) & set(fp_b.join_keys)
-    for sj in shared_joins:
-        entry = f"Shared join key: {sj}"
-        if entry not in shared_logic:
-            shared_logic.append(entry)
+    for sj in sorted(list(shared_joins)):
+        sj_clean = sj.strip()
+        if sj_clean and is_meaningful_evidence(sj_clean):
+            # Check if this join key is already part of an existing 'Join on:' entry in shared_logic
+            already_represented = any(
+                f"Join on: {sj_clean}" in item or f"Join on {sj_clean}" in item or sj_clean in item
+                for item in shared_logic
+                if "join" in item.lower()
+            )
+            if not already_represented:
+                entry = f"Shared join key: {sj_clean}"
+                if entry not in shared_logic and is_meaningful_evidence(entry):
+                    shared_logic.append(entry)
 
+    # Check shared filters
     shared_filters = set(fp_a.filters) & set(fp_b.filters)
-    for sf in shared_filters:
-        entry = f"Shared filter predicate: {sf[:50]}"
-        if entry not in shared_logic:
-            shared_logic.append(entry)
+    for sf in sorted(list(shared_filters)):
+        sf_clean = sf.strip()
+        if sf_clean and is_meaningful_evidence(sf_clean):
+            entry = f"Shared filter predicate: {sf_clean}"
+            if entry not in shared_logic and is_meaningful_evidence(entry):
+                shared_logic.append(entry)
 
     # 7. DAG topology similarity
     max_nodes = max(fp_a.node_count, fp_b.node_count, 1)
@@ -701,7 +872,23 @@ def detect_candidate_from_comparison(
 
     candidate_id = f"cand_{fp_a.workflow_id[:8]}_{fp_b.workflow_id[:8]}"
 
-    return RationalisationCandidate(
+    valid_shared = [s for s in comp.shared_logic if is_meaningful_evidence(s)]
+    valid_unique_a = [u for u in comp.unique_a if is_meaningful_evidence(u)]
+    valid_unique_b = [u for u in comp.unique_b if is_meaningful_evidence(u)]
+
+    unique_func: dict[str, list[str]] = {}
+    if valid_unique_a:
+        unique_func[fp_a.workflow_name] = valid_unique_a
+    if valid_unique_b:
+        unique_func[fp_b.workflow_name] = valid_unique_b
+
+    discarded_count = (
+        (len(comp.shared_logic) - len(valid_shared))
+        + (len(comp.unique_a) - len(valid_unique_a))
+        + (len(comp.unique_b) - len(valid_unique_b))
+    )
+
+    candidate = RationalisationCandidate(
         candidate_id=candidate_id,
         workflow_ids=[fp_a.workflow_id, fp_b.workflow_id],
         workflow_names=[fp_a.workflow_name, fp_b.workflow_name],
@@ -710,11 +897,8 @@ def detect_candidate_from_comparison(
         opportunity_score=comp.opportunity_score,
         reasoning=reasoning,
         evidence=evidence_list,
-        shared_logic=comp.shared_logic[:10],
-        unique_functionality={
-            fp_a.workflow_name: comp.unique_a[:6],
-            fp_b.workflow_name: comp.unique_b[:6],
-        },
+        shared_logic=valid_shared,
+        unique_functionality=unique_func,
         proposed_strategy=proposed_strategy,
         validation_requirements=validation_reqs,
         deterministic_metrics=m,
@@ -724,6 +908,16 @@ def detect_candidate_from_comparison(
         admissible_recommendations=admissible,
         llm_enrichment_status="DETERMINISTIC_BASELINE",
     )
+
+    logger.info(
+        "[RATIONALISATION EVIDENCE] candidate=%s shared_count=%d unique_counts=%s discarded_invalid=%d",
+        candidate.candidate_id,
+        len(valid_shared),
+        {k: len(v) for k, v in unique_func.items()},
+        discarded_count,
+    )
+
+    return candidate
 
 
 # ---------------------------------------------------------------------------

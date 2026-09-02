@@ -17,6 +17,7 @@ import {
   Target,
   Check,
   Sparkles,
+  Copy,
 } from 'lucide-react';
 import {
   RationalisationAnalysisDTO,
@@ -25,6 +26,253 @@ import {
 } from '../types/portfolio';
 import { apiClient } from '../api/client';
 import { getLevelBadgeStyle } from './PortfolioPage';
+
+export function isMeaningfulEvidence(item: string | null | undefined): boolean {
+  if (!item || typeof item !== 'string') return false;
+  const clean = item.trim();
+  if (!clean || clean === '=' || clean === ':' || clean === '=:' || clean === ':=') return false;
+
+  const lower = clean.toLowerCase();
+  const disallowed = [
+    '=',
+    ':',
+    '=:',
+    ':=',
+    'join on =',
+    'join on :',
+    'join on:',
+    'join on',
+    'shared join key: =',
+    'shared join key:',
+    'shared join key',
+    'formula: =',
+    'formula:',
+    'filter: =',
+    'filter:',
+    'summarize: =',
+    'summarize:',
+    'summarize aggregations',
+    'aggregation: =',
+    'aggregation:',
+    'target: =',
+    'target:',
+    'join operation',
+    'filter operation',
+    'summarize operation',
+    'formula calculation',
+    'multirowformula calculation',
+  ];
+
+  if (disallowed.includes(lower)) {
+    return false;
+  }
+
+  const prefixes = [
+    'shared join key:',
+    'shared join key',
+    'join on:',
+    'join on',
+    'formula:',
+    'formula',
+    'filter:',
+    'filter',
+    'shared filter predicate:',
+    'summarize:',
+    'summarize aggregations',
+    'aggregation:',
+    'target:',
+  ];
+
+  for (const prefix of prefixes) {
+    if (lower.startsWith(prefix)) {
+      const val = clean.slice(prefix.length).trim();
+      if (!val || val === '=' || val === ':' || val.replace(/[=:]/g, '').trim() === '') {
+        return false;
+      }
+      if (['operation', 'calculation', 'aggregations'].includes(val.toLowerCase())) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+const EvidenceItemRow: React.FC<{ item: string; icon?: React.ReactNode }> = ({ item, icon }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const prefixMatch = item.match(/^(Formula|Filter|Join on|Shared join key|Summarize|Shared filter predicate):\s*(.*)$/i);
+  const prefix = prefixMatch ? prefixMatch[1] : '';
+  const expr = prefixMatch ? prefixMatch[2] : item;
+
+  const isLong = expr.length > 100;
+  const displayExpr = isLong && !expanded ? `${expr.slice(0, 95)}...` : expr;
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(expr);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+        fontSize: '12.5px',
+        color: 'var(--color-text)',
+        padding: '6px 10px',
+        background: 'var(--color-surface)',
+        borderRadius: '6px',
+        border: '1px solid var(--color-border-subtle)',
+        overflowWrap: 'anywhere',
+        wordBreak: 'break-word',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', flex: 1, minWidth: 0 }}>
+          {icon && <span style={{ flexShrink: 0, marginTop: '2px' }}>{icon}</span>}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {prefix && (
+              <span
+                style={{
+                  fontWeight: '700',
+                  fontSize: '11px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  color: 'var(--color-text-secondary)',
+                  marginRight: '6px',
+                  display: 'inline-block',
+                }}
+              >
+                {prefix}:
+              </span>
+            )}
+            <span
+              style={{
+                fontFamily:
+                  prefix.toLowerCase().includes('formula') ||
+                  prefix.toLowerCase().includes('filter') ||
+                  prefix.toLowerCase().includes('join')
+                    ? 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
+                    : 'inherit',
+                fontSize: prefix.toLowerCase().includes('formula') ? '12px' : '12.5px',
+                lineHeight: '1.5',
+                color: prefix.toLowerCase().includes('formula') ? 'var(--color-primary)' : 'var(--color-text)',
+              }}
+            >
+              {displayExpr}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+          {isLong && (
+            <button
+              onClick={() => setExpanded((prev) => !prev)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '11px',
+                fontWeight: '600',
+                color: 'var(--color-primary)',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px',
+              }}
+              title={expanded ? 'Show less' : 'Show full expression'}
+            >
+              {expanded ? 'Collapse' : 'Expand'}
+            </button>
+          )}
+          <button
+            onClick={handleCopy}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: copied ? '#34d399' : 'var(--color-text-muted)',
+              padding: '2px 4px',
+              borderRadius: '4px',
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+            title="Copy full expression"
+          >
+            {copied ? <Check size={13} /> : <Copy size={13} />}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const UniqueWorkflowList: React.FC<{ wfName: string; items: string[] }> = ({ wfName, items }) => {
+  const [showAll, setShowAll] = useState(false);
+  const INITIAL_LIMIT = 6;
+  const hasMore = items.length > INITIAL_LIMIT;
+  const displayed = showAll ? items : items.slice(0, INITIAL_LIMIT);
+
+  return (
+    <div
+      style={{
+        padding: '12px 16px',
+        borderRadius: '8px',
+        background: 'var(--color-surface-secondary)',
+        border: '1px solid var(--color-border-subtle)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '8px',
+        }}
+      >
+        <div
+          style={{
+            fontSize: '12.5px',
+            fontWeight: '700',
+            color: 'var(--color-primary)',
+          }}
+        >
+          {wfName} Unique Operations ({items.length}):
+        </div>
+        {hasMore && (
+          <button
+            onClick={() => setShowAll((prev) => !prev)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '11.5px',
+              fontWeight: '600',
+              color: 'var(--color-primary)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            {showAll ? 'Show fewer' : `+ Show ${items.length - INITIAL_LIMIT} more`}
+          </button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {displayed.map((it, i) => (
+          <EvidenceItemRow key={i} item={it} />
+        ))}
+      </div>
+    </div>
+  );
+};
 
 interface RationalisationPageProps {
   portfolioId: string;
@@ -1249,25 +1497,28 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           </span>
                         )}
 
-                        {cand.shared_logic.length > 0 && (
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              fontSize: '11px',
-                              fontWeight: '600',
-                              color: 'var(--color-text-secondary)',
-                              background: 'var(--color-surface-secondary)',
-                              padding: '3px 8px',
-                              borderRadius: '4px',
-                            }}
-                          >
-                            <Cpu size={11} />
-                            {cand.shared_logic.length} Shared Operation
-                            {cand.shared_logic.length > 1 ? 's' : ''}
-                          </span>
-                        )}
+                        {(() => {
+                          const validCount = (cand.shared_logic || []).filter(isMeaningfulEvidence).length;
+                          if (validCount === 0) return null;
+                          return (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                color: 'var(--color-text-secondary)',
+                                background: 'var(--color-surface-secondary)',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              <Cpu size={11} />
+                              {validCount} Shared Operation{validCount > 1 ? 's' : ''}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       {/* Detail CTA Button */}
@@ -1775,119 +2026,89 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               </div>
             </div>
 
-            {/* Shared Logic Operations */}
-            {selectedCandidate.shared_logic.length > 0 && (
-              <div>
-                <div
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    color: 'var(--color-text-muted)',
-                    marginBottom: '8px',
-                  }}
-                >
-                  SHARED OPERATIONAL LOGIC
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    padding: '14px 16px',
-                    borderRadius: '8px',
-                    background: 'var(--color-surface-secondary)',
-                    border: '1px solid var(--color-border-subtle)',
-                  }}
-                >
-                  {selectedCandidate.shared_logic.map((item, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: '8px',
-                        fontSize: '13px',
-                        color: 'var(--color-text)',
-                      }}
-                    >
-                      <CheckCircle2 size={15} color="#34d399" style={{ flexShrink: 0, marginTop: '2px' }} />
-                      <span>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Defensive evidence filtering & lossless presentation */}
+            {(() => {
+              const validShared = (selectedCandidate.shared_logic || []).filter(isMeaningfulEvidence);
+              const validUnique: Record<string, string[]> = {};
+              for (const [wfName, items] of Object.entries(selectedCandidate.unique_functionality || {})) {
+                if (Array.isArray(items)) {
+                  const filtered = items.filter(isMeaningfulEvidence);
+                  if (filtered.length > 0) {
+                    validUnique[wfName] = filtered;
+                  }
+                }
+              }
 
-            {/* Unique Functionality Breakdown */}
-            {Object.keys(selectedCandidate.unique_functionality).length > 0 && (
-              <div>
-                <div
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: '700',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    color: 'var(--color-text-muted)',
-                    marginBottom: '8px',
-                  }}
-                >
-                  UNIQUE WORKFLOW FUNCTIONALITY
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px',
-                  }}
-                >
-                  {Object.entries(selectedCandidate.unique_functionality).map(([wfName, items]) => (
-                    <div
-                      key={wfName}
-                      style={{
-                        padding: '12px 16px',
-                        borderRadius: '8px',
-                        background: 'var(--color-surface-secondary)',
-                        border: '1px solid var(--color-border-subtle)',
-                      }}
-                    >
+              return (
+                <>
+                  {/* Shared Logic Operations */}
+                  {validShared.length > 0 && (
+                    <div>
                       <div
                         style={{
-                          fontSize: '12.5px',
+                          fontSize: '11px',
                           fontWeight: '700',
-                          color: 'var(--color-primary)',
-                          marginBottom: '6px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          color: 'var(--color-text-muted)',
+                          marginBottom: '8px',
                         }}
                       >
-                        {wfName} Unique Operations:
+                        SHARED OPERATIONAL LOGIC ({validShared.length})
                       </div>
-                      {items.length > 0 ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                          {items.map((it, i) => (
-                            <div
-                              key={i}
-                              style={{
-                                fontSize: '12.5px',
-                                color: 'var(--color-text-secondary)',
-                                paddingLeft: '12px',
-                                position: 'relative',
-                              }}
-                            >
-                              • {it}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                          No unique transformation operations detected. All logic is duplicated or shared.
-                        </div>
-                      )}
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          padding: '14px 16px',
+                          borderRadius: '8px',
+                          background: 'var(--color-surface-secondary)',
+                          border: '1px solid var(--color-border-subtle)',
+                        }}
+                      >
+                        {validShared.map((item, idx) => (
+                          <EvidenceItemRow
+                            key={idx}
+                            item={item}
+                            icon={<CheckCircle2 size={15} color="#34d399" />}
+                          />
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  )}
+
+                  {/* Unique Functionality Breakdown */}
+                  {Object.keys(validUnique).length > 0 && (
+                    <div>
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          color: 'var(--color-text-muted)',
+                          marginBottom: '8px',
+                        }}
+                      >
+                        UNIQUE WORKFLOW FUNCTIONALITY
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                        }}
+                      >
+                        {Object.entries(validUnique).map(([wfName, items]) => (
+                          <UniqueWorkflowList key={wfName} wfName={wfName} items={items} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Why This Recommendation */}
             <div>

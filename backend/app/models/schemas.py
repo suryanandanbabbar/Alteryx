@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class PackageMetadataDTO(BaseModel):
@@ -412,6 +412,28 @@ class RationalisationCandidateDTO(BaseModel):
     risk_context: RiskContextDTO = Field(default_factory=RiskContextDTO)
     admissible_recommendations: list[str] = Field(default_factory=list)
     llm_enrichment_status: str = "DETERMINISTIC_BASELINE"
+
+    @field_validator("shared_logic", mode="before")
+    @classmethod
+    def sanitize_shared_logic(cls, v: Any) -> list[str]:
+        if not isinstance(v, list):
+            return []
+        from awa.analysis.rationalisation_analyzer import is_meaningful_evidence
+        return [str(item).strip() for item in v if is_meaningful_evidence(str(item))]
+
+    @field_validator("unique_functionality", mode="before")
+    @classmethod
+    def sanitize_unique_functionality(cls, v: Any) -> dict[str, list[str]]:
+        if not isinstance(v, dict):
+            return {}
+        from awa.analysis.rationalisation_analyzer import is_meaningful_evidence
+        cleaned: dict[str, list[str]] = {}
+        for k, items in v.items():
+            if isinstance(items, list):
+                valid_items = [str(it).strip() for it in items if is_meaningful_evidence(str(it))]
+                if valid_items:
+                    cleaned[k] = valid_items
+        return cleaned
 
 
 class RationalisationAnalysisDTO(BaseModel):
