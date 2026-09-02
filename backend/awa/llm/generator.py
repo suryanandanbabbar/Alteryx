@@ -449,9 +449,13 @@ DISALLOWED_PURPOSE_INDICATORS: tuple[str, ...] = (
     "tier 7",
     "evidence hierarchy",
     "classification hierarchy",
+    "classification debate",
+    "classification reasoning",
     "given these observations",
+    "given observations",
     "according to the classification",
     "rejected business area",
+    "rejected areas",
     "rejected because",
     "facts provided:",
     "based on the facts provided",
@@ -464,6 +468,13 @@ DISALLOWED_PURPOSE_INDICATORS: tuple[str, ...] = (
     "final classification",
     "primary business function:",
     "business area tag:",
+    "classification:",
+    "reasoning:",
+    "evidence:",
+    "observations:",
+    "justification:",
+    "in conclusion",
+    "prompt response",
     "```json",
     "```",
 )
@@ -478,22 +489,32 @@ def _is_clean_business_purpose(text: str | None) -> bool:
     if not cleaned:
         return False
 
-    # Disallow raw JSON, arrays, code blocks, or markdown headers
+    # Disallow raw JSON, arrays, code blocks, markdown headers, or multi-paragraph formatting
     if cleaned.startswith("{") or cleaned.startswith("[") or cleaned.endswith("}") or cleaned.endswith("]"):
         return False
     if "```" in cleaned:
         return False
-    if "\n#" in cleaned or "\n- Tier" in cleaned or "\n1. Tier" in cleaned:
+    if "\n\n" in cleaned or "\n#" in cleaned or "\n- " in cleaned or "\n1. " in cleaned:
         return False
 
-    # Word count: normally ~40-75 words; enforce boundaries [5, 130] to reject multi-paragraph reasoning dumps
+    # Word count: strictly one polished paragraph ~40-75 words; reject verbose reasoning dumps (> 110 words)
     words = cleaned.split()
-    if len(words) < 5 or len(words) > 130:
+    if len(words) < 5 or len(words) > 110:
         return False
 
     lower_text = cleaned.lower()
     for indicator in DISALLOWED_PURPOSE_INDICATORS:
         if indicator in lower_text:
+            return False
+
+    # Disallow conversational lead-ins
+    disallowed_starts = (
+        "here is", "this json", "based on", "the workflow is classified",
+        "according to", "in this analysis", "i have analyzed", "as an ai",
+        "we classify", "we determine",
+    )
+    for start in disallowed_starts:
+        if lower_text.startswith(start):
             return False
 
     return True
@@ -786,6 +807,7 @@ class LLMNarrativeGenerator:
                         business_purpose=llm_purpose,
                         workflow_name=wf_name,
                         business_function=llm_func,
+                        input_sources=input_sources or [],
                     )
                     strong_functional_domain = det_check.business_area
 

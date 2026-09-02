@@ -402,3 +402,79 @@ class TestBusinessAreaReconciliation:
         assert summary.business_area_tag == "Other / Unclassified"
         assert summary.business_area_tag_source == "llm"
 
+    def test_business_purpose_quality_rejects_reasoning_dumps(self):
+        """Req 15, 16: Verify _is_clean_business_purpose rejects reasoning dumps and prompt leaks."""
+        from awa.llm.generator import _is_clean_business_purpose
+
+        # Disallowed: Tier breakdown / reasoning
+        reasoning_sample = (
+            "Tier 1 Workflow Name: matches Claims. Tier 2 Purpose Taxonomy indicates claims adjudication. "
+            "Given these observations, we classify the workflow as Claims & Risk because the primary function is claims triage."
+        )
+        assert not _is_clean_business_purpose(reasoning_sample)
+
+        # Disallowed: Chain of thought / analysis preamble
+        cot_sample = "Let's analyze this step by step. First, the inputs show Policy_Master. Based on the facts provided, this is Underwriting."
+        assert not _is_clean_business_purpose(cot_sample)
+
+        # Disallowed: Multi-paragraph or markdown fences
+        markdown_sample = "```json\n{\"business_purpose\": \"Valid purpose statement.\"}\n```"
+        assert not _is_clean_business_purpose(markdown_sample)
+
+        # Disallowed: Conversational lead-in
+        lead_in = "Here is the business purpose: The workflow processes policy renewals and generates premium notices."
+        assert not _is_clean_business_purpose(lead_in)
+
+        # Allowed: Concise, polished business purpose
+        clean_sample = (
+            "Automates commercial underwriting risk evaluation and premium rating factor calculation for policy applications, "
+            "evaluating applicant risk matrices to generate binding decisions and underwriter audit deliverables."
+        )
+        assert _is_clean_business_purpose(clean_sample)
+
+    def test_llm_reasoning_rejection_falls_back_to_clean_purpose(self):
+        """Req 16, 17: When LLM outputs reasoning in business_purpose, generator rejects it and uses clean fallback."""
+        from unittest.mock import MagicMock
+        from awa.llm.generator import LLMNarrativeGenerator
+        from awa.llm.client import FakeLLMClient
+        import json
+
+        fake_client = FakeLLMClient(is_available=True)
+        # LLM returns valid JSON but the business_purpose field contains a reasoning dump
+        bad_llm_payload = {
+            "business_purpose": "Tier 1 Workflow Name: Underwriting Decision. Tier 2 indicates underwriting. Rejected Claims & Risk because data is only supporting.",
+            "business_function": "Underwriting Decisioning",
+            "business_area_tag": "Underwriting",
+        }
+        fake_client.generate = MagicMock(return_value=json.dumps(bad_llm_payload))
+
+        gen = LLMNarrativeGenerator(client=fake_client)
+        w = Workflow(metadata=WorkflowMetadata(name="Underwriting_Decision_Engine.yxmd", version="2021.4"))
+        bs = WorkflowBusinessSummary(
+            business_purpose="Evaluates policy risk factors to determine insurance coverage eligibility.",
+            one_line_purpose="",
+            why_it_matters="",
+            business_function="Underwriting Risk Assessment",
+        )
+
+        res = gen.generate_business_purpose(w, bs, workflow_id="Underwriting_Decision_Engine.yxmd")
+        # Should reject the dirty LLM purpose and fall back to the clean deterministic purpose
+        assert "Tier 1" not in res.business_purpose
+        assert "Rejected" not in res.business_purpose
+        assert res.source == "deterministic_fallback"
+        assert res.business_area_tag == "Underwriting"
+        assert res.business_purpose == bs.business_purpose  # Preserved clean deterministic purpose
+
+    def test_cross_artifact_business_purpose_consistency(self):
+        """Req 19: Portfolio overview, workflow details, and canonical result use the exact same Business Purpose."""
+        res = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="wf_consist_01")
+        portfolio = build_portfolio_analysis([("Demo_Claims.yxmd", "Demo_Claims.yxmd", res)])
+
+        port_wf = portfolio.workflows[0]
+        # Canonical analysis result and portfolio workflow summary have identical purpose
+        assert res.business_purpose == port_wf.business_purpose
+        assert res.business_function == port_wf.business_function
+        assert res.business_area_tag == port_wf.business_area_tag
+        assert "Tier" not in port_wf.business_purpose
+
+
