@@ -20,6 +20,7 @@ import hashlib
 import json
 import logging
 import re
+from pathlib import Path
 from typing import Any
 
 from awa.analysis.sttm_extractor import _clean_table_name
@@ -51,11 +52,11 @@ from awa.analysis.business_area_definitions import (
 # Domain Taxonomies for Deterministic Fallback
 # ---------------------------------------------------------------------------
 
-DOMAIN_TAXONOMY: dict[str, set[str]] = {
+DOMAINS_TAXONOMY = DOMAIN_TAXONOMY = {
     "Claims & Risk": {
-        "claim", "claims", "claimant", "risk", "fraud", "loss", "incident",
+        "claim", "claims", "claimant", "fraud", "loss", "incident",
         "exposure", "settlement", "severity", "subrogation", "indemnity",
-        "salvage", "recovery", "reserves", "incurred", "aging", "litigated",
+        "salvage", "recovery", "reserves", "incurred", "litigated",
         "catastrophe", "adjuster", "liability", "peril", "payout",
     },
     "Legal": {
@@ -198,42 +199,39 @@ def extract_output_evidence_for_workflow(result: CanonicalAnalysisResult) -> lis
 
 TIER1_FUNCTIONAL_PATTERNS: dict[str, list[re.Pattern]] = {
     "Underwriting": [
-        re.compile(r"\bunderwriting\b", re.IGNORECASE),
-        re.compile(r"\b(underwrite|underwriter)\b", re.IGNORECASE),
-        re.compile(r"\b(policy|policyholder|applicant)[\s_]+(eligibility|rating|risk[\s_]+score|pricing|decision|scoring)\b", re.IGNORECASE),
-        re.compile(r"\b(premium|rate|pricing)[\s_]+(calculator|calc|model|engine|matrix|algorithm|summary|schedule)\b", re.IGNORECASE),
-        re.compile(r"\bdecision[\s_]+engine\b", re.IGNORECASE),
-        re.compile(r"\b(coverage|binder)[\s_]+(acceptance|rejection|evaluation)\b", re.IGNORECASE),
-        re.compile(r"\brisk[\s_]+appetite\b", re.IGNORECASE),
-        re.compile(r"\brating[\s_]+engine\b", re.IGNORECASE),
+        re.compile(r"\bunderwrit(ing|e|er|ers)?\b", re.IGNORECASE),
+        re.compile(r"\b(policy|policyholder|applicant)[\s_]+(eligibility|rating|risk[\s_]+score|pricing|decision|scoring|acceptance|rejection)\b", re.IGNORECASE),
+        re.compile(r"\b(premium|rate|pricing)[\s_]+(calculator|calc|model|engine|matrix|algorithm|summary|schedule|rating)\b", re.IGNORECASE),
+        re.compile(r"\b(decision[\s_]+engine|rating[\s_]+engine|pricing[\s_]+engine)\b", re.IGNORECASE),
+        re.compile(r"\b(coverage|binder)[\s_]+(acceptance|rejection|evaluation|determination)\b", re.IGNORECASE),
+        re.compile(r"\b(risk[\s_]+appetite|risk[\s_]+assessment|risk[\s_]+evaluation|risk[\s_]+class|risk[\s_]+tier)\b", re.IGNORECASE),
+        re.compile(r"\b(actuarial[\s_]+rating|experience[\s_]+rating|manual[\s_]+rating)\b", re.IGNORECASE),
         re.compile(r"\bpolicy[\s_]+pricing\b", re.IGNORECASE),
-        re.compile(r"\bexperience[\s_]+rating\b", re.IGNORECASE),
     ],
     "Claims & Risk": [
-        re.compile(r"\b(claim|claims)[\s_]+(intake|triage|adjudication|processing|settlement|fraud|investigation|reserves?|aging|severity|litigation|volume|extract|summary|loss|reporting|audit)\b", re.IGNORECASE),
-        re.compile(r"\b(claim[\s_]+reserve|loss[\s_]+reserve|claims?[\s_]+loss)\b", re.IGNORECASE),
-        re.compile(r"\bclaims?[\s_]+fraud\b", re.IGNORECASE),
-        re.compile(r"\b(subrogation|salvage)\b", re.IGNORECASE),
+        re.compile(r"\b(claim|claims)[\s_]+(intake|triage|adjudication|processing|settlement|fraud|investigation|reserves?|aging|severity|litigation|volume|extract|summary|loss|reporting|audit|payment|diary|history|closure|adjuster)\b", re.IGNORECASE),
+        re.compile(r"\b(claim[\s_]+reserve|loss[\s_]+reserve|claims?[\s_]+loss|incurred[\s_]+loss)\b", re.IGNORECASE),
+        re.compile(r"\b(claims?[\s_]+fraud|suspicious[\s_]+claims?|fraud[\s_]+detection)\b", re.IGNORECASE),
+        re.compile(r"\b(subrogation|salvage[\s_]+recovery|indemnity[\s_]+payment)\b", re.IGNORECASE),
         re.compile(r"\bclaims?[\s_]+volume\b", re.IGNORECASE),
-        re.compile(r"\bopen[\s_]+claims?\b", re.IGNORECASE),
-        re.compile(r"\bclaims?[\s_]+exposure\b", re.IGNORECASE),
+        re.compile(r"\b(open[\s_]+claims?|closed[\s_]+claims?|claims?[\s_]+exposure|claims?[\s_]+duration)\b", re.IGNORECASE),
     ],
     "Sales & Distribution": [
-        re.compile(r"\b(sales|territory)[\s_]+(analytics|performance|quota|distribution|pipeline|forecast|report|reporting|summary|revenue|commission)\b", re.IGNORECASE),
-        re.compile(r"\b(broker|agent|producer)[\s_]+(commission|compensation|incentive|performance|quota)\b", re.IGNORECASE),
-        re.compile(r"\bdistribution[\s_]+channel\b", re.IGNORECASE),
-        re.compile(r"\bsales[\s_]+pipeline\b", re.IGNORECASE),
-        re.compile(r"\bgross[\s_]+sales\b", re.IGNORECASE),
-        re.compile(r"\bnet[\s_]+sales\b", re.IGNORECASE),
-        re.compile(r"\bclient[\s_]+acquisition\b", re.IGNORECASE),
+        re.compile(r"\b(sales|territory)[\s_]+(analytics|performance|quota|distribution|pipeline|forecast|report|reporting|summary|revenue|commission|target)\b", re.IGNORECASE),
+        re.compile(r"\b(broker|agent|producer|distributor)[\s_]+(commission|compensation|incentive|performance|quota|payout|statement|remittance)\b", re.IGNORECASE),
+        re.compile(r"\b(distribution[\s_]+channel|sales[\s_]+channel|intermediary[\s_]+network)\b", re.IGNORECASE),
+        re.compile(r"\b(sales[\s_]+pipeline|opportunity[\s_]+tracking|deal[\s_]+conversion)\b", re.IGNORECASE),
+        re.compile(r"\b(gross[\s_]+sales|net[\s_]+sales|sales[\s_]+volume|revenue[\s_]+growth)\b", re.IGNORECASE),
+        re.compile(r"\b(client[\s_]+acquisition|lead[\s_]+generation|cross[\s_]+sell|upsell)\b", re.IGNORECASE),
+        re.compile(r"\b(distributor[\s_]+sales|channel[\s_]+partner)\b", re.IGNORECASE),
     ],
     "Legal": [
         re.compile(r"\blegal\b", re.IGNORECASE),
-        re.compile(r"\b(regulatory|statutory|compliance)[\s_]+(reporting|report|filing|submission|audit|disclosure|extract)\b", re.IGNORECASE),
-        re.compile(r"\b(legal[\s_]+matter|court[\s_]+docket|litigation[\s_]+tracking|subpoena|case[\s_]+filing)\b", re.IGNORECASE),
-        re.compile(r"\bcontract[\s_]+(compliance|review|clause|analytics|management)\b", re.IGNORECASE),
-        re.compile(r"\binsurance[\s_]+commissioner\b", re.IGNORECASE),
-        re.compile(r"\bmatter[\s_]+management\b", re.IGNORECASE),
+        re.compile(r"\b(regulatory|statutory|compliance)[\s_]+(reporting|report|filing|submission|audit|disclosure|extract|monitoring|standard)\b", re.IGNORECASE),
+        re.compile(r"\b(legal[\s_]+matter|court[\s_]+docket|litigation[\s_]+tracking|subpoena|case[\s_]+filing|matter[\s_]+management)\b", re.IGNORECASE),
+        re.compile(r"\bcontract[\s_]+(compliance|review|clause|analytics|management|obligation|expiration)\b", re.IGNORECASE),
+        re.compile(r"\b(insurance[\s_]+commissioner|naic[\s_]+reporting|gdpr[\s_]+compliance|data[\s_]+privacy[\s_]+audit)\b", re.IGNORECASE),
+        re.compile(r"\b(attorney[\s_]+fees?|outside[\s_]+counsel|legal[\s_]+hold|ediscovery)\b", re.IGNORECASE),
     ],
 }
 
@@ -262,6 +260,42 @@ TIER2_PURPOSE_PATTERNS: dict[str, list[re.Pattern]] = {
         re.compile(r"\btrack(s|ing|ed)?[\s_]+(litigation|court[\s_]+cases?|legal[\s_]+matters?)\b", re.IGNORECASE),
         re.compile(r"\blegal[\s_]+regulatory\b", re.IGNORECASE),
         re.compile(r"\bregulatory[\s_]+compliance\b", re.IGNORECASE),
+    ],
+}
+
+TIER3_DECISION_PATTERNS: dict[str, list[re.Pattern]] = {
+    "Underwriting": [
+        re.compile(r"\b(underwriting[\s_]+rule|risk[\s_]+threshold|approval[\s_]+limit|eligibility[\s_]+rule|pricing[\s_]+factor|premium[\s_]+multiplier|rating[\s_]+matrix|rating[\s_]+factor)\b", re.IGNORECASE),
+        re.compile(r"\b(decline|refer|accept)[\s_]+decision\b", re.IGNORECASE),
+    ],
+    "Claims & Risk": [
+        re.compile(r"\b(loss[\s_]+reserve[\s_]+calc|reserve[\s_]+calculation|fraud[\s_]+scoring|aging[\s_]+threshold|settlement[\s_]+authority|claim[\s_]+adjudication)\b", re.IGNORECASE),
+        re.compile(r"\b(litigation[\s_]+risk|claim[\s_]+aging[\s_]+band)\b", re.IGNORECASE),
+    ],
+    "Sales & Distribution": [
+        re.compile(r"\b(commission[\s_]+tier|quota[\s_]+attainment|bonus[\s_]+calc|split[\s_]+commission|override[\s_]+rate|commission[\s_]+payout)\b", re.IGNORECASE),
+    ],
+    "Legal": [
+        re.compile(r"\b(compliance[\s_]+check|statutory[\s_]+threshold|retention[\s_]+rule|disclosure[\s_]+rule|regulatory[\s_]+deadline|legal[\s_]+hold[\s_]+rule)\b", re.IGNORECASE),
+    ],
+}
+
+TIER6_PROCESS_PATTERNS: dict[str, list[re.Pattern]] = {
+    "Underwriting": [
+        re.compile(r"\b(underwriting|policyholder[\s_]+risk|premium[\s_]+calc|rating[\s_]+engine|eligibility[\s_]+rules?|risk[\s_]+scoring)\b", re.IGNORECASE),
+        re.compile(r"\b(UnderwritingScore|RiskScore|RatingTier|PremiumAmount|EligibilityStatus)\b"),
+    ],
+    "Claims & Risk": [
+        re.compile(r"\b(claims?[\s_]+processing|loss[\s_]+reserves?|fraud[\s_]+scoring|claims?[\s_]+aging|claims?[\s_]+summary)\b", re.IGNORECASE),
+        re.compile(r"\b(ClaimID|LossReserve|FraudScore|PaidLoss|IncurredLoss|ClaimStatus)\b"),
+    ],
+    "Sales & Distribution": [
+        re.compile(r"\b(commission[\s_]+calculation|territory[\s_]+aggregation|sales[\s_]+pipeline|broker[\s_]+payouts?|quota[\s_]+tracking)\b", re.IGNORECASE),
+        re.compile(r"\b(CommissionAmount|QuotaAttainment|BrokerID|TerritoryCode|SalesRevenue)\b"),
+    ],
+    "Legal": [
+        re.compile(r"\b(regulatory[\s_]+filings?|compliance[\s_]+audit|litigation[\s_]+tracking|contract[\s_]+review|legal[\s_]+hold)\b", re.IGNORECASE),
+        re.compile(r"\b(MatterID|FilingDate|ComplianceStatus|StatutoryCode|CounselFees)\b"),
     ],
 }
 
@@ -308,28 +342,310 @@ def classify_business_function_deterministic(
     return "General technical data transformation"
 
 
+def compose_deterministic_business_purpose(
+    workflow: Any,
+    business_summary: Any = None,
+    business_function: str = "",
+    business_area: str = "",
+    workflow_name: str = "",
+) -> str:
+    """Compose a concise, informative, contextual business-facing paragraph (~40-75 words)
+
+    from actual canonical workflow facts.
+    """
+    # 1. If author-written description in metadata is informative, clean and not generic, prefer it
+    meta_desc = ""
+    if workflow and hasattr(workflow, "metadata") and getattr(workflow.metadata, "description", None):
+        meta_desc = str(workflow.metadata.description).strip()
+    if not meta_desc and workflow and hasattr(workflow, "textboxes") and workflow.textboxes:
+        for tb in workflow.textboxes.values():
+            txt = getattr(tb, "text", "").strip()
+            if len(txt) > 40 and not txt.startswith("<") and not txt.startswith("{") and "\n" not in txt[:30]:
+                meta_desc = txt
+                break
+
+    if meta_desc and len(meta_desc.split()) >= 15 and len(meta_desc.split()) <= 85:
+        lower_md = meta_desc.lower()
+        if not any(bad in lower_md for bad in ("select *", "workflow_id", "tier 1", "tool_")):
+            return meta_desc
+
+    # 2. Extract concrete facts
+    func = (
+        business_function
+        or classify_business_function_deterministic(business_area, workflow_name=workflow_name)
+    )
+    if func == "General technical data transformation" and business_area and business_area != "Other / Unclassified":
+        func = classify_business_function_deterministic(business_area, workflow_name=workflow_name)
+
+    # Ingested inputs
+    inp_names: list[str] = []
+    if business_summary and getattr(business_summary, "source_inputs", None):
+        for i in business_summary.source_inputs:
+            nm = getattr(i, "name", "") or getattr(i, "source_filename", "")
+            nm_clean = re.sub(r"\.[a-zA-Z0-9]+$", "", nm).replace("_", " ").strip()
+            if nm_clean and not nm_clean.lower().startswith("source input") and nm_clean not in inp_names:
+                inp_names.append(nm_clean)
+    if not inp_names and workflow and hasattr(workflow, "tools") and workflow.tools:
+        for t in workflow.tools.values():
+            if t.tool_type in ("DbFileInput", "FileInput", "TextInput"):
+                cfg = t.configuration.parsed if hasattr(t.configuration, "parsed") else {}
+                fp = str(cfg.get("file_path") or cfg.get("File") or cfg.get("table_name") or "")
+                fp_clean = Path(fp.split("|||")[0]).stem.replace("_", " ").strip()
+                if fp_clean and len(fp_clean) > 2 and fp_clean not in inp_names:
+                    inp_names.append(fp_clean)
+
+    inp_str = f"ingesting {', '.join(inp_names[:3])}" if inp_names else "ingesting operational source datasets"
+
+    # Processing stages & rules
+    stage_count = 3
+    if business_summary and getattr(business_summary, "processing_stages", None):
+        stage_count = max(1, len(business_summary.processing_stages))
+    elif workflow and hasattr(workflow, "containers") and workflow.containers:
+        stage_count = max(1, len(workflow.containers))
+
+    rule_cats: list[str] = []
+    if business_summary and getattr(business_summary, "business_rules", None):
+        for r in business_summary.business_rules:
+            cat = getattr(r, "category", "")
+            if cat and cat.lower() not in rule_cats:
+                rule_cats.append(cat.lower())
+    rule_str = f"applying {', '.join(rule_cats[:2])} business rules" if rule_cats else "applying automated transformation logic"
+
+    # Published deliverables
+    out_names: list[str] = []
+    if business_summary and getattr(business_summary, "business_outputs", None):
+        for o in business_summary.business_outputs:
+            nm = getattr(o, "name", "") or getattr(o, "raw_destination", "")
+            nm_clean = re.sub(r"\.[a-zA-Z0-9]+$", "", nm).replace("_", " ").strip()
+            if nm_clean and not nm_clean.lower().startswith("output #") and not nm_clean.lower().startswith("deliverable #") and nm_clean not in out_names:
+                out_names.append(nm_clean)
+    if not out_names and workflow and hasattr(workflow, "tools") and workflow.tools:
+        for t in workflow.tools.values():
+            if t.tool_type in ("DbFileOutput", "OutputData", "Render"):
+                cfg = t.configuration.parsed if hasattr(t.configuration, "parsed") else {}
+                fp = str(cfg.get("file_path") or cfg.get("File") or cfg.get("destination_file") or "")
+                fp_clean = Path(fp.split("|||")[0]).stem.replace("_", " ").strip()
+                if fp_clean and len(fp_clean) > 2 and fp_clean not in out_names:
+                    out_names.append(fp_clean)
+
+    out_deliverable_str = f"{', '.join(out_names[:3])} reporting deliverables" if out_names else "standardized analytical outputs"
+
+    # 3. Assemble polished contextual narrative (~40-75 words)
+    if business_area in ("Underwriting", "Claims & Risk", "Sales & Distribution", "Legal"):
+        return (
+            f"Supports {func.lower()} by {inp_str} to reconcile and standardize operational data across "
+            f"{stage_count} processing stages. It enforces {rule_str}, performing multi-source transformations "
+            f"to publish {out_deliverable_str} for enterprise decision support."
+        )
+    else:
+        # Technical utility or unclassified
+        if inp_names or out_names:
+            return (
+                f"Automates operational data preparation and transformation by {inp_str} across {stage_count} "
+                f"processing stages. It executes {rule_str} and publishes {out_deliverable_str}; specific enterprise "
+                f"business function could not be fully determined from workflow metadata."
+            )
+        return (
+            f"Automates operational data transformation and record preparation across {stage_count} "
+            f"processing stages. Primary enterprise business domain could not be fully determined "
+            f"from available workflow metadata and deliverable definitions."
+        )
+
+
+def extract_workflow_classification_evidence(
+    workflow: Any,
+    business_summary: Any = None,
+    result: Any = None,
+) -> dict[str, Any]:
+    """Extract complete deterministic evidence across all 7 tiers from workflow structures."""
+    # 1. Workflow Name / Title
+    wf_name = ""
+    if result and getattr(result, "source", None) and getattr(result.source, "original_filename", None):
+        wf_name = str(result.source.original_filename)
+    elif workflow and hasattr(workflow, "metadata") and getattr(workflow.metadata, "name", None):
+        wf_name = str(workflow.metadata.name)
+    elif result and getattr(result, "analysis_id", None):
+        wf_name = str(result.analysis_id)
+
+    # 2. Metadata Description & Canvas Textboxes
+    descriptions: list[str] = []
+    if workflow and hasattr(workflow, "metadata") and getattr(workflow.metadata, "description", None):
+        d = str(workflow.metadata.description).strip()
+        if len(d) > 20:
+            descriptions.append(d)
+    if workflow and hasattr(workflow, "textboxes") and workflow.textboxes:
+        for tb in workflow.textboxes.values():
+            txt = getattr(tb, "text", "").strip()
+            if len(txt) > 20 and not txt.startswith("<") and not txt.startswith("{"):
+                descriptions.append(txt)
+    description_text = " ".join(descriptions)
+
+    # 3. Business Function, Purpose, Why It Matters
+    biz_purpose = ""
+    biz_function = ""
+    why_it_matters = ""
+    if business_summary:
+        biz_purpose = getattr(business_summary, "business_purpose", "") or ""
+        biz_function = getattr(business_summary, "business_function", "") or ""
+        why_it_matters = getattr(business_summary, "why_it_matters", "") or ""
+
+    # 4. Processing Stages
+    stages_list: list[str] = []
+    if business_summary and getattr(business_summary, "processing_stages", None):
+        for s in business_summary.processing_stages:
+            sn = getattr(s, "name", "")
+            sd = getattr(s, "description", "")
+            if sn or sd:
+                stages_list.append(f"{sn}: {sd}".strip(": "))
+
+    # 5. Business Rules & Transformations
+    rules_list: list[str] = []
+    if business_summary and getattr(business_summary, "business_rules", None):
+        for r in business_summary.business_rules:
+            rn = getattr(r, "rule_name", "")
+            rc = getattr(r, "category", "")
+            rd = getattr(r, "description", "")
+            if rn or rd:
+                rules_list.append(f"{rn} ({rc}): {rd}".strip(": "))
+
+    transformations_list: list[str] = []
+    if business_summary and getattr(business_summary, "transformations", None):
+        for t in business_summary.transformations:
+            td = getattr(t, "description", "")
+            if td:
+                transformations_list.append(td)
+
+    # 6. Container Titles
+    container_titles: list[str] = []
+    if workflow and hasattr(workflow, "containers") and workflow.containers:
+        for c in workflow.containers.values():
+            cap = getattr(c, "caption", "").strip()
+            if cap and len(cap) > 2 and cap not in container_titles:
+                container_titles.append(cap)
+    if workflow and hasattr(workflow, "tools") and workflow.tools:
+        for t in workflow.tools.values():
+            cn = getattr(t, "container_name", "")
+            if cn and len(cn.strip()) > 2 and cn.strip() not in container_titles:
+                container_titles.append(cn.strip())
+
+    # 7. Tool Annotations & Display Names
+    tool_annotations: list[str] = []
+    if workflow and hasattr(workflow, "tools") and workflow.tools:
+        for t in workflow.tools.values():
+            ann = getattr(t, "annotation", "")
+            if isinstance(ann, str) and len(ann.strip()) > 3 and ann.strip() not in tool_annotations:
+                tool_annotations.append(ann.strip())
+            nm = getattr(t, "name", "")
+            if nm and not nm.startswith("Tool_") and not nm.startswith("Browse") and len(nm.strip()) > 3:
+                if nm.strip() not in tool_annotations:
+                    tool_annotations.append(nm.strip())
+
+    # 8. Tool Configuration (Formulas, Key Fields, Filter Expressions)
+    tool_configs: list[str] = []
+    if workflow and hasattr(workflow, "tools") and workflow.tools:
+        for t in workflow.tools.values():
+            if t.tool_type in ("Formula", "MultiFieldFormula"):
+                cfg = t.configuration.parsed if hasattr(t.configuration, "parsed") else {}
+                for ff in cfg.get("formula_fields", []):
+                    f_name = ff.get("field", "")
+                    f_expr = ff.get("expression", "")
+                    if f_name:
+                        tool_configs.append(f"Formula Field: {f_name}")
+                    if f_expr and len(f_expr) < 100:
+                        tool_configs.append(f"Formula Expr: {f_expr}")
+            elif t.tool_type == "Filter":
+                cfg = t.configuration.parsed if hasattr(t.configuration, "parsed") else {}
+                expr = cfg.get("expression", "")
+                if expr and len(expr) < 100:
+                    tool_configs.append(f"Filter Expr: {expr}")
+
+    # 9. Output Evidence & Input Sources
+    out_ev = extract_output_evidence_for_workflow(result) if result else []
+    if not out_ev and business_summary and getattr(business_summary, "business_outputs", None):
+        for o in business_summary.business_outputs:
+            nm = getattr(o, "name", "") or getattr(o, "raw_destination", "")
+            if nm:
+                out_ev.append({"dataset": nm, "columns": []})
+
+    from awa.analysis.portfolio_analyzer import _extract_workflow_sources
+    input_srcs = _extract_workflow_sources(result) if result else []
+    if not input_srcs and business_summary and getattr(business_summary, "source_inputs", None):
+        for i in business_summary.source_inputs:
+            nm = getattr(i, "name", "") or getattr(i, "source_filename", "")
+            if nm:
+                input_srcs.append(nm)
+
+    return {
+        "workflow_name": wf_name,
+        "description": description_text,
+        "business_purpose": biz_purpose,
+        "business_function": biz_function,
+        "why_it_matters": why_it_matters,
+        "processing_stages": stages_list,
+        "business_rules": rules_list,
+        "transformations": transformations_list,
+        "container_titles": container_titles,
+        "tool_annotations": tool_annotations,
+        "tool_configurations": tool_configs,
+        "output_evidence": out_ev,
+        "input_sources": input_srcs,
+    }
+
+
 def classify_business_area_deterministic(
-    output_evidence: list[dict[str, Any]],
+    output_evidence: list[dict[str, Any]] | None = None,
     business_purpose: str = "",
     workflow_name: str = "",
     business_function: str = "",
     input_sources: list[str] | None = None,
+    description: str = "",
+    why_it_matters: str = "",
+    processing_stages: list[str] | None = None,
+    business_rules: list[str] | None = None,
+    transformations: list[str] | None = None,
+    tool_annotations: list[str] | None = None,
+    container_titles: list[str] | None = None,
+    tool_configurations: list[str] | None = None,
 ) -> BusinessAreaClassification:
     """Classify workflow business area deterministically enforcing the 7-Tier Classification Evidence Hierarchy.
 
     Hierarchy:
-    Tier 1 (+100): Explicit primary business-function phrase in workflow name/title or authoritative metadata.
-    Tier 2 (+80): Primary business function expressed by business_purpose / business_function.
-    Tier 3 (+40): Business decision or operational process performed.
-    Tier 4 (+20): Business outcome or deliverable produced (output file/dataset names).
-    Tier 5 (+10): Downstream business consumer / table name.
-    Tier 6 (+5): Process evidence / tool sequence.
+    Tier 1 (+100): Explicit primary business-function phrase in workflow name/title or authoritative metadata description.
+    Tier 2 (+80): Primary business function expressed by business_purpose / business_function / why_it_matters.
+    Tier 3 (+50): Business decision or operational process performed (business rules, transformations).
+    Tier 4 (+30): Business outcome or deliverable produced (output file/dataset names).
+    Tier 5 (+15): Downstream business consumer / table name.
+    Tier 6 (+10, max 30 per domain): Process evidence / container titles / tool annotations / tool formulas / stages.
     Tier 7 (+1, max 15): Input/output data domain tokens (supporting evidence only).
 
     Critical Invariant: Lower-tier data-domain evidence (Tier 7) cannot override explicit
-    higher-tier functional evidence (Tiers 1-4).
+    higher-tier functional evidence (Tiers 1-6).
     """
-    if not output_evidence and not business_purpose and not workflow_name and not business_function and not input_sources:
+    output_evidence = output_evidence or []
+    input_sources = input_sources or []
+    processing_stages = processing_stages or []
+    business_rules = business_rules or []
+    transformations = transformations or []
+    tool_annotations = tool_annotations or []
+    container_titles = container_titles or []
+    tool_configurations = tool_configurations or []
+
+    has_any_signal = (
+        bool(output_evidence)
+        or bool(business_purpose)
+        or bool(workflow_name)
+        or bool(business_function)
+        or bool(input_sources)
+        or bool(description)
+        or bool(why_it_matters)
+        or bool(processing_stages)
+        or bool(business_rules)
+        or bool(transformations)
+        or bool(tool_annotations)
+        or bool(container_titles)
+        or bool(tool_configurations)
+    )
+    if not has_any_signal:
         return BusinessAreaClassification(
             business_area="Other / Unclassified",
             confidence="UNCLASSIFIED",
@@ -342,11 +658,10 @@ def classify_business_area_deterministic(
     domain_scores: dict[str, int] = {domain: 0 for domain in ALLOWED_BUSINESS_AREAS}
 
     # -----------------------------------------------------------------------
-    # Tier 1: Explicit primary business-function phrase in workflow name/title (+100)
+    # Tier 1: Explicit primary business-function phrase in workflow name/title or metadata (+100)
     # -----------------------------------------------------------------------
     if workflow_name:
         clean_wf_name = re.sub(r"\.[a-zA-Z0-9]+$", "", workflow_name).replace("_", " ")
-        # Expand camelCase (e.g. ClaimsVolumeExtract -> Claims Volume Extract)
         clean_wf_name = re.sub(r"([a-z])([A-Z])", r"\1 \2", clean_wf_name)
         for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
             for pat in patterns:
@@ -354,6 +669,17 @@ def classify_business_area_deterministic(
                 if m:
                     domain_scores[domain] += 100
                     evidence_log[domain].append(f"Tier 1 Workflow Name: matches '{m.group(0)}'")
+
+    if description:
+        clean_desc = description.replace("_", " ")
+        for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
+            for pat in patterns:
+                m = pat.search(clean_desc)
+                if m:
+                    # Give +100 if domain not yet scored, or +50 if already scored from name
+                    pts = 100 if domain_scores[domain] == 0 else 50
+                    domain_scores[domain] += pts
+                    evidence_log[domain].append(f"Tier 1 Metadata Description: matches '{m.group(0)}'")
 
     # -----------------------------------------------------------------------
     # Tier 2: Primary business function in business_purpose / business_function (+80)
@@ -368,7 +694,7 @@ def classify_business_area_deterministic(
                     domain_scores[domain] += 80
                     evidence_log[domain].append(f"Tier 2 Business Purpose/Function: '{m.group(0)}'")
 
-        # Also check Tier 1 patterns in business purpose/function if Tier 2 pattern missed
+        # Also check Tier 1 patterns in purpose/function (+40 if not already logged)
         for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
             for pat in patterns:
                 m = pat.search(clean_pf)
@@ -385,7 +711,26 @@ def classify_business_area_deterministic(
                 evidence_log[domain].append(f"Tier 2 Purpose Taxonomy tokens: {matching_bp[:4]}")
 
     # -----------------------------------------------------------------------
-    # Tier 4: Business outcome or deliverable produced (Output target dataset names, +20)
+    # Tier 3: Business decision or operational process (rules & transformations, +50)
+    # -----------------------------------------------------------------------
+    decision_texts = business_rules + transformations
+    for d_text in decision_texts:
+        clean_dt = d_text.replace("_", " ")
+        for domain, patterns in TIER3_DECISION_PATTERNS.items():
+            for pat in patterns:
+                m = pat.search(clean_dt)
+                if m:
+                    domain_scores[domain] += 50
+                    evidence_log[domain].append(f"Tier 3 Business Rule/Decision: '{m.group(0)}'")
+        for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
+            for pat in patterns:
+                m = pat.search(clean_dt)
+                if m and not any(m.group(0).lower() in e.lower() for e in evidence_log[domain]):
+                    domain_scores[domain] += 40
+                    evidence_log[domain].append(f"Tier 3 Functional Rule: '{m.group(0)}'")
+
+    # -----------------------------------------------------------------------
+    # Tier 4: Business outcome or deliverable produced (Output target dataset names, +30)
     # -----------------------------------------------------------------------
     for output in output_evidence:
         dataset_name = output.get("dataset", "")
@@ -395,8 +740,44 @@ def classify_business_area_deterministic(
                 for pat in patterns:
                     m = pat.search(clean_ds)
                     if m:
-                        domain_scores[domain] += 20
-                        evidence_log[domain].append(dataset_name)
+                        domain_scores[domain] += 30
+                        evidence_log[domain].append(f"Tier 4 Output Deliverable: '{dataset_name}'")
+
+    # -----------------------------------------------------------------------
+    # Tier 5: Downstream business consumer / table or sheet name (+15)
+    # -----------------------------------------------------------------------
+    for output in output_evidence:
+        table_or_sheet = output.get("table_or_sheet", "")
+        if table_or_sheet:
+            clean_tbl = table_or_sheet.replace("_", " ")
+            for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
+                for pat in patterns:
+                    m = pat.search(clean_tbl)
+                    if m:
+                        domain_scores[domain] += 15
+                        evidence_log[domain].append(f"Tier 5 Target Sheet/Table: '{table_or_sheet}'")
+
+    # -----------------------------------------------------------------------
+    # Tier 6: Process evidence / Container titles / Tool Annotations / Formulas (+10 each, max 30 per domain)
+    # -----------------------------------------------------------------------
+    process_items = container_titles + tool_annotations + tool_configurations + processing_stages
+    tier6_awarded: dict[str, int] = {domain: 0 for domain in ALLOWED_BUSINESS_AREAS}
+    for item in process_items:
+        clean_item = item.replace("_", " ")
+        for domain, patterns in TIER6_PROCESS_PATTERNS.items():
+            for pat in patterns:
+                m = pat.search(clean_item)
+                if m and tier6_awarded[domain] < 30:
+                    tier6_awarded[domain] += 10
+                    domain_scores[domain] += 10
+                    evidence_log[domain].append(f"Tier 6 Process/Configuration: '{m.group(0)}'")
+        for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
+            for pat in patterns:
+                m = pat.search(clean_item)
+                if m and tier6_awarded[domain] < 30 and not any(m.group(0).lower() in e.lower() for e in evidence_log[domain]):
+                    tier6_awarded[domain] += 10
+                    domain_scores[domain] += 10
+                    evidence_log[domain].append(f"Tier 6 Tool/Container: '{m.group(0)}'")
 
     # -----------------------------------------------------------------------
     # Tier 7: Input/output data domain tokens (+1 per token, strictly capped at +15)

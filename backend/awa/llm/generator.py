@@ -684,55 +684,65 @@ class LLMNarrativeGenerator:
             ALLOWED_BUSINESS_AREAS,
             classify_business_area_deterministic,
             classify_business_function_deterministic,
+            compose_deterministic_business_purpose,
+            extract_workflow_classification_evidence,
             BUSINESS_AREA_DESCRIPTIONS,
             BUSINESS_AREA_TAXONOMY_VERSION,
         )
 
+        evidence_dict = extract_workflow_classification_evidence(workflow, business_summary)
+        if output_evidence:
+            evidence_dict["output_evidence"] = output_evidence
+        if input_sources:
+            evidence_dict["input_sources"] = input_sources
+        if workflow_id and not evidence_dict.get("workflow_name"):
+            evidence_dict["workflow_name"] = workflow_id
+
         wf_name = (
-            (workflow.metadata.name if (workflow and workflow.metadata and workflow.metadata.name) else "")
+            evidence_dict.get("workflow_name", "")
+            or (workflow.metadata.name if (workflow and workflow.metadata and workflow.metadata.name) else "")
             or (workflow_id if (workflow_id and not workflow_id.startswith("wf_") and not workflow_id.startswith("analysis_")) else "")
         )
-
-        # Build complete input sources if not explicitly supplied
-        if input_sources is None:
-            resolved_sources: list[str] = []
-            if business_summary and business_summary.source_inputs:
-                for inp in business_summary.source_inputs:
-                    val = inp.source_filename or inp.name or inp.raw_source
-                    if val and val.lower() not in ("in-memory configuration", "standard input stream"):
-                        resolved_sources.append(val)
-            if workflow and workflow.tools:
-                for tid, tool in workflow.tools.items():
-                    if tool.tool_type in ("DbFileInput", "FileInput", "TextInput", "Directory", "DynamicInput"):
-                        cfg = tool.configuration.parsed if (tool.configuration and hasattr(tool.configuration, "parsed") and isinstance(tool.configuration.parsed, dict)) else (tool.configuration if isinstance(tool.configuration, dict) else {})
-                        fp = cfg.get("file_path") or cfg.get("File") or cfg.get("source_file") or cfg.get("table_name")
-                        if fp and str(fp) not in resolved_sources:
-                            resolved_sources.append(str(fp))
-            input_sources = resolved_sources
 
         existing_func = getattr(business_summary, "business_function", "") or ""
 
         det_class = classify_business_area_deterministic(
-            output_evidence or [],
-            business_purpose=business_summary.business_purpose or "",
+            output_evidence=evidence_dict.get("output_evidence"),
+            business_purpose=evidence_dict.get("business_purpose", ""),
             workflow_name=wf_name,
             business_function=existing_func,
-            input_sources=input_sources or [],
+            input_sources=evidence_dict.get("input_sources"),
+            description=evidence_dict.get("description", ""),
+            why_it_matters=evidence_dict.get("why_it_matters", ""),
+            processing_stages=evidence_dict.get("processing_stages"),
+            business_rules=evidence_dict.get("business_rules"),
+            transformations=evidence_dict.get("transformations"),
+            tool_annotations=evidence_dict.get("tool_annotations"),
+            container_titles=evidence_dict.get("container_titles"),
+            tool_configurations=evidence_dict.get("tool_configurations"),
         )
         fallback_tag = "Other / Unclassified" if det_class.business_area in ("UNCLASSIFIED", "Other / Unclassified") else det_class.business_area
         fallback_func = existing_func or classify_business_function_deterministic(
             fallback_tag,
             workflow_name=wf_name,
-            business_purpose=business_summary.business_purpose or "",
+            business_purpose=evidence_dict.get("business_purpose", ""),
         )
 
-        # Ensure fallback_purpose is strictly clean and concise
-        if business_summary.business_purpose and _is_clean_business_purpose(business_summary.business_purpose):
+        # Prefer existing clean purpose if valid; otherwise compose rich deterministic purpose
+        if (
+            business_summary
+            and business_summary.business_purpose
+            and _is_clean_business_purpose(business_summary.business_purpose)
+            and not any(bad in business_summary.business_purpose.lower() for bad in ("tier 1", "tier 2", "automates general technical", "the workflow automates"))
+        ):
             fallback_purpose = business_summary.business_purpose
         else:
-            fallback_purpose = (
-                f"Automates {fallback_func.lower()} for {wf_name or 'the workflow'}, "
-                f"processing operational data to generate business deliverables and decision outputs."
+            fallback_purpose = compose_deterministic_business_purpose(
+                workflow,
+                business_summary=business_summary,
+                business_function=fallback_func,
+                business_area=fallback_tag,
+                workflow_name=wf_name,
             )
 
         # Guard: If LLM client is unavailable or not configured, return deterministic fallback directly
@@ -803,11 +813,19 @@ class LLMNarrativeGenerator:
                     conflict = False
                     conflict_evidence: list[str] = []
                     det_check = classify_business_area_deterministic(
-                        output_evidence or [],
+                        output_evidence=evidence_dict.get("output_evidence"),
                         business_purpose=llm_purpose,
                         workflow_name=wf_name,
                         business_function=llm_func,
-                        input_sources=input_sources or [],
+                        input_sources=evidence_dict.get("input_sources"),
+                        description=evidence_dict.get("description", ""),
+                        why_it_matters=evidence_dict.get("why_it_matters", ""),
+                        processing_stages=evidence_dict.get("processing_stages"),
+                        business_rules=evidence_dict.get("business_rules"),
+                        transformations=evidence_dict.get("transformations"),
+                        tool_annotations=evidence_dict.get("tool_annotations"),
+                        container_titles=evidence_dict.get("container_titles"),
+                        tool_configurations=evidence_dict.get("tool_configurations"),
                     )
                     strong_functional_domain = det_check.business_area
 

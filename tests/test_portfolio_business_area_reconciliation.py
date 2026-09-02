@@ -477,4 +477,143 @@ class TestBusinessAreaReconciliation:
         assert res.business_area_tag == port_wf.business_area_tag
         assert "Tier" not in port_wf.business_purpose
 
+    def test_five_workflow_boundary_set(self):
+        """Req 11: Explicit 5-workflow boundary test set (Underwriting, Claims, Underwriting Premium, Sales, Legal, Technical)."""
+        # 1. Underwriting Decision Engine Application consuming Claims data
+        r1 = classify_business_area_deterministic(
+            workflow_name="Underwriting_Decision_Engine_Application.yxmd",
+            business_purpose="Evaluates applicant risk rules to determine coverage eligibility and underwriter approval limits.",
+            business_function="Underwriting decisioning and risk assessment",
+            input_sources=["Claims_Submission_History.xlsx", "Applicant_Credit_Master.csv"],
+            tool_configurations=['Formula Field: UnderwritingScore', 'Formula Expr: If [Score] > 700 Then "Approved" Else "Refer" EndIf'],
+            container_titles=["Underwriting Eligibility Rules", "Risk Score Matrix"],
+        )
+        assert r1.business_area == "Underwriting"
+        assert r1.confidence == "HIGH"
+
+        # 2. Claims Fraud Detection
+        r2 = classify_business_area_deterministic(
+            workflow_name="Claims_Fraud_Detection.yxmd",
+            business_purpose="Analyzes open claims for suspicious patterns, fraud indicators, and referral to special investigation unit.",
+            business_function="Claims fraud detection and investigation prioritization",
+            input_sources=["Claim_Payment_Detail.xlsx"],
+            container_titles=["Fraud Scoring Engine"],
+        )
+        assert r2.business_area == "Claims & Risk"
+        assert r2.confidence == "HIGH"
+
+        # 3. Premium Calculator using Claims history
+        r3 = classify_business_area_deterministic(
+            workflow_name="Commercial_Policy_Premium_Calculator.yxmd",
+            business_purpose="Calculates policyholder commercial premium rates and experience rating factors using prior claims loss history.",
+            business_function="Policy pricing and premium rating calculation",
+            input_sources=["Prior_Claims_Loss_History.xlsx", "Policy_Schedule.xlsx"],
+            tool_configurations=['Formula Field: PremiumAmount', 'Formula Expr: [BaseRate] * [ExperienceModifier]'],
+        )
+        assert r3.business_area == "Underwriting"
+        assert r3.confidence == "HIGH"
+
+        # 4. Sales Territory Analytics
+        r4 = classify_business_area_deterministic(
+            workflow_name="Sales_Territory_Analytics.yxmd",
+            business_purpose="Monitors quarterly distributor sales volume, territory quota attainment, and broker commissions.",
+            business_function="Sales territory performance and distribution channel analytics",
+            input_sources=["Distributor_Orders.xlsx", "Broker_Master.csv"],
+            tool_configurations=['Formula Field: CommissionAmount', 'Formula Field: QuotaAttainment'],
+            container_titles=["Territory Aggregation", "Broker Commission Engine"],
+        )
+        assert r4.business_area == "Sales & Distribution"
+        assert r4.confidence == "HIGH"
+
+        # 5. Regulatory Compliance Reporting
+        r5 = classify_business_area_deterministic(
+            workflow_name="Regulatory_Compliance_Reporting.yxmd",
+            business_purpose="Generates annual statutory audit filings and compliance disclosure schedules for state insurance commissioners.",
+            business_function="Regulatory compliance reporting and statutory filing",
+            input_sources=["Statutory_Ledger.xlsx"],
+            container_titles=["Regulatory Filings", "Statutory Compliance Audit"],
+        )
+        assert r5.business_area == "Legal"
+        assert r5.confidence == "HIGH"
+
+        # 6. Technical utility
+        r6 = classify_business_area_deterministic(
+            workflow_name="Generic_Xml_Parser.yxmd",
+            business_purpose="",
+            business_function="",
+        )
+        assert r6.business_area == "Other / Unclassified"
+        assert r6.confidence == "UNCLASSIFIED"
+
+    def test_deterministic_business_purpose_rich_paragraph_quality(self):
+        """Req 7, 9: Deterministic Business Purpose is a polished ~40-75 word paragraph, not generic filler."""
+        from awa.analysis.business_area_classifier import compose_deterministic_business_purpose
+        from awa.model.business_summary import BusinessInput, BusinessOutput, BusinessRule
+
+        w = Workflow(metadata=WorkflowMetadata(name="Commercial_Policy_Rating.yxmd", version="2021.4"))
+        bs = WorkflowBusinessSummary(
+            business_purpose="",
+            one_line_purpose="",
+            why_it_matters="",
+            source_inputs=[
+                BusinessInput(tool_id=1, name="Policy_Master.xlsx", raw_source="Policy_Master.xlsx", source_type="Excel"),
+                BusinessInput(tool_id=2, name="Applicant_Credit.csv", raw_source="Applicant_Credit.csv", source_type="CSV"),
+            ],
+            business_outputs=[
+                BusinessOutput(tool_id=3, name="Premium_Rating_Schedule.xlsx", raw_destination="Premium_Rating_Schedule.xlsx", destination_type="Excel"),
+            ],
+            business_rules=[
+                BusinessRule(rule_name="Credit Tier Multiplier", category="Calculation", description="Applies tier multiplier"),
+            ],
+        )
+
+        purpose = compose_deterministic_business_purpose(
+            w,
+            business_summary=bs,
+            business_function="Policy pricing and premium rating calculation",
+            business_area="Underwriting",
+            workflow_name="Commercial_Policy_Rating.yxmd",
+        )
+
+        # Word count between 35 and 75
+        words = purpose.split()
+        assert 35 <= len(words) <= 75, f"Word count {len(words)} out of expected range: {purpose}"
+        # Does not contain rejected generic filler
+        assert "Automates policy pricing and premium rating calculation for Commercial_Policy_Rating.yxmd" not in purpose
+        # Contains factual context
+        assert "Policy Master" in purpose
+        assert "Premium Rating Schedule" in purpose
+        assert "calculation business rules" in purpose
+
+    def test_evidence_hierarchy_extraction_from_workflow_structures(self):
+        """Req 4, 6: extract_workflow_classification_evidence extracts containers, formulas, and annotations."""
+        from awa.analysis.business_area_classifier import extract_workflow_classification_evidence
+        from awa.model.container import ToolContainer
+        from awa.model.tool import Tool, ToolConfiguration
+
+        w = Workflow(
+            metadata=WorkflowMetadata(name="Custom_App.yxmd", version="2021.4"),
+            containers={
+                1: ToolContainer(tool_id=1, caption="Underwriting Eligibility Filter"),
+            },
+            tools={
+                2: Tool(
+                    tool_id=2,
+                    plugin="Formula",
+                    tool_type="Formula",
+                    name="Calculate Score",
+                    position=None,
+                    configuration=ToolConfiguration(
+                        raw_xml="",
+                        parsed={"formula_fields": [{"field": "UnderwritingScore", "expression": "[Score]*1.2"}]},
+                    ),
+                    annotation="Compute final underwriting score",
+                ),
+            },
+        )
+        ev = extract_workflow_classification_evidence(w)
+        assert "Underwriting Eligibility Filter" in ev["container_titles"]
+        assert any("UnderwritingScore" in f for f in ev["tool_configurations"])
+        assert "Compute final underwriting score" in ev["tool_annotations"]
+
 

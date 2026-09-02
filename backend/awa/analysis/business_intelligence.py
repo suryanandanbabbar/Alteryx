@@ -878,7 +878,7 @@ def _compute_assessment(
     why_it_matters = (
         "Consolidates recurring operational data, automates cross-source enrichment "
         "with reference master data, and delivers multi-dimensional reporting across "
-        "volume, performance, geography, and operational duration risk."
+        "volume, performance, geography, and operational metrics."
     )
 
     return BusinessAssessment(
