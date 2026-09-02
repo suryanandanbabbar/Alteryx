@@ -21,8 +21,38 @@ CRITICAL INVARIANTS:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
+
+# ---------------------------------------------------------------------------
+# Semantic Impact Patterns for Business Purpose Assessment
+# ---------------------------------------------------------------------------
+
+DELIVERABLE_PATTERN = re.compile(
+    r"\b(generates?|produces?|publishes?|creates?|outputs?|builds?|maintains?|distributes?)\b.*"
+    r"\b(statutory|regulatory|compliance|board|financial|executive|master\s+data|reconciliation|deliverables?|official|filing|ledger|audit)\b",
+    re.IGNORECASE,
+)
+
+SCOPE_PATTERN = re.compile(
+    r"\b(enterprise-wide|organization-wide|company-wide|portfolio-wide|nationwide|global|across\s+all\s+(lines|policies|claims|regions|products|branches)|multi-regional?|entire\s+(portfolio|estate|organization))\b",
+    re.IGNORECASE,
+)
+
+CUSTOMER_PATTERN = re.compile(
+    r"\b(calculates?|determines?|processes?|adjudicates?|manages?|supports?)\b.*"
+    r"\b(claimant|policyholder|insured|customer)\b.*"
+    r"\b(benefits?|payments?|indemnity|settlement|coverage|premiums?|eligibility|billing|claims?)\b",
+    re.IGNORECASE,
+)
+
+CLIENT_PATTERN = re.compile(
+    r"\b(prepares?|distributes?|publishes?|calculates?|delivers?)\b.*"
+    r"\b(client|broker|agent|producer|distributor|counterparty)\b.*"
+    r"\b(statements?|commissions?|reports?|remittances?|commitments?|invoices?)\b",
+    re.IGNORECASE,
+)
 
 # ---------------------------------------------------------------------------
 # Central Configuration
@@ -79,6 +109,7 @@ def calculate_workflow_criticality(
     inspection_sinks: list[str],
     context: PortfolioDependencyContext | None = None,
     operational_metadata: dict[str, Any] | None = None,
+    business_purpose: str = "",
 ) -> CriticalityAssessment:
     """Deterministically compute workflow criticality."""
     ctx = context or PortfolioDependencyContext()
@@ -206,6 +237,41 @@ def calculate_workflow_criticality(
         weights = {k: BASE_CRITICALITY_WEIGHTS[k] / active_sum for k in BASE_CRITICALITY_WEIGHTS if k != "operational"}
         op_score = 0.0
 
+    # -----------------------------------------------------------------------
+    # 7. Semantic Business Purpose Impact Assessment
+    # (Business Deliverables, Scope, Customers, Clients)
+    # -----------------------------------------------------------------------
+    purpose_boost = 0.0
+    purpose_factors: list[str] = []
+
+    if business_purpose and isinstance(business_purpose, str) and business_purpose.strip():
+        bp_clean = business_purpose.strip()
+
+        # 1. Business Deliverables Impact: mandatory/official reporting, filings, ledgers
+        if DELIVERABLE_PATTERN.search(bp_clean):
+            purpose_boost += 4.0
+            purpose_factors.append("Business purpose: critical reporting/deliverable impact")
+
+        # 2. Business Scope Impact: enterprise-wide, portfolio-wide, national operational breadth
+        if SCOPE_PATTERN.search(bp_clean):
+            purpose_boost += 4.0
+            purpose_factors.append("Business purpose: enterprise operational scope")
+
+        # 3. Customer Impact: claimant, policyholder, insured, customer benefits/coverage decisions
+        if CUSTOMER_PATTERN.search(bp_clean):
+            purpose_boost += 4.0
+            purpose_factors.append("Business purpose: direct customer/claimant impact")
+
+        # 4. Client Impact: external broker, client, partner statements/commissions
+        if CLIENT_PATTERN.search(bp_clean):
+            purpose_boost += 4.0
+            purpose_factors.append("Business purpose: client/partner deliverable impact")
+
+        # Anti-double-counting: Cap total semantic boost at +16.0 points
+        purpose_boost = min(16.0, purpose_boost)
+
+    factors.extend(purpose_factors)
+
     final_score = (
         weights["downstream_dependency"] * downstream_score
         + weights["production_outputs"] * prod_score
@@ -216,6 +282,8 @@ def calculate_workflow_criticality(
     if has_operational:
         final_score += weights["operational"] * op_score
 
+    # Additive semantic purpose contribution (bounded, clamped strictly 0.0 to 100.0)
+    final_score += purpose_boost
     final_score = round(max(0.0, min(100.0, final_score)), 1)
 
     if final_score >= CRITICALITY_MEDIUM_MAX + 1:
@@ -235,5 +303,6 @@ def calculate_workflow_criticality(
             "output_consumers": consumers_score,
             "dependency_position": position_score,
             "shared_sources": sources_score,
+            "business_purpose_impact": purpose_boost,
         },
     )

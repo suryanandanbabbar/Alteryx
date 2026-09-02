@@ -596,6 +596,46 @@ def analyze_canonical(
         if gen.client.is_available:
             _llm_logger.info("LLM enrichment: starting generation for analysis %s", aid)
 
+            # 0. Generate canonical workflow Business Purpose and Business Area Tag (Prompt Version 3.0)
+            try:
+                from awa.analysis.business_area_classifier import extract_output_evidence_for_workflow
+                temp_res = CanonicalAnalysisResult(
+                    analysis_id=aid,
+                    source=sinfo,
+                    workflow=workflow,
+                    graph=graph,
+                    execution_order=exec_order,
+                    translations=translations,
+                    consumed_anchors=consumed,
+                    lineage_paths=lineage_paths,
+                    metrics=metrics,
+                    dag_layout=dag_layout,
+                    python_trace=trace_map,
+                    tool_explanations=tool_explanations,
+                    required_libraries=required_libs,
+                    diagnostics=all_diags,
+                    business_summary=business_summary,
+                )
+                output_ev = extract_output_evidence_for_workflow(temp_res)
+                purpose_res = gen.generate_business_purpose(
+                    workflow,
+                    business_summary,
+                    workflow_id=aid,
+                    output_evidence=output_ev,
+                )
+                business_summary.business_purpose = purpose_res.business_purpose
+                business_summary.business_area_tag = purpose_res.business_area_tag
+                business_summary.business_area_tag_source = purpose_res.source
+                _llm_logger.info(
+                    "LLM purpose/tag generated: aid=%s tag='%s' source='%s' len=%d",
+                    aid,
+                    purpose_res.business_area_tag,
+                    purpose_res.source,
+                    len(purpose_res.business_purpose),
+                )
+            except Exception as purp_err:
+                _llm_logger.warning("LLM purpose/tag generation failed: %s", purp_err)
+
             # 1. Generate dynamic Process Stages for Overview page
             try:
                 process_stages = gen.generate_process_stages(
@@ -617,7 +657,8 @@ def analyze_canonical(
                     business_summary.one_line_purpose = report_content.workflow_description
                 if report_content.executive_summary and business_summary.executive_summary:
                     business_summary.executive_summary.subject_and_purpose = report_content.executive_summary
-                    business_summary.business_purpose = report_content.executive_summary
+                    if not business_summary.business_purpose:
+                        business_summary.business_purpose = report_content.executive_summary
                 if report_content.methods_of_analysis and business_summary.executive_summary:
                     business_summary.executive_summary.methods_and_process = report_content.methods_of_analysis
                 if report_content.findings and business_summary.executive_summary:
@@ -688,6 +729,38 @@ def analyze_canonical(
         )
 
 
+
+    # Ensure business_summary has a resolved business_area_tag via generator's fallback
+    if business_summary and (not getattr(business_summary, "business_area_tag", None) or business_summary.business_area_tag == "UNCLASSIFIED"):
+        try:
+            from awa.analysis.business_area_classifier import extract_output_evidence_for_workflow
+            from awa.llm import get_default_generator
+            temp_res = CanonicalAnalysisResult(
+                analysis_id=aid,
+                source=sinfo,
+                workflow=workflow,
+                graph=graph,
+                execution_order=exec_order,
+                translations=translations,
+                consumed_anchors=consumed,
+                lineage_paths=lineage_paths,
+                metrics=metrics,
+                dag_layout=dag_layout,
+                python_trace=trace_map,
+                tool_explanations=tool_explanations,
+                required_libraries=required_libs,
+                diagnostics=all_diags,
+                business_summary=business_summary,
+            )
+            out_ev = extract_output_evidence_for_workflow(temp_res)
+            fallback_res = get_default_generator().generate_business_purpose(
+                workflow, business_summary, workflow_id=aid, output_evidence=out_ev
+            )
+            business_summary.business_purpose = fallback_res.business_purpose
+            business_summary.business_area_tag = fallback_res.business_area_tag
+            business_summary.business_area_tag_source = fallback_res.source
+        except Exception:
+            pass
 
     return CanonicalAnalysisResult(
         analysis_id=aid,

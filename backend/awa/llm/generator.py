@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from typing import Any
@@ -22,6 +23,7 @@ from awa.analysis.sttm_validator import STTMValidator
 from .client import LLMClient, get_default_llm_client
 from .schemas import (
     NarrativeResult,
+    BusinessPurposeResult,
     ToolFacts,
     WorkflowFacts,
     BusinessReportContent,
@@ -49,6 +51,7 @@ from .prompts import (
     STTM_PROMPT_VERSION,
     TOOL_SYSTEM_PROMPT,
     WORKFLOW_PURPOSE_SYSTEM_PROMPT,
+    build_workflow_purpose_system_prompt,
     EXECUTIVE_SUMMARY_SYSTEM_PROMPT,
     METHODS_OF_ANALYSIS_SYSTEM_PROMPT,
     FINDINGS_SYSTEM_PROMPT,
@@ -531,9 +534,34 @@ class LLMNarrativeGenerator:
         workflow: Workflow,
         business_summary: WorkflowBusinessSummary,
         workflow_id: str = "",
-    ) -> NarrativeResult:
-        """Generate a workflow-level Business Purpose description for Overview."""
-        fallback_text = business_summary.business_purpose or "Automated ETL and data preparation workflow."
+        output_evidence: list[dict[str, Any]] | None = None,
+    ) -> BusinessPurposeResult:
+        """Generate a canonical workflow-level Business Purpose description and normalized Business Area Tag.
+
+        Authoritative single owner of:
+        - Structured Business Purpose & Business Area Tag prompt orchestration
+        - Deterministic validation against configured ALLOWED_BUSINESS_AREAS vocabulary
+        - Guaranteed fallback to deterministic taxonomy classification on failure/unavailability
+        """
+        from awa.analysis.business_area_classifier import (
+            ALLOWED_BUSINESS_AREAS,
+            classify_business_area_deterministic,
+            BUSINESS_AREA_DESCRIPTIONS,
+        )
+
+        fallback_purpose = business_summary.business_purpose or "Automated ETL and data preparation workflow."
+        det_class = classify_business_area_deterministic(output_evidence or [], business_purpose=fallback_purpose)
+        fallback_tag = det_class.business_area
+
+        # Guard: If LLM client is unavailable or not configured, return deterministic fallback directly
+        if not self.client or not getattr(self.client, "is_available", True):
+            return BusinessPurposeResult(
+                business_purpose=fallback_purpose,
+                business_area_tag=fallback_tag,
+                source="deterministic_fallback",
+                model="deterministic",
+                prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
+            )
 
         facts = extract_workflow_facts(workflow, business_summary)
         wf_key = workflow_id or workflow.metadata.name or "default_workflow"
@@ -546,35 +574,86 @@ class LLMNarrativeGenerator:
         )
 
         cached = self._cache.get(cache_key)
-        if cached is not None:
+        if cached is not None and isinstance(cached, BusinessPurposeResult):
             logger.info("[LLM CACHE] type=business_purpose status=HIT")
             return cached
 
         logger.info("[LLM CACHE] type=business_purpose status=MISS")
 
-        system_prompt = WORKFLOW_PURPOSE_SYSTEM_PROMPT
+        system_prompt = build_workflow_purpose_system_prompt(BUSINESS_AREA_DESCRIPTIONS)
         user_prompt = build_workflow_purpose_user_prompt(facts)
-        raw_response = self.client.generate(system_prompt, user_prompt)
-        cleaned = _clean_narrative_text(raw_response)
 
-        if cleaned and len(cleaned.split()) >= 10 and len(cleaned) <= 800:
-            result = NarrativeResult(
-                text=cleaned,
-                source="llm",
-                model=self.client.model_name,
-                prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
-            )
-            self._cache.set(cache_key, result)
-            logger.info("[LLM] business_purpose stored in cache text_len=%d", len(cleaned))
-            return result
+        try:
+            raw_response = self.client.generate(system_prompt, user_prompt)
+            cleaned_raw = _clean_narrative_text(raw_response)
 
-        fallback_result = NarrativeResult(
-            text=fallback_text,
+            # Strip code fences if returned by LLM
+            cleaned_json = cleaned_raw.strip()
+            if cleaned_json.startswith("```"):
+                lines = cleaned_json.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                cleaned_json = "\n".join(lines).strip()
+
+            try:
+                parsed = json.loads(cleaned_json)
+            except Exception:
+                parsed = None
+
+            if isinstance(parsed, dict):
+                llm_purpose = str(parsed.get("business_purpose", "")).strip()
+                llm_tag = str(parsed.get("business_area_tag", "")).strip()
+
+                if not llm_purpose or len(llm_purpose.split()) < 5:
+                    llm_purpose = fallback_purpose
+
+                valid_areas = set(ALLOWED_BUSINESS_AREAS) | {"Other / Unclassified", "UNCLASSIFIED"}
+                if llm_tag in valid_areas:
+                    normalized_tag = "Other / Unclassified" if llm_tag == "UNCLASSIFIED" else llm_tag
+                    result = BusinessPurposeResult(
+                        business_purpose=llm_purpose,
+                        business_area_tag=normalized_tag,
+                        source="llm",
+                        model=self.client.model_name,
+                        prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
+                    )
+                    self._cache.set(cache_key, result)
+                    logger.info("[LLM] business_purpose & tag stored: tag='%s', len=%d", normalized_tag, len(llm_purpose))
+                    return result
+                else:
+                    logger.warning("[LLM] Rejected invalid business_area_tag '%s'. Using deterministic fallback tag '%s'", llm_tag, fallback_tag)
+            elif (
+                cleaned_raw
+                and len(cleaned_raw.split()) >= 8
+                and not cleaned_raw.strip().startswith("{")
+                and not cleaned_raw.strip().startswith("[")
+            ):
+                # LLM returned valid plain text prose (e.g. from mock or legacy text model)
+                tag_from_prose = classify_business_area_deterministic(output_evidence or [], business_purpose=cleaned_raw).business_area
+                result = BusinessPurposeResult(
+                    business_purpose=cleaned_raw,
+                    business_area_tag=tag_from_prose,
+                    source="llm",
+                    model=self.client.model_name,
+                    prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
+                )
+                self._cache.set(cache_key, result)
+                logger.info("[LLM] business_purpose plain prose accepted: tag='%s', len=%d", tag_from_prose, len(cleaned_raw))
+                return result
+        except Exception as exc:
+            logger.warning("[LLM] generate_business_purpose failed: %s. Using deterministic fallback.", exc)
+
+        fallback_result = BusinessPurposeResult(
+            business_purpose=fallback_purpose,
+            business_area_tag=fallback_tag,
             source="deterministic_fallback",
             model="deterministic",
             prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
         )
         return fallback_result
+
 
     def generate_executive_summary(
         self,

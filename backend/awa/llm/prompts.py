@@ -8,7 +8,7 @@ from typing import Any
 from .schemas import ToolFacts, WorkflowFacts
 
 TOOL_PROMPT_VERSION = "2.0"
-WORKFLOW_PURPOSE_PROMPT_VERSION = "2.0"
+WORKFLOW_PURPOSE_PROMPT_VERSION = "3.0"
 EXEC_SUMMARY_PROMPT_VERSION = "2.0"
 METHODS_OF_ANALYSIS_PROMPT_VERSION = "2.0"
 FINDINGS_PROMPT_VERSION = "2.0"
@@ -185,30 +185,88 @@ Return only the final description."""
 
 
 # ---------------------------------------------------------------------------
-# 2. Workflow "Business Purpose" Prompts
+# Business Area Domain Vocabulary & Definitions Block
 # ---------------------------------------------------------------------------
 
-WORKFLOW_PURPOSE_SYSTEM_PROMPT = """You are a Senior Business Intelligence Analyst summarizing an automated data analysis workflow.
-Your task is to explain the Business Purpose of the entire workflow.
+DEFAULT_BUSINESS_AREA_DEFINITIONS = {
+    "Claims & Risk": (
+        "Claims & Risk business area encompasses multiple workflows that collectively "
+        "analyse claims performance, exposure, policy information, payments, and litigation or risk-related outcomes."
+    ),
+    "Sales & Distribution": (
+        "Sales & Distribution business area encompasses workflows that support customer, "
+        "product, sales performance, distribution, pipeline, and commercial reporting activities."
+    ),
+    "Legal": (
+        "Legal business area encompasses workflows supporting legal operations, "
+        "case-related information, regulatory analysis, legal reporting, and compliance-oriented data processing."
+    ),
+    "Underwriting": (
+        "Underwriting business area encompasses workflows that support risk assessment, "
+        "policy evaluation, underwriting decisions, pricing inputs, and portfolio analysis."
+    ),
+}
+
+
+def build_business_area_definitions_block(descriptions: dict[str, str] | None = None) -> str:
+    """Format configured business areas and their business descriptions into a prompt block."""
+    descs = descriptions or DEFAULT_BUSINESS_AREA_DEFINITIONS
+    lines: list[str] = []
+    idx = 1
+    for area, desc in descs.items():
+        if area in ("Other / Unclassified", "UNCLASSIFIED"):
+            continue
+        lines.append(f"{idx}. {area}\n   Definition: {desc}")
+        idx += 1
+    lines.append(
+        f"{idx}. UNCLASSIFIED\n   Definition: Workflows whose primary business function cannot be confidently "
+        "associated with any of the defined enterprise business areas."
+    )
+    return "\n\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# 2. Workflow "Business Purpose" & "Business Area Tag" Prompts (Version 3.0)
+# ---------------------------------------------------------------------------
+
+def build_workflow_purpose_system_prompt(descriptions: dict[str, str] | None = None) -> str:
+    """Build the system prompt for workflow business purpose and business area tagging."""
+    definitions_block = build_business_area_definitions_block(descriptions)
+    return f"""You are a Senior Business Intelligence Analyst analyzing an automated enterprise ETL workflow.
+Your task is to determine the workflow's Business Purpose and assign its primary Business Area Tag.
 
 CRITICAL CONSTRAINTS:
-1. Use ONLY the supplied deterministic workflow facts (inputs, stages, transformations, business rules, outputs).
+1. Ground your analysis strictly in the supplied deterministic workflow facts (inputs, stages, transformations, business rules, outputs).
 2. Do NOT invent stakeholders, business owners, schedules, SLAs, KPIs, or external consumers not present in the facts.
-3. Explain what business domain/problem the workflow supports, the core entities/measures analysed, key analytical operations performed, and reporting deliverables produced.
-4. Write exactly ONE concise paragraph (approximately 40-75 words).
-5. Do NOT include markdown headings, bullet points, quotes, or conversational preamble."""
+3. Output valid JSON with EXACTLY these two keys:
+   - "business_purpose": Exactly ONE concise, professional paragraph (40-75 words) explaining what business domain/problem the workflow supports, core entities/measures analysed, key analytical operations performed, and reporting deliverables produced.
+   - "business_area_tag": The single best-matching business area selected strictly from the ALLOWED BUSINESS AREAS below.
+
+ALLOWED BUSINESS AREAS:
+{definitions_block}
+
+CONSTRAINTS:
+- You MUST select "business_area_tag" strictly from the allowed business areas listed above. Do NOT invent new business areas.
+- If the workflow genuinely does not fit any configured enterprise domain above, use "UNCLASSIFIED".
+- Return ONLY a valid JSON object:
+{{"business_purpose": "...", "business_area_tag": "..."}}
+- Do NOT include markdown code blocks, backticks, conversational preamble, or extra keys."""
+
+
+WORKFLOW_PURPOSE_SYSTEM_PROMPT = build_workflow_purpose_system_prompt()
 
 
 def build_workflow_purpose_user_prompt(facts: WorkflowFacts) -> str:
-    """Format deterministic workflow facts for Business Purpose generation."""
+    """Format deterministic workflow facts for Business Purpose and Business Area Tag generation."""
     facts_dict = facts.to_dict()
     facts_json = json.dumps(facts_dict, indent=2)
-    return f"""Analyze these deterministic workflow facts as a Business Intelligence Analyst and write a concise, one-paragraph Business Purpose:
+    return f"""Analyze these deterministic workflow facts as a Senior Business Intelligence Analyst and write a concise Business Purpose and Business Area Tag:
 
 FACTS:
 {facts_json}
 
-BUSINESS PURPOSE:"""
+BUSINESS PURPOSE:
+Return JSON with "business_purpose" and "business_area_tag":"""
 
 
 # ---------------------------------------------------------------------------
@@ -673,42 +731,6 @@ RATIONALISATION QUALIFICATION JSON:"""
 # ---------------------------------------------------------------------------
 
 BUSINESS_AREA_CLASSIFICATION_PROMPT_VERSION = "2.0"
-
-DEFAULT_BUSINESS_AREA_DEFINITIONS = {
-    "Claims & Risk": (
-        "Claims & Risk business area encompasses multiple workflows that collectively "
-        "analyse claims performance, exposure, policy information, payments, and litigation or risk-related outcomes."
-    ),
-    "Sales & Distribution": (
-        "Sales & Distribution business area encompasses workflows that support customer, "
-        "product, sales performance, distribution, pipeline, and commercial reporting activities."
-    ),
-    "Legal": (
-        "Legal business area encompasses workflows supporting legal operations, "
-        "case-related information, regulatory analysis, legal reporting, and compliance-oriented data processing."
-    ),
-    "Underwriting": (
-        "Underwriting business area encompasses workflows that support risk assessment, "
-        "policy evaluation, underwriting decisions, pricing inputs, and portfolio analysis."
-    ),
-}
-
-
-def build_business_area_definitions_block(descriptions: dict[str, str] | None = None) -> str:
-    """Format configured business areas and their business descriptions into a prompt block."""
-    descs = descriptions or DEFAULT_BUSINESS_AREA_DEFINITIONS
-    lines: list[str] = []
-    idx = 1
-    for area, desc in descs.items():
-        if area in ("Other / Unclassified", "UNCLASSIFIED"):
-            continue
-        lines.append(f"{idx}. {area}\n   Definition: {desc}")
-        idx += 1
-    lines.append(
-        f"{idx}. UNCLASSIFIED\n   Definition: Workflows whose primary business function cannot be confidently "
-        "associated with any of the defined enterprise business areas."
-    )
-    return "\n\n".join(lines)
 
 
 BUSINESS_AREA_CLASSIFICATION_SYSTEM_PROMPT = """You are an Enterprise Data Domain Classification Specialist.

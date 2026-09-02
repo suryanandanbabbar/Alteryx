@@ -70,6 +70,8 @@ class PortfolioWorkflowSummary:
     business_purpose: str = ""
     sttm_mappings_count: int = 0
     business_area: BusinessAreaClassification = field(default_factory=BusinessAreaClassification)
+    business_area_tag: str = "UNCLASSIFIED"
+    business_area_tag_source: str = "deterministic_fallback"
     analysis_id: str = ""
     complexity_score: float = 0.0
     complexity_level: str = "LOW"  # "HIGH" | "MEDIUM" | "LOW"
@@ -98,6 +100,8 @@ class PortfolioWorkflowSummary:
             "business_purpose": self.business_purpose,
             "sttm_mappings_count": self.sttm_mappings_count,
             "business_area": self.business_area.to_dict() if self.business_area else BusinessAreaClassification().to_dict(),
+            "business_area_tag": self.business_area_tag,
+            "business_area_tag_source": self.business_area_tag_source,
             "complexity_score": self.complexity_score,
             "complexity_level": self.complexity_level,
             "complexity_factors": self.complexity_factors,

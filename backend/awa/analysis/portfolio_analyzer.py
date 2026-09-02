@@ -33,6 +33,8 @@ from awa.analysis.sttm_extractor import _clean_table_name
 from awa.analysis.business_area_classifier import (
     classify_workflow_business_area,
     classify_portfolio_business_areas,
+    classify_business_area_deterministic,
+    extract_output_evidence_for_workflow,
     BUSINESS_AREA_DESCRIPTIONS,
     ALLOWED_BUSINESS_AREAS,
 )
@@ -386,14 +388,7 @@ def build_portfolio_analysis(
     source_to_wfs: dict[str, list[tuple[str, str]]] = {}
     target_to_wfs: dict[str, list[tuple[str, str]]] = {}
 
-    # Pre-extract successful results for batch portfolio business-area classification
-    valid_results = [
-        item[2] for item in raw_workflows
-        if not isinstance(item[2], Exception) and hasattr(item[2], "analysis_id")
-    ]
-    portfolio_classifications = classify_portfolio_business_areas(valid_results, generator=generator)
-
-    # 1. Process individual workflow outputs
+    # 1. Process individual workflow outputs using canonical workflow business understanding
     for filename, rel_path, res_or_exc in raw_workflows:
         if isinstance(res_or_exc, Exception):
             # Record partial failure without failing entire portfolio
@@ -424,12 +419,29 @@ def build_portfolio_analysis(
         for t in tgts:
             target_to_wfs.setdefault(t, []).append((wid, filename))
 
-        biz_purpose = res.business_summary.business_purpose if res.business_summary else ""
+        raw_purpose = getattr(res, "business_purpose", "")
+        biz_purpose = raw_purpose if isinstance(raw_purpose, str) else ""
         sttm_count = len(res.sttm.mappings) if res.sttm else 0
 
-        # Classify business area using business purpose + output evidence
-        classification = portfolio_classifications.get(wid) or classify_workflow_business_area(
-            res, generator=generator, business_purpose=biz_purpose
+        # Read canonical upload-time business-area tag (no secondary portfolio LLM classification)
+        raw_tag = getattr(res, "business_area_tag", "")
+        tag = raw_tag if isinstance(raw_tag, str) else "UNCLASSIFIED"
+        raw_source = getattr(res, "business_area_tag_source", "")
+        tag_source = raw_source if isinstance(raw_source, str) else "deterministic_fallback"
+
+        # Backward compatibility for legacy analysis results where tag might be missing or UNCLASSIFIED
+        if not tag or tag not in set(ALLOWED_BUSINESS_AREAS) | {"Other / Unclassified"}:
+            out_ev = extract_output_evidence_for_workflow(res)
+            det = classify_business_area_deterministic(out_ev, business_purpose=biz_purpose)
+            tag = det.business_area
+            tag_source = "deterministic_fallback"
+
+        classification = BusinessAreaClassification(
+            business_area=tag,
+            confidence="HIGH" if tag_source == "llm" else "MEDIUM",
+            evidence=[biz_purpose[:120]] if biz_purpose else [],
+            classification_source=tag_source,
+            secondary_business_areas=[],
         )
 
         # Deterministic Workflow Complexity Assessment
@@ -454,6 +466,8 @@ def build_portfolio_analysis(
                 business_purpose=biz_purpose,
                 sttm_mappings_count=sttm_count,
                 business_area=classification,
+                business_area_tag=tag,
+                business_area_tag_source=tag_source,
                 complexity_score=complexity.score,
                 complexity_level=complexity.level,
                 complexity_factors=complexity.factors,
@@ -500,6 +514,7 @@ def build_portfolio_analysis(
                 targets=wf.targets,
                 inspection_sinks=wf.inspection_sinks,
                 context=dep_context,
+                business_purpose=wf.business_purpose,
             )
             wf.criticality_score = criticality.score
             wf.criticality_level = criticality.level

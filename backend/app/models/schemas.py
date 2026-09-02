@@ -271,6 +271,9 @@ class WorkflowBusinessSummaryDTO(BaseModel):
     information_flow: list[str] = Field(default_factory=list)
     overall_interpretation: str = ""
     confidence_level: str = "High"
+    business_area_tag: str = "UNCLASSIFIED"
+    business_area_tag_source: str = "deterministic_fallback"
+
 
 
 class AnalysisOverviewDTO(BaseModel):
@@ -316,6 +319,8 @@ class PortfolioWorkflowSummaryDTO(BaseModel):
     business_purpose: str = ""
     sttm_mappings_count: int = 0
     business_area: BusinessAreaClassificationDTO = Field(default_factory=BusinessAreaClassificationDTO)
+    business_area_tag: str = "UNCLASSIFIED"
+    business_area_tag_source: str = "deterministic_fallback"
     complexity_score: float = 0.0
     complexity_level: Literal["HIGH", "MEDIUM", "LOW"] = "LOW"
     complexity_factors: list[str] = Field(default_factory=list)

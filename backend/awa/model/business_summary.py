@@ -271,12 +271,16 @@ class WorkflowBusinessSummary:
     overall_interpretation: str = ""
     evidence: list[str] = dc_field(default_factory=list)
     confidence_level: str = "High"
+    business_area_tag: str = "UNCLASSIFIED"
+    business_area_tag_source: str = "deterministic_fallback"
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
             "business_purpose": self.business_purpose,
             "one_line_purpose": self.one_line_purpose,
             "why_it_matters": self.why_it_matters,
+            "business_area_tag": self.business_area_tag,
+            "business_area_tag_source": self.business_area_tag_source,
             "source_inputs": [inp.to_dict() for inp in self.source_inputs],
             "processing_stages": [stg.to_dict() for stg in self.processing_stages],
             "transformations": [tr.to_dict() for tr in self.transformations],

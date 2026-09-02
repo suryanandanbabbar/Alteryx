@@ -82,6 +82,21 @@ class CanonicalAnalysisResult:
     business_summary: WorkflowBusinessSummary | None = None
     sttm: STTMDocument | None = None
 
+    @property
+    def business_purpose(self) -> str:
+        """Canonical business purpose prose from business_summary."""
+        return self.business_summary.business_purpose if self.business_summary else ""
+
+    @property
+    def business_area_tag(self) -> str:
+        """Canonical normalized business area tag from business_summary."""
+        return getattr(self.business_summary, "business_area_tag", "UNCLASSIFIED") if self.business_summary else "UNCLASSIFIED"
+
+    @property
+    def business_area_tag_source(self) -> str:
+        """Canonical provenance source of business_area_tag ("llm" or "deterministic_fallback")."""
+        return getattr(self.business_summary, "business_area_tag_source", "deterministic_fallback") if self.business_summary else "deterministic_fallback"
+
     def to_dict(self) -> dict[str, Any]:
         """Convert the entire canonical result to a comprehensive dictionary."""
         d: dict[str, Any] = {
@@ -98,9 +113,13 @@ class CanonicalAnalysisResult:
             "required_libraries": self.required_libraries,
             "diagnostics": [d.to_dict() for d in self.diagnostics],
             "lineage_paths": [lp.to_dict() for lp in self.lineage_paths],
+            "business_purpose": self.business_purpose,
+            "business_area_tag": self.business_area_tag,
+            "business_area_tag_source": self.business_area_tag_source,
         }
         if self.business_summary is not None:
             d["business_summary"] = self.business_summary.to_dict()
         if self.sttm is not None:
             d["sttm"] = self.sttm.to_dict()
         return d
+

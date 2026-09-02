@@ -138,9 +138,10 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
     bs_dto = None
     if res.business_summary:
         bs = res.business_summary
-        purpose_narrative = generator.generate_business_purpose(res.workflow, bs, workflow_id=res.analysis_id)
         bs_dto = WorkflowBusinessSummaryDTO(
-            business_purpose=purpose_narrative.text,
+            business_purpose=bs.business_purpose,
+            business_area_tag=getattr(bs, "business_area_tag", "UNCLASSIFIED"),
+            business_area_tag_source=getattr(bs, "business_area_tag_source", "deterministic_fallback"),
             one_line_purpose=bs.one_line_purpose,
             why_it_matters=bs.why_it_matters,
             source_inputs=[

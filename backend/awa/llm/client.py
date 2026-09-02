@@ -304,11 +304,13 @@ class FakeLLMClient(LLMClient):
         response_map: dict[str, str] | None = None,
         generator_fn: Callable[[str, str], str | None] | None = None,
         model_name: str = "mock-llama",
+        is_available: bool = True,
     ) -> None:
         self.default_response = default_response
         self.response_map = response_map or {}
         self.generator_fn = generator_fn
         self._model_name = model_name
+        self._is_available = is_available
         self.calls: list[dict[str, Any]] = []
 
     @property
@@ -317,7 +319,7 @@ class FakeLLMClient(LLMClient):
 
     @property
     def is_available(self) -> bool:
-        return True
+        return self._is_available
 
     def generate(
         self,
