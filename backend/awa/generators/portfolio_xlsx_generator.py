@@ -581,6 +581,8 @@ def _build_portfolio_summary_sheet(
         "Client Impact",
         "Business Scope",
         "Criticality",
+        "Criticality Score",
+        "Criticality Justification",
         "Complexity",
         "Tool Count",
         "Connection Count",
@@ -595,7 +597,7 @@ def _build_portfolio_summary_sheet(
         cell = ws.cell(row=1, column=col_idx, value=h)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
-        cell.alignment = ALIGN_HEADER_CENTER if col_idx in (13, 14, 15, 16, 17, 18, 19, 20) else ALIGN_HEADER
+        cell.alignment = ALIGN_HEADER_CENTER if col_idx in (13, 14, 16, 17, 18, 19, 20, 21, 22) else ALIGN_HEADER
         cell.border = CELL_BORDER
 
     current_row = 2
@@ -632,6 +634,8 @@ def _build_portfolio_summary_sheet(
             (client_impact, BODY_FONT, ALIGN_WRAP_TOP, None),
             (biz_scope, BODY_FONT, ALIGN_WRAP_TOP, None),
             (w.criticality_level, BOLD_BODY_FONT, ALIGN_CENTER_TOP, None),
+            (round(w.criticality_score, 1), BODY_FONT, ALIGN_CENTER_TOP, "0.0"),
+            (w.criticality_justification or "Not determined from available evidence", BODY_FONT, ALIGN_WRAP_TOP, None),
             (w.complexity_level, BOLD_BODY_FONT, ALIGN_CENTER_TOP, None),
             (w.node_count, BODY_FONT, ALIGN_CENTER_TOP, "#,##0"),
             (w.connection_count, BODY_FONT, ALIGN_CENTER_TOP, "#,##0"),
@@ -654,7 +658,7 @@ def _build_portfolio_summary_sheet(
 
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
-    _autofit_columns(ws, {1: 28, 2: 20, 3: 24, 4: 45, 5: 45, 6: 45, 7: 30, 8: 30, 9: 30, 10: 30, 11: 30, 12: 24})
+    _autofit_columns(ws, {1: 28, 2: 20, 3: 24, 4: 45, 5: 45, 6: 45, 7: 30, 8: 30, 9: 30, 10: 30, 11: 30, 12: 24, 13: 15, 14: 16, 15: 45, 16: 15})
 
 
 # ---------------------------------------------------------------------------

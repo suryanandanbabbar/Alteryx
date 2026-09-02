@@ -40,19 +40,22 @@ class LLMNarrativeCache:
         self._store: dict[str, NarrativeResult] = {}
         self._lock = threading.Lock()
 
-    def get(self, key: str) -> NarrativeResult | None:
+    def get(self, key: str) -> Any | None:
         """Retrieve cached narrative if present."""
         with self._lock:
             result = self._store.get(key)
             if result is not None:
-                # Return a copy marked with is_cached=True
-                return NarrativeResult(
-                    text=result.text,
-                    source=result.source,
-                    model=result.model,
-                    prompt_version=result.prompt_version,
-                    is_cached=True,
-                )
+                if type(result) is NarrativeResult:
+                    return NarrativeResult(
+                        text=result.text,
+                        source=result.source,
+                        model=result.model,
+                        prompt_version=result.prompt_version,
+                        is_cached=True,
+                    )
+                if hasattr(result, "is_cached"):
+                    result.is_cached = True
+                return result
             return None
 
     def set(self, key: str, narrative: NarrativeResult) -> None:

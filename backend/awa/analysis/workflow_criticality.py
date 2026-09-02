@@ -73,11 +73,19 @@ CRITICALITY_MEDIUM_MAX: float = 69.0
 
 @dataclass
 class CriticalityAssessment:
-    """Deterministic criticality assessment result."""
+    """Criticality assessment result containing deterministic metrics and business justification."""
     score: float
     level: Literal["HIGH", "MEDIUM", "LOW"]
     factors: list[str] = field(default_factory=list)
     breakdown: dict[str, float] = field(default_factory=dict)
+    criticality_justification: str = ""
+    business_consequence: str = ""
+    dependency_impact: str = ""
+    affected_scope: str = ""
+    migration_implication: str = ""
+    confidence: str = "HIGH"
+    justification_source: str = "deterministic_fallback"
+    factor_assessments: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -85,6 +93,14 @@ class CriticalityAssessment:
             "level": self.level,
             "factors": self.factors,
             "breakdown": self.breakdown,
+            "criticality_justification": self.criticality_justification,
+            "business_consequence": self.business_consequence,
+            "dependency_impact": self.dependency_impact,
+            "affected_scope": self.affected_scope,
+            "migration_implication": self.migration_implication,
+            "confidence": self.confidence,
+            "justification_source": self.justification_source,
+            "factor_assessments": self.factor_assessments,
         }
 
 
@@ -307,4 +323,110 @@ def calculate_workflow_criticality(
             "operational": op_score,
             "business_purpose_impact": op_score,
         },
+    )
+
+
+def build_criticality_evidence_package(
+    workflow_id: str,
+    workflow_filename: str,
+    sources: list[str],
+    targets: list[str],
+    inspection_sinks: list[str],
+    context: PortfolioDependencyContext | None = None,
+    operational_metadata: dict[str, Any] | None = None,
+    business_purpose: str = "",
+    business_function: str = "",
+    business_area: str = "",
+    deterministic_counts: dict[str, int] | None = None,
+) -> Any:
+    """Construct a compact deterministic evidence package for LLM criticality evaluation."""
+    from awa.llm.schemas import CriticalityEvidencePackage
+
+    ctx = context or PortfolioDependencyContext()
+
+    # Determine downstream consumers and shared targets
+    downstream_consumers: dict[str, str] = {}
+    shared_outputs_produced: list[str] = []
+    for t in targets:
+        consumers = ctx.source_to_consumers.get(t, [])
+        for c_wid, c_fname in consumers:
+            if c_wid != workflow_id:
+                downstream_consumers[c_wid] = c_fname
+        if t in ctx.shared_targets:
+            shared_outputs_produced.append(t)
+
+    # Determine upstream producers
+    upstream_producers: dict[str, str] = {}
+    for s in sources:
+        producers = ctx.target_to_producers.get(s, [])
+        for p_wid, p_fname in producers:
+            if p_wid != workflow_id:
+                upstream_producers[p_wid] = p_fname
+
+    downstream_count = len(downstream_consumers)
+    upstream_count = len(upstream_producers)
+
+    # Determine dependency position
+    if downstream_count > 0 and upstream_count == 0:
+        position = "Upstream Root Producer"
+    elif downstream_count > 0 and upstream_count > 0:
+        position = "Midstream Integration Hub"
+    elif downstream_count == 0 and upstream_count > 0:
+        position = "Leaf Consumer"
+    else:
+        position = "Isolated Process"
+
+    shared_sources_consumed = [s for s in sources if s in ctx.shared_sources]
+
+    # Semantic business impact signals
+    semantic_signals: list[str] = []
+    combined_text = f"{business_function} {business_purpose}".strip()
+    if combined_text:
+        if DELIVERABLE_PATTERN.search(combined_text):
+            semantic_signals.append("Statutory / compliance / financial reporting deliverable")
+        if SCOPE_PATTERN.search(combined_text):
+            semantic_signals.append("Enterprise-wide operational breadth")
+        if CUSTOMER_PATTERN.search(combined_text):
+            semantic_signals.append("Customer / claimant / policyholder benefit or coverage impact")
+        if CLIENT_PATTERN.search(combined_text):
+            semantic_signals.append("External client / broker / agent deliverable or commission")
+
+    # Calculate deterministic baseline for audit/reference
+    det_crit = calculate_workflow_criticality(
+        workflow_id=workflow_id,
+        workflow_filename=workflow_filename,
+        sources=sources,
+        targets=targets,
+        inspection_sinks=inspection_sinks,
+        context=ctx,
+        operational_metadata=operational_metadata,
+        business_purpose=business_purpose,
+        business_function=business_function,
+    )
+
+    counts = dict(deterministic_counts or {})
+    counts.setdefault("source_count", len(sources))
+    counts.setdefault("target_count", len(targets))
+    counts.setdefault("inspection_sink_count", len(inspection_sinks))
+    counts.setdefault("downstream_consumer_count", downstream_count)
+    counts.setdefault("upstream_producer_count", upstream_count)
+
+    return CriticalityEvidencePackage(
+        workflow_id=workflow_id,
+        workflow_filename=workflow_filename,
+        business_purpose=business_purpose,
+        business_function=business_function,
+        business_area=business_area,
+        production_targets=targets,
+        inspection_sinks=inspection_sinks,
+        upstream_producers=list(upstream_producers.values()),
+        downstream_consumers=list(downstream_consumers.values()),
+        shared_targets=shared_outputs_produced,
+        shared_sources=shared_sources_consumed,
+        dependency_position=position,
+        deterministic_counts=counts,
+        semantic_impact_signals=semantic_signals,
+        operational_metadata=operational_metadata or {},
+        deterministic_reference_score=det_crit.score,
+        deterministic_reference_level=det_crit.level,
     )

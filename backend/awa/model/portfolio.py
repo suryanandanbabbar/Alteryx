@@ -85,6 +85,14 @@ class PortfolioWorkflowSummary:
     criticality_score: float = 0.0
     criticality_level: str = "LOW"  # "HIGH" | "MEDIUM" | "LOW"
     criticality_factors: list[str] = field(default_factory=list)
+    criticality_justification: str = ""
+    criticality_business_consequence: str = ""
+    criticality_dependency_impact: str = ""
+    criticality_affected_scope: str = ""
+    criticality_migration_implication: str = ""
+    criticality_confidence: str = "HIGH"
+    criticality_source: str = "deterministic_fallback"
+    factor_assessments: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -116,6 +124,14 @@ class PortfolioWorkflowSummary:
             "criticality_score": self.criticality_score,
             "criticality_level": self.criticality_level,
             "criticality_factors": self.criticality_factors,
+            "criticality_justification": self.criticality_justification,
+            "criticality_business_consequence": self.criticality_business_consequence,
+            "criticality_dependency_impact": self.criticality_dependency_impact,
+            "criticality_affected_scope": self.criticality_affected_scope,
+            "criticality_migration_implication": self.criticality_migration_implication,
+            "criticality_confidence": self.criticality_confidence,
+            "criticality_source": self.criticality_source,
+            "factor_assessments": self.factor_assessments,
         }
 
 

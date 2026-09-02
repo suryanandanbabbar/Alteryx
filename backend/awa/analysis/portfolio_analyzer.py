@@ -42,6 +42,7 @@ from awa.analysis.business_area_classifier import (
 from awa.analysis.workflow_complexity import calculate_workflow_complexity
 from awa.analysis.workflow_criticality import (
     calculate_workflow_criticality,
+    build_criticality_evidence_package,
     PortfolioDependencyContext,
 )
 
@@ -548,21 +549,73 @@ def build_portfolio_analysis(
         shared_sources={s.dataset_name for s in shared_sources},
     )
 
+    from awa.llm.generator import compose_deterministic_criticality_fallback
+
     for wf in summaries:
         if wf.status == "SUCCESS":
-            criticality = calculate_workflow_criticality(
-                workflow_id=wf.workflow_id,
-                workflow_filename=wf.filename,
-                sources=wf.sources,
-                targets=wf.targets,
-                inspection_sinks=wf.inspection_sinks,
-                context=dep_context,
-                business_purpose=wf.business_purpose,
-                business_function=wf.business_function,
+            res = successful_results.get(wf.workflow_id)
+            bs = getattr(res, "business_summary", None)
+
+            # Check if workflow already has an assessed criticality from canonical upload-time analysis
+            raw_score = getattr(bs, "criticality_score", None)
+            has_canonical_crit = (
+                bs is not None
+                and isinstance(raw_score, (int, float))
             )
-            wf.criticality_score = criticality.score
-            wf.criticality_level = criticality.level
-            wf.criticality_factors = criticality.factors
+            has_new_portfolio_deps = bool(
+                (wf.targets and any(len(dep_context.source_to_consumers.get(t, [])) > 0 for t in wf.targets))
+                or (wf.sources and any(len(dep_context.target_to_producers.get(s, [])) > 0 for s in wf.sources))
+            )
+
+            if has_canonical_crit and not has_new_portfolio_deps:
+                wf.criticality_score = float(raw_score)
+                wf.criticality_level = getattr(bs, "criticality_level", "LOW")
+                wf.criticality_factors = getattr(bs, "criticality_factors", None) or []
+                wf.criticality_justification = getattr(bs, "criticality_justification", "")
+                wf.criticality_business_consequence = getattr(bs, "criticality_business_consequence", "")
+                wf.criticality_dependency_impact = getattr(bs, "criticality_dependency_impact", "")
+                wf.criticality_affected_scope = getattr(bs, "criticality_affected_scope", "")
+                wf.criticality_migration_implication = getattr(bs, "criticality_migration_implication", "")
+                wf.criticality_confidence = getattr(bs, "criticality_confidence", "HIGH")
+                wf.criticality_source = getattr(bs, "criticality_source", "llm")
+                wf.factor_assessments = getattr(bs, "factor_assessments", {})
+            else:
+                ev = build_criticality_evidence_package(
+                    workflow_id=wf.workflow_id,
+                    workflow_filename=wf.filename,
+                    sources=wf.sources,
+                    targets=wf.targets,
+                    inspection_sinks=wf.inspection_sinks,
+                    context=dep_context,
+                    business_purpose=wf.business_purpose,
+                    business_function=wf.business_function,
+                    business_area=wf.business_area_tag,
+                    deterministic_counts={
+                        "total_nodes": wf.node_count,
+                        "total_connections": wf.connection_count,
+                        "source_count": wf.source_count,
+                        "target_count": wf.target_count,
+                        "inspection_sink_count": len(wf.inspection_sinks),
+                        "downstream_consumer_count": len(dep_context.source_to_consumers.get(wf.targets[0], [])) if wf.targets else 0,
+                    },
+                )
+                # Single canonical LLM generation owner is canonical upload analysis;
+                # portfolio aggregation strictly uses deterministic fallback when evaluating new cross-workflow context.
+                crit_res = compose_deterministic_criticality_fallback(ev)
+                wf.criticality_score = crit_res.criticality_score
+                wf.criticality_level = crit_res.criticality_level
+                wf.criticality_factors = crit_res.criticality_factors
+                wf.criticality_justification = crit_res.criticality_justification
+                wf.criticality_business_consequence = crit_res.business_consequence
+                wf.criticality_dependency_impact = crit_res.dependency_impact
+                wf.criticality_affected_scope = crit_res.affected_scope
+                wf.criticality_migration_implication = crit_res.migration_implication
+                wf.criticality_confidence = crit_res.confidence
+                wf.criticality_source = crit_res.source
+                wf.factor_assessments = {
+                    k: v.to_dict() if hasattr(v, "to_dict") else v
+                    for k, v in crit_res.factor_assessments.items()
+                }
 
     # 3. Compute Multi-Signal Relationships between all pairs of successful workflows
     relationships: list[WorkflowRelationship] = []
@@ -678,7 +731,9 @@ def build_portfolio_analysis(
     valid_tags_count = total_wf - unclassified_count
     criticality_impacted = sum(
         1 for s in success_summaries
-        if getattr(s, "criticality_score", 0.0) > 0 and getattr(s, "business_purpose", "")
+        if isinstance(getattr(s, "criticality_score", None), (int, float))
+        and getattr(s, "criticality_score", 0.0) > 0
+        and getattr(s, "business_purpose", "")
     )
 
     logger.info(

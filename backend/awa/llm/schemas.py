@@ -58,6 +58,113 @@ class BusinessPurposeResult:
             "is_cached": self.is_cached,
         }
 
+@dataclass
+class FactorAssessment:
+    """Assessment of an individual criticality dimension."""
+    dimension: str
+    assessment: Literal["HIGH", "MEDIUM", "LOW", "NOT_ESTABLISHED"]
+    evidence: str
+    rationale: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "dimension": self.dimension,
+            "assessment": self.assessment,
+            "evidence": self.evidence,
+            "rationale": self.rationale,
+        }
+
+
+@dataclass
+class CriticalityEvidencePackage:
+    """Compact deterministic evidence package supplied to LLM for criticality evaluation."""
+    workflow_id: str
+    workflow_filename: str
+    business_purpose: str
+    business_function: str
+    business_area: str
+    production_targets: list[str] = field(default_factory=list)
+    inspection_sinks: list[str] = field(default_factory=list)
+    upstream_producers: list[str] = field(default_factory=list)
+    downstream_consumers: list[str] = field(default_factory=list)
+    shared_targets: list[str] = field(default_factory=list)
+    shared_sources: list[str] = field(default_factory=list)
+    dependency_position: str = "Isolated"
+    deterministic_counts: dict[str, int] = field(default_factory=dict)
+    semantic_impact_signals: list[str] = field(default_factory=list)
+    operational_metadata: dict[str, Any] = field(default_factory=dict)
+    deterministic_reference_score: float | None = None
+    deterministic_reference_level: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "workflow_id": self.workflow_id,
+            "workflow_filename": self.workflow_filename,
+            "business_purpose": self.business_purpose,
+            "business_function": self.business_function,
+            "business_area": self.business_area,
+            "production_targets": self.production_targets,
+            "inspection_sinks": self.inspection_sinks,
+            "upstream_producers": self.upstream_producers,
+            "downstream_consumers": self.downstream_consumers,
+            "shared_targets": self.shared_targets,
+            "shared_sources": self.shared_sources,
+            "dependency_position": self.dependency_position,
+            "deterministic_counts": self.deterministic_counts,
+            "semantic_impact_signals": self.semantic_impact_signals,
+            "operational_metadata": self.operational_metadata,
+            "deterministic_reference_score": self.deterministic_reference_score,
+            "deterministic_reference_level": self.deterministic_reference_level,
+        }
+
+
+@dataclass
+class CriticalityAssessmentResult:
+    """Full LLM-driven criticality assessment result with auditable evidence."""
+    criticality_score: float
+    criticality_level: Literal["HIGH", "MEDIUM", "LOW"]
+    factor_assessments: dict[str, FactorAssessment] = field(default_factory=dict)
+    criticality_justification: str = ""
+    business_consequence: str = ""
+    dependency_impact: str = ""
+    affected_scope: str = ""
+    migration_implication: str = ""
+    confidence: Literal["HIGH", "MEDIUM", "LOW"] = "HIGH"
+    source: Literal["llm", "deterministic_fallback"] = "deterministic_fallback"
+    assessment_version: str = "2.0"
+    model: str = ""
+    prompt_version: str = "2.0"
+    is_cached: bool = False
+    criticality_factors: list[str] = field(default_factory=list)
+    deterministic_reference_score: float | None = None
+
+    @property
+    def text(self) -> str:
+        """Backward-compatible property for callers expecting NarrativeResult.text."""
+        return self.criticality_justification
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "criticality_score": self.criticality_score,
+            "criticality_level": self.criticality_level,
+            "factor_assessments": {
+                k: v.to_dict() if hasattr(v, "to_dict") else v
+                for k, v in self.factor_assessments.items()
+            },
+            "criticality_justification": self.criticality_justification,
+            "business_consequence": self.business_consequence,
+            "dependency_impact": self.dependency_impact,
+            "affected_scope": self.affected_scope,
+            "migration_implication": self.migration_implication,
+            "confidence": self.confidence,
+            "source": self.source,
+            "assessment_version": self.assessment_version,
+            "model": self.model,
+            "prompt_version": self.prompt_version,
+            "is_cached": self.is_cached,
+            "criticality_factors": self.criticality_factors,
+            "deterministic_reference_score": self.deterministic_reference_score,
+        }
 
 
 @dataclass

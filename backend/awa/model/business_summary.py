@@ -277,6 +277,17 @@ class WorkflowBusinessSummary:
     business_area_taxonomy_version: str = "3.0"
     classification_conflict: bool = False
     classification_evidence: list[str] = dc_field(default_factory=list)
+    criticality_score: float = 0.0
+    criticality_level: str = "LOW"
+    criticality_justification: str = ""
+    criticality_business_consequence: str = ""
+    criticality_dependency_impact: str = ""
+    criticality_affected_scope: str = ""
+    criticality_migration_implication: str = ""
+    criticality_confidence: str = "HIGH"
+    criticality_source: str = "deterministic_fallback"
+    criticality_factors: list[str] = dc_field(default_factory=list)
+    factor_assessments: dict[str, Any] = dc_field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -289,6 +300,17 @@ class WorkflowBusinessSummary:
             "business_area_taxonomy_version": self.business_area_taxonomy_version,
             "classification_conflict": self.classification_conflict,
             "classification_evidence": self.classification_evidence,
+            "criticality_score": self.criticality_score,
+            "criticality_level": self.criticality_level,
+            "criticality_justification": self.criticality_justification,
+            "criticality_business_consequence": self.criticality_business_consequence,
+            "criticality_dependency_impact": self.criticality_dependency_impact,
+            "criticality_affected_scope": self.criticality_affected_scope,
+            "criticality_migration_implication": self.criticality_migration_implication,
+            "criticality_confidence": self.criticality_confidence,
+            "criticality_source": self.criticality_source,
+            "criticality_factors": self.criticality_factors,
+            "factor_assessments": self.factor_assessments,
             "source_inputs": [inp.to_dict() for inp in self.source_inputs],
             "processing_stages": [stg.to_dict() for stg in self.processing_stages],
             "transformations": [tr.to_dict() for tr in self.transformations],

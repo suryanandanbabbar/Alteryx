@@ -119,6 +119,46 @@ class CanonicalAnalysisResult:
         """Auditable classification reasons and factors."""
         return getattr(self.business_summary, "classification_evidence", []) if self.business_summary else []
 
+    @property
+    def criticality_score(self) -> float:
+        return getattr(self.business_summary, "criticality_score", 0.0) if self.business_summary else 0.0
+
+    @property
+    def criticality_level(self) -> str:
+        return getattr(self.business_summary, "criticality_level", "LOW") if self.business_summary else "LOW"
+
+    @property
+    def criticality_justification(self) -> str:
+        return getattr(self.business_summary, "criticality_justification", "") if self.business_summary else ""
+
+    @property
+    def criticality_business_consequence(self) -> str:
+        return getattr(self.business_summary, "criticality_business_consequence", "") if self.business_summary else ""
+
+    @property
+    def criticality_dependency_impact(self) -> str:
+        return getattr(self.business_summary, "criticality_dependency_impact", "") if self.business_summary else ""
+
+    @property
+    def criticality_affected_scope(self) -> str:
+        return getattr(self.business_summary, "criticality_affected_scope", "") if self.business_summary else ""
+
+    @property
+    def criticality_migration_implication(self) -> str:
+        return getattr(self.business_summary, "criticality_migration_implication", "") if self.business_summary else ""
+
+    @property
+    def criticality_source(self) -> str:
+        return getattr(self.business_summary, "criticality_source", "deterministic_fallback") if self.business_summary else "deterministic_fallback"
+
+    @property
+    def criticality_factors(self) -> list[str]:
+        return getattr(self.business_summary, "criticality_factors", []) if self.business_summary else []
+
+    @property
+    def factor_assessments(self) -> dict[str, Any]:
+        return getattr(self.business_summary, "factor_assessments", {}) if self.business_summary else {}
+
     def to_dict(self) -> dict[str, Any]:
         """Convert the entire canonical result to a comprehensive dictionary."""
         d: dict[str, Any] = {
@@ -142,6 +182,16 @@ class CanonicalAnalysisResult:
             "business_area_taxonomy_version": self.business_area_taxonomy_version,
             "classification_conflict": self.classification_conflict,
             "classification_evidence": self.classification_evidence,
+            "criticality_score": self.criticality_score,
+            "criticality_level": self.criticality_level,
+            "criticality_justification": self.criticality_justification,
+            "criticality_business_consequence": self.criticality_business_consequence,
+            "criticality_dependency_impact": self.criticality_dependency_impact,
+            "criticality_affected_scope": self.criticality_affected_scope,
+            "criticality_migration_implication": self.criticality_migration_implication,
+            "criticality_source": self.criticality_source,
+            "criticality_factors": self.criticality_factors,
+            "factor_assessments": self.factor_assessments,
         }
         if self.business_summary is not None:
             d["business_summary"] = self.business_summary.to_dict()

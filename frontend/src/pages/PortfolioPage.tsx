@@ -18,10 +18,12 @@ import {
   Info,
   Layers,
   Download,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { DocumentGenerationModal } from '../components/DocumentGenerationModal';
-import { PortfolioOverviewDTO, PortfolioWorkflowSummaryDTO } from '../types/portfolio';
+import { PortfolioOverviewDTO, PortfolioWorkflowSummaryDTO, FactorAssessmentDTO } from '../types/portfolio';
 import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
 import { RationalisationPage } from './RationalisationPage';
 
@@ -134,6 +136,12 @@ interface DeterministicInfoPopoverProps {
   score?: number;
   level?: 'HIGH' | 'MEDIUM' | 'LOW';
   factors?: string[];
+  justification?: string;
+  consequence?: string;
+  dependencyImpact?: string;
+  migrationImplication?: string;
+  source?: string;
+  factorAssessments?: Record<string, FactorAssessmentDTO>;
   onClose: () => void;
 }
 
@@ -142,10 +150,16 @@ const DeterministicInfoPopover: React.FC<DeterministicInfoPopoverProps> = ({
   score = 0,
   level = 'LOW',
   factors = [],
+  justification,
+  consequence,
+  dependencyImpact,
+  migrationImplication,
+  source,
   onClose,
 }) => {
   const isComplexity = type === 'complexity';
-  const title = isComplexity ? 'DETERMINISTIC COMPLEXITY' : 'DETERMINISTIC CRITICALITY';
+  const title = isComplexity ? 'DETERMINISTIC COMPLEXITY' : 'CRITICALITY ASSESSMENT';
+  const [showTechnicalAudit, setShowTechnicalAudit] = useState(false);
 
   return (
     <div
@@ -157,7 +171,7 @@ const DeterministicInfoPopover: React.FC<DeterministicInfoPopoverProps> = ({
         bottom: 'calc(100% + 12px)',
         left: '50%',
         transform: 'translateX(-50%)',
-        width: '320px',
+        width: isComplexity ? '320px' : '400px',
         maxWidth: 'calc(100vw - 48px)',
         background: '#0d1527',
         border: '1px solid var(--color-border)',
@@ -189,17 +203,35 @@ const DeterministicInfoPopover: React.FC<DeterministicInfoPopoverProps> = ({
 
       {/* Header Row: Title & Close Button */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span
-          style={{
-            fontSize: '10.5px',
-            fontWeight: '800',
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            color: 'var(--color-text-subtle)',
-          }}
-        >
-          {title}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span
+            style={{
+              fontSize: '10.5px',
+              fontWeight: '800',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              color: 'var(--color-text-subtle)',
+            }}
+          >
+            {title}
+          </span>
+          {!isComplexity && source && (
+            <span
+              style={{
+                fontSize: '9.5px',
+                fontWeight: '700',
+                padding: '2px 6px',
+                borderRadius: '3px',
+                background: source === 'llm' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(148, 163, 184, 0.15)',
+                color: source === 'llm' ? '#4ade80' : 'var(--color-text-subtle)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              {source === 'llm' ? 'LLM Assessed' : 'Deterministic Fallback'}
+            </span>
+          )}
+        </div>
         <button
           type="button"
           aria-label="Close popover"
@@ -257,55 +289,167 @@ const DeterministicInfoPopover: React.FC<DeterministicInfoPopoverProps> = ({
       {/* Hairline Divider */}
       <div style={{ height: '1px', background: 'var(--color-border-subtle)' }} />
 
-      {/* Key Contributing Factors */}
-      <div>
-        <div
-          style={{
-            fontSize: '11px',
-            fontWeight: '700',
-            color: 'var(--color-text-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
-            marginBottom: '8px',
-          }}
-        >
-          Key Contributing Factors
-        </div>
+      {/* Criticality Business Explanation */}
+      {!isComplexity && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {justification && (
+            <div>
+              <div style={{ fontSize: '10.5px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>
+                Why This Matters
+              </div>
+              <div style={{ fontSize: '12.5px', lineHeight: '1.45', color: 'var(--color-text-secondary)' }}>
+                {justification}
+              </div>
+            </div>
+          )}
 
-        {factors && factors.length > 0 ? (
-          <ul
+          {consequence && (
+            <div>
+              <div style={{ fontSize: '10.5px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '3px' }}>
+                Potential Consequence
+              </div>
+              <div style={{ fontSize: '12px', lineHeight: '1.4', color: 'var(--color-text-secondary)' }}>
+                {consequence}
+              </div>
+            </div>
+          )}
+
+          {dependencyImpact && (
+            <div>
+              <div style={{ fontSize: '10.5px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '3px' }}>
+                Dependency Impact
+              </div>
+              <div style={{ fontSize: '12px', lineHeight: '1.4', color: 'var(--color-text-secondary)' }}>
+                {dependencyImpact}
+              </div>
+            </div>
+          )}
+
+          {migrationImplication && (
+            <div>
+              <div style={{ fontSize: '10.5px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '3px' }}>
+                Migration Implication
+              </div>
+              <div style={{ fontSize: '12px', lineHeight: '1.4', color: 'var(--color-text-secondary)' }}>
+                {migrationImplication}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Factors / Audit Evidence */}
+      {isComplexity ? (
+        <div>
+          <div
             style={{
-              margin: 0,
-              padding: 0,
-              listStyle: 'none',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px',
+              fontSize: '11px',
+              fontWeight: '700',
+              color: 'var(--color-text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              marginBottom: '8px',
             }}
           >
-            {factors.map((f, i) => (
-              <li
-                key={i}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '7px',
-                  fontSize: '12px',
-                  lineHeight: '1.45',
-                  color: 'var(--color-text-secondary)',
-                }}
-              >
-                <span style={{ color: 'var(--color-primary)', fontWeight: '700', lineHeight: '1.4' }}>•</span>
-                <span>{f}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div style={{ fontSize: '12px', color: 'var(--color-text-subtle)', fontStyle: 'italic' }}>
-            No specific contributing factors recorded.
+            Key Contributing Factors
           </div>
-        )}
-      </div>
+
+          {factors && factors.length > 0 ? (
+            <ul
+              style={{
+                margin: 0,
+                padding: 0,
+                listStyle: 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+              }}
+            >
+              {factors.map((f, i) => (
+                <li
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '7px',
+                    fontSize: '12px',
+                    lineHeight: '1.45',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                >
+                  <span style={{ color: 'var(--color-primary)', fontWeight: '700', lineHeight: '1.4' }}>•</span>
+                  <span>{f}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div style={{ fontSize: '12px', color: 'var(--color-text-subtle)', fontStyle: 'italic' }}>
+              No specific contributing factors recorded.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowTechnicalAudit(!showTechnicalAudit)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: '4px 0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              color: 'var(--color-text-muted)',
+              fontSize: '11px',
+              fontWeight: '700',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              cursor: 'pointer',
+            }}
+          >
+            <span>Technical Audit Evidence ({factors?.length || 0})</span>
+            {showTechnicalAudit ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+
+          {showTechnicalAudit && (
+            <ul
+              style={{
+                margin: '6px 0 0 0',
+                padding: 0,
+                listStyle: 'none',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '5px',
+              }}
+            >
+              {factors && factors.length > 0 ? (
+                factors.map((f, i) => (
+                  <li
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '6px',
+                      fontSize: '11.5px',
+                      lineHeight: '1.4',
+                      color: 'var(--color-text-subtle)',
+                    }}
+                  >
+                    <span style={{ color: 'var(--color-primary)', fontWeight: '700' }}>•</span>
+                    <span>{f}</span>
+                  </li>
+                ))
+              ) : (
+                <li style={{ fontSize: '11.5px', color: 'var(--color-text-subtle)', fontStyle: 'italic' }}>
+                  No technical factors recorded.
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -1292,6 +1436,12 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                           score={wf.criticality_score ?? 0}
                           level={wf.criticality_level || 'LOW'}
                           factors={wf.criticality_factors || []}
+                          justification={wf.criticality_justification}
+                          consequence={wf.business_consequence}
+                          dependencyImpact={wf.dependency_impact}
+                          migrationImplication={wf.migration_implication}
+                          source={wf.criticality_source}
+                          factorAssessments={wf.factor_assessments}
                           onClose={() => setActiveInfoPanel(null)}
                         />
                       )}

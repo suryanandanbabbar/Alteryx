@@ -37,6 +37,9 @@ from .schemas import (
     WorkflowProcessStages,
     STTMMappingItem,
     STTMLLMResponse,
+    FactorAssessment,
+    CriticalityEvidencePackage,
+    CriticalityAssessmentResult,
 )
 from .prompts import (
     TOOL_PROMPT_VERSION,
@@ -569,6 +572,369 @@ def _extract_structured_purpose_payload(raw_response: str | None) -> dict[str, A
     return None
 
 
+def _extract_structured_criticality_payload(raw_response: str | None) -> dict[str, Any] | None:
+    """Extract structured JSON payload containing criticality_score and criticality_level."""
+    if not raw_response or not isinstance(raw_response, str):
+        return None
+
+    text = raw_response.strip()
+    if not text:
+        return None
+
+    # 1. Direct parse if response is clean JSON
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict) and "criticality_score" in parsed:
+            return parsed
+    except Exception:
+        pass
+
+    # 2. Extract from markdown code blocks
+    code_blocks = re.findall(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+    for block in code_blocks:
+        try:
+            parsed = json.loads(block.strip())
+            if isinstance(parsed, dict) and "criticality_score" in parsed:
+                return parsed
+        except Exception:
+            pass
+
+    # 3. Progressive JSON scanning
+    decoder = json.JSONDecoder()
+    pos = 0
+    while True:
+        start = text.find("{", pos)
+        if start == -1:
+            break
+        try:
+            obj, end = decoder.raw_decode(text, idx=start)
+            if isinstance(obj, dict) and "criticality_score" in obj:
+                return obj
+            pos = end
+        except Exception:
+            pos = start + 1
+
+    return None
+
+
+def _validate_criticality_assessment(
+    parsed: dict[str, Any], evidence: CriticalityEvidencePackage
+) -> tuple[bool, str]:
+    """Validate LLM criticality output against evidence integrity and calibration rules."""
+    if not isinstance(parsed, dict):
+        return False, "Response is not a dictionary"
+
+    # 1. Score & Level Checks
+    raw_score = parsed.get("criticality_score")
+    if raw_score is None or not isinstance(raw_score, (int, float)):
+        return False, f"Missing or non-numeric criticality_score: {raw_score}"
+
+    score = float(raw_score)
+    if score < 0.0 or score > 100.0:
+        return False, f"criticality_score out of range [0, 100]: {score}"
+
+    level = str(parsed.get("criticality_level", "")).upper()
+    if level not in ("LOW", "MEDIUM", "HIGH"):
+        return False, f"Invalid criticality_level: {level}"
+
+    # Verify score-level calibration (0-34: LOW, 35-69: MEDIUM, 70-100: HIGH)
+    expected_level = "LOW" if score <= 34.0 else ("MEDIUM" if score <= 69.0 else "HIGH")
+    if level != expected_level:
+        return False, f"Score {score} does not match level '{level}' (expected '{expected_level}')"
+
+    # 2. Required prose fields
+    required_prose = [
+        "criticality_justification",
+        "business_consequence",
+        "dependency_impact",
+        "affected_scope",
+        "migration_implication",
+    ]
+    for field in required_prose:
+        val = parsed.get(field)
+        if not val or not isinstance(val, str) or len(val.strip()) < 5:
+            return False, f"Missing or empty required field: {field}"
+
+    justification = str(parsed.get("criticality_justification", "")).strip()
+    if len(justification.split()) < 15:
+        return False, f"criticality_justification too short: {len(justification.split())} words"
+
+    # 3. Anti-hallucination / Prompt Leakage / Generic Boilerplate
+    lower_just = justification.lower()
+    leakage_terms = [
+        "tier 1", "tier 2", "tier 3", "prompt version", "as an ai", "system prompt",
+        "```json", "def calculate_", "scoring algorithm", "base weights"
+    ]
+    for lt in leakage_terms:
+        if lt in lower_just:
+            return False, f"Detected leakage term '{lt}' in justification"
+
+    generic_fillers = [
+        "this workflow is very important to the business",
+        "processes data to provide valuable insights",
+        "enhances decision-making processes",
+    ]
+    for gf in generic_fillers:
+        if gf in lower_just:
+            return False, f"Detected generic filler '{gf}'"
+
+    # 4. Factor Assessments Check & Grounding
+    factors = parsed.get("factor_assessments")
+    if not isinstance(factors, dict) or len(factors) < 5:
+        return False, "Missing or incomplete factor_assessments"
+
+    downstream_fa = factors.get("downstream_dependency")
+    if isinstance(downstream_fa, dict):
+        fa_rating = str(downstream_fa.get("assessment", "")).upper()
+        if fa_rating == "HIGH" and not evidence.downstream_consumers:
+            return False, "downstream_dependency assessed as HIGH but workflow has 0 downstream consumers in evidence"
+
+    cust_fa = factors.get("customer_impact")
+    if isinstance(cust_fa, dict):
+        fa_rating = str(cust_fa.get("assessment", "")).upper()
+        if fa_rating == "HIGH" and not any(
+            "customer" in s.lower() or "claimant" in s.lower() or "policyholder" in s.lower()
+            for s in evidence.semantic_impact_signals
+        ):
+            return False, "customer_impact assessed as HIGH without customer/claimant impact signals in evidence"
+
+    client_fa = factors.get("client_impact")
+    if isinstance(client_fa, dict):
+        fa_rating = str(client_fa.get("assessment", "")).upper()
+        if fa_rating == "HIGH" and not any(
+            "client" in s.lower() or "broker" in s.lower() or "agent" in s.lower()
+            for s in evidence.semantic_impact_signals
+        ):
+            return False, "client_impact assessed as HIGH without client/broker/partner signals in evidence"
+
+    return True, "Valid"
+
+
+def compose_deterministic_criticality_fallback(
+    evidence: CriticalityEvidencePackage,
+) -> CriticalityAssessmentResult:
+    """Compose an evidence-grounded deterministic criticality assessment when LLM is unavailable or rejected."""
+    from .prompts import CRITICALITY_ASSESSMENT_PROMPT_VERSION
+
+    if evidence.deterministic_reference_score is not None:
+        score = float(evidence.deterministic_reference_score)
+        level = evidence.deterministic_reference_level or ("LOW" if score <= 34.0 else ("MEDIUM" if score <= 69.0 else "HIGH"))
+    else:
+        from awa.analysis.workflow_criticality import calculate_workflow_criticality
+        crit = calculate_workflow_criticality(
+            workflow_id=evidence.workflow_id,
+            workflow_filename=evidence.workflow_filename,
+            sources=[],
+            targets=evidence.production_targets,
+            inspection_sinks=evidence.inspection_sinks,
+            business_purpose=evidence.business_purpose,
+            business_function=evidence.business_function,
+        )
+        score = crit.score
+        level = crit.level
+
+    factor_assessments: dict[str, FactorAssessment] = {}
+
+    # 1. production_outputs
+    if evidence.production_targets:
+        cnt = len(evidence.production_targets)
+        rating = "HIGH" if cnt >= 2 else "MEDIUM"
+        ev_str = f"{cnt} production deliverable{'s' if cnt > 1 else ''} ({', '.join(evidence.production_targets[:2])})"
+        rat_str = "Produces persisted business deliverables directly."
+    else:
+        rating = "LOW"
+        ev_str = "Zero production deliverables configured (inspection sinks only or non-persisted flow)"
+        rat_str = "Does not publish persisted enterprise deliverables."
+    factor_assessments["production_outputs"] = FactorAssessment("production_outputs", rating, ev_str, rat_str)
+
+    # 2. downstream_dependency
+    if evidence.downstream_consumers:
+        cnt = len(evidence.downstream_consumers)
+        rating = "HIGH" if cnt >= 2 else "MEDIUM"
+        ev_str = f"{cnt} downstream workflow consumer{'s' if cnt > 1 else ''} ({', '.join(evidence.downstream_consumers[:2])})"
+        rat_str = "Disruption propagates to downstream consumers."
+    else:
+        rating = "LOW"
+        ev_str = "No downstream workflow consumers detected"
+        rat_str = "Blast radius is confined to this workflow."
+    factor_assessments["downstream_dependency"] = FactorAssessment("downstream_dependency", rating, ev_str, rat_str)
+
+    # 3. output_consumers
+    if evidence.shared_targets:
+        rating = "HIGH"
+        ev_str = f"{len(evidence.shared_targets)} shared enterprise deliverable(s)"
+        rat_str = "Outputs are consumed across multiple workflows."
+    elif evidence.downstream_consumers:
+        rating = "MEDIUM"
+        ev_str = "Outputs consumed by dedicated downstream workflow"
+        rat_str = "Point-to-point production dependency."
+    else:
+        rating = "NOT_ESTABLISHED"
+        ev_str = "No shared enterprise outputs detected"
+        rat_str = "No cross-workflow sharing evidence."
+    factor_assessments["output_consumers"] = FactorAssessment("output_consumers", rating, ev_str, rat_str)
+
+    # 4. dependency_position
+    pos = evidence.dependency_position
+    if pos == "Midstream Integration Hub":
+        rating = "HIGH"
+        rat_str = "Critical midstream pipeline juncture; failure impacts both upstream intake and downstream consumers."
+    elif pos == "Upstream Root Producer":
+        rating = "HIGH"
+        rat_str = "Foundational root producer feeding downstream processes."
+    elif pos == "Leaf Consumer":
+        rating = "LOW"
+        rat_str = "Terminal analytical consumer; disruption does not propagate downstream."
+    else:
+        rating = "LOW"
+        rat_str = "Standalone process without detected portfolio pipeline links."
+    factor_assessments["dependency_position"] = FactorAssessment("dependency_position", rating, pos, rat_str)
+
+    # 5. shared_sources
+    if evidence.shared_sources:
+        rating = "MEDIUM"
+        ev_str = f"Consumes {len(evidence.shared_sources)} shared portfolio input(s)"
+        rat_str = "Participates in shared enterprise data ecosystem."
+    else:
+        rating = "NOT_ESTABLISHED"
+        ev_str = "No shared portfolio sources detected"
+        rat_str = "Uses independent or isolated source data."
+    factor_assessments["shared_sources"] = FactorAssessment("shared_sources", rating, ev_str, rat_str)
+
+    # 6. business_deliverables
+    has_mandatory = any("reporting" in s.lower() or "statutory" in s.lower() or "compliance" in s.lower() or "financial" in s.lower() for s in evidence.semantic_impact_signals)
+    if has_mandatory:
+        rating = "HIGH"
+        ev_str = "Statutory, regulatory, or financial deliverable signal detected in business purpose"
+        rat_str = "Supports official reporting or compliance obligations."
+    elif evidence.production_targets:
+        rating = "MEDIUM"
+        ev_str = "Operational data deliverables configured"
+        rat_str = "Standard operational business deliverable."
+    else:
+        rating = "LOW"
+        ev_str = "Informational outputs only"
+        rat_str = "No formal business deliverable signals."
+    factor_assessments["business_deliverables"] = FactorAssessment("business_deliverables", rating, ev_str, rat_str)
+
+    # 7. business_scope
+    has_enterprise = any("enterprise-wide" in s.lower() for s in evidence.semantic_impact_signals)
+    if has_enterprise:
+        rating = "HIGH"
+        ev_str = "Enterprise-wide operational scope signal detected"
+        rat_str = "Broad operational footprint across the enterprise."
+    else:
+        rating = "NOT_ESTABLISHED"
+        ev_str = "Specific enterprise breadth not documented in metadata"
+        rat_str = "Assumed localized or departmental operational scope."
+    factor_assessments["business_scope"] = FactorAssessment("business_scope", rating, ev_str, rat_str)
+
+    # 8. customer_impact
+    has_customer = any("customer" in s.lower() or "claimant" in s.lower() or "policyholder" in s.lower() for s in evidence.semantic_impact_signals)
+    if has_customer:
+        rating = "HIGH"
+        ev_str = "Customer/claimant/policyholder coverage or adjudication signal detected"
+        rat_str = "Directly impacts customer or policyholder outcomes."
+    else:
+        rating = "NOT_ESTABLISHED"
+        ev_str = "No customer-facing transactions or benefit calculations documented"
+        rat_str = "No direct customer impact established by evidence."
+    factor_assessments["customer_impact"] = FactorAssessment("customer_impact", rating, ev_str, rat_str)
+
+    # 9. client_impact
+    has_client = any("client" in s.lower() or "broker" in s.lower() or "agent" in s.lower() for s in evidence.semantic_impact_signals)
+    if has_client:
+        rating = "HIGH"
+        ev_str = "Client/broker/agent deliverable signal detected"
+        rat_str = "Directly impacts external business partners or distribution channels."
+    else:
+        rating = "NOT_ESTABLISHED"
+        ev_str = "No external partner or broker deliverables configured"
+        rat_str = "Internal operational processing."
+    factor_assessments["client_impact"] = FactorAssessment("client_impact", rating, ev_str, rat_str)
+
+    # 10. operational_context
+    if evidence.operational_metadata:
+        rating = "MEDIUM"
+        ev_str = str(evidence.operational_metadata)
+        rat_str = "Operational metadata supplied."
+    else:
+        rating = "NOT_ESTABLISHED"
+        ev_str = "Operational metadata not documented in workflow configuration"
+        rat_str = "SLA, schedule, and ownership are not established."
+    factor_assessments["operational_context"] = FactorAssessment("operational_context", rating, ev_str, rat_str)
+
+    # Synthesize concise, business-facing prose
+    targets_desc = ", ".join(evidence.production_targets[:2]) if evidence.production_targets else "operational outputs"
+    if level == "HIGH":
+        justification = (
+            f"This workflow operates as a high-criticality business asset ({evidence.dependency_position}), "
+            f"driven by {len(evidence.downstream_consumers) and 'downstream workflow dependencies' or 'critical production deliverables'}. "
+            f"Disruption would propagate across dependent processes and interrupt delivery of core deliverables ({targets_desc})."
+        )
+        consequence = f"Failure to execute halts generation of critical deliverables ({targets_desc}), creating operational delays across dependent business processes."
+        migration = "High-priority migration asset. Downstream consumer interfaces and data contracts must be validated and tested prior to cutover."
+    elif level == "MEDIUM":
+        justification = (
+            f"This workflow fulfills a standard production role generating operational deliverables ({targets_desc}). "
+            f"While it maintains localized operational importance, available evidence indicates manageable blast radius "
+            f"without multi-hop dependency disruption."
+        )
+        consequence = f"Failure would delay generation of scheduled operational deliverables ({targets_desc}), requiring manual reconciliation or reprocessing."
+        migration = "Standard migration candidate. Preserve output schemas and verify input source availability prior to deployment."
+    else:
+        justification = (
+            f"This workflow exhibits minimal operational blast radius with no detected downstream dependencies or shared enterprise outputs. "
+            f"Interruption would remain confined to local informational execution without cascading impact across the portfolio."
+        )
+        consequence = "Failure would impact local informational reporting without disrupting upstream feeds or downstream business consumers."
+        migration = "Low-risk migration candidate. Well-suited for standard conversion or consolidation review."
+
+    if evidence.downstream_consumers:
+        dep_impact = f"Disruption propagates to {len(evidence.downstream_consumers)} downstream workflow consumer(s) ({', '.join(evidence.downstream_consumers[:2])})."
+    elif evidence.upstream_producers:
+        dep_impact = "Consumes upstream workflow data as a leaf node; disruption does not propagate further downstream."
+    else:
+        dep_impact = "Operates as an isolated process; disruption does not propagate to other workflows in the portfolio."
+
+    if has_enterprise:
+        affected = "Enterprise-wide operational processing."
+    elif has_customer:
+        affected = "Customer and claimant service operations."
+    elif has_client:
+        affected = "External client and broker distribution channels."
+    else:
+        affected = "Localized departmental processing; wider enterprise scope is not established by available evidence."
+
+    factors_list: list[str] = []
+    if evidence.production_targets:
+        factors_list.append(f"{len(evidence.production_targets)} production deliverable(s)")
+    if evidence.downstream_consumers:
+        factors_list.append(f"{len(evidence.downstream_consumers)} downstream consumer(s)")
+    if evidence.dependency_position != "Isolated":
+        factors_list.append(evidence.dependency_position)
+    factors_list.extend(evidence.semantic_impact_signals[:2])
+    if not factors_list:
+        factors_list.append("Isolated standalone processing")
+
+    return CriticalityAssessmentResult(
+        criticality_score=round(score, 1),
+        criticality_level=level,  # type: ignore
+        factor_assessments=factor_assessments,
+        criticality_justification=justification,
+        business_consequence=consequence,
+        dependency_impact=dep_impact,
+        affected_scope=affected,
+        migration_implication=migration,
+        confidence="HIGH",
+        source="deterministic_fallback",
+        model="deterministic",
+        prompt_version=CRITICALITY_ASSESSMENT_PROMPT_VERSION,
+        criticality_factors=factors_list[:6],
+        deterministic_reference_score=round(score, 1),
+    )
+
+
 class LLMNarrativeGenerator:
     """High-level orchestration service for narrative generation with caching and fallback."""
 
@@ -893,6 +1259,103 @@ class LLMNarrativeGenerator:
             model="deterministic",
             prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
         )
+        return fallback_result
+
+    def generate_criticality_assessment(
+        self,
+        evidence: CriticalityEvidencePackage,
+    ) -> CriticalityAssessmentResult:
+        """Generate an LLM-driven, evidence-grounded criticality assessment with validation and fallback."""
+        from .prompts import (
+            CRITICALITY_ASSESSMENT_PROMPT_VERSION,
+            build_criticality_assessment_system_prompt,
+            build_criticality_assessment_user_prompt,
+        )
+
+        fallback_result = compose_deterministic_criticality_fallback(evidence)
+
+        # If LLM client is unavailable or not configured, return deterministic fallback directly
+        if not self.client or not getattr(self.client, "is_available", True):
+            return fallback_result
+
+        cache_key = compute_cache_key(
+            workflow_id=evidence.workflow_id or evidence.workflow_filename or "default_workflow",
+            scope_key="criticality_assessment",
+            prompt_version=CRITICALITY_ASSESSMENT_PROMPT_VERSION,
+            model_name=self.client.model_name,
+            facts_payload=evidence.to_dict(),
+        )
+
+        cached = self._cache.get(cache_key)
+        if cached is not None and isinstance(cached, CriticalityAssessmentResult):
+            logger.info("[LLM CACHE] type=criticality_assessment status=HIT")
+            return cached
+
+        logger.info("[LLM CACHE] type=criticality_assessment status=MISS")
+
+        system_prompt = build_criticality_assessment_system_prompt()
+        user_prompt = build_criticality_assessment_user_prompt(evidence)
+
+        try:
+            raw_response = self.client.generate(system_prompt, user_prompt)
+            parsed = _extract_structured_criticality_payload(raw_response)
+
+            if isinstance(parsed, dict):
+                is_valid, reason = _validate_criticality_assessment(parsed, evidence)
+                if is_valid:
+                    raw_score = float(parsed["criticality_score"])
+                    raw_level = str(parsed["criticality_level"]).upper()
+
+                    factor_assessments_map: dict[str, FactorAssessment] = {}
+                    raw_factors = parsed.get("factor_assessments", {})
+                    if isinstance(raw_factors, dict):
+                        for dim, f_data in raw_factors.items():
+                            if isinstance(f_data, dict):
+                                factor_assessments_map[dim] = FactorAssessment(
+                                    dimension=dim,
+                                    assessment=str(f_data.get("assessment", "NOT_ESTABLISHED")).upper(),  # type: ignore
+                                    evidence=str(f_data.get("evidence", "")),
+                                    rationale=str(f_data.get("rationale", "")),
+                                )
+
+                    criticality_factors: list[str] = []
+                    for dim, fa in factor_assessments_map.items():
+                        if fa.assessment in ("HIGH", "MEDIUM"):
+                            criticality_factors.append(f"{dim.replace('_', ' ').title()}: {fa.rationale}")
+                    if not criticality_factors:
+                        criticality_factors = fallback_result.criticality_factors
+
+                    result = CriticalityAssessmentResult(
+                        criticality_score=round(raw_score, 1),
+                        criticality_level=raw_level,  # type: ignore
+                        factor_assessments=factor_assessments_map,
+                        criticality_justification=str(parsed.get("criticality_justification", "")).strip(),
+                        business_consequence=str(parsed.get("business_consequence", "")).strip(),
+                        dependency_impact=str(parsed.get("dependency_impact", "")).strip(),
+                        affected_scope=str(parsed.get("affected_scope", "")).strip(),
+                        migration_implication=str(parsed.get("migration_implication", "")).strip(),
+                        confidence=str(parsed.get("confidence", "HIGH")).upper(),  # type: ignore
+                        source="llm",
+                        model=self.client.model_name,
+                        prompt_version=CRITICALITY_ASSESSMENT_PROMPT_VERSION,
+                        criticality_factors=criticality_factors[:6],
+                        deterministic_reference_score=evidence.deterministic_reference_score,
+                    )
+                    self._cache.set(cache_key, result)
+                    logger.info(
+                        "[LLM] criticality_assessment accepted: score=%.1f, level=%s, factors=%d",
+                        result.criticality_score,
+                        result.criticality_level,
+                        len(result.factor_assessments),
+                    )
+                    return result
+                else:
+                    logger.warning("[LLM] Criticality assessment validation rejected: %s. Using fallback.", reason)
+            else:
+                logger.warning("[LLM] Output did not contain valid structured JSON for criticality. Using fallback.")
+        except Exception as exc:
+            logger.warning("[LLM] generate_criticality_assessment failed: %s. Using fallback.", exc)
+
         return fallback_result
 
 

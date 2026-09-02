@@ -41,6 +41,21 @@ export interface PortfolioWorkflowSummaryDTO {
   criticality_score?: number;
   criticality_level?: 'HIGH' | 'MEDIUM' | 'LOW';
   criticality_factors?: string[];
+  criticality_justification?: string;
+  business_consequence?: string;
+  dependency_impact?: string;
+  affected_scope?: string;
+  migration_implication?: string;
+  criticality_confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
+  criticality_source?: string;
+  factor_assessments?: Record<string, FactorAssessmentDTO>;
+}
+
+export interface FactorAssessmentDTO {
+  dimension: string;
+  assessment: 'HIGH' | 'MEDIUM' | 'LOW' | 'NOT_ESTABLISHED';
+  evidence: string;
+  rationale: string;
 }
 
 export interface DeterministicSignalsDTO {

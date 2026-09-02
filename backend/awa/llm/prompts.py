@@ -16,6 +16,7 @@ CONCLUSIONS_PROMPT_VERSION = "2.0"
 TOOL_SPECIFICATIONS_PROMPT_VERSION = "1.0"
 PROCESS_STAGES_PROMPT_VERSION = "2.0"
 STTM_PROMPT_VERSION = "1.0"
+CRITICALITY_ASSESSMENT_PROMPT_VERSION = "2.0"
 
 # ---------------------------------------------------------------------------
 # 1. Tool "What It Does" & Tool Specifications Prompts
@@ -919,6 +920,124 @@ def build_portfolio_business_area_classification_user_prompt(
         + "\n\n".join(wf_blocks)
         + "\n\nSTRUCTURED CLASSIFICATION JSON:"
     )
+
+
+# ---------------------------------------------------------------------------
+# 9. Criticality Assessment Prompts
+# ---------------------------------------------------------------------------
+
+CRITICALITY_ASSESSMENT_SYSTEM_PROMPT = """You are a senior enterprise data architect and business intelligence assessor evaluating the business criticality of an ETL workflow for portfolio rationalisation and cloud migration planning.
+
+Your job is to evaluate the business significance of the workflow across 10 agreed criticality dimensions, using ONLY the supplied factual evidence. You are the business reasoning layer over deterministic evidence.
+
+CRITICALITY DIMENSIONS TO EVALUATE:
+1. production_outputs: What production deliverables does the workflow create, and what business role do they serve? (Note: inspection sinks such as Browse/BrowseV2 are NOT production deliverables).
+2. downstream_dependency: Which downstream workflows/processes rely on these outputs, and how much disruption could propagate?
+3. output_consumers: Are outputs shared across multiple workflows or business processes in the enterprise?
+4. dependency_position: Is the workflow an isolated process, leaf consumer, upstream root producer, or midstream integration hub?
+5. shared_sources: Does the workflow participate in a shared source ecosystem where failure could affect broader processing?
+6. business_deliverables: Does the business purpose indicate mandatory reporting, regulatory compliance, financial reconciliation, executive board packs, or core master data?
+7. business_scope: Does the workflow operate across an entire enterprise/portfolio/multi-region, or is it departmental/local?
+8. customer_impact: Could interruption affect customers, policyholders, claimants, eligibility, payments, or coverage? (Only when supported by evidence).
+9. client_impact: Could interruption affect external clients, brokers, agents, producers, or distributors? (Only when supported by evidence).
+10. operational_context: Documented operational constraints such as schedule or ownership when genuinely available.
+
+CALIBRATED SCORING FRAMEWORK:
+- 0–34 = LOW: Minimal operational blast radius, exploratory or ad-hoc processing, no downstream dependencies, localized disruption.
+- 35–69 = MEDIUM: Standard operational production processing, generates business deliverables with moderate localized impact, but limited or no multi-hop downstream propagation.
+- 70–100 = HIGH: Mission-critical decision engine, midstream integration hub, statutory/regulatory filing, core financial ledger, or direct claimant/policyholder/customer impact with broad downstream disruption.
+
+EVIDENCE INTEGRITY & HALLUCINATION CONTROLS:
+1. Ground every assessment strictly in the supplied evidence. Never invent customer counts, revenue numbers, SLAs, frequencies, or regulatory penalties.
+2. Never invent downstream workflows or consumers. If downstream consumers are empty, downstream dependency must be rated LOW or NOT_ESTABLISHED.
+3. Never infer customer or regulatory impact merely from a filename or table name without functional support.
+4. Technical complexity is NOT criticality. Do NOT use tool count, node count, or workflow size as a proxy for business impact.
+5. When evidence for a dimension is missing, mark it "NOT_ESTABLISHED" with evidence="None in supplied workflow evidence".
+
+Return a JSON object conforming strictly to this format:
+{
+  "criticality_score": <number between 0 and 100>,
+  "criticality_level": "LOW" | "MEDIUM" | "HIGH",
+  "criticality_justification": "<concise business-facing explanation (40-80 words) of why this rating is appropriate>",
+  "business_consequence": "<1-2 sentences on what could happen if the workflow stops>",
+  "dependency_impact": "<1-2 sentences on how dependency position and downstream consumption affect potential disruption>",
+  "affected_scope": "<supported business/customer/enterprise scope, or bounded statement that scope is not established>",
+  "migration_implication": "<1-2 sentences on action-oriented migration or rationalisation guidance>",
+  "confidence": "HIGH" | "MEDIUM" | "LOW",
+  "factor_assessments": {
+    "production_outputs": {"assessment": "HIGH"|"MEDIUM"|"LOW"|"NOT_ESTABLISHED", "evidence": "...", "rationale": "..."},
+    "downstream_dependency": {"assessment": "HIGH"|"MEDIUM"|"LOW"|"NOT_ESTABLISHED", "evidence": "...", "rationale": "..."},
+    "output_consumers": {"assessment": "HIGH"|"MEDIUM"|"LOW"|"NOT_ESTABLISHED", "evidence": "...", "rationale": "..."},
+    "dependency_position": {"assessment": "HIGH"|"MEDIUM"|"LOW"|"NOT_ESTABLISHED", "evidence": "...", "rationale": "..."},
+    "shared_sources": {"assessment": "HIGH"|"MEDIUM"|"LOW"|"NOT_ESTABLISHED", "evidence": "...", "rationale": "..."},
+    "business_deliverables": {"assessment": "HIGH"|"MEDIUM"|"LOW"|"NOT_ESTABLISHED", "evidence": "...", "rationale": "..."},
+    "business_scope": {"assessment": "HIGH"|"MEDIUM"|"LOW"|"NOT_ESTABLISHED", "evidence": "...", "rationale": "..."},
+    "customer_impact": {"assessment": "HIGH"|"MEDIUM"|"LOW"|"NOT_ESTABLISHED", "evidence": "...", "rationale": "..."},
+    "client_impact": {"assessment": "HIGH"|"MEDIUM"|"LOW"|"NOT_ESTABLISHED", "evidence": "...", "rationale": "..."},
+    "operational_context": {"assessment": "HIGH"|"MEDIUM"|"LOW"|"NOT_ESTABLISHED", "evidence": "...", "rationale": "..."}
+  }
+}"""
+
+
+def build_criticality_assessment_system_prompt() -> str:
+    """Return the system prompt for LLM-driven criticality assessment."""
+    return CRITICALITY_ASSESSMENT_SYSTEM_PROMPT
+
+
+def build_criticality_assessment_user_prompt(evidence: Any) -> str:
+    """Format deterministic evidence package into user prompt with calibration anchors."""
+    targets_str = ", ".join(evidence.production_targets) if evidence.production_targets else "None (No production deliverables)"
+    sinks_str = ", ".join(evidence.inspection_sinks) if evidence.inspection_sinks else "None"
+    downstream_str = ", ".join(evidence.downstream_consumers) if evidence.downstream_consumers else "None (No downstream workflow consumers detected)"
+    upstream_str = ", ".join(evidence.upstream_producers) if evidence.upstream_producers else "None (Consumes external inputs only)"
+    shared_targets_str = ", ".join(evidence.shared_targets) if evidence.shared_targets else "None"
+    shared_sources_str = ", ".join(evidence.shared_sources) if evidence.shared_sources else "None"
+    signals_str = "; ".join(evidence.semantic_impact_signals) if evidence.semantic_impact_signals else "None detected from business purpose/function"
+    op_str = json.dumps(evidence.operational_metadata) if evidence.operational_metadata else "Not documented in workflow"
+
+    ref_str = ""
+    if evidence.deterministic_reference_score is not None:
+        ref_str = f"Diagnostic / Legacy Reference Score (for audit only, do not mechanically copy): {evidence.deterministic_reference_score} ({evidence.deterministic_reference_level})\n"
+
+    return f"""FACTUAL WORKFLOW EVIDENCE PACKAGE:
+Workflow ID: {evidence.workflow_id}
+Workflow Name: {evidence.workflow_filename}
+Business Area: {evidence.business_area or "Unassigned"}
+Primary Business Function: {evidence.business_function or "Unassigned"}
+Business Purpose:
+{evidence.business_purpose or "[Not Documented]"}
+
+PRODUCTION OUTPUT DELIVERABLES:
+{targets_str}
+
+INSPECTION SINKS (Browse/BrowseV2 - NOT deliverables):
+{sinks_str}
+
+DEPENDENCY TOPOLOGY:
+- Dependency Position: {evidence.dependency_position}
+- Downstream Workflow Consumers: {downstream_str}
+- Upstream Workflow Producers: {upstream_str}
+- Shared Enterprise Targets: {shared_targets_str}
+- Shared Portfolio Sources: {shared_sources_str}
+
+DETERMINISTIC METRIC COUNTS:
+{json.dumps(evidence.deterministic_counts, indent=2)}
+
+SEMANTIC BUSINESS IMPACT SIGNALS:
+{signals_str}
+
+OPERATIONAL METADATA:
+{op_str}
+
+{ref_str}
+CALIBRATION ANCHORS FOR YOUR REFERENCE:
+- Anchor A (LOW: score ~15-25): Standalone technical utility or exploratory reporting with 0 downstream consumers and localized informational outputs.
+- Anchor B (MEDIUM: score ~45-60): Standard production reporting generating scheduled deliverables for internal operational use, with localized consequence and no multi-hop downstream propagation.
+- Anchor C (HIGH: score ~75-85): Midstream integration hub or statutory reporting engine with multiple downstream workflows directly relying on its deliverables.
+- Anchor D (HIGH: score ~85-95): Core decision engine or financial/claims ledger directly adjudicating customer/claimant benefits or driving regulatory filings with severe operational blast radius.
+
+Evaluate the business significance of this workflow across all 10 dimensions and return ONLY the structured JSON response."""
+
 
 
 

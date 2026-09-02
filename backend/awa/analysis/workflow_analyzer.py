@@ -646,6 +646,61 @@ def analyze_canonical(
         except Exception as purp_err:
             _llm_logger.warning("Canonical purpose/tag generation failed for %s: %s", aid, type(purp_err).__name__)
 
+        # 0b. Generate canonical workflow Criticality Assessment (LLM-driven with deterministic fallback)
+        try:
+            from awa.analysis.workflow_criticality import build_criticality_evidence_package
+            from awa.analysis.portfolio_analyzer import _extract_workflow_targets_and_sinks
+            crit_targets, crit_sinks, _ = _extract_workflow_targets_and_sinks(temp_res)
+
+            crit_evidence = build_criticality_evidence_package(
+                workflow_id=wf_key,
+                workflow_filename=sinfo.original_filename if (sinfo and sinfo.original_filename) else aid,
+                sources=input_sources,
+                targets=crit_targets,
+                inspection_sinks=crit_sinks,
+                context=None,
+                business_purpose=business_summary.business_purpose,
+                business_function=business_summary.business_function,
+                business_area=business_summary.business_area_tag,
+                deterministic_counts={
+                    "total_nodes": metrics.total_nodes,
+                    "total_connections": metrics.total_connections,
+                    "source_count": len(input_sources),
+                    "target_count": len(crit_targets),
+                    "inspection_sink_count": len(crit_sinks),
+                    "downstream_consumer_count": 0,
+                    "upstream_producer_count": 0,
+                },
+            )
+
+            crit_res = gen.generate_criticality_assessment(crit_evidence)
+            business_summary.criticality_score = crit_res.criticality_score
+            business_summary.criticality_level = crit_res.criticality_level
+            business_summary.criticality_justification = crit_res.criticality_justification
+            business_summary.criticality_business_consequence = crit_res.business_consequence
+            business_summary.criticality_dependency_impact = crit_res.dependency_impact
+            business_summary.criticality_affected_scope = crit_res.affected_scope
+            business_summary.criticality_migration_implication = crit_res.migration_implication
+            business_summary.criticality_confidence = crit_res.confidence
+            business_summary.criticality_source = crit_res.source
+            business_summary.criticality_factors = crit_res.criticality_factors
+            business_summary.factor_assessments = {
+                k: v.to_dict() if hasattr(v, "to_dict") else v
+                for k, v in crit_res.factor_assessments.items()
+            }
+            if business_summary.assessment:
+                business_summary.assessment.criticality = f"{crit_res.criticality_level} ({crit_res.criticality_score:.1f})"
+
+            _llm_logger.info(
+                "Canonical criticality generated: aid=%s score=%.1f level=%s source=%s",
+                aid,
+                crit_res.criticality_score,
+                crit_res.criticality_level,
+                crit_res.source,
+            )
+        except Exception as crit_err:
+            _llm_logger.warning("Canonical criticality generation failed for %s: %s", aid, type(crit_err).__name__)
+
         if gen.client.is_available:
             _llm_logger.info("LLM enrichment: starting generation for analysis %s", aid)
 

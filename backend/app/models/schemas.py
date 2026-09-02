@@ -275,6 +275,24 @@ class WorkflowBusinessSummaryDTO(BaseModel):
     business_area_tag: str = "UNCLASSIFIED"
     business_area_tag_source: str = "deterministic_fallback"
     business_area_taxonomy_version: str = "3.0"
+    criticality_score: float = 0.0
+    criticality_level: str = "LOW"
+    criticality_justification: str = ""
+    criticality_business_consequence: str = ""
+    criticality_dependency_impact: str = ""
+    criticality_affected_scope: str = ""
+    criticality_migration_implication: str = ""
+    criticality_confidence: str = "HIGH"
+    criticality_source: str = "deterministic_fallback"
+    criticality_factors: list[str] = Field(default_factory=list)
+    factor_assessments: dict[str, Any] = Field(default_factory=dict)
+
+
+class FactorAssessmentDTO(BaseModel):
+    dimension: str
+    assessment: str
+    evidence: str
+    rationale: str
 
 
 
@@ -333,6 +351,14 @@ class PortfolioWorkflowSummaryDTO(BaseModel):
     criticality_score: float = 0.0
     criticality_level: Literal["HIGH", "MEDIUM", "LOW"] = "LOW"
     criticality_factors: list[str] = Field(default_factory=list)
+    criticality_justification: str = ""
+    criticality_business_consequence: str = ""
+    criticality_dependency_impact: str = ""
+    criticality_affected_scope: str = ""
+    migration_implication: str = ""
+    criticality_confidence: str = "HIGH"
+    criticality_source: str = "deterministic_fallback"
+    factor_assessments: dict[str, Any] = Field(default_factory=dict)
 
 
 class DeterministicSignalsDTO(BaseModel):
