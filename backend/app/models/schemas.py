@@ -258,6 +258,7 @@ class BusinessAssessmentDTO(BaseModel):
 
 class WorkflowBusinessSummaryDTO(BaseModel):
     business_purpose: str
+    business_function: str = ""
     one_line_purpose: str = ""
     why_it_matters: str = ""
     source_inputs: list[BusinessInputDTO] = Field(default_factory=list)
@@ -273,6 +274,7 @@ class WorkflowBusinessSummaryDTO(BaseModel):
     confidence_level: str = "High"
     business_area_tag: str = "UNCLASSIFIED"
     business_area_tag_source: str = "deterministic_fallback"
+    business_area_taxonomy_version: str = "3.0"
 
 
 
@@ -298,6 +300,8 @@ class BusinessAreaClassificationDTO(BaseModel):
     evidence: list[str] = Field(default_factory=list)
     classification_source: str = "deterministic_fallback"
     secondary_business_areas: list[str] = Field(default_factory=list)
+    classification_conflict: bool = False
+    business_area_taxonomy_version: str = "3.0"
 
 
 class PortfolioWorkflowSummaryDTO(BaseModel):
@@ -317,10 +321,12 @@ class PortfolioWorkflowSummaryDTO(BaseModel):
     sink_classifications: dict[str, str] = Field(default_factory=dict)
     tool_types: list[str] = Field(default_factory=list)
     business_purpose: str = ""
+    business_function: str = ""
     sttm_mappings_count: int = 0
     business_area: BusinessAreaClassificationDTO = Field(default_factory=BusinessAreaClassificationDTO)
     business_area_tag: str = "UNCLASSIFIED"
     business_area_tag_source: str = "deterministic_fallback"
+    business_area_taxonomy_version: str = "3.0"
     complexity_score: float = 0.0
     complexity_level: Literal["HIGH", "MEDIUM", "LOW"] = "LOW"
     complexity_factors: list[str] = Field(default_factory=list)

@@ -88,6 +88,11 @@ class CanonicalAnalysisResult:
         return self.business_summary.business_purpose if self.business_summary else ""
 
     @property
+    def business_function(self) -> str:
+        """Canonical primary business function from business_summary."""
+        return getattr(self.business_summary, "business_function", "") if self.business_summary else ""
+
+    @property
     def business_area_tag(self) -> str:
         """Canonical normalized business area tag from business_summary."""
         return getattr(self.business_summary, "business_area_tag", "UNCLASSIFIED") if self.business_summary else "UNCLASSIFIED"
@@ -96,6 +101,21 @@ class CanonicalAnalysisResult:
     def business_area_tag_source(self) -> str:
         """Canonical provenance source of business_area_tag ("llm" or "deterministic_fallback")."""
         return getattr(self.business_summary, "business_area_tag_source", "deterministic_fallback") if self.business_summary else "deterministic_fallback"
+
+    @property
+    def business_area_taxonomy_version(self) -> str:
+        """Canonical taxonomy version of business area definitions."""
+        return getattr(self.business_summary, "business_area_taxonomy_version", "3.0") if self.business_summary else "3.0"
+
+    @property
+    def classification_conflict(self) -> bool:
+        """Whether a functional conflict was detected and resolved during classification."""
+        return getattr(self.business_summary, "classification_conflict", False) if self.business_summary else False
+
+    @property
+    def classification_evidence(self) -> list[str]:
+        """Auditable classification reasons and factors."""
+        return getattr(self.business_summary, "classification_evidence", []) if self.business_summary else []
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the entire canonical result to a comprehensive dictionary."""
@@ -114,8 +134,12 @@ class CanonicalAnalysisResult:
             "diagnostics": [d.to_dict() for d in self.diagnostics],
             "lineage_paths": [lp.to_dict() for lp in self.lineage_paths],
             "business_purpose": self.business_purpose,
+            "business_function": self.business_function,
             "business_area_tag": self.business_area_tag,
             "business_area_tag_source": self.business_area_tag_source,
+            "business_area_taxonomy_version": self.business_area_taxonomy_version,
+            "classification_conflict": self.classification_conflict,
+            "classification_evidence": self.classification_evidence,
         }
         if self.business_summary is not None:
             d["business_summary"] = self.business_summary.to_dict()

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field as dc_field
+from dataclasses import dataclass, field, field as dc_field
 from typing import Any, Literal
 
 
@@ -27,12 +27,16 @@ class NarrativeResult:
 
 @dataclass
 class BusinessPurposeResult:
-    """A generated workflow business purpose narrative and normalized business-area tag."""
+    """A generated workflow business purpose narrative, business function, and normalized business-area tag."""
     business_purpose: str
     business_area_tag: str
     source: Literal["llm", "deterministic_fallback"]
+    business_function: str = ""
+    business_area_taxonomy_version: str = "3.0"
+    classification_conflict: bool = False
+    classification_evidence: list[str] = field(default_factory=list)
     model: str = ""
-    prompt_version: str = "3.0"
+    prompt_version: str = "3.1"
     is_cached: bool = False
 
     @property
@@ -43,8 +47,12 @@ class BusinessPurposeResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "business_purpose": self.business_purpose,
+            "business_function": self.business_function,
             "business_area_tag": self.business_area_tag,
             "source": self.source,
+            "business_area_taxonomy_version": self.business_area_taxonomy_version,
+            "classification_conflict": self.classification_conflict,
+            "classification_evidence": self.classification_evidence,
             "model": self.model,
             "prompt_version": self.prompt_version,
             "is_cached": self.is_cached,

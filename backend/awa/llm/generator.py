@@ -536,35 +536,52 @@ class LLMNarrativeGenerator:
         workflow_id: str = "",
         output_evidence: list[dict[str, Any]] | None = None,
     ) -> BusinessPurposeResult:
-        """Generate a canonical workflow-level Business Purpose description and normalized Business Area Tag.
+        """Generate a canonical workflow-level Business Purpose description, Function, and normalized Business Area Tag.
 
         Authoritative single owner of:
-        - Structured Business Purpose & Business Area Tag prompt orchestration
+        - Structured Business Purpose, Function & Area Tag prompt orchestration
         - Deterministic validation against configured ALLOWED_BUSINESS_AREAS vocabulary
-        - Guaranteed fallback to deterministic taxonomy classification on failure/unavailability
+        - Semantic coherence & conflict resolution between function and tag
+        - Guaranteed fallback to deterministic 7-tier classification on failure/unavailability
         """
         from awa.analysis.business_area_classifier import (
             ALLOWED_BUSINESS_AREAS,
             classify_business_area_deterministic,
+            classify_business_function_deterministic,
             BUSINESS_AREA_DESCRIPTIONS,
+            BUSINESS_AREA_TAXONOMY_VERSION,
         )
 
-        fallback_purpose = business_summary.business_purpose or "Automated ETL and data preparation workflow."
-        det_class = classify_business_area_deterministic(output_evidence or [], business_purpose=fallback_purpose)
+        wf_name = workflow.metadata.name if (workflow and workflow.metadata) else ""
+        fallback_purpose = business_summary.business_purpose or f"Automated data preparation and analytical process for {wf_name or 'workflow'}."
+        det_class = classify_business_area_deterministic(
+            output_evidence or [],
+            business_purpose=fallback_purpose,
+            workflow_name=wf_name,
+        )
         fallback_tag = det_class.business_area
+        fallback_func = classify_business_function_deterministic(
+            fallback_tag,
+            workflow_name=wf_name,
+            business_purpose=fallback_purpose,
+        )
 
         # Guard: If LLM client is unavailable or not configured, return deterministic fallback directly
         if not self.client or not getattr(self.client, "is_available", True):
             return BusinessPurposeResult(
                 business_purpose=fallback_purpose,
+                business_function=fallback_func,
                 business_area_tag=fallback_tag,
                 source="deterministic_fallback",
+                business_area_taxonomy_version=BUSINESS_AREA_TAXONOMY_VERSION,
+                classification_conflict=False,
+                classification_evidence=det_class.evidence,
                 model="deterministic",
                 prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
             )
 
         facts = extract_workflow_facts(workflow, business_summary)
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        wf_key = workflow_id or wf_name or "default_workflow"
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key="business_purpose",
@@ -604,6 +621,7 @@ class LLMNarrativeGenerator:
 
             if isinstance(parsed, dict):
                 llm_purpose = str(parsed.get("business_purpose", "")).strip()
+                llm_func = str(parsed.get("business_function", "")).strip()
                 llm_tag = str(parsed.get("business_area_tag", "")).strip()
 
                 if not llm_purpose or len(llm_purpose.split()) < 5:
@@ -611,19 +629,73 @@ class LLMNarrativeGenerator:
 
                 valid_areas = set(ALLOWED_BUSINESS_AREAS) | {"Other / Unclassified", "UNCLASSIFIED"}
                 if llm_tag in valid_areas:
-                    normalized_tag = "Other / Unclassified" if llm_tag == "UNCLASSIFIED" else llm_tag
+                    # Ingest or infer business_function
+                    if not llm_func:
+                        llm_func = classify_business_function_deterministic(
+                            llm_tag, workflow_name=wf_name, business_purpose=llm_purpose
+                        )
+
+                    # Semantic Coherence & Conflict Guard:
+                    # Check whether Tier 1 (workflow name) or Tier 2 (business function)
+                    # strictly contradicts the LLM's selected tag (e.g. data-domain distraction).
+                    conflict = False
+                    conflict_evidence: list[str] = []
+                    det_check = classify_business_area_deterministic(
+                        output_evidence or [],
+                        business_purpose=llm_purpose,
+                        workflow_name=wf_name,
+                        business_function=llm_func,
+                    )
+                    strong_functional_domain = det_check.business_area
+
+                    if (
+                        strong_functional_domain in ALLOWED_BUSINESS_AREAS
+                        and strong_functional_domain != "UNCLASSIFIED"
+                        and llm_tag != strong_functional_domain
+                        and any("Tier 1" in e or "Tier 2" in e for e in det_check.evidence)
+                    ):
+                        logger.warning(
+                            "[LLM CONFLICT GUARD] Detected functional contradiction: LLM returned tag='%s' "
+                            "but strong functional evidence indicates '%s' (function='%s'). Overriding to functional tag.",
+                            llm_tag,
+                            strong_functional_domain,
+                            llm_func,
+                        )
+                        conflict = True
+                        normalized_tag = strong_functional_domain
+                        conflict_evidence = [
+                            f"Conflict override: Tier 1/2 functional evidence ('{llm_func}') overrides LLM tag '{llm_tag}'"
+                        ] + det_check.evidence
+                    else:
+                        normalized_tag = "Other / Unclassified" if llm_tag == "UNCLASSIFIED" else llm_tag
+                        conflict_evidence = [f"LLM classified as {normalized_tag}"]
+
                     result = BusinessPurposeResult(
                         business_purpose=llm_purpose,
+                        business_function=llm_func,
                         business_area_tag=normalized_tag,
                         source="llm",
+                        business_area_taxonomy_version=BUSINESS_AREA_TAXONOMY_VERSION,
+                        classification_conflict=conflict,
+                        classification_evidence=conflict_evidence,
                         model=self.client.model_name,
                         prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
                     )
                     self._cache.set(cache_key, result)
-                    logger.info("[LLM] business_purpose & tag stored: tag='%s', len=%d", normalized_tag, len(llm_purpose))
+                    logger.info(
+                        "[LLM] business_purpose stored: tag='%s', func='%s', len=%d, conflict=%s",
+                        normalized_tag,
+                        llm_func,
+                        len(llm_purpose),
+                        conflict,
+                    )
                     return result
                 else:
-                    logger.warning("[LLM] Rejected invalid business_area_tag '%s'. Using deterministic fallback tag '%s'", llm_tag, fallback_tag)
+                    logger.warning(
+                        "[LLM] Rejected invalid business_area_tag '%s'. Using deterministic fallback tag '%s'",
+                        llm_tag,
+                        fallback_tag,
+                    )
             elif (
                 cleaned_raw
                 and len(cleaned_raw.split()) >= 8
@@ -631,11 +703,24 @@ class LLMNarrativeGenerator:
                 and not cleaned_raw.strip().startswith("[")
             ):
                 # LLM returned valid plain text prose (e.g. from mock or legacy text model)
-                tag_from_prose = classify_business_area_deterministic(output_evidence or [], business_purpose=cleaned_raw).business_area
+                tag_from_prose = classify_business_area_deterministic(
+                    output_evidence or [],
+                    business_purpose=cleaned_raw,
+                    workflow_name=wf_name,
+                ).business_area
+                func_from_prose = classify_business_function_deterministic(
+                    tag_from_prose,
+                    workflow_name=wf_name,
+                    business_purpose=cleaned_raw,
+                )
                 result = BusinessPurposeResult(
                     business_purpose=cleaned_raw,
+                    business_function=func_from_prose,
                     business_area_tag=tag_from_prose,
                     source="llm",
+                    business_area_taxonomy_version=BUSINESS_AREA_TAXONOMY_VERSION,
+                    classification_conflict=False,
+                    classification_evidence=[f"Derived from plain text LLM prose: {tag_from_prose}"],
                     model=self.client.model_name,
                     prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
                 )
@@ -647,8 +732,12 @@ class LLMNarrativeGenerator:
 
         fallback_result = BusinessPurposeResult(
             business_purpose=fallback_purpose,
+            business_function=fallback_func,
             business_area_tag=fallback_tag,
             source="deterministic_fallback",
+            business_area_taxonomy_version=BUSINESS_AREA_TAXONOMY_VERSION,
+            classification_conflict=False,
+            classification_evidence=det_class.evidence,
             model="deterministic",
             prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
         )

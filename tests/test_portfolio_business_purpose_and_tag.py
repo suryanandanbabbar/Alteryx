@@ -380,7 +380,9 @@ class TestPortfolioBusinessPurposeAndTag:
         )
 
         assert enhanced.score > base.score
-        assert enhanced.breakdown["business_purpose_impact"] == 8.0  # +4 for scope, +4 for customer
+        # 2 dimensions matched (Scope + Customer) = 50.0 operational score
+        assert enhanced.breakdown["business_purpose_impact"] == 50.0
+        assert enhanced.breakdown["operational"] == 50.0
         assert any("customer/claimant" in f.lower() for f in enhanced.factors)
         assert any("scope" in f.lower() for f in enhanced.factors)
 
@@ -402,8 +404,9 @@ class TestPortfolioBusinessPurposeAndTag:
             business_purpose=repetitive_purpose,
         )
 
-        # Customer impact flag must count only once (+4.0)
-        assert assessment.breakdown["business_purpose_impact"] == 4.0
+        # Customer impact flag must count only once (25.0 operational score)
+        assert assessment.breakdown["business_purpose_impact"] == 25.0
+        assert assessment.breakdown["operational"] == 25.0
         customer_factors = [f for f in assessment.factors if "customer" in f.lower()]
         assert len(customer_factors) == 1
 
@@ -423,4 +426,130 @@ class TestPortfolioBusinessPurposeAndTag:
         )
 
         assert assessment.breakdown["business_purpose_impact"] == 0.0
-        assert not any("business purpose" in f.lower() for f in assessment.factors)
+        assert not any("business impact" in f.lower() for f in assessment.factors)
+
+    # -----------------------------------------------------------------------
+    # Mandatory Adversarial Boundary Tests (7-Tier Functional Hierarchy)
+    # -----------------------------------------------------------------------
+
+    def test_boundary_underwriting_decision_engine_consuming_claims_data(self):
+        """Underwriting Decision Engine consuming Claims data resolves to Underwriting."""
+        output_ev = [
+            {"dataset": "Policyholder_Risk_Score_Matrix.xlsx", "columns": ["claim_id", "claim_count", "prior_loss_amt", "risk_score"]}
+        ]
+        purpose = (
+            "Supports underwriting decisioning by applying claims submission data, risk rules, and "
+            "policyholder attributes to generate risk scores used to assess policyholder risk and eligibility."
+        )
+        res = classify_business_area_deterministic(
+            output_ev,
+            business_purpose=purpose,
+            workflow_name="Underwriting Decision Engine Application.yxmd",
+        )
+        assert res.business_area == "Underwriting"
+        assert res.confidence == "HIGH"
+        assert any("Tier 1" in e for e in res.evidence)
+
+    def test_boundary_claims_fraud_detection(self):
+        """Claims Fraud Detection resolves to Claims & Risk."""
+        output_ev = [{"dataset": "Suspicious_Claims_Investigation.xlsx", "columns": ["claim_id", "fraud_probability"]}]
+        purpose = "Processes claims to identify suspicious claims and prioritise claims fraud investigation."
+        res = classify_business_area_deterministic(
+            output_ev,
+            business_purpose=purpose,
+            workflow_name="Claims Fraud Detection Model.yxmd",
+        )
+        assert res.business_area == "Claims & Risk"
+        assert res.confidence == "HIGH"
+
+    def test_boundary_premium_calculator_using_claims_history(self):
+        """Premium Calculator using historical claims experience resolves to Underwriting."""
+        output_ev = [{"dataset": "Premium_Rating_Matrix.xlsx", "columns": ["policy_type", "base_premium", "loss_ratio"]}]
+        purpose = "Uses historical claims loss experience to calculate policy pricing and premium rating."
+        res = classify_business_area_deterministic(
+            output_ev,
+            business_purpose=purpose,
+            workflow_name="Policy Premium Rating Calculator.yxmd",
+        )
+        assert res.business_area == "Underwriting"
+
+    def test_boundary_claim_reserve_calculator(self):
+        """Claim Reserve Calculator resolves to Claims & Risk."""
+        output_ev = [{"dataset": "Outstanding_Reserves.xlsx", "columns": ["claim_id", "incurred_loss", "reserve_amount"]}]
+        purpose = "Calculates loss reserves and litigation exposure for active open claims."
+        res = classify_business_area_deterministic(
+            output_ev,
+            business_purpose=purpose,
+            workflow_name="Claim Reserve Calculator.yxmd",
+        )
+        assert res.business_area == "Claims & Risk"
+
+    def test_boundary_sales_territory_analytics(self):
+        """Sales Territory Analytics resolves to Sales & Distribution."""
+        output_ev = [{"dataset": "Territory_Commission_Report.xlsx", "columns": ["broker_id", "commission_amt", "sales_volume"]}]
+        purpose = "Analyzes sales territory distribution and calculates broker commissions."
+        res = classify_business_area_deterministic(
+            output_ev,
+            business_purpose=purpose,
+            workflow_name="Sales Territory Analytics & Commission.yxmd",
+        )
+        assert res.business_area == "Sales & Distribution"
+
+    def test_boundary_regulatory_compliance_reporting(self):
+        """Regulatory Compliance Reporting resolves to Legal."""
+        output_ev = [{"dataset": "Statutory_Compliance_Filing.xlsx", "columns": ["filing_id", "statute_code", "compliance_status"]}]
+        purpose = "Generates regulatory compliance filings and statutory reports from insurance claims and policy records."
+        res = classify_business_area_deterministic(
+            output_ev,
+            business_purpose=purpose,
+            workflow_name="Regulatory Compliance Reporting Pipeline.yxmd",
+        )
+        assert res.business_area == "Legal"
+
+    def test_boundary_misleading_claims_heavy_filename_with_underwriting_function(self):
+        """Misleading filename with claims data resolves to Underwriting when primary function is Underwriting."""
+        output_ev = [{"dataset": "Underwriting_Risk_Matrix.xlsx", "columns": ["policyholder_id", "claims_history_count", "risk_rating"]}]
+        purpose = "Underwriting decision engine that evaluates applicant risk appetite and policy eligibility."
+        res = classify_business_area_deterministic(
+            output_ev,
+            business_purpose=purpose,
+            workflow_name="Claims_Data_Feed_Ingestor.yxmd",
+            business_function="Underwriting decisioning",
+        )
+        assert res.business_area == "Underwriting"
+
+    def test_semantic_conflict_guard_overrides_distracted_llm_tag(self):
+        """When LLM returns an Underwriting function but misclassifies tag as Claims & Risk, guard corrects it."""
+        wf = Workflow(metadata=WorkflowMetadata(name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(business_purpose="Underwriting workflow", one_line_purpose="UW", why_it_matters="UW")
+
+        # Fake client returning conflicting JSON: function='Underwriting decisioning' but tag='Claims & Risk'
+        conflict_json = json.dumps({
+            "business_purpose": "Supports underwriting decisioning by applying claims submission data to assess policyholder risk and eligibility.",
+            "business_function": "Underwriting decisioning",
+            "business_area_tag": "Claims & Risk",
+        })
+        client = FakeLLMClient(response=conflict_json, is_available=True)
+        gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+
+        output_ev = [{"dataset": "Policyholder_Risk_Scores.xlsx", "columns": ["claim_id", "risk_score"]}]
+        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_conflict_test", output_evidence=output_ev)
+
+        assert res.business_area_tag == "Underwriting"
+        assert res.classification_conflict is True
+        assert res.business_function == "Underwriting decisioning"
+        assert any("Conflict override" in e for e in res.classification_evidence)
+
+    def test_atomic_structured_output_failure_routes_to_deterministic_fallback(self):
+        """Malformed JSON or missing fields route completely to deterministic fallback."""
+        wf = Workflow(metadata=WorkflowMetadata(name="Claims Fraud Detection Model", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+
+        client = FakeLLMClient(response="NOT VALID JSON AT ALL", is_available=True)
+        gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+
+        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_malformed_test")
+        assert res.source == "deterministic_fallback"
+        assert res.business_area_tag == "Claims & Risk"
+        assert res.business_function != ""
+        assert res.business_area_taxonomy_version == "3.0"

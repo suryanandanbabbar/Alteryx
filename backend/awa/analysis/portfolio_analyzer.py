@@ -34,6 +34,7 @@ from awa.analysis.business_area_classifier import (
     classify_workflow_business_area,
     classify_portfolio_business_areas,
     classify_business_area_deterministic,
+    classify_business_function_deterministic,
     extract_output_evidence_for_workflow,
     BUSINESS_AREA_DESCRIPTIONS,
     ALLOWED_BUSINESS_AREAS,
@@ -421,6 +422,12 @@ def build_portfolio_analysis(
 
         raw_purpose = getattr(res, "business_purpose", "")
         biz_purpose = raw_purpose if isinstance(raw_purpose, str) else ""
+        raw_func = getattr(res, "business_function", "")
+        biz_func = raw_func if isinstance(raw_func, str) else ""
+        raw_tax_ver = getattr(res, "business_area_taxonomy_version", "3.0")
+        tax_ver = raw_tax_ver if isinstance(raw_tax_ver, str) else "3.0"
+        raw_conflict = getattr(res, "classification_conflict", False)
+        conflict = bool(raw_conflict)
         sttm_count = len(res.sttm.mappings) if res.sttm else 0
 
         # Read canonical upload-time business-area tag (no secondary portfolio LLM classification)
@@ -432,9 +439,18 @@ def build_portfolio_analysis(
         # Backward compatibility for legacy analysis results where tag might be missing or UNCLASSIFIED
         if not tag or tag not in set(ALLOWED_BUSINESS_AREAS) | {"Other / Unclassified"}:
             out_ev = extract_output_evidence_for_workflow(res)
-            det = classify_business_area_deterministic(out_ev, business_purpose=biz_purpose)
+            det = classify_business_area_deterministic(
+                out_ev,
+                business_purpose=biz_purpose,
+                workflow_name=filename,
+                business_function=biz_func,
+            )
             tag = det.business_area
             tag_source = "deterministic_fallback"
+            if not biz_func:
+                biz_func = classify_business_function_deterministic(
+                    tag, workflow_name=filename, business_purpose=biz_purpose
+                )
 
         classification = BusinessAreaClassification(
             business_area=tag,
@@ -442,6 +458,8 @@ def build_portfolio_analysis(
             evidence=[biz_purpose[:120]] if biz_purpose else [],
             classification_source=tag_source,
             secondary_business_areas=[],
+            classification_conflict=conflict,
+            business_area_taxonomy_version=tax_ver,
         )
 
         # Deterministic Workflow Complexity Assessment
@@ -464,10 +482,12 @@ def build_portfolio_analysis(
                 sink_classifications=classifications,
                 tool_types=tool_seq,
                 business_purpose=biz_purpose,
+                business_function=biz_func,
                 sttm_mappings_count=sttm_count,
                 business_area=classification,
                 business_area_tag=tag,
                 business_area_tag_source=tag_source,
+                business_area_taxonomy_version=tax_ver,
                 complexity_score=complexity.score,
                 complexity_level=complexity.level,
                 complexity_factors=complexity.factors,
@@ -515,6 +535,7 @@ def build_portfolio_analysis(
                 inspection_sinks=wf.inspection_sinks,
                 context=dep_context,
                 business_purpose=wf.business_purpose,
+                business_function=wf.business_function,
             )
             wf.criticality_score = criticality.score
             wf.criticality_level = criticality.level
@@ -633,6 +654,31 @@ def build_portfolio_analysis(
                 description=BUSINESS_AREA_DESCRIPTIONS.get("Other / Unclassified", ""),
             )
         )
+
+    total_wf = len(summaries)
+    attempted_wf = len(success_summaries)
+    structured_success = sum(1 for s in success_summaries if s.business_area_tag_source == "llm")
+    fallback_count = sum(1 for s in success_summaries if s.business_area_tag_source != "llm")
+    conflict_count = sum(1 for s in success_summaries if getattr(s.business_area, "classification_conflict", False))
+    unclassified_count = len(unclassified_workflows)
+    valid_tags_count = total_wf - unclassified_count
+    criticality_impacted = sum(
+        1 for s in success_summaries
+        if getattr(s, "criticality_score", 0.0) > 0 and getattr(s, "business_purpose", "")
+    )
+
+    logger.info(
+        "[PORTFOLIO OBSERVABILITY] workflows=%d attempted=%d structured_success=%d "
+        "valid_tags=%d fallbacks=%d conflicts=%d unclassified=%d criticality_impacted=%d",
+        total_wf,
+        attempted_wf,
+        structured_success,
+        valid_tags_count,
+        fallback_count,
+        conflict_count,
+        unclassified_count,
+        criticality_impacted,
+    )
 
     return PortfolioAnalysis(
         portfolio_id=pid,

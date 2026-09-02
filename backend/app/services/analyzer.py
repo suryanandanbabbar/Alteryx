@@ -140,8 +140,10 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
         bs = res.business_summary
         bs_dto = WorkflowBusinessSummaryDTO(
             business_purpose=bs.business_purpose,
+            business_function=getattr(bs, "business_function", ""),
             business_area_tag=getattr(bs, "business_area_tag", "UNCLASSIFIED"),
             business_area_tag_source=getattr(bs, "business_area_tag_source", "deterministic_fallback"),
+            business_area_taxonomy_version=getattr(bs, "business_area_taxonomy_version", "3.0"),
             one_line_purpose=bs.one_line_purpose,
             why_it_matters=bs.why_it_matters,
             source_inputs=[

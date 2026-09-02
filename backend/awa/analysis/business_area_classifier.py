@@ -35,37 +35,17 @@ from awa.llm.schemas import NarrativeResult
 from awa.model.analysis_result import CanonicalAnalysisResult
 from awa.model.portfolio import BusinessAreaClassification
 
+from dataclasses import dataclass
+
 logger = logging.getLogger(__name__)
 
-ALLOWED_BUSINESS_AREAS: tuple[str, ...] = (
-    "Claims & Risk",
-    "Legal",
-    "Underwriting",
-    "Sales & Distribution",
+from awa.analysis.business_area_definitions import (
+    BUSINESS_AREA_DEFINITIONS,
+    BUSINESS_AREA_TAXONOMY_VERSION,
+    BusinessAreaDefinition,
+    ALLOWED_BUSINESS_AREAS,
+    BUSINESS_AREA_DESCRIPTIONS,
 )
-
-BUSINESS_AREA_DESCRIPTIONS: dict[str, str] = {
-    "Claims & Risk": (
-        "Claims & Risk business area encompasses multiple workflows that collectively "
-        "analyse claims performance, exposure, policy information, payments, and litigation or risk-related outcomes."
-    ),
-    "Sales & Distribution": (
-        "Sales & Distribution business area encompasses workflows that support customer, "
-        "product, sales performance, distribution, pipeline, and commercial reporting activities."
-    ),
-    "Legal": (
-        "Legal business area encompasses workflows supporting legal operations, "
-        "case-related information, regulatory analysis, legal reporting, and compliance-oriented data processing."
-    ),
-    "Underwriting": (
-        "Underwriting business area encompasses workflows that support risk assessment, "
-        "policy evaluation, underwriting decisions, pricing inputs, and portfolio analysis."
-    ),
-    "Other / Unclassified": (
-        "These workflows could not be confidently associated with a recognised "
-        "business area based on the available workflow output evidence."
-    ),
-}
 
 # ---------------------------------------------------------------------------
 # Domain Taxonomies for Deterministic Fallback
@@ -212,12 +192,137 @@ def extract_output_evidence_for_workflow(result: CanonicalAnalysisResult) -> lis
     return outputs
 
 
+# ---------------------------------------------------------------------------
+# Semantic Functional Phrase Patterns for 7-Tier Evidence Hierarchy
+# ---------------------------------------------------------------------------
+
+TIER1_FUNCTIONAL_PATTERNS: dict[str, list[re.Pattern]] = {
+    "Underwriting": [
+        re.compile(r"\bunderwriting\b", re.IGNORECASE),
+        re.compile(r"\b(underwrite|underwriter)\b", re.IGNORECASE),
+        re.compile(r"\b(policy|policyholder|applicant)[\s_]+(eligibility|rating|risk[\s_]+score|pricing|decision)\b", re.IGNORECASE),
+        re.compile(r"\b(premium|rate|pricing)[\s_]+(calculator|calc|model|engine|matrix|algorithm)\b", re.IGNORECASE),
+        re.compile(r"\bdecision[\s_]+engine\b", re.IGNORECASE),
+        re.compile(r"\b(coverage|binder)[\s_]+(acceptance|rejection|evaluation)\b", re.IGNORECASE),
+        re.compile(r"\brisk[\s_]+appetite\b", re.IGNORECASE),
+        re.compile(r"\brating[\s_]+engine\b", re.IGNORECASE),
+    ],
+    "Claims & Risk": [
+        re.compile(r"\b(claim|claims)[\s_]+(intake|triage|adjudication|processing|settlement|fraud|investigation|reserves?|aging|severity|litigation)\b", re.IGNORECASE),
+        re.compile(r"\b(claim[\s_]+reserve|loss[\s_]+reserve|claims?[\s_]+loss)\b", re.IGNORECASE),
+        re.compile(r"\bclaims?[\s_]+fraud\b", re.IGNORECASE),
+        re.compile(r"\b(subrogation|salvage)\b", re.IGNORECASE),
+        re.compile(r"\bclaims?[\s_]+volume\b", re.IGNORECASE),
+        re.compile(r"\bopen[\s_]+claims?\b", re.IGNORECASE),
+    ],
+    "Sales & Distribution": [
+        re.compile(r"\b(sales|territory)[\s_]+(analytics|performance|quota|distribution|pipeline|forecast)\b", re.IGNORECASE),
+        re.compile(r"\b(broker|agent|producer)[\s_]+(commission|compensation|incentive|performance|quota)\b", re.IGNORECASE),
+        re.compile(r"\bdistribution[\s_]+channel\b", re.IGNORECASE),
+        re.compile(r"\bsales[\s_]+pipeline\b", re.IGNORECASE),
+        re.compile(r"\bgross[\s_]+sales\b", re.IGNORECASE),
+    ],
+    "Legal": [
+        re.compile(r"\blegal\b", re.IGNORECASE),
+        re.compile(r"\b(regulatory|statutory|compliance)[\s_]+(reporting|report|filing|submission|audit|disclosure)\b", re.IGNORECASE),
+        re.compile(r"\b(legal[\s_]+matter|court[\s_]+docket|litigation[\s_]+tracking|subpoena|case[\s_]+filing)\b", re.IGNORECASE),
+        re.compile(r"\bcontract[\s_]+(compliance|review|clause|analytics)\b", re.IGNORECASE),
+        re.compile(r"\binsurance[\s_]+commissioner\b", re.IGNORECASE),
+    ],
+}
+
+TIER2_PURPOSE_PATTERNS: dict[str, list[re.Pattern]] = {
+    "Underwriting": [
+        re.compile(r"\b(supports?|performs?|automates?|executes?)[\s_]+underwriting\b", re.IGNORECASE),
+        re.compile(r"\bunderwriting[\s_]+decisioning\b", re.IGNORECASE),
+        re.compile(r"\b(calculate|calculates|determining|evaluates?)[\s_]+(policyholder[\s_]+risk|policy[\s_]+eligibility|premiums?|rating)\b", re.IGNORECASE),
+        re.compile(r"\bassess(es)?[\s_]+policyholder[\s_]+risk\b", re.IGNORECASE),
+        re.compile(r"\brisk[\s_]+scores?[\s_]+for[\s_]+policyholder\b", re.IGNORECASE),
+        re.compile(r"\bcalculate(s)?[\s_]+policy[\s_]+pricing\b", re.IGNORECASE),
+    ],
+    "Claims & Risk": [
+        re.compile(r"\b(adjudicates?|processes?|settles?|investigates?)[\s_]+(insurance[\s_]+)?claims?\b", re.IGNORECASE),
+        re.compile(r"\b(detects?|identif(y|ies))[\s_]+(suspicious[\s_]+claims?|claims?[\s_]+fraud)\b", re.IGNORECASE),
+        re.compile(r"\bcalculates?[\s_]+(claims?|loss)[\s_]+reserves?\b", re.IGNORECASE),
+        re.compile(r"\bclaims?[\s_]+performance[\s_]+and[\s_]+loss\b", re.IGNORECASE),
+        re.compile(r"\bmanage(s)?[\s_]+auto[\s_]+claims\b", re.IGNORECASE),
+    ],
+    "Sales & Distribution": [
+        re.compile(r"\b(tracks?|analyzes?|measures?)[\s_]+(sales[\s_]+territory|sales[\s_]+pipeline|broker[\s_]+commissions?|agent[\s_]+performance)\b", re.IGNORECASE),
+        re.compile(r"\bcommercial[\s_]+client[\s_]+acquisition\b", re.IGNORECASE),
+    ],
+    "Legal": [
+        re.compile(r"\b(generates?|produces?|submits?|extracts?)[\s_]+(regulatory[\s_]+compliance|statutory[\s_]+filing|legal[\s_]+audit)\b", re.IGNORECASE),
+        re.compile(r"\btracks?[\s_]+(litigation|court[\s_]+cases?|legal[\s_]+matters?)\b", re.IGNORECASE),
+        re.compile(r"\blegal[\s_]+regulatory\b", re.IGNORECASE),
+        re.compile(r"\bregulatory[\s_]+compliance\b", re.IGNORECASE),
+    ],
+}
+
+
+def classify_business_function_deterministic(
+    business_area: str,
+    workflow_name: str = "",
+    business_purpose: str = "",
+) -> str:
+    """Derive a concise, standardized primary business function statement deterministically."""
+    name_clean = workflow_name.lower().replace("_", " ")
+    purpose_clean = business_purpose.lower().replace("_", " ")
+
+    if business_area == "Underwriting":
+        if "premium" in name_clean or "rating" in name_clean or "pricing" in purpose_clean:
+            return "Policy pricing and premium rating calculation"
+        if "decision" in name_clean or "eligibility" in name_clean or "risk score" in purpose_clean:
+            return "Underwriting decisioning and policyholder risk assessment"
+        return "Underwriting decisioning and risk eligibility assessment"
+
+    if business_area == "Claims & Risk":
+        if "fraud" in name_clean or "fraud" in purpose_clean:
+            return "Claims fraud detection and investigation prioritization"
+        if "reserve" in name_clean or "reserve" in purpose_clean:
+            return "Claims loss reserve calculation and exposure monitoring"
+        if "adjudication" in name_clean or "settlement" in purpose_clean:
+            return "Claims adjudication and settlement processing"
+        return "Claims adjudication, fraud detection, and loss reserve management"
+
+    if business_area == "Sales & Distribution":
+        if "commission" in name_clean or "broker" in name_clean or "commission" in purpose_clean:
+            return "Broker commission calculation and producer compensation"
+        if "territory" in name_clean or "quota" in purpose_clean:
+            return "Sales territory performance and distribution channel analytics"
+        return "Sales territory analytics and distribution commission tracking"
+
+    if business_area == "Legal":
+        if "compliance" in name_clean or "regulatory" in name_clean or "statutory" in purpose_clean:
+            return "Regulatory compliance reporting and statutory filing"
+        if "litigation" in name_clean or "court" in name_clean or "matter" in purpose_clean or "legal" in name_clean:
+            return "Legal litigation tracking and matter management"
+        return "Regulatory compliance reporting and legal operations tracking"
+
+    return "General technical data transformation"
+
+
 def classify_business_area_deterministic(
     output_evidence: list[dict[str, Any]],
     business_purpose: str = "",
+    workflow_name: str = "",
+    business_function: str = "",
 ) -> BusinessAreaClassification:
-    """Classify workflow business area deterministically using output evidence and business purpose tokens."""
-    if not output_evidence and not business_purpose:
+    """Classify workflow business area deterministically enforcing the 7-Tier Classification Evidence Hierarchy.
+
+    Hierarchy:
+    Tier 1 (+100): Explicit primary business-function phrase in workflow name/title or authoritative metadata.
+    Tier 2 (+80): Primary business function expressed by business_purpose / business_function.
+    Tier 3 (+40): Business decision or operational process performed.
+    Tier 4 (+20): Business outcome or deliverable produced (output file/dataset names).
+    Tier 5 (+10): Downstream business consumer / table name.
+    Tier 6 (+5): Process evidence / tool sequence.
+    Tier 7 (+1, max 15): Input/output data domain tokens (supporting evidence only).
+
+    Critical Invariant: Lower-tier data-domain evidence (Tier 7) cannot override explicit
+    higher-tier functional evidence (Tiers 1-4).
+    """
+    if not output_evidence and not business_purpose and not workflow_name and not business_function:
         return BusinessAreaClassification(
             business_area="UNCLASSIFIED",
             confidence="UNCLASSIFIED",
@@ -226,25 +331,73 @@ def classify_business_area_deterministic(
             secondary_business_areas=[],
         )
 
-    evidence_tokens: dict[str, list[str]] = {}  # domain -> list of matching original field/file/purpose names
+    evidence_log: dict[str, list[str]] = {domain: [] for domain in ALLOWED_BUSINESS_AREAS}
     domain_scores: dict[str, int] = {domain: 0 for domain in ALLOWED_BUSINESS_AREAS}
 
-    # 1. Evaluate business purpose tokens (weighted 3x as primary signal)
-    if business_purpose:
-        bp_tokens = _tokenize_text(business_purpose)
+    # -----------------------------------------------------------------------
+    # Tier 1: Explicit primary business-function phrase in workflow name/title (+100)
+    # -----------------------------------------------------------------------
+    if workflow_name:
+        clean_wf_name = workflow_name.replace("_", " ")
+        for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
+            for pat in patterns:
+                m = pat.search(clean_wf_name)
+                if m:
+                    domain_scores[domain] += 100
+                    evidence_log[domain].append(f"Tier 1 Workflow Name: matches '{m.group(0)}'")
+
+    # -----------------------------------------------------------------------
+    # Tier 2: Primary business function in business_purpose / business_function (+80)
+    # -----------------------------------------------------------------------
+    combined_purpose_function = f"{business_function} {business_purpose}".strip()
+    if combined_purpose_function:
+        clean_pf = combined_purpose_function.replace("_", " ")
+        for domain, patterns in TIER2_PURPOSE_PATTERNS.items():
+            for pat in patterns:
+                m = pat.search(clean_pf)
+                if m:
+                    domain_scores[domain] += 80
+                    evidence_log[domain].append(f"Tier 2 Business Purpose/Function: '{m.group(0)}'")
+
+        # Also check Tier 1 patterns in business purpose/function if Tier 2 pattern missed
+        for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
+            for pat in patterns:
+                m = pat.search(clean_pf)
+                if m and not any(m.group(0).lower() in e.lower() for e in evidence_log[domain]):
+                    domain_scores[domain] += 40
+                    evidence_log[domain].append(f"Tier 2 Functional Keyword in Purpose: '{m.group(0)}'")
+
+        # Evaluate domain taxonomy tokens in business purpose (supporting Tier 2 tokens, +5 per token, max 25)
+        bp_tokens = _tokenize_text(clean_pf)
         for domain, keywords in DOMAIN_TAXONOMY.items():
             matching_bp = [t for t in bp_tokens if t in keywords]
             if matching_bp:
-                domain_scores[domain] += len(matching_bp) * 3
-                evidence_tokens.setdefault(domain, []).extend(matching_bp[:5])
+                domain_scores[domain] += min(25, len(matching_bp) * 5)
+                evidence_log[domain].append(f"Tier 2 Purpose Taxonomy tokens: {matching_bp[:4]}")
 
-    # 2. Evaluate output evidence tokens (dataset names 2x, column headers 1x)
+    # -----------------------------------------------------------------------
+    # Tier 4: Business outcome or deliverable produced (Output target dataset names, +20)
+    # -----------------------------------------------------------------------
+    for output in output_evidence:
+        dataset_name = output.get("dataset", "")
+        if dataset_name:
+            clean_ds = dataset_name.replace("_", " ")
+            for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
+                for pat in patterns:
+                    m = pat.search(clean_ds)
+                    if m:
+                        domain_scores[domain] += 20
+                        evidence_log[domain].append(dataset_name)
+
+    # -----------------------------------------------------------------------
+    # Tier 7: Input/output data domain tokens (+1 per token, strictly capped at +15)
+    # -----------------------------------------------------------------------
+    data_domain_scores: dict[str, int] = {domain: 0 for domain in ALLOWED_BUSINESS_AREAS}
     for output in output_evidence:
         dataset_name = output.get("dataset", "")
         table_or_sheet = output.get("table_or_sheet", "")
         columns = output.get("columns", [])
 
-        # Check dataset name tokens (weighted 2x)
         ds_tokens = _tokenize_text(dataset_name)
         if table_or_sheet:
             ds_tokens.extend(_tokenize_text(table_or_sheet))
@@ -252,19 +405,25 @@ def classify_business_area_deterministic(
         for domain, keywords in DOMAIN_TAXONOMY.items():
             matching_ds = [t for t in ds_tokens if t in keywords]
             if matching_ds:
-                domain_scores[domain] += len(matching_ds) * 2
-                evidence_tokens.setdefault(domain, []).append(dataset_name)
+                data_domain_scores[domain] += len(matching_ds)
+                evidence_log[domain].append(dataset_name)
 
-        # Check column header tokens
         for col in columns:
             col_tokens = _tokenize_text(col)
             for domain, keywords in DOMAIN_TAXONOMY.items():
                 matching_col = [t for t in col_tokens if t in keywords]
                 if matching_col:
-                    domain_scores[domain] += len(matching_col)
-                    evidence_tokens.setdefault(domain, []).append(col)
+                    data_domain_scores[domain] += len(matching_col)
+                    evidence_log[domain].append(col)
 
-    # Sort domains by score descending
+    # Add bounded Tier 7 points (max 15 so data domain NEVER outvotes Tier 1 or Tier 2 functional evidence)
+    for domain in ALLOWED_BUSINESS_AREAS:
+        raw_pts = data_domain_scores[domain]
+        bounded_pts = min(15, raw_pts)
+        if bounded_pts > 0:
+            domain_scores[domain] += bounded_pts
+
+    # Sort domains by total score descending
     ranked = sorted(domain_scores.items(), key=lambda x: x[1], reverse=True)
     top_domain, top_score = ranked[0]
 
@@ -278,15 +437,15 @@ def classify_business_area_deterministic(
         )
 
     # Deduplicate matching evidence strings
-    top_evidence = list(dict.fromkeys(evidence_tokens.get(top_domain, [])))[:10]
+    top_evidence = list(dict.fromkeys(evidence_log.get(top_domain, [])))[:10]
 
     # Secondary business areas with non-zero scores
     secondaries = [d for d, s in ranked[1:] if s > 0 and d != top_domain]
 
     # Confidence calculation
-    if top_score >= 4 or (len(top_evidence) >= 3):
+    if top_score >= 80 or (len(top_evidence) >= 2 and top_score >= 40):
         conf = "HIGH"
-    elif top_score >= 2:
+    elif top_score >= 4 or len(top_evidence) >= 2:
         conf = "MEDIUM"
     else:
         conf = "LOW"

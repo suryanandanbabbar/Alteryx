@@ -305,8 +305,9 @@ class FakeLLMClient(LLMClient):
         generator_fn: Callable[[str, str], str | None] | None = None,
         model_name: str = "mock-llama",
         is_available: bool = True,
+        response: str | None = None,
     ) -> None:
-        self.default_response = default_response
+        self.default_response = response if response is not None else default_response
         self.response_map = response_map or {}
         self.generator_fn = generator_fn
         self._model_name = model_name

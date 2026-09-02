@@ -22,6 +22,8 @@ class BusinessAreaClassification:
     evidence: list[str] = field(default_factory=list)  # Only actual output dataset names or column headers
     classification_source: str = "deterministic_fallback"  # "llm" | "deterministic_fallback"
     secondary_business_areas: list[str] = field(default_factory=list)
+    classification_conflict: bool = False
+    business_area_taxonomy_version: str = "3.0"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -30,6 +32,8 @@ class BusinessAreaClassification:
             "evidence": self.evidence,
             "classification_source": self.classification_source,
             "secondary_business_areas": self.secondary_business_areas,
+            "classification_conflict": self.classification_conflict,
+            "business_area_taxonomy_version": self.business_area_taxonomy_version,
         }
 
 
@@ -68,10 +72,12 @@ class PortfolioWorkflowSummary:
     sink_classifications: dict[str, str] = field(default_factory=dict)  # sink_name -> PRODUCTION_OUTPUT | INSPECTION_SINK
     tool_types: list[str] = field(default_factory=list)
     business_purpose: str = ""
+    business_function: str = ""
     sttm_mappings_count: int = 0
     business_area: BusinessAreaClassification = field(default_factory=BusinessAreaClassification)
     business_area_tag: str = "UNCLASSIFIED"
     business_area_tag_source: str = "deterministic_fallback"
+    business_area_taxonomy_version: str = "3.0"
     analysis_id: str = ""
     complexity_score: float = 0.0
     complexity_level: str = "LOW"  # "HIGH" | "MEDIUM" | "LOW"
@@ -98,10 +104,12 @@ class PortfolioWorkflowSummary:
             "sink_classifications": self.sink_classifications,
             "tool_types": self.tool_types,
             "business_purpose": self.business_purpose,
+            "business_function": self.business_function,
             "sttm_mappings_count": self.sttm_mappings_count,
             "business_area": self.business_area.to_dict() if self.business_area else BusinessAreaClassification().to_dict(),
             "business_area_tag": self.business_area_tag,
             "business_area_tag_source": self.business_area_tag_source,
+            "business_area_taxonomy_version": self.business_area_taxonomy_version,
             "complexity_score": self.complexity_score,
             "complexity_level": self.complexity_level,
             "complexity_factors": self.complexity_factors,

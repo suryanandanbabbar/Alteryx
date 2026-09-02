@@ -110,6 +110,7 @@ def calculate_workflow_criticality(
     context: PortfolioDependencyContext | None = None,
     operational_metadata: dict[str, Any] | None = None,
     business_purpose: str = "",
+    business_function: str = "",
 ) -> CriticalityAssessment:
     """Deterministically compute workflow criticality."""
     ctx = context or PortfolioDependencyContext()
@@ -206,71 +207,73 @@ def calculate_workflow_criticality(
     elif downstream_count == 0 and upstream_count > 0:
         # Leaf Consumer: Downstream consumer of other workflows
         position_score = 40.0
-        factors.append("Downstream leaf consumer pipeline")
+        factors.append("Downstream consumer of portfolio workflows")
     else:
-        # Standalone / Isolated in portfolio
-        position_score = 15.0 if prod_targets_count > 0 else 0.0
-        if downstream_count == 0 and prod_targets_count > 0:
-            factors.append("Standalone terminal deliverable")
+        position_score = 15.0
 
     # -----------------------------------------------------------------------
-    # 5. Shared Sources Ecosystem Participation
+    # 5. Shared Upstream Ingestion
     # -----------------------------------------------------------------------
-    shared_sources_count = sum(1 for s in sources if s in ctx.shared_sources)
-    if shared_sources_count > 0:
-        sources_score = min(100.0, shared_sources_count * 30.0)
-        factors.append(f"Consumes {shared_sources_count} shared source asset{'s' if shared_sources_count > 1 else ''}")
+    shared_sources_consumed = [s for s in sources if s in ctx.shared_sources]
+    if len(shared_sources_consumed) >= 3:
+        sources_score = 80.0
+        factors.append(f"Consumes {len(shared_sources_consumed)} shared portfolio inputs")
+    elif len(shared_sources_consumed) >= 1:
+        sources_score = 50.0
+        factors.append(f"Consumes {len(shared_sources_consumed)} shared portfolio input(s)")
     else:
         sources_score = 0.0
 
     # -----------------------------------------------------------------------
-    # 6. Operational Metadata & Proportional Weight Redistribution
+    # 6. Operational Impact Assessment & Calibrated Score
+    # (Business Deliverables, Scope, Customers, Clients)
     # -----------------------------------------------------------------------
-    has_operational = bool(operational_metadata)
-    if has_operational and operational_metadata:
+    op_score = 0.0
+    has_operational = False
+    purpose_factors: list[str] = []
+
+    if operational_metadata and isinstance(operational_metadata, dict):
         op_score = float(operational_metadata.get("score", 50.0))
+        has_operational = True
         factors.append("Operational metadata included")
+    else:
+        # Evaluate semantic business impact from business_function and business_purpose
+        combined_text = f"{business_function} {business_purpose}".strip()
+        if combined_text:
+            matched_dimensions = 0
+            # 1. Business Deliverables Impact: mandatory/official reporting, filings, ledgers (+25.0)
+            if DELIVERABLE_PATTERN.search(combined_text):
+                matched_dimensions += 1
+                purpose_factors.append("Business impact: critical reporting/deliverable")
+
+            # 2. Business Scope Impact: enterprise-wide, portfolio-wide, national operational breadth (+25.0)
+            if SCOPE_PATTERN.search(combined_text):
+                matched_dimensions += 1
+                purpose_factors.append("Business impact: enterprise operational scope")
+
+            # 3. Customer Impact: claimant, policyholder, insured, customer benefits/coverage (+25.0)
+            if CUSTOMER_PATTERN.search(combined_text):
+                matched_dimensions += 1
+                purpose_factors.append("Business impact: direct customer/claimant impact")
+
+            # 4. Client Impact: external broker, client, partner statements/commissions (+25.0)
+            if CLIENT_PATTERN.search(combined_text):
+                matched_dimensions += 1
+                purpose_factors.append("Business impact: client/partner deliverable")
+
+            if matched_dimensions > 0:
+                op_score = min(100.0, float(matched_dimensions * 25.0))
+                has_operational = True
+
+    factors.extend(purpose_factors)
+
+    if has_operational:
         weights = dict(BASE_CRITICALITY_WEIGHTS)
     else:
         # Explicit redistribution policy: Redistribute 0.10 weight proportionally across 5 active factors
         active_sum = sum(w for k, w in BASE_CRITICALITY_WEIGHTS.items() if k != "operational")  # 0.90
         weights = {k: BASE_CRITICALITY_WEIGHTS[k] / active_sum for k in BASE_CRITICALITY_WEIGHTS if k != "operational"}
         op_score = 0.0
-
-    # -----------------------------------------------------------------------
-    # 7. Semantic Business Purpose Impact Assessment
-    # (Business Deliverables, Scope, Customers, Clients)
-    # -----------------------------------------------------------------------
-    purpose_boost = 0.0
-    purpose_factors: list[str] = []
-
-    if business_purpose and isinstance(business_purpose, str) and business_purpose.strip():
-        bp_clean = business_purpose.strip()
-
-        # 1. Business Deliverables Impact: mandatory/official reporting, filings, ledgers
-        if DELIVERABLE_PATTERN.search(bp_clean):
-            purpose_boost += 4.0
-            purpose_factors.append("Business purpose: critical reporting/deliverable impact")
-
-        # 2. Business Scope Impact: enterprise-wide, portfolio-wide, national operational breadth
-        if SCOPE_PATTERN.search(bp_clean):
-            purpose_boost += 4.0
-            purpose_factors.append("Business purpose: enterprise operational scope")
-
-        # 3. Customer Impact: claimant, policyholder, insured, customer benefits/coverage decisions
-        if CUSTOMER_PATTERN.search(bp_clean):
-            purpose_boost += 4.0
-            purpose_factors.append("Business purpose: direct customer/claimant impact")
-
-        # 4. Client Impact: external broker, client, partner statements/commissions
-        if CLIENT_PATTERN.search(bp_clean):
-            purpose_boost += 4.0
-            purpose_factors.append("Business purpose: client/partner deliverable impact")
-
-        # Anti-double-counting: Cap total semantic boost at +16.0 points
-        purpose_boost = min(16.0, purpose_boost)
-
-    factors.extend(purpose_factors)
 
     final_score = (
         weights["downstream_dependency"] * downstream_score
@@ -282,8 +285,6 @@ def calculate_workflow_criticality(
     if has_operational:
         final_score += weights["operational"] * op_score
 
-    # Additive semantic purpose contribution (bounded, clamped strictly 0.0 to 100.0)
-    final_score += purpose_boost
     final_score = round(max(0.0, min(100.0, final_score)), 1)
 
     if final_score >= CRITICALITY_MEDIUM_MAX + 1:
@@ -296,13 +297,14 @@ def calculate_workflow_criticality(
     return CriticalityAssessment(
         score=final_score,
         level=level,
-        factors=factors[:6],  # Keep top concise factors
+        factors=factors[:6],
         breakdown={
             "downstream_dependency": downstream_score,
             "production_outputs": prod_score,
             "output_consumers": consumers_score,
             "dependency_position": position_score,
             "shared_sources": sources_score,
-            "business_purpose_impact": purpose_boost,
+            "operational": op_score,
+            "business_purpose_impact": op_score,
         },
     )

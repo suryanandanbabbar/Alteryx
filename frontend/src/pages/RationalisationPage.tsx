@@ -1057,7 +1057,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                                     }}
                                     title={`Complexity: ${summary.complexity_level || 'LOW'}`}
                                   >
-                                    C: {summary.complexity_level || 'LOW'}
+                                    Complexity: {summary.complexity_level || 'LOW'}
                                   </span>
 
                                   <span
@@ -1070,7 +1070,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                                     }}
                                     title={`Criticality: ${summary.criticality_level || 'LOW'}`}
                                   >
-                                    K: {summary.criticality_level || 'LOW'}
+                                    Criticality: {summary.criticality_level || 'LOW'}
                                   </span>
                                 </div>
                               )}

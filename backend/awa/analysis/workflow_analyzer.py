@@ -624,13 +624,19 @@ def analyze_canonical(
                     output_evidence=output_ev,
                 )
                 business_summary.business_purpose = purpose_res.business_purpose
+                business_summary.business_function = purpose_res.business_function
                 business_summary.business_area_tag = purpose_res.business_area_tag
                 business_summary.business_area_tag_source = purpose_res.source
+                business_summary.business_area_taxonomy_version = purpose_res.business_area_taxonomy_version
+                business_summary.classification_conflict = purpose_res.classification_conflict
+                business_summary.classification_evidence = purpose_res.classification_evidence
                 _llm_logger.info(
-                    "LLM purpose/tag generated: aid=%s tag='%s' source='%s' len=%d",
+                    "LLM purpose/tag generated: aid=%s tag='%s' function='%s' source='%s' conflict=%s len=%d",
                     aid,
                     purpose_res.business_area_tag,
+                    purpose_res.business_function,
                     purpose_res.source,
+                    purpose_res.classification_conflict,
                     len(purpose_res.business_purpose),
                 )
             except Exception as purp_err:

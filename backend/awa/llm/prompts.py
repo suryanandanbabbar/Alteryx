@@ -8,7 +8,7 @@ from typing import Any
 from .schemas import ToolFacts, WorkflowFacts
 
 TOOL_PROMPT_VERSION = "2.0"
-WORKFLOW_PURPOSE_PROMPT_VERSION = "3.0"
+WORKFLOW_PURPOSE_PROMPT_VERSION = "3.1"
 EXEC_SUMMARY_PROMPT_VERSION = "2.0"
 METHODS_OF_ANALYSIS_PROMPT_VERSION = "2.0"
 FINDINGS_PROMPT_VERSION = "2.0"
@@ -209,64 +209,96 @@ DEFAULT_BUSINESS_AREA_DEFINITIONS = {
 
 
 def build_business_area_definitions_block(descriptions: dict[str, str] | None = None) -> str:
-    """Format configured business areas and their business descriptions into a prompt block."""
-    descs = descriptions or DEFAULT_BUSINESS_AREA_DEFINITIONS
+    """Format configured business areas and their rich business definitions into a prompt block."""
+    from awa.analysis.business_area_definitions import BUSINESS_AREA_DEFINITIONS
+
     lines: list[str] = []
     idx = 1
-    for area, desc in descs.items():
-        if area in ("Other / Unclassified", "UNCLASSIFIED"):
+    for name, defn in BUSINESS_AREA_DEFINITIONS.items():
+        if name in ("Other / Unclassified", "UNCLASSIFIED"):
             continue
-        lines.append(f"{idx}. {area}\n   Definition: {desc}")
+        inc_str = "; ".join(defn.included_activities[:5])
+        exc_str = "; ".join(defn.excluded_activities[:4])
+        bnd_str = " ".join(defn.boundary_rules[:2])
+        ex_str = ", ".join(defn.representative_examples[:3])
+        counter_str = ", ".join(defn.counterexamples[:2])
+
+        block = (
+            f"{idx}. {name}\n"
+            f"   Primary Scope: {defn.scope}\n"
+            f"   Included Activities: {inc_str}\n"
+            f"   Excluded Activities: {exc_str}\n"
+            f"   Boundary Rules: {bnd_str}\n"
+            f"   Representative Examples: {ex_str}\n"
+            f"   Counterexamples: {counter_str}"
+        )
+        lines.append(block)
         idx += 1
+
     lines.append(
-        f"{idx}. UNCLASSIFIED\n   Definition: Workflows whose primary business function cannot be confidently "
-        "associated with any of the defined enterprise business areas."
+        f"{idx}. UNCLASSIFIED\n"
+        "   Primary Scope: Workflows whose primary business function cannot be confidently associated "
+        "with any configured enterprise business area above."
     )
     return "\n\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
-# 2. Workflow "Business Purpose" & "Business Area Tag" Prompts (Version 3.0)
+# 2. Workflow "Business Purpose" & "Business Area Tag" Prompts (Version 3.1)
 # ---------------------------------------------------------------------------
 
 def build_workflow_purpose_system_prompt(descriptions: dict[str, str] | None = None) -> str:
-    """Build the system prompt for workflow business purpose and business area tagging."""
+    """Build the system prompt for workflow business purpose, function, and business area tagging."""
     definitions_block = build_business_area_definitions_block(descriptions)
     return f"""You are a Senior Business Intelligence Analyst analyzing an automated enterprise ETL workflow.
-Your task is to determine the workflow's Business Purpose and assign its primary Business Area Tag.
+Your task is to determine the workflow's Primary Business Function, write its Business Purpose, and assign its normalized Business Area Tag.
 
-CRITICAL CONSTRAINTS:
-1. Ground your analysis strictly in the supplied deterministic workflow facts (inputs, stages, transformations, business rules, outputs).
-2. Do NOT invent stakeholders, business owners, schedules, SLAs, KPIs, or external consumers not present in the facts.
-3. Output valid JSON with EXACTLY these two keys:
-   - "business_purpose": Exactly ONE concise, professional paragraph (40-75 words) explaining what business domain/problem the workflow supports, core entities/measures analysed, key analytical operations performed, and reporting deliverables produced.
-   - "business_area_tag": The single best-matching business area selected strictly from the ALLOWED BUSINESS AREAS below.
+NON-NEGOTIABLE ARCHITECTURAL PRINCIPLE:
+DATA DOMAIN IS NOT BUSINESS FUNCTION. Classify a workflow according to the PRIMARY BUSINESS FUNCTION it performs, not merely the business domain of the data it consumes.
+Example: An "Underwriting Decision Engine Application" that ingests Claims submission data and risk rules to calculate a policyholder risk score for coverage eligibility performs an UNDERWRITING function, NOT Claims. The claims data is supporting input.
 
-ALLOWED BUSINESS AREAS:
+CLASSIFICATION EVIDENCE HIERARCHY (Apply strictly in order):
+1. Tier 1: Explicit primary business-function statement/phrase in workflow name/title or authoritative metadata.
+2. Tier 2: Primary business function expressed by what the workflow accomplishes.
+3. Tier 3: Business decision or operational process actually performed (e.g. evaluating eligibility vs settling claims).
+4. Tier 4: Business outcome or deliverable produced (output tables/files).
+5. Tier 5: Downstream business consumer / destination.
+6. Tier 6: Process evidence / transformations.
+7. Tier 7: Input/output data domain tokens (SUPPORTING CONTEXT ONLY - CANNOT OVERRIDE TIERS 1-4).
+
+BUSINESS PURPOSE SEMANTIC STRUCTURE:
+The generated business purpose must follow this structure:
+[PRIMARY BUSINESS FUNCTION] + [WHAT THE WORKFLOW DOES] + [BUSINESS OUTCOME/DECISION] + [IMPORTANT SUPPORTING INPUTS]
+It must lead with the primary business function, NOT raw file names, tool IDs, or supporting data feeds.
+
+ALLOWED BUSINESS AREAS & RICH BOUNDARIES:
 {definitions_block}
 
-CONSTRAINTS:
-- You MUST select "business_area_tag" strictly from the allowed business areas listed above. Do NOT invent new business areas.
-- If the workflow genuinely does not fit any configured enterprise domain above, use "UNCLASSIFIED".
-- Return ONLY a valid JSON object:
-{{"business_purpose": "...", "business_area_tag": "..."}}
-- Do NOT include markdown code blocks, backticks, conversational preamble, or extra keys."""
+ATOMIC JSON CONTRACT:
+Return ONLY a valid JSON object with EXACTLY these three keys:
+{{
+  "business_purpose": "Exactly ONE concise paragraph (40-75 words) describing primary function and business outcome, with data domains presented as supporting inputs.",
+  "business_function": "Concise statement of primary business function (e.g. 'Underwriting decisioning and risk assessment')",
+  "business_area_tag": "Must strictly be one of: Underwriting, Claims & Risk, Sales & Distribution, Legal, or UNCLASSIFIED"
+}}
+
+Do NOT include markdown code blocks, backticks, conversational preamble, or extra keys."""
 
 
 WORKFLOW_PURPOSE_SYSTEM_PROMPT = build_workflow_purpose_system_prompt()
 
 
 def build_workflow_purpose_user_prompt(facts: WorkflowFacts) -> str:
-    """Format deterministic workflow facts for Business Purpose and Business Area Tag generation."""
+    """Format deterministic workflow facts for Business Purpose, Function, and Area Tag generation."""
     facts_dict = facts.to_dict()
     facts_json = json.dumps(facts_dict, indent=2)
-    return f"""Analyze these deterministic workflow facts as a Senior Business Intelligence Analyst and write a concise Business Purpose and Business Area Tag:
+    return f"""Analyze these deterministic workflow facts as a Senior Business Intelligence Analyst and return the primary business function, purpose, and business area tag:
 
 FACTS:
 {facts_json}
 
 BUSINESS PURPOSE:
-Return JSON with "business_purpose" and "business_area_tag":"""
+Return atomic JSON with "business_purpose", "business_function", and "business_area_tag":"""
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,8 @@ export interface BusinessAreaClassificationDTO {
   evidence: string[];
   classification_source: string;
   secondary_business_areas: string[];
+  classification_conflict?: boolean;
+  business_area_taxonomy_version?: string;
 }
 
 export interface PortfolioWorkflowSummaryDTO {
@@ -27,8 +29,12 @@ export interface PortfolioWorkflowSummaryDTO {
   sink_classifications: Record<string, string>;
   tool_types: string[];
   business_purpose: string;
+  business_function?: string;
   sttm_mappings_count: number;
   business_area?: BusinessAreaClassificationDTO;
+  business_area_tag?: string;
+  business_area_tag_source?: string;
+  business_area_taxonomy_version?: string;
   complexity_score?: number;
   complexity_level?: 'HIGH' | 'MEDIUM' | 'LOW';
   complexity_factors?: string[];
