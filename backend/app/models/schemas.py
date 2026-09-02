@@ -433,6 +433,13 @@ class PortfolioAggregateMetricsDTO(BaseModel):
     tool_distribution: dict[str, int] = Field(default_factory=dict)
 
 
+class BusinessAreaGroupDTO(BaseModel):
+    business_area: str
+    workflow_count: int = 0
+    workflows: list[PortfolioWorkflowSummaryDTO] = Field(default_factory=list)
+    description: str = ""
+
+
 class PortfolioOverviewDTO(BaseModel):
     portfolio_id: str
     portfolio_name: str
@@ -445,5 +452,6 @@ class PortfolioOverviewDTO(BaseModel):
     rationalisation_candidates: list[RationalisationCandidateDTO]
     business_area_counts: dict[str, int] = Field(default_factory=dict)
     business_area_descriptions: dict[str, str] = Field(default_factory=dict)
+    business_areas: list[BusinessAreaGroupDTO] = Field(default_factory=list)
     created_at: float
 

@@ -16,6 +16,7 @@ import {
   LucideIcon,
   X,
   Info,
+  Layers,
 } from 'lucide-react';
 import { PortfolioOverviewDTO, PortfolioWorkflowSummaryDTO } from '../types/portfolio';
 import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
@@ -397,13 +398,12 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
     return { ...counts, 'Other / Unclassified': unclassified };
   }, [portfolio.workflows]);
 
-  // Determine visible business area cards per Requirement 5:
-  // Prefer displaying only business areas represented in the uploaded portfolio.
+  // Determine visible business area cards:
+  // Every configured business area must ALWAYS be displayed as a card, even when 0 workflows belong to it.
   const visibleAreas = useMemo(() => {
-    const areasWithWorkflows = CONFIGURED_BUSINESS_AREAS.filter((a) => (areaCounts[a.name] || 0) > 0);
-    const result = areasWithWorkflows.length > 0 ? areasWithWorkflows : CONFIGURED_BUSINESS_AREAS;
+    const result = [...CONFIGURED_BUSINESS_AREAS];
     if ((areaCounts['Other / Unclassified'] || 0) > 0) {
-      return [...result, UNCLASSIFIED_DOMAIN];
+      result.push(UNCLASSIFIED_DOMAIN);
     }
     return result;
   }, [areaCounts]);
@@ -777,36 +777,69 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
 
         {/* Horizontal Workflow Intelligence Cards (One wide card per row) */}
         {filteredAreaWorkflows.length === 0 ? (
-          <div style={{
-            padding: '60px 24px',
-            textAlign: 'center',
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: '10px',
-          }}>
-            <Search size={32} color="var(--color-text-muted)" style={{ margin: '0 auto 16px' }} />
-            <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--color-text)', margin: '0 0 8px 0' }}>
-              No workflows found
-            </h3>
-            <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 20px 0' }}>
-              No workflows match "{searchQuery}" in {currentArea}. Try a different workflow name, dataset, or keyword.
-            </p>
-            <button
-              onClick={() => setSearchQuery('')}
-              style={{
-                padding: '8px 16px',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-surface-secondary)',
-                color: 'var(--color-text)',
-                fontSize: '12.5px',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
-            >
-              Clear Search Filter
-            </button>
-          </div>
+          currentAreaWorkflows.length === 0 ? (
+            <div style={{
+              padding: '60px 24px',
+              textAlign: 'center',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '10px',
+            }}>
+              <Layers size={36} color="var(--color-text-muted)" style={{ margin: '0 auto 16px' }} />
+              <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--color-text)', margin: '0 0 8px 0' }}>
+                No workflows in {currentArea}
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 20px 0', maxWidth: '500px', marginInline: 'auto' }}>
+                This business area currently has 0 workflows assigned in the analysed portfolio.
+              </p>
+              <button
+                onClick={() => setCurrentArea(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface-secondary)',
+                  color: 'var(--color-text)',
+                  fontSize: '12.5px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                ← Return to Business Areas
+              </button>
+            </div>
+          ) : (
+            <div style={{
+              padding: '60px 24px',
+              textAlign: 'center',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '10px',
+            }}>
+              <Search size={32} color="var(--color-text-muted)" style={{ margin: '0 auto 16px' }} />
+              <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--color-text)', margin: '0 0 8px 0' }}>
+                No workflows found
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: '0 0 20px 0' }}>
+                No workflows match "{searchQuery}" in {currentArea}. Try a different workflow name, dataset, or keyword.
+              </p>
+              <button
+                onClick={() => setSearchQuery('')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface-secondary)',
+                  color: 'var(--color-text)',
+                  fontSize: '12.5px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                Clear Search Filter
+              </button>
+            </div>
+          )
         ) : (
           <div style={{
             display: 'flex',
@@ -1453,36 +1486,79 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
           </div>
         </div>
 
-        {/* Secondary Utility Action */}
-        <button
-          onClick={onReset}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 14px',
-            fontSize: '12px',
-            fontWeight: '600',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface)',
-            color: 'var(--color-text-secondary)',
-            cursor: 'pointer',
-            transition: 'all 0.18s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = 'var(--color-text)';
-            e.currentTarget.style.borderColor = 'var(--color-text-muted)';
-            e.currentTarget.style.background = 'var(--color-surface-hover)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = 'var(--color-text-secondary)';
-            e.currentTarget.style.borderColor = 'var(--color-border)';
-            e.currentTarget.style.background = 'var(--color-surface)';
-          }}
-        >
-          <RefreshCw size={13} /> Upload Different Portfolio
-        </button>
+        {/* Top-Right Header Actions */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap',
+        }}>
+          {/* ETL Rationalisation Action */}
+          <button
+            onClick={() => setShowRationalisation(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 14px',
+              fontSize: '12px',
+              fontWeight: '600',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid rgba(16, 185, 129, 0.45)',
+              background: 'linear-gradient(135deg, rgba(6, 78, 59, 0.4) 0%, rgba(15, 23, 42, 0.85) 100%)',
+              color: '#ecfdf5',
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)',
+              cursor: 'pointer',
+              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(52, 211, 153, 0.8)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(6, 78, 59, 0.6) 0%, rgba(15, 23, 42, 0.95) 100%)';
+              e.currentTarget.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.3)';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.45)';
+              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(6, 78, 59, 0.4) 0%, rgba(15, 23, 42, 0.85) 100%)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.15)';
+              e.currentTarget.style.transform = 'none';
+            }}
+          >
+            <span>ETL rationalisation</span>
+            <span style={{ color: '#34d399', fontWeight: '700', marginLeft: '4px' }}>View →</span>
+          </button>
+
+          {/* Secondary Utility Action */}
+          <button
+            onClick={onReset}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 14px',
+              fontSize: '12px',
+              fontWeight: '600',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--color-border)',
+              background: 'var(--color-surface)',
+              color: 'var(--color-text-secondary)',
+              cursor: 'pointer',
+              transition: 'all 0.18s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'var(--color-text)';
+              e.currentTarget.style.borderColor = 'var(--color-text-muted)';
+              e.currentTarget.style.background = 'var(--color-surface-hover)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--color-text-secondary)';
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+              e.currentTarget.style.background = 'var(--color-surface)';
+            }}
+          >
+            <RefreshCw size={13} /> Upload Different Portfolio
+          </button>
+        </div>
       </div>
 
       {/* Domain Cards Responsive Grid */}
@@ -1631,140 +1707,6 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
             </div>
           );
         })}
-      </div>
-
-      {/* Level 1 ETL Rationalisation CTA Card */}
-      <div
-        onClick={() => setShowRationalisation(true)}
-        style={{
-          marginTop: '36px',
-          padding: '28px 32px',
-          borderRadius: '12px',
-          background: 'linear-gradient(135deg, rgba(6, 78, 59, 0.25) 0%, rgba(15, 23, 42, 0.8) 50%, rgba(30, 58, 138, 0.2) 100%)',
-          border: '1px solid rgba(16, 185, 129, 0.35)',
-          boxShadow: '0 8px 30px -8px rgba(0, 0, 0, 0.45)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: '20px',
-          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = 'rgba(52, 211, 153, 0.7)';
-          e.currentTarget.style.transform = 'translateY(-2px)';
-          e.currentTarget.style.boxShadow = '0 14px 36px -8px rgba(16, 185, 129, 0.25)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.35)';
-          e.currentTarget.style.transform = 'none';
-          e.currentTarget.style.boxShadow = '0 8px 30px -8px rgba(0, 0, 0, 0.45)';
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <div
-            style={{
-              width: '52px',
-              height: '52px',
-              borderRadius: '12px',
-              background: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(52, 211, 153, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#34d399',
-              flexShrink: 0,
-            }}
-          >
-            <ShieldCheck size={26} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: '800',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  color: '#34d399',
-                  background: 'rgba(6, 78, 59, 0.5)',
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  border: '1px solid rgba(52, 211, 153, 0.3)',
-                }}
-              >
-                Cross-Workflow Estate Intelligence
-              </span>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  color: 'var(--color-text-muted)',
-                }}
-              >
-                {portfolio.workflows.filter(w => w.status === 'SUCCESS').length} Workflows Analyzed
-              </span>
-            </div>
-            <h2
-              style={{
-                fontSize: '20px',
-                fontWeight: '800',
-                color: '#ffffff',
-                margin: '0 0 6px 0',
-                letterSpacing: '-0.01em',
-              }}
-            >
-              ETL RATIONALISATION
-            </h2>
-            <p
-              style={{
-                fontSize: '13.5px',
-                color: 'var(--color-text-secondary)',
-                margin: 0,
-                lineHeight: '1.45',
-                maxWidth: '650px',
-              }}
-            >
-              Identify opportunities to consolidate pipelines, extract reusable logic, and retire redundant workflows across your ETL estate.
-            </p>
-          </div>
-        </div>
-
-        <div>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowRationalisation(true);
-            }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '12px 24px',
-              borderRadius: '8px',
-              background: '#10b981',
-              color: '#022c22',
-              fontSize: '13.5px',
-              fontWeight: '800',
-              border: 'none',
-              cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
-              transition: 'all 0.2s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#34d399';
-              e.currentTarget.style.transform = 'scale(1.02)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#10b981';
-              e.currentTarget.style.transform = 'none';
-            }}
-          >
-            <span>View Rationalisation</span>
-            <ArrowRight size={16} strokeWidth={2.5} />
-          </button>
-        </div>
       </div>
     </div>
   );

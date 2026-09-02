@@ -34,6 +34,23 @@ class BusinessAreaClassification:
 
 
 @dataclass
+class BusinessAreaGroup:
+    """A business area with its assigned workflows and total count (which can be 0)."""
+    business_area: str
+    workflow_count: int = 0
+    workflows: list[PortfolioWorkflowSummary] = field(default_factory=list)
+    description: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "business_area": self.business_area,
+            "workflow_count": self.workflow_count,
+            "workflows": [w.to_dict() for w in self.workflows],
+            "description": self.description,
+        }
+
+
+@dataclass
 class PortfolioWorkflowSummary:
     """Canonical summary of an individual workflow within a portfolio."""
     workflow_id: str
@@ -458,6 +475,7 @@ class PortfolioAnalysis:
     rationalisation_candidates: list[RationalisationCandidate]
     business_area_counts: dict[str, int] = field(default_factory=dict)
     business_area_descriptions: dict[str, str] = field(default_factory=dict)
+    business_areas: list[BusinessAreaGroup] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
@@ -473,5 +491,6 @@ class PortfolioAnalysis:
             "rationalisation_candidates": [c.to_dict() for c in self.rationalisation_candidates],
             "business_area_counts": self.business_area_counts,
             "business_area_descriptions": self.business_area_descriptions,
+            "business_areas": [ba.to_dict() for ba in self.business_areas],
             "created_at": self.created_at,
         }

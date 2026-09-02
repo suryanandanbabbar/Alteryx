@@ -19,6 +19,8 @@ from typing import Any
 
 from awa.model.analysis_result import CanonicalAnalysisResult
 from awa.model.portfolio import (
+    BusinessAreaClassification,
+    BusinessAreaGroup,
     DeterministicSignals,
     PortfolioAggregateMetrics,
     PortfolioAnalysis,
@@ -30,7 +32,9 @@ from awa.model.portfolio import (
 from awa.analysis.sttm_extractor import _clean_table_name
 from awa.analysis.business_area_classifier import (
     classify_workflow_business_area,
+    classify_portfolio_business_areas,
     BUSINESS_AREA_DESCRIPTIONS,
+    ALLOWED_BUSINESS_AREAS,
 )
 from awa.analysis.workflow_complexity import calculate_workflow_complexity
 from awa.analysis.workflow_criticality import (
@@ -382,6 +386,13 @@ def build_portfolio_analysis(
     source_to_wfs: dict[str, list[tuple[str, str]]] = {}
     target_to_wfs: dict[str, list[tuple[str, str]]] = {}
 
+    # Pre-extract successful results for batch portfolio business-area classification
+    valid_results = [
+        item[2] for item in raw_workflows
+        if not isinstance(item[2], Exception) and hasattr(item[2], "analysis_id")
+    ]
+    portfolio_classifications = classify_portfolio_business_areas(valid_results, generator=generator)
+
     # 1. Process individual workflow outputs
     for filename, rel_path, res_or_exc in raw_workflows:
         if isinstance(res_or_exc, Exception):
@@ -416,8 +427,10 @@ def build_portfolio_analysis(
         biz_purpose = res.business_summary.business_purpose if res.business_summary else ""
         sttm_count = len(res.sttm.mappings) if res.sttm else 0
 
-        # Classify business area using strict output evidence
-        classification = classify_workflow_business_area(res, generator=generator)
+        # Classify business area using business purpose + output evidence
+        classification = portfolio_classifications.get(wid) or classify_workflow_business_area(
+            res, generator=generator, business_purpose=biz_purpose
+        )
 
         # Deterministic Workflow Complexity Assessment
         complexity = calculate_workflow_complexity(res)
@@ -565,23 +578,46 @@ def build_portfolio_analysis(
         tool_distribution=tool_counter,
     )
 
-    # 6. Aggregate business area counts
-    area_counts: dict[str, int] = {
-        "Claims & Risk": 0,
-        "Legal": 0,
-        "Underwriting": 0,
-        "Sales & Distribution": 0,
+    # 6. Aggregate business areas and materialise EVERY business area
+    workflows_by_area: dict[str, list[PortfolioWorkflowSummary]] = {
+        area: [] for area in ALLOWED_BUSINESS_AREAS
     }
-    unclassified_count = 0
+    unclassified_workflows: list[PortfolioWorkflowSummary] = []
+
     for s in success_summaries:
         area = s.business_area.business_area if s.business_area else "UNCLASSIFIED"
-        if area in area_counts:
-            area_counts[area] += 1
+        if area in workflows_by_area:
+            workflows_by_area[area].append(s)
         else:
-            unclassified_count += 1
+            unclassified_workflows.append(s)
 
-    if unclassified_count > 0:
-        area_counts["Other / Unclassified"] = unclassified_count
+    # Materialise EVERY configured business area (even with 0 workflows)
+    area_counts: dict[str, int] = {}
+    business_area_groups: list[BusinessAreaGroup] = []
+
+    for area in ALLOWED_BUSINESS_AREAS:
+        wfs = workflows_by_area[area]
+        area_counts[area] = len(wfs)
+        business_area_groups.append(
+            BusinessAreaGroup(
+                business_area=area,
+                workflow_count=len(wfs),
+                workflows=wfs,
+                description=BUSINESS_AREA_DESCRIPTIONS.get(area, ""),
+            )
+        )
+
+    # If unclassified workflows exist, also materialise Other / Unclassified
+    if unclassified_workflows:
+        area_counts["Other / Unclassified"] = len(unclassified_workflows)
+        business_area_groups.append(
+            BusinessAreaGroup(
+                business_area="Other / Unclassified",
+                workflow_count=len(unclassified_workflows),
+                workflows=unclassified_workflows,
+                description=BUSINESS_AREA_DESCRIPTIONS.get("Other / Unclassified", ""),
+            )
+        )
 
     return PortfolioAnalysis(
         portfolio_id=pid,
@@ -595,6 +631,7 @@ def build_portfolio_analysis(
         rationalisation_candidates=candidates,
         business_area_counts=area_counts,
         business_area_descriptions=dict(BUSINESS_AREA_DESCRIPTIONS),
+        business_areas=business_area_groups,
     )
 
 

@@ -153,6 +153,13 @@ export interface PortfolioAggregateMetricsDTO {
   tool_distribution: Record<string, number>;
 }
 
+export interface BusinessAreaGroupDTO {
+  business_area: string;
+  workflow_count: number;
+  workflows: PortfolioWorkflowSummaryDTO[];
+  description: string;
+}
+
 export interface PortfolioOverviewDTO {
   portfolio_id: string;
   portfolio_name: string;
@@ -165,5 +172,7 @@ export interface PortfolioOverviewDTO {
   rationalisation_candidates: RationalisationCandidateDTO[];
   business_area_counts?: Record<string, number>;
   business_area_descriptions?: Record<string, string>;
+  business_areas?: BusinessAreaGroupDTO[];
   created_at: number;
 }
+

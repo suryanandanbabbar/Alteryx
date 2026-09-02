@@ -672,44 +672,195 @@ RATIONALISATION QUALIFICATION JSON:"""
 # 6. Business-Area Classification Prompts
 # ---------------------------------------------------------------------------
 
-BUSINESS_AREA_CLASSIFICATION_PROMPT_VERSION = "1.0"
+BUSINESS_AREA_CLASSIFICATION_PROMPT_VERSION = "2.0"
+
+DEFAULT_BUSINESS_AREA_DEFINITIONS = {
+    "Claims & Risk": (
+        "Claims & Risk business area encompasses multiple workflows that collectively "
+        "analyse claims performance, exposure, policy information, payments, and litigation or risk-related outcomes."
+    ),
+    "Sales & Distribution": (
+        "Sales & Distribution business area encompasses workflows that support customer, "
+        "product, sales performance, distribution, pipeline, and commercial reporting activities."
+    ),
+    "Legal": (
+        "Legal business area encompasses workflows supporting legal operations, "
+        "case-related information, regulatory analysis, legal reporting, and compliance-oriented data processing."
+    ),
+    "Underwriting": (
+        "Underwriting business area encompasses workflows that support risk assessment, "
+        "policy evaluation, underwriting decisions, pricing inputs, and portfolio analysis."
+    ),
+}
+
+
+def build_business_area_definitions_block(descriptions: dict[str, str] | None = None) -> str:
+    """Format configured business areas and their business descriptions into a prompt block."""
+    descs = descriptions or DEFAULT_BUSINESS_AREA_DEFINITIONS
+    lines: list[str] = []
+    idx = 1
+    for area, desc in descs.items():
+        if area in ("Other / Unclassified", "UNCLASSIFIED"):
+            continue
+        lines.append(f"{idx}. {area}\n   Definition: {desc}")
+        idx += 1
+    lines.append(
+        f"{idx}. UNCLASSIFIED\n   Definition: Workflows whose primary business function cannot be confidently "
+        "associated with any of the defined enterprise business areas."
+    )
+    return "\n\n".join(lines)
+
 
 BUSINESS_AREA_CLASSIFICATION_SYSTEM_PROMPT = """You are an Enterprise Data Domain Classification Specialist.
 
-Your task is to classify an enterprise data pipeline/workflow into its primary business domain based ONLY on its production output file/dataset names and output column headers.
+Your task is to determine which enterprise business area best represents the primary business purpose and function of the workflow.
 
-CRITICAL CLASSIFICATION INVARIANTS:
-1. Ground your classification strictly and exclusively in the provided production output dataset/file names and column headers.
-2. You MUST NOT reason from or guess workflow names, workflow paths, descriptions, source datasets, source fields, tools, transformations, or annotations. None of these are provided.
-3. The allowed business areas are STRICTLY:
-   - "Claims & Risk"
-   - "Legal"
-   - "Underwriting"
-   - "Sales & Distribution"
-   - "UNCLASSIFIED"
-   Do NOT invent, rename, or introduce any other business domain (such as "Finance", "Insurance Analytics", "Operations", etc.).
-4. Confidence must be one of: "HIGH", "MEDIUM", "LOW", "UNCLASSIFIED".
-5. Every entry in the "evidence" array MUST be an exact string present in the provided output dataset names or column headers. Never invent, hallucinate, or fabricate evidence tokens.
-6. If the evidence supports multiple domains, set "business_area" to the primary domain and list any other matching domains in "secondary_business_areas".
-7. If the evidence is insufficient, ambiguous, or empty, classify as "UNCLASSIFIED" with confidence "UNCLASSIFIED" and empty evidence.
+CLASSIFICATION HIERARCHY:
+1. PRIMARY SIGNAL: Workflow business purpose / documentation.
+   The business purpose explicitly articulates why the workflow exists, what operational problem it solves, and what enterprise function it fulfills. This primary signal must drive your classification decision.
+2. SUPPORTING SIGNALS:
+   - Production output dataset / file names, table names, and output column headers.
+   - Known source datasets and workflow metadata.
+3. AVOID SUPERFICIAL CLASSIFICATION:
+   - Do NOT classify purely from workflow filenames or technical tool names.
+   - Do NOT classify from single isolated superficial keywords if the documented business purpose clearly indicates a different enterprise function.
+
+ALLOWED BUSINESS AREAS:
+- Claims & Risk
+- Legal
+- Underwriting
+- Sales & Distribution
+- UNCLASSIFIED
+
+Do NOT invent, rename, or introduce any other business domain.
+
+CRITICAL RULES:
+1. Assign exactly ONE primary "business_area" from the allowed business areas. If no defined area fits or evidence is completely absent, assign "UNCLASSIFIED".
+2. If the workflow genuinely spans multiple domains, set "business_area" to the primary domain and list any secondary domains in "secondary_business_areas".
+3. Confidence must be one of: "HIGH", "MEDIUM", "LOW", "UNCLASSIFIED".
+4. Provide a concise 1-sentence "reasoning" explaining how the business purpose maps to this domain.
+5. Provide an "evidence" array listing key domain keywords or dataset/column names supporting the classification.
 
 Return ONLY valid JSON in this exact structure:
 {
   "business_area": "Claims & Risk|Legal|Underwriting|Sales & Distribution|UNCLASSIFIED",
   "confidence": "HIGH|MEDIUM|LOW|UNCLASSIFIED",
-  "evidence": ["<exact output dataset name or column header from provided evidence>"],
+  "reasoning": "<concise explanation based on business purpose>",
+  "evidence": ["<key supporting phrase or column name>"],
   "secondary_business_areas": []
 }"""
 
 
-def build_business_area_classification_user_prompt(output_evidence: list[dict[str, Any]]) -> str:
-    """Format strictly isolated output evidence into user prompt for business-area classification."""
+PORTFOLIO_BUSINESS_AREA_CLASSIFICATION_SYSTEM_PROMPT = """You are an Enterprise Data Domain Classification Specialist.
+
+Your task is to determine which enterprise business area best represents the primary business purpose and function of each workflow in the portfolio.
+
+CLASSIFICATION HIERARCHY:
+1. PRIMARY SIGNAL: Workflow business purpose / documentation.
+   The business purpose explicitly articulates why each workflow exists, what business process it supports, and what enterprise function it fulfills. This primary signal must drive your classification decisions.
+2. SUPPORTING SIGNALS:
+   - Production output dataset / file names, table names, and output column headers.
+   - Known source datasets and workflow metadata.
+3. AVOID SUPERFICIAL CLASSIFICATION:
+   - Do NOT classify purely from workflow filenames or technical tool names.
+   - Do NOT classify from single isolated superficial keywords if the documented business purpose indicates a different enterprise function (e.g. an HR dataset utilized for customer demographics belongs to the commercial domain, not HR; a fraud investigation workflow belongs to Claims & Risk).
+
+ALLOWED BUSINESS AREAS:
+- Claims & Risk
+- Legal
+- Underwriting
+- Sales & Distribution
+- UNCLASSIFIED
+
+Do NOT invent, rename, or introduce any other business domain.
+
+CRITICAL RULES:
+1. For every workflow in the input, provide an entry in "workflow_classifications" with its exact "workflow_id".
+2. Assign exactly ONE primary "business_area" from the allowed business areas. If no defined area fits or evidence is completely absent, assign "UNCLASSIFIED".
+3. If a workflow spans multiple domains, set "business_area" to the primary domain and list any secondary domains in "secondary_business_areas".
+4. Confidence must be one of: "HIGH", "MEDIUM", "LOW", "UNCLASSIFIED".
+5. Provide a concise 1-sentence "reasoning" explaining how the business purpose maps to this domain.
+6. Provide an "evidence" array listing key domain keywords or dataset/column names supporting the classification.
+
+Return ONLY valid JSON in this exact structure:
+{
+  "workflow_classifications": [
+    {
+      "workflow_id": "<workflow_id>",
+      "business_area": "Claims & Risk|Legal|Underwriting|Sales & Distribution|UNCLASSIFIED",
+      "confidence": "HIGH|MEDIUM|LOW|UNCLASSIFIED",
+      "reasoning": "<concise explanation based on business purpose>",
+      "evidence": ["<key supporting phrases or column names>"],
+      "secondary_business_areas": []
+    }
+  ]
+}"""
+
+
+def build_business_area_classification_user_prompt(
+    output_evidence: list[dict[str, Any]],
+    business_purpose: str = "",
+    workflow_name: str = "",
+    descriptions: dict[str, str] | None = None,
+) -> str:
+    """Format workflow details and output evidence into user prompt for business-area classification."""
+    definitions_block = build_business_area_definitions_block(descriptions)
     evidence_json = json.dumps({"outputs": output_evidence}, indent=2)
-    return f"""Classify the workflow into a business area based strictly on its production output evidence below:
 
-PRODUCTION OUTPUT EVIDENCE:
-{evidence_json}
+    parts: list[str] = [
+        "BUSINESS AREA DEFINITIONS:",
+        definitions_block,
+        "",
+        "WORKFLOW INFORMATION TO CLASSIFY:",
+    ]
+    if workflow_name:
+        parts.append(f"Workflow Name: {workflow_name}")
+    if business_purpose:
+        parts.append(f"Workflow Business Purpose (Primary Signal):\n{business_purpose}")
+    else:
+        parts.append("Workflow Business Purpose: [Not Documented / Baseline Extraction]")
 
-BUSINESS AREA CLASSIFICATION JSON:"""
+    parts.extend([
+        "",
+        "PRODUCTION OUTPUT EVIDENCE (Supporting Signal):",
+        evidence_json,
+        "",
+        "BUSINESS AREA CLASSIFICATION JSON:",
+    ])
+
+    return "\n".join(parts)
+
+
+def build_portfolio_business_area_classification_user_prompt(
+    workflows_data: list[dict[str, Any]],
+    descriptions: dict[str, str] | None = None,
+) -> str:
+    """Format portfolio of workflows into user prompt for batch business-area classification."""
+    definitions_block = build_business_area_definitions_block(descriptions)
+
+    wf_blocks: list[str] = []
+    for idx, wf in enumerate(workflows_data, 1):
+        wid = wf.get("workflow_id", f"wf_{idx}")
+        wname = wf.get("workflow_name", f"Workflow_{idx}")
+        bpurpose = wf.get("business_purpose", "").strip() or "[Not Documented / Baseline Extraction]"
+        outputs = wf.get("output_evidence", [])
+        outputs_str = json.dumps(outputs, indent=2)
+
+        wf_blocks.append(
+            f"--- WORKFLOW {idx} ---\n"
+            f"Workflow ID: {wid}\n"
+            f"Workflow Name: {wname}\n"
+            f"Business Purpose (Primary Signal):\n{bpurpose}\n\n"
+            f"Production Output Evidence (Supporting Signal):\n{outputs_str}"
+        )
+
+    return (
+        f"AVAILABLE BUSINESS AREAS & DEFINITIONS:\n"
+        f"{definitions_block}\n\n"
+        f"WORKFLOWS TO CLASSIFY ({len(workflows_data)} total):\n\n"
+        + "\n\n".join(wf_blocks)
+        + "\n\nSTRUCTURED CLASSIFICATION JSON:"
+    )
+
 
 
