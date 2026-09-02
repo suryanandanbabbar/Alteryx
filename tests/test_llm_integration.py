@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -389,7 +390,11 @@ def test_llm_tool_summary_reaches_diagram_dto():
 def test_llm_business_purpose_reaches_overview_dto():
     fake_client = FakeLLMClient(
         response_map={
-            "business purpose": "Automates end-to-end ingestion and analysis of insurance claims data across multiple operational reporting tables."
+            "business purpose": json.dumps({
+                "business_purpose": "Automates end-to-end ingestion and analysis of insurance claims data across multiple operational reporting tables.",
+                "business_function": "Claims volume extraction and analysis",
+                "business_area_tag": "Claims & Risk",
+            })
         }
     )
     generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
@@ -591,8 +596,13 @@ def test_full_pipeline_with_demo_workflow():
             return "- Validate business ownership and operational escalation contacts.\n- Confirm production execution schedule and upstream refresh dependencies."
         elif "executive summary:" in user.lower():
             return "This workflow extracts claim volume data, performs multi-level aggregation by quarter and manager, and produces standardized reporting deliverables across historical reporting periods."
-        elif "business purpose:" in user.lower():
-            return "Automates quarterly insurance claims volume extraction, summarization, and matrix reporting."
+        elif "business purpose:" in user.lower() or "business area tag" in user.lower() or "senior business intelligence" in sys.lower():
+            import json
+            return json.dumps({
+                "business_purpose": "Automates quarterly insurance claims volume extraction, summarization, and matrix reporting.",
+                "business_function": "Claims volume extraction and matrix reporting",
+                "business_area_tag": "Claims & Risk",
+            })
         return "Processes and transforms workflow record data."
 
     fake_client = FakeLLMClient(generator_fn=mock_generator)

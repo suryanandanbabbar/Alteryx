@@ -8,7 +8,7 @@ from typing import Any
 from .schemas import ToolFacts, WorkflowFacts
 
 TOOL_PROMPT_VERSION = "2.0"
-WORKFLOW_PURPOSE_PROMPT_VERSION = "3.1"
+WORKFLOW_PURPOSE_PROMPT_VERSION = "3.2"
 EXEC_SUMMARY_PROMPT_VERSION = "2.0"
 METHODS_OF_ANALYSIS_PROMPT_VERSION = "2.0"
 FINDINGS_PROMPT_VERSION = "2.0"
@@ -282,7 +282,11 @@ Return ONLY a valid JSON object with EXACTLY these three keys:
   "business_area_tag": "Must strictly be one of: Underwriting, Claims & Risk, Sales & Distribution, Legal, or UNCLASSIFIED"
 }}
 
-Do NOT include markdown code blocks, backticks, conversational preamble, or extra keys."""
+CRITICAL OUTPUT CONSTRAINTS:
+1. Output MUST be ONLY the raw JSON object. Start immediately with '{{' and end with '}}'.
+2. Do NOT output any conversational preamble, introductory text, chain-of-thought, thinking, reasoning, or markdown analysis.
+3. The 'business_purpose' value MUST be a single polished business paragraph (40-75 words). It must NOT contain classification reasoning, analysis steps, 'Tier 1', 'evidence hierarchy', or explanations of why other business areas were rejected.
+4. Do NOT include markdown code blocks, backticks, conversational preamble, or extra keys."""
 
 
 WORKFLOW_PURPOSE_SYSTEM_PROMPT = build_workflow_purpose_system_prompt()

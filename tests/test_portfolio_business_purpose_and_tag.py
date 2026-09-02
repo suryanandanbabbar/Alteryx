@@ -553,3 +553,204 @@ class TestPortfolioBusinessPurposeAndTag:
         assert res.business_area_tag == "Claims & Risk"
         assert res.business_function != ""
         assert res.business_area_taxonomy_version == "3.0"
+
+    # -----------------------------------------------------------------------
+    # Regression Tests: Business Purpose Data-Contract Boundary & Purity
+    # -----------------------------------------------------------------------
+
+    def test_valid_structured_llm_response_stores_only_business_purpose(self):
+        """1. A valid structured LLM response stores only business_purpose in that field."""
+        wf = Workflow(metadata=WorkflowMetadata(name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+
+        clean_purpose = "Supports underwriting decisioning by applying claims submission data, risk rules, and policyholder attributes to generate risk scores used to assess policyholder risk and eligibility."
+        payload = json.dumps({
+            "business_purpose": clean_purpose,
+            "business_function": "Underwriting decisioning and risk assessment",
+            "business_area_tag": "Underwriting",
+        })
+        client = FakeLLMClient(response=payload, is_available=True)
+        gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+
+        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_clean_purpose_test")
+        assert res.source == "llm"
+        assert res.business_purpose == clean_purpose
+        # Ensure no accidental concatenation
+        assert "Underwriting decisioning and risk assessment" not in res.business_purpose
+
+    def test_business_function_stored_separately(self):
+        """2. business_function is stored separately and not concatenated into business_purpose."""
+        wf = Workflow(metadata=WorkflowMetadata(name="Policy Rating Calculator", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+
+        payload = json.dumps({
+            "business_purpose": "Calculates commercial property insurance policy pricing and premium ratings based on risk profiles.",
+            "business_function": "Policy pricing and premium rating calculation",
+            "business_area_tag": "Underwriting",
+        })
+        client = FakeLLMClient(response=payload, is_available=True)
+        gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+
+        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_func_sep_test")
+        assert res.business_function == "Policy pricing and premium rating calculation"
+        assert res.business_function not in res.business_purpose
+
+    def test_business_area_tag_stored_separately(self):
+        """3. business_area_tag is stored separately and not concatenated into business_purpose."""
+        wf = Workflow(metadata=WorkflowMetadata(name="Sales Territory Analytics", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+
+        payload = json.dumps({
+            "business_purpose": "Evaluates commercial distribution channel performance and computes monthly producer commissions.",
+            "business_function": "Broker commission calculation and sales analytics",
+            "business_area_tag": "Sales & Distribution",
+        })
+        client = FakeLLMClient(response=payload, is_available=True)
+        gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+
+        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_tag_sep_test")
+        assert res.business_area_tag == "Sales & Distribution"
+        assert "Sales & Distribution" not in res.business_purpose
+
+    def test_response_containing_extensive_reasoning_does_not_become_business_purpose(self):
+        """4. A response containing extensive classification reasoning extracts only the clean JSON purpose."""
+        wf = Workflow(metadata=WorkflowMetadata(name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+
+        raw_noisy_llm_response = (
+            "To determine the primary business function, business purpose, and business area tag for the given workflow, "
+            "let’s analyze the provided facts step by step according to the classification evidence hierarchy:\n"
+            "1. Tier 1: Workflow Name 'Underwriting Decision Engine Application' matches Underwriting.\n"
+            "2. Tier 2: The workflow consumes claims submissions and outputs risk scores.\n"
+            "Given these observations, we conclude the primary area is Underwriting.\n\n"
+            "```json\n"
+            "{\n"
+            '  "business_purpose": "Supports underwriting decisioning by applying claims submission data, risk rules, and policyholder attributes to generate risk scores used to assess policyholder risk and eligibility.",\n'
+            '  "business_function": "Underwriting decisioning and risk assessment",\n'
+            '  "business_area_tag": "Underwriting"\n'
+            "}\n"
+            "```\n"
+            "Therefore, Underwriting is selected."
+        )
+
+        client = FakeLLMClient(response=raw_noisy_llm_response, is_available=True)
+        gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+
+        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_noisy_reasoning_test")
+
+        # Crucial invariants:
+        expected_clean = "Supports underwriting decisioning by applying claims submission data, risk rules, and policyholder attributes to generate risk scores used to assess policyholder risk and eligibility."
+        assert res.business_purpose == expected_clean
+        assert "To determine the primary business function" not in res.business_purpose
+        assert "Tier 1" not in res.business_purpose
+        assert "Given these observations" not in res.business_purpose
+        assert "```" not in res.business_purpose
+        assert res.business_function == "Underwriting decisioning and risk assessment"
+        assert res.business_area_tag == "Underwriting"
+
+    def test_to_overview_dto_returns_only_concise_persisted_purpose(self):
+        """5. to_overview_dto returns only the concise persisted purpose and separate function/tag."""
+        clean_purpose = "Processes claims submissions to identify suspicious indicators and prioritize fraud audits."
+        res = _create_mock_canonical_result(
+            analysis_id="wf_dto_test",
+            name="Claims_Fraud_Model",
+            business_purpose=clean_purpose,
+            business_area_tag="Claims & Risk",
+            tag_source="llm",
+        )
+        res.business_summary.business_function = "Claims fraud detection and investigation"
+
+        dto = to_overview_dto(res)
+        assert dto.business_summary is not None
+        assert dto.business_summary.business_purpose == clean_purpose
+        assert dto.business_summary.business_function == "Claims fraud detection and investigation"
+        assert dto.business_summary.business_area_tag == "Claims & Risk"
+        assert "To determine" not in dto.business_summary.business_purpose
+
+    def test_portfolio_and_overview_use_exact_same_persisted_purpose(self):
+        """6. Portfolio and Overview use the exact same persisted business purpose without modification."""
+        clean_purpose = "Analyzes regional sales performance and calculates monthly broker commissions."
+        res = _create_mock_canonical_result(
+            analysis_id="wf_same_test",
+            name="Sales_Commissions",
+            business_purpose=clean_purpose,
+            business_area_tag="Sales & Distribution",
+            tag_source="llm",
+        )
+        res.business_summary.business_function = "Broker commission calculation"
+
+        # Overview representation
+        overview_dto = to_overview_dto(res)
+
+        # Portfolio representation
+        portfolio = build_portfolio_analysis([("Sales_Commissions.yxmd", "Sales_Commissions.yxmd", res)])
+        portfolio_wf = portfolio.workflows[0]
+
+        assert overview_dto.business_summary is not None
+        assert portfolio_wf.business_purpose == overview_dto.business_summary.business_purpose
+        assert portfolio_wf.business_purpose == clean_purpose
+        assert portfolio_wf.business_function == overview_dto.business_summary.business_function
+
+    def test_malformed_or_unstructured_llm_output_uses_deterministic_fallback(self):
+        """7. Malformed/unstructured LLM output uses deterministic fallback instead of persisting raw response."""
+        wf = Workflow(metadata=WorkflowMetadata(name="Regulatory Compliance Filing", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(
+            business_purpose="Generates regulatory compliance filings and statutory reports.",
+            one_line_purpose="Legal compliance",
+            why_it_matters="Statutory compliance",
+        )
+
+        unstructured_reasoning = (
+            "To determine the primary business function, let’s analyze the facts step by step according to Tier 1: "
+            "The workflow name mentions Regulatory Compliance, which maps to Legal. "
+            "Given these observations, the classification is Legal."
+        )
+
+        client = FakeLLMClient(response=unstructured_reasoning, is_available=True)
+        gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+
+        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_unstructured_fallback_test")
+        assert res.source == "deterministic_fallback"
+        # Must NEVER store the unstructured reasoning as business purpose
+        assert res.business_purpose != unstructured_reasoning
+        assert "To determine the primary business function" not in res.business_purpose
+        assert "Tier 1" not in res.business_purpose
+        assert res.business_area_tag == "Legal"
+
+    def test_no_additional_llm_call_when_opening_workflow_overview(self):
+        """8. No additional LLM call occurs when opening Workflow Overview."""
+        res = _create_mock_canonical_result(
+            analysis_id="wf_no_call_test",
+            name="Overview_Test",
+            business_purpose="Concise existing purpose text.",
+            business_area_tag="Underwriting",
+            tag_source="llm",
+        )
+
+        with patch("backend.awa.llm.client.FakeLLMClient.generate") as mock_gen:
+            dto = to_overview_dto(res)
+            assert mock_gen.call_count == 0
+            assert dto.business_summary is not None
+            assert dto.business_summary.business_purpose == "Concise existing purpose text."
+
+    def test_underwriting_decision_engine_boundary_case_underwriting_purpose_and_tag(self):
+        """9. Underwriting Decision Engine boundary case produces an Underwriting purpose and Underwriting tag."""
+        wf = Workflow(metadata=WorkflowMetadata(name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+
+        payload = json.dumps({
+            "business_purpose": "Supports underwriting decisioning by applying claims submission data, risk rules, and policyholder attributes to generate risk scores used to assess policyholder risk and eligibility.",
+            "business_function": "Underwriting decisioning and risk eligibility assessment",
+            "business_area_tag": "Underwriting",
+        })
+        client = FakeLLMClient(response=payload, is_available=True)
+        gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+
+        output_ev = [{"dataset": "Policyholder_Risk_Scores.xlsx", "columns": ["claim_id", "risk_score"]}]
+        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_uw_boundary_test", output_evidence=output_ev)
+
+        assert res.business_area_tag == "Underwriting"
+        assert "underwriting decisioning" in res.business_purpose.lower()
+        assert "claims submission data" in res.business_purpose.lower()
+        assert "To determine" not in res.business_purpose
+

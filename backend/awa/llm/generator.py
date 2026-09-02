@@ -435,6 +435,119 @@ def extract_comprehensive_workflow_context(
     )
 
 
+DISALLOWED_PURPOSE_INDICATORS: tuple[str, ...] = (
+    "to determine the primary",
+    "let's analyze",
+    "let us analyze",
+    "step by step",
+    "tier 1",
+    "tier 2",
+    "tier 3",
+    "tier 4",
+    "tier 5",
+    "tier 6",
+    "tier 7",
+    "evidence hierarchy",
+    "classification hierarchy",
+    "given these observations",
+    "according to the classification",
+    "rejected business area",
+    "rejected because",
+    "facts provided:",
+    "based on the facts provided",
+    "classification evidence",
+    "prompt instructions",
+    "internal reasoning",
+    "chain of thought",
+    "we classify",
+    "we categorize",
+    "final classification",
+    "primary business function:",
+    "business area tag:",
+    "```json",
+    "```",
+)
+
+
+def _is_clean_business_purpose(text: str | None) -> bool:
+    """Validate that text is a concise, polished business purpose and not LLM reasoning, analysis, or prompt text."""
+    if not text or not isinstance(text, str):
+        return False
+
+    cleaned = text.strip()
+    if not cleaned:
+        return False
+
+    # Disallow raw JSON, arrays, code blocks, or markdown headers
+    if cleaned.startswith("{") or cleaned.startswith("[") or cleaned.endswith("}") or cleaned.endswith("]"):
+        return False
+    if "```" in cleaned:
+        return False
+    if "\n#" in cleaned or "\n- Tier" in cleaned or "\n1. Tier" in cleaned:
+        return False
+
+    # Word count: normally ~40-75 words; enforce boundaries [5, 130] to reject multi-paragraph reasoning dumps
+    words = cleaned.split()
+    if len(words) < 5 or len(words) > 130:
+        return False
+
+    lower_text = cleaned.lower()
+    for indicator in DISALLOWED_PURPOSE_INDICATORS:
+        if indicator in lower_text:
+            return False
+
+    return True
+
+
+def _extract_structured_purpose_payload(raw_response: str | None) -> dict[str, Any] | None:
+    """Extract structured JSON payload containing business_purpose, business_function, and business_area_tag.
+
+    Extracts valid JSON even when the model wraps it in markdown code blocks or includes
+    conversational preamble / thinking before or after the JSON.
+    """
+    if not raw_response or not isinstance(raw_response, str):
+        return None
+
+    text = raw_response.strip()
+    if not text:
+        return None
+
+    # 1. Direct parse if response is clean JSON
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, dict) and "business_purpose" in parsed:
+            return parsed
+    except Exception:
+        pass
+
+    # 2. Extract from markdown code blocks (e.g. ```json ... ```)
+    code_blocks = re.findall(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+    for block in code_blocks:
+        try:
+            parsed = json.loads(block.strip())
+            if isinstance(parsed, dict) and "business_purpose" in parsed:
+                return parsed
+        except Exception:
+            pass
+
+    # 3. Progressive JSON scanning for any object containing "business_purpose"
+    decoder = json.JSONDecoder()
+    pos = 0
+    while True:
+        start = text.find("{", pos)
+        if start == -1:
+            break
+        try:
+            obj, end = decoder.raw_decode(text, idx=start)
+            if isinstance(obj, dict) and "business_purpose" in obj:
+                return obj
+            pos = end
+        except Exception:
+            pos = start + 1
+
+    return None
+
+
 class LLMNarrativeGenerator:
     """High-level orchestration service for narrative generation with caching and fallback."""
 
@@ -541,6 +654,7 @@ class LLMNarrativeGenerator:
         Authoritative single owner of:
         - Structured Business Purpose, Function & Area Tag prompt orchestration
         - Deterministic validation against configured ALLOWED_BUSINESS_AREAS vocabulary
+        - Strict validation that business_purpose contains only concise business description
         - Semantic coherence & conflict resolution between function and tag
         - Guaranteed fallback to deterministic 7-tier classification on failure/unavailability
         """
@@ -553,18 +667,26 @@ class LLMNarrativeGenerator:
         )
 
         wf_name = workflow.metadata.name if (workflow and workflow.metadata) else ""
-        fallback_purpose = business_summary.business_purpose or f"Automated data preparation and analytical process for {wf_name or 'workflow'}."
         det_class = classify_business_area_deterministic(
             output_evidence or [],
-            business_purpose=fallback_purpose,
+            business_purpose=business_summary.business_purpose or "",
             workflow_name=wf_name,
         )
         fallback_tag = det_class.business_area
         fallback_func = classify_business_function_deterministic(
             fallback_tag,
             workflow_name=wf_name,
-            business_purpose=fallback_purpose,
+            business_purpose=business_summary.business_purpose or "",
         )
+
+        # Ensure fallback_purpose is strictly clean and concise
+        if business_summary.business_purpose and _is_clean_business_purpose(business_summary.business_purpose):
+            fallback_purpose = business_summary.business_purpose
+        else:
+            fallback_purpose = (
+                f"Automates {fallback_func.lower()} for {wf_name or 'the workflow'}, "
+                f"processing operational data to generate business deliverables and decision outputs."
+            )
 
         # Guard: If LLM client is unavailable or not configured, return deterministic fallback directly
         if not self.client or not getattr(self.client, "is_available", True):
@@ -592,8 +714,11 @@ class LLMNarrativeGenerator:
 
         cached = self._cache.get(cache_key)
         if cached is not None and isinstance(cached, BusinessPurposeResult):
-            logger.info("[LLM CACHE] type=business_purpose status=HIT")
-            return cached
+            # Double-check cached business_purpose is clean; if stale/dirty, invalidate cache
+            if _is_clean_business_purpose(cached.business_purpose):
+                logger.info("[LLM CACHE] type=business_purpose status=HIT")
+                return cached
+            logger.info("[LLM CACHE] type=business_purpose status=DIRTY_INVALIDATED")
 
         logger.info("[LLM CACHE] type=business_purpose status=MISS")
 
@@ -602,33 +727,23 @@ class LLMNarrativeGenerator:
 
         try:
             raw_response = self.client.generate(system_prompt, user_prompt)
-            cleaned_raw = _clean_narrative_text(raw_response)
-
-            # Strip code fences if returned by LLM
-            cleaned_json = cleaned_raw.strip()
-            if cleaned_json.startswith("```"):
-                lines = cleaned_json.split("\n")
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                cleaned_json = "\n".join(lines).strip()
-
-            try:
-                parsed = json.loads(cleaned_json)
-            except Exception:
-                parsed = None
+            parsed = _extract_structured_purpose_payload(raw_response)
 
             if isinstance(parsed, dict):
                 llm_purpose = str(parsed.get("business_purpose", "")).strip()
                 llm_func = str(parsed.get("business_function", "")).strip()
                 llm_tag = str(parsed.get("business_area_tag", "")).strip()
 
-                if not llm_purpose or len(llm_purpose.split()) < 5:
-                    llm_purpose = fallback_purpose
+                # Clean wrapping quotes if any
+                if (llm_purpose.startswith('"') and llm_purpose.endswith('"')) or (
+                    llm_purpose.startswith("'") and llm_purpose.endswith("'")
+                ):
+                    llm_purpose = llm_purpose[1:-1].strip()
 
                 valid_areas = set(ALLOWED_BUSINESS_AREAS) | {"Other / Unclassified", "UNCLASSIFIED"}
-                if llm_tag in valid_areas:
+
+                # Strictly validate that business_purpose is clean/concise and business_area_tag is allowed
+                if _is_clean_business_purpose(llm_purpose) and llm_tag in valid_areas:
                     # Ingest or infer business_function
                     if not llm_func:
                         llm_func = classify_business_function_deterministic(
@@ -683,50 +798,21 @@ class LLMNarrativeGenerator:
                     )
                     self._cache.set(cache_key, result)
                     logger.info(
-                        "[LLM] business_purpose stored: tag='%s', func='%s', len=%d, conflict=%s",
+                        "[LLM] business_purpose accepted: tag='%s', func='%s', words=%d, conflict=%s",
                         normalized_tag,
                         llm_func,
-                        len(llm_purpose),
+                        len(llm_purpose.split()),
                         conflict,
                     )
                     return result
                 else:
                     logger.warning(
-                        "[LLM] Rejected invalid business_area_tag '%s'. Using deterministic fallback tag '%s'",
-                        llm_tag,
-                        fallback_tag,
+                        "[LLM] Structured output rejected (valid_purpose=%s, valid_tag=%s). Using deterministic fallback.",
+                        _is_clean_business_purpose(llm_purpose),
+                        llm_tag in valid_areas,
                     )
-            elif (
-                cleaned_raw
-                and len(cleaned_raw.split()) >= 8
-                and not cleaned_raw.strip().startswith("{")
-                and not cleaned_raw.strip().startswith("[")
-            ):
-                # LLM returned valid plain text prose (e.g. from mock or legacy text model)
-                tag_from_prose = classify_business_area_deterministic(
-                    output_evidence or [],
-                    business_purpose=cleaned_raw,
-                    workflow_name=wf_name,
-                ).business_area
-                func_from_prose = classify_business_function_deterministic(
-                    tag_from_prose,
-                    workflow_name=wf_name,
-                    business_purpose=cleaned_raw,
-                )
-                result = BusinessPurposeResult(
-                    business_purpose=cleaned_raw,
-                    business_function=func_from_prose,
-                    business_area_tag=tag_from_prose,
-                    source="llm",
-                    business_area_taxonomy_version=BUSINESS_AREA_TAXONOMY_VERSION,
-                    classification_conflict=False,
-                    classification_evidence=[f"Derived from plain text LLM prose: {tag_from_prose}"],
-                    model=self.client.model_name,
-                    prompt_version=WORKFLOW_PURPOSE_PROMPT_VERSION,
-                )
-                self._cache.set(cache_key, result)
-                logger.info("[LLM] business_purpose plain prose accepted: tag='%s', len=%d", tag_from_prose, len(cleaned_raw))
-                return result
+            else:
+                logger.warning("[LLM] Output did not contain valid structured JSON. Using deterministic fallback.")
         except Exception as exc:
             logger.warning("[LLM] generate_business_purpose failed: %s. Using deterministic fallback.", exc)
 
