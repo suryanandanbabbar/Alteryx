@@ -114,9 +114,10 @@ def test_validation_rejects_score_level_mismatch():
             "shared_sources": {"assessment": "LOW", "evidence": "none", "rationale": "none"},
         },
     }
-    is_valid, reason = _validate_criticality_assessment(payload, evidence)
+    is_valid, stage, reason = _validate_criticality_assessment(payload, evidence)
     assert not is_valid
-    assert "does not match level" in reason
+    assert stage == "schema_validation"
+    assert "level_mismatch" in reason
 
 
 def test_validation_rejects_unsupported_customer_impact():
@@ -140,9 +141,10 @@ def test_validation_rejects_unsupported_customer_impact():
             "customer_impact": {"assessment": "HIGH", "evidence": "claims direct customer impact", "rationale": "customer affected"},
         },
     }
-    is_valid, reason = _validate_criticality_assessment(payload, evidence)
+    is_valid, stage, reason = _validate_criticality_assessment(payload, evidence)
     assert not is_valid
-    assert "customer_impact assessed as HIGH without customer/claimant impact signals" in reason
+    assert stage == "evidence_validation"
+    assert "unsupported_customer_impact" in reason
 
 
 def test_validation_rejects_unsupported_downstream_dependency():
@@ -165,9 +167,10 @@ def test_validation_rejects_unsupported_downstream_dependency():
             "shared_sources": {"assessment": "LOW", "evidence": "none", "rationale": "none"},
         },
     }
-    is_valid, reason = _validate_criticality_assessment(payload, evidence)
+    is_valid, stage, reason = _validate_criticality_assessment(payload, evidence)
     assert not is_valid
-    assert "downstream_dependency assessed as HIGH but workflow has 0 downstream consumers" in reason
+    assert stage == "evidence_validation"
+    assert "unsupported_downstream_dependency" in reason
 
 
 def test_validation_rejects_generic_filler_and_prompt_leakage():
@@ -190,9 +193,10 @@ def test_validation_rejects_generic_filler_and_prompt_leakage():
             "shared_sources": {"assessment": "LOW", "evidence": "none", "rationale": "none"},
         },
     }
-    is_valid, reason = _validate_criticality_assessment(payload, evidence)
+    is_valid, stage, reason = _validate_criticality_assessment(payload, evidence)
     assert not is_valid
-    assert "generic filler" in reason
+    assert stage == "schema_validation"
+    assert "generic_filler" in reason
 
 
 # ---------------------------------------------------------------------------

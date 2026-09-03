@@ -267,9 +267,10 @@ class TestLLMCriticalityAssessorQuality:
     def test_llm_level_consistent_with_score_thresholds(self):
         ev = _make_evidence()
         invalid_payload = _make_valid_llm_payload(score=20.0, level="HIGH")
-        is_valid, reason = _validate_criticality_assessment(invalid_payload, ev)
+        is_valid, stage, reason = _validate_criticality_assessment(invalid_payload, ev)
         assert not is_valid
-        assert "does not match level" in reason
+        assert stage == "schema_validation"
+        assert "level_mismatch" in reason
 
     # 11. Unsupported customer/regulatory/client/financial claims are rejected
     def test_unsupported_customer_claims_rejected(self):
@@ -285,9 +286,10 @@ class TestLLMCriticalityAssessorQuality:
             "evidence": "Invented claimant outcomes",
             "rationale": "High impact",
         }
-        is_valid, reason = _validate_criticality_assessment(payload, ev)
+        is_valid, stage, reason = _validate_criticality_assessment(payload, ev)
         assert not is_valid
-        assert "customer_impact assessed as HIGH without customer/claimant impact signals" in reason
+        assert stage == "evidence_validation"
+        assert "unsupported_customer_impact" in reason
 
     # 12. Two workflows with similar technical metrics receive different LLM criticality assessments
     def test_different_business_purposes_receive_different_assessments(self):
@@ -642,24 +644,31 @@ class TestLLMCriticalityAssessorQuality:
         assert res.criticality_level == "HIGH"
         assert "statutory balance sheet" in res.criticality_justification
 
-    # 23. Local Reproduction Harness with Sanitized Fixtures
+    # 23. Local Reproduction Harness with Sanitized Fixtures using FakeLLMClient
     @pytest.mark.parametrize(
-        "fixture_name,raw_response,expected_accepted",
+        "fixture_name,raw_response,expected_source",
         [
-            ("plain_json", json.dumps(_make_valid_llm_payload(score=65.0, level="MEDIUM", justification="This is a valid business explanation describing the monthly reconciliation process for local branch accounting.", has_downstream=True)), True),
-            ("code_fence_json", f"```json\n{json.dumps(_make_valid_llm_payload(score=65.0, level='MEDIUM', justification='This is a valid business explanation describing the monthly reconciliation process for local branch accounting.', has_downstream=True))}\n```", True),
-            ("nested_wrapper", json.dumps({"criticality_assessment": _make_valid_llm_payload(score=65.0, level="MEDIUM", justification="This is a valid business explanation describing the monthly reconciliation process for local branch accounting.", has_downstream=True)}), True),
-            ("malformed_json", "{\"criticality_score\": 80, not_closed", False),
-            ("incomplete_json", json.dumps({"criticality_score": 75.0}), False),
-            ("arbitrary_prose", "The workflow scored 85 out of 100 on our internal evaluation scale.", False),
+            ("plain_json", json.dumps(_make_valid_llm_payload(score=65.0, level="MEDIUM", justification="This is a valid business explanation describing the monthly reconciliation process for local branch accounting.", has_downstream=True)), "llm"),
+            ("code_fence_json", f"```json\n{json.dumps(_make_valid_llm_payload(score=65.0, level='MEDIUM', justification='This is a valid business explanation describing the monthly reconciliation process for local branch accounting.', has_downstream=True))}\n```", "llm"),
+            ("nested_wrapper", json.dumps({"criticality_assessment": _make_valid_llm_payload(score=65.0, level="MEDIUM", justification="This is a valid business explanation describing the monthly reconciliation process for local branch accounting.", has_downstream=True)}), "llm"),
+            ("malformed_json", "{\"criticality_score\": 80, not_closed", "deterministic_fallback"),
+            ("incomplete_json", json.dumps({"criticality_score": 75.0}), "deterministic_fallback"),
+            ("arbitrary_prose", "The workflow scored 85 out of 100 on our internal evaluation scale.", "deterministic_fallback"),
         ],
     )
-    def test_reproduction_harness_sanitized_fixtures(self, fixture_name, raw_response, expected_accepted):
-        parsed = _extract_structured_criticality_payload(raw_response)
-        if expected_accepted:
-            assert parsed is not None, f"Fixture {fixture_name} failed to extract structured payload"
-            assert "criticality_score" in parsed
-            assert "criticality_level" in parsed
-            assert "criticality_justification" in parsed
+    def test_reproduction_harness_sanitized_fixtures(self, fixture_name, raw_response, expected_source):
+        from awa.llm.client import FakeLLMClient
+
+        fake_client = FakeLLMClient(response=raw_response, model_name="azure-llama")
+        gen = LLMNarrativeGenerator(client=fake_client)
+        ev = _make_evidence(
+            workflow_id=f"wf_fixture_{fixture_name}",
+            downstream_consumers=["Downstream_Process.yxmd"],
+        )
+        res = gen.generate_criticality_assessment(ev)
+        assert res.source == expected_source, f"Fixture {fixture_name} produced source='{res.source}', expected '{expected_source}'"
+        if expected_source == "llm":
+            assert res.criticality_score == 65.0
+            assert res.criticality_level == "MEDIUM"
         else:
-            assert parsed is None, f"Fixture {fixture_name} should have returned None but returned {parsed}"
+            assert res.criticality_score == ev.deterministic_reference_score

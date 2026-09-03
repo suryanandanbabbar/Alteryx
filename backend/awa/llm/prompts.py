@@ -16,7 +16,7 @@ CONCLUSIONS_PROMPT_VERSION = "2.0"
 TOOL_SPECIFICATIONS_PROMPT_VERSION = "1.0"
 PROCESS_STAGES_PROMPT_VERSION = "2.0"
 STTM_PROMPT_VERSION = "1.0"
-CRITICALITY_ASSESSMENT_PROMPT_VERSION = "3.1"
+CRITICALITY_ASSESSMENT_PROMPT_VERSION = "3.2"
 
 # ---------------------------------------------------------------------------
 # 1. Tool "What It Does" & Tool Specifications Prompts

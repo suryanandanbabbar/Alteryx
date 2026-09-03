@@ -753,96 +753,75 @@ BANNED_CRITICALITY_BOILERPLATE: tuple[str, ...] = (
 )
 
 
-def _normalize_criticality_dict(d: dict[str, Any]) -> dict[str, Any] | None:
-    """Normalize and unwrap known container keys and key casings if structurally complete."""
+def _normalize_criticality_dict(d: dict[str, Any]) -> dict[str, Any]:
+    """Normalize and unwrap known container keys and key casings without early schema gating."""
     if not isinstance(d, dict):
-        return None
+        return {}
 
     # 1. If wrapped in known container key, unwrap first
     for k in KNOWN_CONTAINER_KEYS:
         if k in d and isinstance(d[k], dict):
-            sub = _normalize_criticality_dict(d[k])
-            if sub is not None:
-                return sub
-
-    # 2. Extract and normalize fields
-    score = d.get("criticality_score")
-    if score is None:
-        score = d.get("criticalityScore")
-    if score is None and ("criticality_level" in d or "criticalityLevel" in d or "level" in d):
-        score = d.get("score")
-
-    level = d.get("criticality_level") or d.get("criticalityLevel") or d.get("level")
-    justification = (
-        d.get("criticality_justification")
-        or d.get("criticalityJustification")
-        or d.get("justification")
-    )
-
-    # Must be structurally complete with at least score, level, and justification
-    if score is None or level is None or justification is None:
-        return None
-
-    # Normalize score if string representation of float/int
-    if isinstance(score, str):
-        try:
-            score = float(score.split("/")[0].strip())
-        except (ValueError, TypeError):
-            return None
-    elif not isinstance(score, (int, float)):
-        return None
-
-    if math.isnan(score) or math.isinf(score):
-        return None
+            return _normalize_criticality_dict(d[k])
 
     normalized = dict(d)
-    normalized["criticality_score"] = float(score)
-    normalized["criticality_level"] = str(level).strip().upper()
-    normalized["criticality_justification"] = str(justification).strip()
 
-    # Normalize remaining expected prose keys if camelCased or aliased
+    # 2. Normalize key aliases without dropping missing keys
+    if "criticality_score" not in normalized:
+        score_val = d.get("criticalityScore")
+        if score_val is None:
+            score_val = d.get("score")
+        if score_val is not None:
+            normalized["criticality_score"] = score_val
+
+    if "criticality_level" not in normalized:
+        level_val = d.get("criticalityLevel") or d.get("level")
+        if level_val is not None:
+            normalized["criticality_level"] = level_val
+
+    if "criticality_justification" not in normalized:
+        just_val = d.get("criticalityJustification") or d.get("justification")
+        if just_val is not None:
+            normalized["criticality_justification"] = just_val
+
     if "business_consequence" not in normalized:
-        normalized["business_consequence"] = d.get("businessConsequence") or d.get("consequence") or ""
+        conseq_val = d.get("businessConsequence") or d.get("consequence")
+        if conseq_val is not None:
+            normalized["business_consequence"] = conseq_val
+
     if "dependency_impact" not in normalized:
-        normalized["dependency_impact"] = d.get("dependencyImpact") or ""
+        dep_val = d.get("dependencyImpact")
+        if dep_val is not None:
+            normalized["dependency_impact"] = dep_val
+
     if "affected_scope" not in normalized:
-        normalized["affected_scope"] = d.get("affectedScope") or d.get("scope") or ""
+        scope_val = d.get("affectedScope") or d.get("scope")
+        if scope_val is not None:
+            normalized["affected_scope"] = scope_val
+
     if "migration_implication" not in normalized:
-        normalized["migration_implication"] = d.get("migrationImplication") or ""
+        mig_val = d.get("migrationImplication")
+        if mig_val is not None:
+            normalized["migration_implication"] = mig_val
+
+    if "confidence" not in normalized:
+        conf_val = d.get("confidence")
+        if conf_val is not None:
+            normalized["confidence"] = conf_val
+
     if "factor_assessments" not in normalized:
-        normalized["factor_assessments"] = d.get("factorAssessments") or d.get("factors") or {}
+        fa_val = d.get("factorAssessments") or d.get("factors")
+        if fa_val is not None:
+            normalized["factor_assessments"] = fa_val
+
+    # Normalize numeric score if string
+    raw_score = normalized.get("criticality_score")
+    if isinstance(raw_score, str):
+        try:
+            normalized["criticality_score"] = float(raw_score.split("/")[0].strip())
+        except (ValueError, TypeError):
+            pass
 
     return normalized
-
-
-def _try_parse_json_candidate(candidate_str: str) -> dict[str, Any] | None:
-    """Attempt to parse a candidate JSON string, with safe isolated trailing comma repair."""
-    s = candidate_str.strip()
-    if not (s.startswith("{") and s.endswith("}")):
-        return None
-
-    # Step A: Direct standard json.loads
-    try:
-        obj = json.loads(s)
-        if isinstance(obj, dict):
-            norm = _normalize_criticality_dict(obj)
-            if norm is not None:
-                return norm
-    except Exception:
-        pass
-
-    # Step B: Safe trailing comma repair isolated strictly to this candidate block
-    try:
-        repaired = re.sub(r",\s*([\]}])", r"\1", s)
-        obj = json.loads(repaired)
-        if isinstance(obj, dict):
-            norm = _normalize_criticality_dict(obj)
-            if norm is not None:
-                return norm
-    except Exception:
-        pass
-
-    return None
 
 
 def _find_balanced_json_candidates(text: str) -> list[str]:
@@ -881,101 +860,129 @@ def _find_balanced_json_candidates(text: str) -> list[str]:
     return candidates
 
 
-def _extract_structured_criticality_payload(raw_response: Any) -> dict[str, Any] | None:
-    """Extract structured JSON payload containing complete criticality assessment fields."""
+def _extract_and_normalize_criticality(raw_response: Any) -> tuple[dict[str, Any] | None, str, str]:
+    """Extract and normalize structured criticality JSON candidate, returning (dict, failed_stage, reason)."""
     if raw_response is None:
-        return None
+        return None, "client_content", "empty_response"
 
     # If already a dictionary
     if isinstance(raw_response, dict):
-        return _normalize_criticality_dict(raw_response)
+        norm = _normalize_criticality_dict(raw_response)
+        return norm, "success", ""
 
     # If wrapper object with .content or .text
     if hasattr(raw_response, "content") and isinstance(getattr(raw_response, "content"), (str, dict)):
-        return _extract_structured_criticality_payload(getattr(raw_response, "content"))
+        return _extract_and_normalize_criticality(getattr(raw_response, "content"))
     if hasattr(raw_response, "text") and isinstance(getattr(raw_response, "text"), (str, dict)):
-        return _extract_structured_criticality_payload(getattr(raw_response, "text"))
+        return _extract_and_normalize_criticality(getattr(raw_response, "text"))
 
     if not isinstance(raw_response, str):
-        return None
+        return None, "client_content", f"unsupported_type_{type(raw_response).__name__}"
 
     text = raw_response.strip()
     if not text:
-        return None
+        return None, "client_content", "empty_text"
 
-    # Handle <think> tags if emitted by reasoning models
+    # Strip <think> tags if emitted by reasoning models
     if "<think>" in text.lower() and "</think>" in text.lower():
-        text_after_think = re.sub(r"^[\s\S]*?</think>\s*", "", text, flags=re.IGNORECASE).strip()
-        if text_after_think:
-            res = _try_parse_json_candidate(text_after_think)
-            if res is not None:
-                return res
-            text = text_after_think
+        text = re.sub(r"^[\s\S]*?</think>\s*", "", text, flags=re.IGNORECASE).strip()
+        if not text:
+            return None, "client_content", "empty_text_after_think"
 
-    # 1. Direct candidate check if entire string is JSON
-    res = _try_parse_json_candidate(text)
-    if res is not None:
-        return res
+    # Collect candidates in order of precision
+    candidates: list[str] = []
 
-    # 2. Extract from markdown code blocks
+    # 1. Direct candidate if entire string is bounded by { }
+    if text.startswith("{") and text.endswith("}"):
+        candidates.append(text)
+
+    # 2. Code blocks
     code_blocks = re.findall(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
     for block in code_blocks:
-        res = _try_parse_json_candidate(block.strip())
-        if res is not None:
-            return res
+        b = block.strip()
+        if b and b not in candidates:
+            candidates.append(b)
 
-    # 3. Find balanced JSON candidate objects from surrounding text
+    # 3. Balanced JSON candidate objects in surrounding text
     for cand in _find_balanced_json_candidates(text):
-        res = _try_parse_json_candidate(cand.strip())
-        if res is not None:
-            return res
+        c = cand.strip()
+        if c and c not in candidates:
+            candidates.append(c)
 
-    # 4. Progressive JSON scanning using JSONDecoder as final candidate check
-    decoder = json.JSONDecoder()
-    pos = 0
-    while True:
-        start = text.find("{", pos)
-        if start == -1:
-            break
+    if not candidates:
+        return None, "json_candidate", "no_balanced_object"
+
+    # Parse candidate strings
+    for cand_str in candidates:
+        # Step A: Strict json.loads
         try:
-            obj, end = decoder.raw_decode(text, idx=start)
-            if isinstance(obj, dict):
-                norm = _normalize_criticality_dict(obj)
-                if norm is not None:
-                    return norm
-            pos = end
+            parsed = json.loads(cand_str)
+            if isinstance(parsed, dict):
+                norm = _normalize_criticality_dict(parsed)
+                return norm, "success", ""
         except Exception:
-            pos = start + 1
+            pass
 
-    return None
+        # Step B: Safe isolated trailing comma repair
+        try:
+            repaired = re.sub(r",\s*([\]}])", r"\1", cand_str)
+            parsed = json.loads(repaired)
+            if isinstance(parsed, dict):
+                norm = _normalize_criticality_dict(parsed)
+                return norm, "success", ""
+        except Exception:
+            pass
+
+    return None, "json_parse", "invalid_json"
+
+
+def _extract_structured_criticality_payload(raw_response: Any) -> dict[str, Any] | None:
+    """Extract structured JSON payload containing criticality fields (backward compatibility)."""
+    payload, _, _ = _extract_and_normalize_criticality(raw_response)
+    return payload
 
 
 def _validate_criticality_assessment(
     parsed: dict[str, Any], evidence: CriticalityEvidencePackage
-) -> tuple[bool, str]:
-    """Validate LLM criticality output against evidence integrity and calibration rules."""
-    if not isinstance(parsed, dict):
-        return False, "Response is not a dictionary"
+) -> tuple[bool, str, str]:
+    """Validate LLM criticality output against schema rules and evidence grounding.
 
-    # 1. Score & Level Checks
+    Returns:
+        (is_valid, failed_stage, reason)
+    """
+    if not isinstance(parsed, dict):
+        return False, "schema_validation", "response_is_not_a_dictionary"
+
+    # 1. Score checks
     raw_score = parsed.get("criticality_score")
-    if raw_score is None or not isinstance(raw_score, (int, float)):
-        return False, f"Missing or non-numeric criticality_score: {raw_score}"
+    if raw_score is None:
+        return False, "schema_validation", "missing_field:criticality_score"
+    if not isinstance(raw_score, (int, float)):
+        return False, "schema_validation", f"non_numeric_score:{type(raw_score).__name__}"
 
     score = float(raw_score)
     if math.isnan(score) or math.isinf(score) or score < 0.0 or score > 100.0:
-        return False, f"criticality_score out of range [0, 100]: {score}"
+        return False, "schema_validation", f"score_out_of_range:{score}"
 
-    level = str(parsed.get("criticality_level", "")).upper()
+    # 2. Level checks
+    raw_level = parsed.get("criticality_level")
+    if not raw_level:
+        return False, "schema_validation", "missing_field:criticality_level"
+
+    level = str(raw_level).upper().strip()
     if level not in ("LOW", "MEDIUM", "HIGH"):
-        return False, f"Invalid criticality_level: {level}"
+        return False, "schema_validation", f"invalid_level:{level}"
 
-    # Verify score-level calibration (0-34: LOW, 35-69: MEDIUM, 70-100: HIGH)
+    # Score-level calibration brackets (0-34: LOW, 35-69: MEDIUM, 70-100: HIGH)
     expected_level = "LOW" if score <= 34.0 else ("MEDIUM" if score <= 69.0 else "HIGH")
     if level != expected_level:
-        return False, f"Score {score} does not match level '{level}' (expected '{expected_level}')"
+        return (
+            False,
+            "schema_validation",
+            f"level_mismatch:score_{score:.1f}_expected_{expected_level}_got_{level}",
+        )
 
-    # 2. Required prose fields
+    # 3. Required prose fields
     required_prose = [
         "criticality_justification",
         "business_consequence",
@@ -986,13 +993,13 @@ def _validate_criticality_assessment(
     for field in required_prose:
         val = parsed.get(field)
         if not val or not isinstance(val, str) or len(val.strip()) < 5:
-            return False, f"Missing or empty required field: {field}"
+            return False, "schema_validation", f"missing_field:{field}"
 
     justification = str(parsed.get("criticality_justification", "")).strip()
     if len(justification.split()) < 15:
-        return False, f"criticality_justification too short: {len(justification.split())} words"
+        return False, "schema_validation", f"justification_too_short:{len(justification.split())}_words"
 
-    # 3. Anti-hallucination / Prompt Leakage / Banned Boilerplate
+    # 4. Anti-hallucination / Prompt Leakage / Banned Boilerplate
     lower_just = justification.lower()
     leakage_terms = [
         "tier 1", "tier 2", "tier 3", "prompt version", "as an ai", "system prompt",
@@ -1000,11 +1007,11 @@ def _validate_criticality_assessment(
     ]
     for lt in leakage_terms:
         if lt in lower_just:
-            return False, f"Detected leakage term '{lt}' in justification"
+            return False, "schema_validation", f"prompt_leakage:{lt}"
 
     for bp in BANNED_CRITICALITY_BOILERPLATE:
         if bp in lower_just:
-            return False, f"Detected banned boilerplate phrase '{bp}' in justification"
+            return False, "schema_validation", f"banned_boilerplate:{bp}"
 
     generic_fillers = [
         "this workflow is very important to the business",
@@ -1013,18 +1020,23 @@ def _validate_criticality_assessment(
     ]
     for gf in generic_fillers:
         if gf in lower_just:
-            return False, f"Detected generic filler '{gf}'"
+            return False, "schema_validation", f"generic_filler:{gf}"
 
-    # 4. Factor Assessments Check & Grounding
+    # 5. Factor assessments schema completeness
     factors = parsed.get("factor_assessments")
     if not isinstance(factors, dict) or len(factors) < 5:
-        return False, "Missing or incomplete factor_assessments"
+        return False, "schema_validation", "missing_field:factor_assessments"
 
+    # 6. Evidence Grounding Checks
     downstream_fa = factors.get("downstream_dependency")
     if isinstance(downstream_fa, dict):
         fa_rating = str(downstream_fa.get("assessment", "")).upper()
         if fa_rating in ("HIGH", "MEDIUM") and not evidence.downstream_consumers:
-            return False, f"downstream_dependency assessed as {fa_rating} but workflow has 0 downstream consumers in evidence"
+            return (
+                False,
+                "evidence_validation",
+                f"unsupported_downstream_dependency:assessed_{fa_rating}_with_0_consumers",
+            )
 
     cust_fa = factors.get("customer_impact")
     if isinstance(cust_fa, dict):
@@ -1036,7 +1048,11 @@ def _validate_criticality_assessment(
             w in (evidence.business_purpose or "").lower() or w in (evidence.business_function or "").lower()
             for w in ("customer", "claimant", "policyholder")
         ):
-            return False, "customer_impact assessed as HIGH without customer/claimant impact signals in evidence"
+            return (
+                False,
+                "evidence_validation",
+                "unsupported_customer_impact:assessed_HIGH_without_signals",
+            )
 
     client_fa = factors.get("client_impact")
     if isinstance(client_fa, dict):
@@ -1048,9 +1064,13 @@ def _validate_criticality_assessment(
             w in (evidence.business_purpose or "").lower() or w in (evidence.business_function or "").lower()
             for w in ("client", "broker", "agent", "producer", "distributor")
         ):
-            return False, "client_impact assessed as HIGH without client/broker/partner signals in evidence"
+            return (
+                False,
+                "evidence_validation",
+                "unsupported_client_impact:assessed_HIGH_without_signals",
+            )
 
-    return True, "Valid"
+    return True, "success", ""
 
 
 def compose_deterministic_criticality_fallback(
@@ -1702,10 +1722,10 @@ class LLMNarrativeGenerator:
                 raw_snippet,
             )
 
-            parsed = _extract_structured_criticality_payload(raw_response)
+            parsed, extract_stage, extract_reason = _extract_and_normalize_criticality(raw_response)
 
-            if isinstance(parsed, dict):
-                is_valid, reason = _validate_criticality_assessment(parsed, evidence)
+            if parsed is not None:
+                is_valid, val_stage, val_reason = _validate_criticality_assessment(parsed, evidence)
                 if is_valid:
                     raw_score = float(parsed["criticality_score"])
                     raw_level = str(parsed["criticality_level"]).upper()
@@ -1754,10 +1774,16 @@ class LLMNarrativeGenerator:
                     )
                     return result
                 else:
-                    logger.warning("[LLM CRITICALITY] Criticality assessment validation rejected: stage=validation reason=%s. Using fallback.", reason)
+                    logger.warning(
+                        "[LLM CRITICALITY] Criticality assessment validation rejected: stage=%s reason=%s. Using fallback.",
+                        val_stage,
+                        val_reason,
+                    )
             else:
                 logger.warning(
-                    "[LLM CRITICALITY] Output did not contain valid structured JSON for criticality. stage=extraction raw_type=%s length=%d. Using fallback.",
+                    "[LLM CRITICALITY] Output did not contain valid structured JSON for criticality. stage=%s reason=%s raw_type=%s length=%d. Using fallback.",
+                    extract_stage,
+                    extract_reason,
                     raw_type,
                     raw_len,
                 )
