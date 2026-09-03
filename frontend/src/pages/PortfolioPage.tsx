@@ -91,6 +91,15 @@ const CONFIGURED_BUSINESS_AREAS: DomainConfig[] = [
   },
 ];
 
+const OTHER_BUSINESS_AREA: DomainConfig = {
+  name: 'Other / Unclassified',
+  icon: Layers,
+  color: '#94a3b8',
+  subtleBg: 'rgba(148, 163, 184, 0.08)',
+  borderColor: 'rgba(148, 163, 184, 0.25)',
+  description: 'These workflows could not be confidently associated with a recognised business area based on the available workflow output evidence.',
+};
+
 const DEFAULT_BUSINESS_AREA_DESCRIPTIONS: Record<string, string> = {
   'Claims & Risk':
     'Claims & Risk business area encompasses multiple workflows that collectively analyse claims performance, exposure, policy information, payments, and litigation or risk-related outcomes.',
@@ -102,6 +111,8 @@ const DEFAULT_BUSINESS_AREA_DESCRIPTIONS: Record<string, string> = {
     'Underwriting business area encompasses workflows that support risk assessment, policy evaluation, underwriting decisions, pricing inputs, and portfolio analysis.',
   'Actuarial':
     'Actuarial business area encompasses workflows that support actuarial valuation, loss reserving methodologies (e.g. triangulation, IBNR development), capital modeling, experience studies, and rate filing indications.',
+  'Other / Unclassified':
+    'These workflows could not be confidently associated with a recognised business area based on the available workflow output evidence.',
 };
 
 // Color styling for deterministic complexity and criticality levels (HIGH -> Green, MEDIUM -> Yellow, LOW -> Red)
@@ -748,13 +759,18 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
       'Underwriting': 0,
       'Sales & Distribution': 0,
       'Actuarial': 0,
+      'Other / Unclassified': 0,
     };
+
+    const primaryKeys = new Set(['Claims & Risk', 'Legal', 'Underwriting', 'Sales & Distribution', 'Actuarial']);
 
     for (const w of portfolio.workflows) {
       if (w.status === 'SUCCESS') {
         const rawTag = w.business_area_tag || w.business_area?.business_area;
-        if (rawTag && counts[rawTag] !== undefined) {
+        if (rawTag && primaryKeys.has(rawTag)) {
           counts[rawTag]++;
+        } else {
+          counts['Other / Unclassified']++;
         }
       }
     }
@@ -762,16 +778,23 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
     return counts;
   }, [portfolio.workflows]);
 
-  // Determine visible business area cards: Exactly the 5 configured business areas
+  // Determine visible business area cards: Exactly the 5 configured business areas, plus Other ONLY if count > 0
   const visibleAreas = useMemo(() => {
+    if (areaCounts['Other / Unclassified'] > 0) {
+      return [...CONFIGURED_BUSINESS_AREAS, OTHER_BUSINESS_AREA];
+    }
     return CONFIGURED_BUSINESS_AREAS;
-  }, []);
+  }, [areaCounts]);
 
   // Workflows for currently selected domain (Level 2)
   const currentAreaWorkflows = useMemo(() => {
     if (!currentArea) return [];
+    const primaryKeys = new Set(['Claims & Risk', 'Legal', 'Underwriting', 'Sales & Distribution', 'Actuarial']);
     return portfolio.workflows.filter((w) => {
       const rawTag = w.business_area_tag || w.business_area?.business_area;
+      if (currentArea === 'Other / Unclassified') {
+        return !rawTag || rawTag === 'Other / Unclassified' || !primaryKeys.has(rawTag);
+      }
       return rawTag === currentArea;
     });
   }, [portfolio.workflows, currentArea]);

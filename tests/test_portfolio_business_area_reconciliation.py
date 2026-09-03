@@ -58,6 +58,8 @@ def _make_dummy_canonical_result(
         res.business_summary.business_purpose = business_purpose
         res.business_summary.business_function = business_function
         res.business_summary.business_area_tag = business_area_tag
+        if business_area_tag:
+            res.business_summary.business_area_tag_source = "llm"
     return res
 
 
@@ -188,10 +190,13 @@ class TestBusinessAreaReconciliation:
         assert portfolio.workflow_count == 7
         assert portfolio.metrics.successful_workflows == 7
 
-        # Invariant: All 5 business area groups materialized
-        assert len(portfolio.business_areas) == 5
+        # Invariant: 5 configured business area groups + 1 conditional Other / Unclassified group materialized
+        assert len(portfolio.business_areas) == 6
         group_names = [g.business_area for g in portfolio.business_areas]
-        assert set(group_names) == set(CONFIGURED_PORTFOLIO_BUSINESS_AREAS)
+        assert set(group_names) == set(ALL_PORTFOLIO_BUSINESS_AREAS)
+        other_group = next(g for g in portfolio.business_areas if g.business_area == "Other / Unclassified")
+        assert other_group.workflow_count == 2
+        assert len(other_group.workflows) == 2
 
         # Expected counts
         counts = portfolio.business_area_counts
@@ -616,5 +621,41 @@ class TestBusinessAreaReconciliation:
         assert "Underwriting Eligibility Filter" in ev["container_titles"]
         assert any("UnderwritingScore" in f for f in ev["tool_configurations"])
         assert "Compute final underwriting score" in ev["tool_annotations"]
+
+    def test_other_unclassified_conditional_materialization_zero_count(self):
+        """When 0 workflows are unclassified, Other / Unclassified is NOT materialized in business_areas."""
+        w1 = _make_dummy_canonical_result("wf1", "Claims.yxmd", "Claims & Risk", "Claims", "Claims handling")
+        w2 = _make_dummy_canonical_result("wf2", "Actuarial.yxmd", "Actuarial", "Actuarial", "Loss reserving")
+        portfolio = build_portfolio_analysis([
+            ("Claims.yxmd", "Claims.yxmd", w1),
+            ("Actuarial.yxmd", "Actuarial.yxmd", w2),
+        ])
+
+        assert portfolio.business_area_counts["Other / Unclassified"] == 0
+        assert len(portfolio.business_areas) == 5
+        group_names = [g.business_area for g in portfolio.business_areas]
+        assert "Other / Unclassified" not in group_names
+        assert set(group_names) == set(CONFIGURED_PORTFOLIO_BUSINESS_AREAS)
+
+    def test_other_unclassified_conditional_materialization_positive_count(self):
+        """When unclassifiable workflows exist, Other / Unclassified is conditionally materialized."""
+        w1 = _make_dummy_canonical_result("wf1", "Claims.yxmd", "Claims & Risk", "Claims", "Claims handling")
+        w_other1 = _make_dummy_canonical_result("wf_other1", "Generic_XML.yxmd", "Other / Unclassified", "", "Parses XML logs")
+        w_other2 = _make_dummy_canonical_result("wf_other2", "DB_Migration.yxmd", "Other / Unclassified", "", "Test harness")
+
+        portfolio = build_portfolio_analysis([
+            ("Claims.yxmd", "Claims.yxmd", w1),
+            ("Generic_XML.yxmd", "Generic_XML.yxmd", w_other1),
+            ("DB_Migration.yxmd", "DB_Migration.yxmd", w_other2),
+        ])
+
+        assert portfolio.business_area_counts["Other / Unclassified"] == 2
+        assert len(portfolio.business_areas) == 6
+        group_names = [g.business_area for g in portfolio.business_areas]
+        assert "Other / Unclassified" in group_names
+        other_group = next(g for g in portfolio.business_areas if g.business_area == "Other / Unclassified")
+        assert other_group.workflow_count == 2
+        assert len(other_group.workflows) == 2
+        assert {w.workflow_id for w in other_group.workflows} == {"wf_other1", "wf_other2"}
 
 

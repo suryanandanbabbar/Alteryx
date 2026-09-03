@@ -708,6 +708,18 @@ def build_portfolio_analysis(
             )
         )
 
+    # Conditionally materialise 'Other / Unclassified' ONLY if it has workflows (> 0)
+    other_wfs = workflows_by_area.get("Other / Unclassified", [])
+    if other_wfs:
+        business_area_groups.append(
+            BusinessAreaGroup(
+                business_area="Other / Unclassified",
+                workflow_count=len(other_wfs),
+                workflows=other_wfs,
+                description=BUSINESS_AREA_DESCRIPTIONS.get("Other / Unclassified", ""),
+            )
+        )
+
     total_wf = len(summaries)
     attempted_wf = len(success_summaries)
     structured_success = sum(1 for s in success_summaries if s.business_area_tag_source == "llm")
