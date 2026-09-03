@@ -1993,7 +1993,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                             {m.label}
                           </span>
                         </div>
-                        <span
+                        {/* <span
                           style={{
                             fontSize: '12px',
                             fontWeight: '800',
@@ -2001,28 +2001,10 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           }}
                         >
                           {pct}%
-                        </span>
+                        </span> */}
                       </div>
 
-                      <div
-                        style={{
-                          width: '100%',
-                          height: '5px',
-                          borderRadius: '3px',
-                          background: 'rgba(255, 255, 255, 0.08)',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: `${pct}%`,
-                            height: '100%',
-                            background: barFill,
-                            borderRadius: '3px',
-                            transition: 'width 0.3s ease',
-                          }}
-                        />
-                      </div>
+
                     </button>
                   );
                 })}
