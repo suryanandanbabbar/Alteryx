@@ -63,8 +63,8 @@ def sample_portfolio_and_results() -> tuple[PortfolioAnalysis, dict[str, Canonic
 class TestPortfolioXLSXExport:
     """Test suite for ETL Portfolio XLSX export generation and integrity."""
 
-    def test_workbook_has_all_five_required_sheets(self, tmp_path, sample_portfolio_and_results):
-        """Generated workbook must contain exactly the 5 required sheets with exact titles."""
+    def test_workbook_has_all_four_required_sheets(self, tmp_path, sample_portfolio_and_results):
+        """Generated workbook must contain exactly the 4 required sheets in exact order."""
         portfolio, successful_results = sample_portfolio_and_results
         rationalisation = build_rationalisation_analysis(portfolio, successful_results, use_llm=False)
 
@@ -76,15 +76,17 @@ class TestPortfolioXLSXExport:
 
         expected_sheets = [
             "Executive Summary",
-            "Portfolio Summary",
-            "Workflow Features",
+            "Inventory",
             "Technical Inventory",
-            "Rationalisation & Dependencies",
+            "Rationalisation Recommendation",
         ]
         assert wb.sheetnames == expected_sheets
+        assert "Workflow Features" not in wb.sheetnames
+        assert "Portfolio Summary" not in wb.sheetnames
+        assert "Rationalisation & Dependencies" not in wb.sheetnames
 
-    def test_executive_summary_kpi_and_area_counts(self, tmp_path, sample_portfolio_and_results):
-        """Executive Summary must display accurate KPIs and include ALL configured business areas (including 0-workflow areas)."""
+    def test_executive_summary_criticality_and_complexity_profile(self, tmp_path, sample_portfolio_and_results):
+        """Executive Summary D4/D5 must display CRITICALITY PROFILE and E4/E5 COMPLEXITY PROFILE with dynamic H/M/L counts."""
         portfolio, successful_results = sample_portfolio_and_results
         rationalisation = build_rationalisation_analysis(portfolio, successful_results, use_llm=False)
 
@@ -96,6 +98,52 @@ class TestPortfolioXLSXExport:
 
         # Check title
         assert "Enterprise Test Estate" in str(ws["A1"].value)
+
+        # Check D4 / D5 for CRITICALITY PROFILE
+        assert ws["D4"].value == "CRITICALITY PROFILE"
+        h_crit = sum(1 for w in portfolio.workflows if w.criticality_level == "HIGH")
+        m_crit = sum(1 for w in portfolio.workflows if w.criticality_level == "MEDIUM")
+        l_crit = sum(1 for w in portfolio.workflows if w.criticality_level == "LOW")
+        assert ws["D5"].value == f"H:{h_crit} | M:{m_crit} | L:{l_crit}"
+
+        # Check E4 / E5 for COMPLEXITY PROFILE
+        assert ws["E4"].value == "COMPLEXITY PROFILE"
+        h_comp = sum(1 for w in portfolio.workflows if w.complexity_level == "HIGH")
+        m_comp = sum(1 for w in portfolio.workflows if w.complexity_level == "MEDIUM")
+        l_comp = sum(1 for w in portfolio.workflows if w.complexity_level == "LOW")
+        assert ws["E5"].value == f"H:{h_comp} | M:{m_comp} | L:{l_comp}"
+
+    def test_criticality_profile_responds_dynamically(self, tmp_path, sample_portfolio_and_results):
+        """Changing workflow criticality levels dynamically alters Executive Summary D5."""
+        portfolio, successful_results = sample_portfolio_and_results
+        # Explicitly set criticality levels
+        portfolio.workflows[0].criticality_level = "HIGH"
+        portfolio.workflows[1].criticality_level = "HIGH"
+
+        export_file = tmp_path / "dynamic_crit.xlsx"
+        generate_portfolio_excel(portfolio, successful_results, None, export_file)
+
+        wb = openpyxl.load_workbook(export_file)
+        ws = wb["Executive Summary"]
+        assert ws["D4"].value == "CRITICALITY PROFILE"
+        assert ws["D5"].value == "H:2 | M:0 | L:0"
+
+        # Now change one to MEDIUM
+        portfolio.workflows[0].criticality_level = "MEDIUM"
+        generate_portfolio_excel(portfolio, successful_results, None, export_file)
+        wb2 = openpyxl.load_workbook(export_file)
+        assert wb2["Executive Summary"]["D5"].value == "H:1 | M:1 | L:0"
+
+    def test_executive_summary_area_counts(self, tmp_path, sample_portfolio_and_results):
+        """Executive Summary must display accurate KPIs and include ALL configured business areas (including 0-workflow areas)."""
+        portfolio, successful_results = sample_portfolio_and_results
+        rationalisation = build_rationalisation_analysis(portfolio, successful_results, use_llm=False)
+
+        export_file = tmp_path / "ETL_Portfolio_Overview.xlsx"
+        generate_portfolio_excel(portfolio, successful_results, rationalisation, export_file)
+
+        wb = openpyxl.load_workbook(export_file)
+        ws = wb["Executive Summary"]
 
         # Check business area table presence
         found_areas = set()
@@ -118,8 +166,8 @@ class TestPortfolioXLSXExport:
                 count_val = ws.cell(row=row, column=2).value
                 assert count_val == 0
 
-    def test_portfolio_summary_one_row_per_workflow(self, tmp_path, sample_portfolio_and_results):
-        """Portfolio Summary must contain exactly one row per analysed workflow with canonical values."""
+    def test_inventory_one_row_per_workflow(self, tmp_path, sample_portfolio_and_results):
+        """Inventory must contain exactly one row per analysed workflow with canonical values."""
         portfolio, successful_results = sample_portfolio_and_results
         rationalisation = build_rationalisation_analysis(portfolio, successful_results, use_llm=False)
 
@@ -127,7 +175,7 @@ class TestPortfolioXLSXExport:
         generate_portfolio_excel(portfolio, successful_results, rationalisation, export_file)
 
         wb = openpyxl.load_workbook(export_file)
-        ws = wb["Portfolio Summary"]
+        ws = wb["Inventory"]
 
         # 2 workflows -> exactly rows 2 and 3
         wf_names = [ws.cell(row=r, column=1).value for r in (2, 3)]
@@ -148,31 +196,6 @@ class TestPortfolioXLSXExport:
                 assert ws.cell(row=r, column=2).value == "Sales & Distribution"
                 assert ws.cell(row=r, column=3).value == "Sales & Commercial Analytics"
                 assert "FTSE market metrics" in ws.cell(row=r, column=4).value
-
-    def test_workflow_features_evidence_based_derivation(self, tmp_path, sample_portfolio_and_results):
-        """Workflow Features sheet must contain 20 columns populated with evidence-based facts; unsupported fields use explicit fallback."""
-        portfolio, successful_results = sample_portfolio_and_results
-        rationalisation = build_rationalisation_analysis(portfolio, successful_results, use_llm=False)
-
-        export_file = tmp_path / "ETL_Portfolio_Overview.xlsx"
-        generate_portfolio_excel(portfolio, successful_results, rationalisation, export_file)
-
-        wb = openpyxl.load_workbook(export_file)
-        ws = wb["Workflow Features"]
-
-        # Exactly 20 headers in row 1
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 21)]
-        assert len(headers) == 20
-        assert headers[0] == "Workflow Name"
-        assert headers[19] == "Reusability Potential"
-
-        # Check row 2 values
-        for c in range(1, 21):
-            val = ws.cell(row=2, column=c).value
-            assert val is not None
-            # Unsupported fields must not contain hallucinations
-            if headers[c - 1] in ("Key Business Decisions Supported", "Business Scope"):
-                assert val == "Not determined from available evidence"
 
     def test_technical_inventory_deterministic_taxonomy(self, tmp_path, sample_portfolio_and_results):
         """Technical Inventory must deterministically count tool categories and flags without LLM guesses."""
@@ -201,8 +224,8 @@ class TestPortfolioXLSXExport:
                 has_python = ws.cell(row=r, column=11).value
                 assert has_python in ("Yes", "No")
 
-    def test_rationalisation_sheet_evidence_integrity(self, tmp_path, sample_portfolio_and_results):
-        """Rationalisation sheet must project candidate pairs without empty 'Join on =' or truncated formulas."""
+    def test_rationalisation_recommendation_sheet_evidence_integrity(self, tmp_path, sample_portfolio_and_results):
+        """Rationalisation Recommendation sheet must project candidate pairs without empty 'Join on =' or truncated formulas."""
         portfolio, successful_results = sample_portfolio_and_results
         rationalisation = build_rationalisation_analysis(portfolio, successful_results, use_llm=False)
 
@@ -210,7 +233,7 @@ class TestPortfolioXLSXExport:
         generate_portfolio_excel(portfolio, successful_results, rationalisation, export_file)
 
         wb = openpyxl.load_workbook(export_file)
-        ws = wb["Rationalisation & Dependencies"]
+        ws = wb["Rationalisation Recommendation"]
 
         # Check candidate rows if present
         for r in range(2, ws.max_row + 1):
@@ -223,7 +246,6 @@ class TestPortfolioXLSXExport:
         """Export generation must perform ZERO download-time LLM calls."""
         portfolio, successful_results = sample_portfolio_and_results
 
-        # Patch FakeLLMClient.generate or LLMNarrativeGenerator.generate to assert never called
         from awa.llm.client import FakeLLMClient
         called = False
 
@@ -261,15 +283,15 @@ class TestPortfolioXLSXExport:
         generate_portfolio_excel(portfolio, successful_results, None, export_file)
 
         wb = openpyxl.load_workbook(export_file)
-        ws_port = wb["Portfolio Summary"]
+        ws_inv = wb["Inventory"]
 
         # Must have 3 rows now
-        names = [ws_port.cell(row=r, column=1).value for r in (2, 3, 4)]
+        names = [ws_inv.cell(row=r, column=1).value for r in (2, 3, 4)]
         assert "Corrupt_File.yxmd" in names
 
         for r in (2, 3, 4):
-            if ws_port.cell(row=r, column=1).value == "Corrupt_File.yxmd":
-                purpose = ws_port.cell(row=r, column=4).value
+            if ws_inv.cell(row=r, column=1).value == "Corrupt_File.yxmd":
+                purpose = ws_inv.cell(row=r, column=4).value
                 assert "Workflow analysis failed" in str(purpose)
 
     def test_api_endpoint_response_headers_and_status(self, client, sample_portfolio_and_results):
@@ -288,7 +310,10 @@ class TestPortfolioXLSXExport:
         # Validate that returned bytes form a valid openpyxl workbook
         wb = openpyxl.load_workbook(io.BytesIO(resp.content))
         assert "Executive Summary" in wb.sheetnames
-        assert "Portfolio Summary" in wb.sheetnames
+        assert "Inventory" in wb.sheetnames
+        assert "Technical Inventory" in wb.sheetnames
+        assert "Rationalisation Recommendation" in wb.sheetnames
+        assert len(wb.sheetnames) == 4
 
     def test_api_endpoint_404_for_missing_portfolio(self, client):
         """GET /api/portfolio/missing_id/export/xlsx must return 404."""

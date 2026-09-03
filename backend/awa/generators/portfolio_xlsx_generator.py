@@ -435,6 +435,9 @@ def _build_executive_summary_sheet(
     # KPI Section (Row 4-6)
     # ---------------------------------------------------------
     high_criticality_count = sum(1 for w in portfolio.workflows if w.criticality_level == "HIGH")
+    med_criticality_count = sum(1 for w in portfolio.workflows if w.criticality_level == "MEDIUM")
+    low_criticality_count = sum(1 for w in portfolio.workflows if w.criticality_level == "LOW")
+
     high_complexity_count = sum(1 for w in portfolio.workflows if w.complexity_level == "HIGH")
     med_complexity_count = sum(1 for w in portfolio.workflows if w.complexity_level == "MEDIUM")
     low_complexity_count = sum(1 for w in portfolio.workflows if w.complexity_level == "LOW")
@@ -447,7 +450,7 @@ def _build_executive_summary_sheet(
         ("TOTAL WORKFLOWS", str(portfolio.metrics.total_workflows), COLOR_NAVY),
         ("SUCCESSFULLY ANALYSED", str(portfolio.metrics.successful_workflows), COLOR_SUCCESS),
         ("FAILED / PARTIAL", str(portfolio.metrics.failed_workflows), COLOR_DANGER if portfolio.metrics.failed_workflows > 0 else COLOR_MUTED),
-        ("HIGH CRITICALITY", str(high_criticality_count), COLOR_DANGER if high_criticality_count > 0 else COLOR_NAVY),
+        ("CRITICALITY PROFILE", f"H:{high_criticality_count} | M:{med_criticality_count} | L:{low_criticality_count}", COLOR_NAVY),
         ("COMPLEXITY PROFILE", f"H:{high_complexity_count} | M:{med_complexity_count} | L:{low_complexity_count}", COLOR_NAVY),
         ("RATIONALISATION CANDIDATES", str(total_opportunities), COLOR_ACCENT),
     ]
@@ -564,8 +567,8 @@ def _build_portfolio_summary_sheet(
     portfolio: PortfolioAnalysis,
     successful_results: dict[str, CanonicalAnalysisResult],
 ) -> None:
-    """Build Sheet 2: Portfolio Summary with one row per analysed workflow."""
-    ws.title = "Portfolio Summary"
+    """Build Sheet 2: Inventory with one row per analysed workflow."""
+    ws.title = "Inventory"
 
     headers = [
         "Workflow Name",
@@ -662,114 +665,7 @@ def _build_portfolio_summary_sheet(
 
 
 # ---------------------------------------------------------------------------
-# Sheet 3: Workflow Features
-# ---------------------------------------------------------------------------
-
-def _build_workflow_features_sheet(
-    ws: Any,
-    portfolio: PortfolioAnalysis,
-    successful_results: dict[str, CanonicalAnalysisResult],
-    rationalisation: RationalisationAnalysis | None,
-) -> None:
-    """Build Sheet 3: Workflow Features containing richer evidence-based semantic interpretation."""
-    ws.title = "Workflow Features"
-
-    headers = [
-        "Workflow Name",
-        "Business Area",
-        "Business Function",
-        "Business Purpose",
-        "Business Objective",
-        "Business Outcome",
-        "Key Business Features",
-        "Business Process Supported",
-        "Key Business Decisions Supported",
-        "Business Rules / Logic",
-        "Primary Input Domains",
-        "Key Input Data Elements",
-        "Primary Outputs",
-        "Output Data / Metrics",
-        "Business Consumers",
-        "Business Scope",
-        "Customer Impact",
-        "Client Impact",
-        "Regulatory / Compliance Relevance",
-        "Reusability Potential",
-    ]
-
-    ws.row_dimensions[1].height = 28
-    for col_idx, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx, value=h)
-        cell.font = HEADER_FONT
-        cell.fill = HEADER_FILL
-        cell.alignment = ALIGN_HEADER
-        cell.border = CELL_BORDER
-
-    current_row = 2
-    for idx, w in enumerate(portfolio.workflows):
-        res = successful_results.get(w.workflow_id)
-        row_fill = ZEBRA_FILL if idx % 2 == 1 else WHITE_FILL
-        ws.row_dimensions[current_row].height = 48
-
-        biz_purpose = w.business_purpose or (
-            f"Workflow analysis failed: {w.error_message}" if w.status == "FAILED" else "Not determined from available evidence"
-        )
-        biz_obj = biz_purpose
-        biz_outcome = _derive_business_outcome(w, res)
-        key_features = _derive_key_features(res)
-        biz_process = f"End-to-end {w.business_function} workflow" if w.business_function and w.business_function != "Unassigned" else "Not determined from available evidence"
-        decisions = "Not determined from available evidence"
-        rules_logic = _derive_promoted_rules(res)
-        input_domains = _derive_input_domains(res, w)
-        input_elements = _derive_input_data_elements(res, w)
-        primary_outputs = _derive_primary_outputs(res, w)
-        output_metrics = _derive_output_metrics(res)
-        consumers = _derive_business_consumers(w, res)
-        scope = "Not determined from available evidence"
-        customer_impact = _derive_customer_impact(w)
-        client_impact = _derive_client_impact(w)
-        regulatory = _derive_regulatory_relevance(res)
-        reusability = _derive_reusability(w, rationalisation)
-
-        row_values = [
-            (w.filename, BOLD_BODY_FONT),
-            (_normalize_tag(w.business_area_tag), BODY_FONT),
-            (w.business_function or "Unassigned", BODY_FONT),
-            (biz_purpose, BODY_FONT),
-            (biz_obj, BODY_FONT),
-            (biz_outcome, BODY_FONT),
-            (key_features, BODY_FONT),
-            (biz_process, BODY_FONT),
-            (decisions, BODY_FONT),
-            (rules_logic, BODY_FONT),
-            (input_domains, BODY_FONT),
-            (input_elements, BODY_FONT),
-            (primary_outputs, BODY_FONT),
-            (output_metrics, BODY_FONT),
-            (consumers, BODY_FONT),
-            (scope, BODY_FONT),
-            (customer_impact, BODY_FONT),
-            (client_impact, BODY_FONT),
-            (regulatory, BODY_FONT),
-            (reusability, BODY_FONT),
-        ]
-
-        for col_idx, (val, font) in enumerate(row_values, 1):
-            cell = ws.cell(row=current_row, column=col_idx, value=val)
-            cell.font = font
-            cell.fill = row_fill
-            cell.alignment = ALIGN_WRAP_TOP
-            cell.border = CELL_BORDER
-
-        current_row += 1
-
-    ws.freeze_panes = "A2"
-    ws.auto_filter.ref = ws.dimensions
-    _autofit_columns(ws, {col_idx: 45 for col_idx in range(1, 21)})
-
-
-# ---------------------------------------------------------------------------
-# Sheet 4: Technical Inventory
+# Sheet 3: Technical Inventory
 # ---------------------------------------------------------------------------
 
 def _build_technical_inventory_sheet(
@@ -862,8 +758,8 @@ def _build_rationalisation_sheet(
     portfolio: PortfolioAnalysis,
     rationalisation: RationalisationAnalysis | None,
 ) -> None:
-    """Build Sheet 5: Rationalisation & Dependencies with lossless evidence and zero synthetic artifacts."""
-    ws.title = "Rationalisation & Dependencies"
+    """Build Sheet 4: Rationalisation Recommendation with lossless evidence and zero synthetic artifacts."""
+    ws.title = "Rationalisation Recommendation"
 
     headers = [
         "Workflow A",
@@ -983,7 +879,7 @@ def generate_portfolio_excel(
     rationalisation: RationalisationAnalysis | None,
     output_path: Path | str,
 ) -> None:
-    """Generate a 5-sheet enterprise ETL Portfolio Overview Excel workbook.
+    """Generate a 4-sheet enterprise ETL Portfolio Overview Excel workbook.
 
     Args:
         portfolio: Canonical PortfolioAnalysis model.
@@ -1000,19 +896,15 @@ def generate_portfolio_excel(
     ws_exec = wb.active
     _build_executive_summary_sheet(ws_exec, portfolio, rationalisation)
 
-    # 2. Portfolio Summary
-    ws_port = wb.create_sheet()
-    _build_portfolio_summary_sheet(ws_port, portfolio, successful_results)
+    # 2. Inventory
+    ws_inv = wb.create_sheet()
+    _build_portfolio_summary_sheet(ws_inv, portfolio, successful_results)
 
-    # 3. Workflow Features
-    ws_feat = wb.create_sheet()
-    _build_workflow_features_sheet(ws_feat, portfolio, successful_results, rationalisation)
-
-    # 4. Technical Inventory
+    # 3. Technical Inventory
     ws_tech = wb.create_sheet()
     _build_technical_inventory_sheet(ws_tech, portfolio, successful_results)
 
-    # 5. Rationalisation & Dependencies
+    # 4. Rationalisation Recommendation
     ws_rat = wb.create_sheet()
     _build_rationalisation_sheet(ws_rat, portfolio, rationalisation)
 
