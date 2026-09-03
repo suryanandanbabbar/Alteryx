@@ -1311,90 +1311,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                       })}
                     </div>
 
-                    {/* Consolidation / Merge Recommendation Strip (Only for CONSOLIDATE candidates) */}
-                    {cand.recommendation_type === 'CONSOLIDATE' && cand.consolidation_decision && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '8px',
-                          padding: '12px 16px',
-                          borderRadius: '8px',
-                          background:
-                            cand.consolidation_decision.recommendation === 'MERGE'
-                              ? 'rgba(16, 185, 129, 0.06)'
-                              : 'var(--color-surface-secondary)',
-                          border:
-                            cand.consolidation_decision.recommendation === 'MERGE'
-                              ? '1px solid rgba(16, 185, 129, 0.25)'
-                              : '1px solid var(--color-border-subtle)',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                padding: '3px 9px',
-                                borderRadius: '4px',
-                                fontSize: '11px',
-                                fontWeight: '800',
-                                letterSpacing: '0.04em',
-                                textTransform: 'uppercase',
-                                background:
-                                  cand.consolidation_decision.recommendation === 'MERGE'
-                                    ? 'rgba(16, 185, 129, 0.15)'
-                                    : 'rgba(148, 163, 184, 0.15)',
-                                color:
-                                  cand.consolidation_decision.recommendation === 'MERGE'
-                                    ? '#34d399'
-                                    : '#94a3b8',
-                                border:
-                                  cand.consolidation_decision.recommendation === 'MERGE'
-                                    ? '1px solid rgba(16, 185, 129, 0.4)'
-                                    : '1px solid rgba(148, 163, 184, 0.3)',
-                              }}
-                            >
-                              <GitMerge size={12} />
-                              {cand.consolidation_decision.recommendation === 'MERGE' ? 'CONSOLIDATE: MERGE' : 'CONSOLIDATE: DO NOT MERGE'}
-                            </span>
-
-                            {cand.consolidation_decision.merge_direction && (
-                              <span
-                                style={{
-                                  fontSize: '11px',
-                                  fontWeight: '600',
-                                  color: '#38bdf8',
-                                  background: 'rgba(56, 189, 248, 0.08)',
-                                  padding: '2px 8px',
-                                  borderRadius: '4px',
-                                  border: '1px solid rgba(56, 189, 248, 0.2)',
-                                }}
-                              >
-                                {cand.consolidation_decision.merge_direction}
-                              </span>
-                            )}
-                          </div>
-
-                          <span
-                            style={{
-                              fontSize: '11px',
-                              fontWeight: '600',
-                              color: 'var(--color-text-muted)',
-                            }}
-                          >
-                            Rule: {cand.consolidation_decision.matched_rule}
-                          </span>
-                        </div>
-
-                        <div style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', lineHeight: '1.45' }}>
-                          {cand.consolidation_decision.reason}
-                        </div>
-                      </div>
-                    )}
-
                     {/* Deterministic Similarity Metrics Progress Bars */}
                     <div
                       style={{
@@ -1404,11 +1320,11 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                       }}
                     >
                       {[
-                        { label: 'Source Overlap', value: cand.deterministic_metrics.source_overlap },
-                        { label: 'Target Overlap', value: cand.deterministic_metrics.target_overlap },
+                        { label: 'Source Metadata Overlap', value: cand.deterministic_metrics.source_overlap },
+                        { label: 'Target Metadata Overlap', value: cand.deterministic_metrics.target_overlap },
                         { label: 'Frequency Overlap', value: cand.deterministic_metrics.frequency_overlap ?? 0 },
-                        { label: 'Logic Similarity', value: cand.deterministic_metrics.transformation_similarity },
-                        { label: 'DAG Similarity', value: cand.deterministic_metrics.dag_similarity },
+                        { label: 'Logic Overlap', value: cand.deterministic_metrics.transformation_similarity },
+                        { label: 'DAG Overlap', value: cand.deterministic_metrics.dag_similarity },
                       ].map((m) => {
                         const pct = Math.round(m.value * 100);
                         const fillColor = pct >= 70 ? '#34d399' : pct >= 40 ? '#fbbf24' : '#38bdf8';
@@ -1838,36 +1754,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   >
                     {selectedCandidate.confidence} CONFIDENCE
                   </span>
-
-                  {selectedCandidate.consolidation_decision && (
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        background:
-                          selectedCandidate.consolidation_decision.recommendation === 'MERGE'
-                            ? 'rgba(16, 185, 129, 0.15)'
-                            : 'rgba(148, 163, 184, 0.15)',
-                        color:
-                          selectedCandidate.consolidation_decision.recommendation === 'MERGE'
-                            ? '#34d399'
-                            : '#94a3b8',
-                        border:
-                          selectedCandidate.consolidation_decision.recommendation === 'MERGE'
-                            ? '1px solid rgba(16, 185, 129, 0.4)'
-                            : '1px solid rgba(148, 163, 184, 0.3)',
-                      }}
-                    >
-                      <GitMerge size={11} />
-                      {selectedCandidate.consolidation_decision.recommendation === 'MERGE' ? 'CONSOLIDATE: MERGE' : 'DO NOT MERGE'}
-                      {selectedCandidate.consolidation_decision.merge_direction ? ` (${selectedCandidate.consolidation_decision.merge_direction})` : ''}
-                    </span>
-                  )}
                 </div>
               </div>
 
@@ -2035,13 +1921,13 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                 {[
                   {
                     key: 'source' as const,
-                    label: 'Source Overlap',
+                    label: 'Source Metadata Overlap',
                     val: selectedCandidate.deterministic_metrics.source_overlap,
                     icon: Database,
                   },
                   {
                     key: 'target' as const,
-                    label: 'Target Overlap',
+                    label: 'Target Metadata Overlap',
                     val: selectedCandidate.deterministic_metrics.target_overlap,
                     icon: Target,
                   },
