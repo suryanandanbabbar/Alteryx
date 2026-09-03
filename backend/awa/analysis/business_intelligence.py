@@ -737,7 +737,7 @@ def _compute_business_lineage(
 
         ancestors = nx.ancestors(graph, out_tid)
         upstream_inputs = [inp for inp in inputs if inp.tool_id in ancestors]
-        src_names = " + ".join([inp.name for inp in upstream_inputs]) if upstream_inputs else "Source Data Stream"
+        src_names = " + ".join([inp.source_filename if inp.source_filename else inp.name for inp in upstream_inputs]) if upstream_inputs else "Source Data Stream"
 
         # Determine concrete transformation operations from ancestors
         anc_tools = [workflow.tools[a] for a in ancestors if a in workflow.tools]

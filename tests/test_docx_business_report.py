@@ -453,12 +453,12 @@ class TestDocxBusinessReport:
             full_text = self._extract_all_docx_text(out_docx)
             exec_text = self._extract_executive_summary_text(out_docx)
 
-            # 1. Section 1 Executive Summary populated from LLM
+            # 1. Section 1 Executive Summary: Business Purpose uses canonical business_purpose, while Methods/Findings/Conclusions use LLM
             assert "1. Executive Summary" in exec_text
             assert "Methods of Analysis" in exec_text
             assert "Findings" in exec_text
             assert "Conclusions" in exec_text
-            assert "This automated data workflow ingests daily customer transactions" in exec_text
+            assert canonical.business_summary.business_purpose in exec_text
             assert "Combines two primary enterprise datasets into a unified analytical base" in exec_text
             assert "The workflow serves as a centralized transaction preparation pipeline" in exec_text
 
@@ -1076,6 +1076,208 @@ class TestDocxBusinessReport:
         finally:
             set_default_llm_client(None)
             set_default_generator(None)
+
+
+class TestBusinessReportCanonicalPurposeAndPhysicalFilenames:
+    """Validate canonical business purpose precedence and real physical source filenames in Section 4."""
+
+    def test_executive_summary_uses_canonical_business_purpose(self, tmp_path: Path):
+        """Executive Summary must use canonical bs.business_purpose even when metadata description differs."""
+        wf = Workflow(
+            metadata=WorkflowMetadata(
+                name="Demo_Workflow.yxmd",
+                version="2024.1",
+                description="Old YXMD metadata description from canvas.",
+            ),
+            tools={
+                1: Tool(
+                    tool_id=1,
+                    plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+                    tool_type="DbFileInput",
+                    name="Input",
+                    position=Position(x=10, y=10),
+                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Claims_Volume_Extract_Demo.xlsx"}),
+                ),
+                2: Tool(
+                    tool_id=2,
+                    plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+                    tool_type="DbFileOutput",
+                    name="Output",
+                    position=Position(x=200, y=10),
+                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Claims_Output_Demo.xlsx"}),
+                ),
+            },
+            connections=[
+                Connection(origin_tool_id=1, origin_anchor="Output", destination_tool_id=2, destination_anchor="Input"),
+            ],
+        )
+        g = build_graph(wf)
+        order = execution_order(g)
+        bs = generate_business_summary(wf, g, order)
+
+        # Set a canonical persisted business purpose distinct from metadata description
+        canonical_purpose = "Automates quarterly insurance claims ingestion, validation, and reserve calculations for actuarial reporting."
+        bs.business_purpose = canonical_purpose
+
+        doc_model = build_document_model(
+            workflow=wf,
+            execution_order=order,
+            translations={},
+            dag_layout=None,
+            lineage_paths=[],
+            business_summary=bs,
+            analysis_id="test-purpose-01",
+        )
+
+        out_docx = tmp_path / "canonical_purpose_report.docx"
+        generate_docx(doc_model, out_docx)
+        assert out_docx.exists()
+
+        doc = docx.Document(str(out_docx))
+        exec_paragraphs = []
+        in_exec = False
+        for p in doc.paragraphs:
+            if p.text == "1. Executive Summary":
+                in_exec = True
+            elif p.text.startswith("2. "):
+                in_exec = False
+            if in_exec and p.text:
+                exec_paragraphs.append(p.text)
+
+        exec_text = "\n".join(exec_paragraphs)
+        assert canonical_purpose in exec_text
+        assert "Old YXMD metadata description" not in exec_text
+
+    def test_lineage_section_uses_real_physical_source_filename(self, tmp_path: Path):
+        """Section 4 Source Dataset(s) must use actual physical filename (e.g. Claims_Volume_Extract_Demo.xlsx), not humanized name."""
+        wf = Workflow(
+            metadata=WorkflowMetadata(name="Claims_Processing.yxmd", version="2024.1"),
+            tools={
+                1: Tool(
+                    tool_id=1,
+                    plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+                    tool_type="DbFileInput",
+                    name="Input 1",
+                    position=Position(x=10, y=10),
+                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "C:\\Data\\Claims_Volume_Extract_Demo.xlsx|||`Claims`"}),
+                ),
+                2: Tool(
+                    tool_id=2,
+                    plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+                    tool_type="DbFileInput",
+                    name="Input 2",
+                    position=Position(x=10, y=100),
+                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Policy_Master_Demo.xlsx"}),
+                ),
+                3: Tool(
+                    tool_id=3,
+                    plugin="AlteryxBasePluginsGui.Join.Join",
+                    tool_type="Join",
+                    name="Join",
+                    position=Position(x=100, y=50),
+                    configuration=ToolConfiguration(raw_xml="", parsed={}),
+                ),
+                4: Tool(
+                    tool_id=4,
+                    plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+                    tool_type="DbFileOutput",
+                    name="Output",
+                    position=Position(x=200, y=50),
+                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Final_Quarterly_Loss_Extract.xlsx"}),
+                ),
+            },
+            connections=[
+                Connection(origin_tool_id=1, origin_anchor="Output", destination_tool_id=3, destination_anchor="Left"),
+                Connection(origin_tool_id=2, origin_anchor="Output", destination_tool_id=3, destination_anchor="Right"),
+                Connection(origin_tool_id=3, origin_anchor="Join", destination_tool_id=4, destination_anchor="Input"),
+            ],
+        )
+        g = build_graph(wf)
+        order = execution_order(g)
+        bs = generate_business_summary(wf, g, order)
+
+        doc_model = build_document_model(
+            workflow=wf,
+            execution_order=order,
+            translations={},
+            dag_layout=None,
+            lineage_paths=[],
+            business_summary=bs,
+            analysis_id="test-lineage-01",
+        )
+
+        out_docx = tmp_path / "lineage_filename_report.docx"
+        generate_docx(doc_model, out_docx)
+        assert out_docx.exists()
+
+        doc = docx.Document(str(out_docx))
+        # Find Section 4 table
+        table_found = False
+        for t in doc.tables:
+            hdr_cells = [c.text for c in t.rows[0].cells]
+            if "Source Dataset(s)" in hdr_cells:
+                table_found = True
+                assert len(t.rows) >= 2
+                row_cells = [c.text for c in t.rows[1].cells]
+                source_col = row_cells[0]
+                # Must contain real filenames
+                assert "Claims_Volume_Extract_Demo.xlsx" in source_col
+                assert "Policy_Master_Demo.xlsx" in source_col
+                # Must NOT contain purely humanized names without extension
+                assert "Claims Volume" not in source_col or "Claims_Volume_Extract_Demo.xlsx" in source_col
+
+        assert table_found, "Section 4 lineage table was not found in generated DOCX!"
+
+    def test_dynamic_lineage_filename_change(self, tmp_path: Path):
+        """Modifying the input filename in the workflow configuration dynamically changes Section 4 Source Dataset(s)."""
+        wf = Workflow(
+            metadata=WorkflowMetadata(name="Custom_Source.yxmd", version="2024.1"),
+            tools={
+                1: Tool(
+                    tool_id=1,
+                    plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+                    tool_type="DbFileInput",
+                    name="Input",
+                    position=Position(x=10, y=10),
+                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Actuarial_Triangles_2026.csv"}),
+                ),
+                2: Tool(
+                    tool_id=2,
+                    plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+                    tool_type="DbFileOutput",
+                    name="Output",
+                    position=Position(x=200, y=10),
+                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "IBNR_Reserve_Report.xlsx"}),
+                ),
+            },
+            connections=[
+                Connection(origin_tool_id=1, origin_anchor="Output", destination_tool_id=2, destination_anchor="Input"),
+            ],
+        )
+        g = build_graph(wf)
+        order = execution_order(g)
+        bs = generate_business_summary(wf, g, order)
+
+        doc_model = build_document_model(
+            workflow=wf,
+            execution_order=order,
+            translations={},
+            dag_layout=None,
+            lineage_paths=[],
+            business_summary=bs,
+            analysis_id="test-dynamic-lineage",
+        )
+
+        out_docx = tmp_path / "dynamic_source_report.docx"
+        generate_docx(doc_model, out_docx)
+
+        doc = docx.Document(str(out_docx))
+        for t in doc.tables:
+            hdr_cells = [c.text for c in t.rows[0].cells]
+            if "Source Dataset(s)" in hdr_cells:
+                source_col = t.rows[1].cells[0].text
+                assert "Actuarial_Triangles_2026.csv" in source_col
+
 
 
 

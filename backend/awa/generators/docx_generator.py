@@ -144,9 +144,9 @@ def _render_executive_summary_section(doc: Document, doc_model: DocumentModel) -
 
     # 1.1 Subject Matter / Business Purpose / Executive Summary Narrative
     purpose_text = (
-        exec_summary.subject_and_purpose
-        if exec_summary and exec_summary.subject_and_purpose
-        else (bs.business_purpose if bs else "")
+        bs.business_purpose
+        if bs and bs.business_purpose and bs.business_purpose.strip()
+        else (exec_summary.subject_and_purpose if exec_summary and exec_summary.subject_and_purpose else "")
     )
 
     if purpose_text:
