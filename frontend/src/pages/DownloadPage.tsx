@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { DownloadCard } from '../components/DownloadCard';
 import { DocumentGenerationModal, ReportType } from '../components/DocumentGenerationModal';
-import { FileText, FileCode2, Terminal, GitFork, Archive, Table, AlertCircle } from 'lucide-react';
+import { FileText, FileCode2, Terminal, GitFork, Archive, Table, AlertCircle, X, Download } from 'lucide-react';
 
 interface DownloadPageProps {
   analysisId: string;
@@ -11,6 +11,17 @@ interface DownloadPageProps {
 export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
   const [generatingReport, setGeneratingReport] = useState<ReportType | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [showBundleModal, setShowBundleModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showBundleModal) {
+        setShowBundleModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showBundleModal]);
 
   const handleDownloadWithModal = async (type: 'docx' | 'tool-specifications' | 'sttm') => {
     if (generatingReport) return; // Prevent duplicate clicks
@@ -37,6 +48,152 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1400px', width: '100%', position: 'relative' }}>
       {/* Document Generation Loading Modal */}
       {generatingReport && <DocumentGenerationModal type={generatingReport} />}
+
+      {/* Complete Bundle Download Confirmation Modal */}
+      {showBundleModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bundle-modal-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            boxSizing: 'border-box',
+          }}
+          onClick={() => setShowBundleModal(false)}
+        >
+          <div
+            style={{
+              maxWidth: '460px',
+              width: '100%',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg, 8px)',
+              padding: '32px 28px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.35)',
+              position: 'relative',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setShowBundleModal(false)}
+              aria-label="Close"
+              style={{
+                position: 'absolute',
+                top: '14px',
+                right: '14px',
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--color-text-muted)',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 'var(--radius-sm, 4px)',
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            {/* Icon */}
+            <div style={{ position: 'relative', marginBottom: '20px' }}>
+              <div
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '16px',
+                  background: 'var(--color-surface-secondary)',
+                  border: '1.5px solid var(--color-primary-border)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--color-primary)',
+                  boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)',
+                }}
+              >
+                <Archive size={28} />
+              </div>
+            </div>
+
+            {/* Brand Pre-title */}
+            <div
+              style={{
+                fontSize: '10.5px',
+                fontWeight: 800,
+                letterSpacing: '1px',
+                textTransform: 'uppercase',
+                color: 'var(--color-primary)',
+                marginBottom: '6px',
+              }}
+            >
+              Complete Bundle Export
+            </div>
+
+            {/* Modal Title */}
+            <h3
+              id="bundle-modal-title"
+              style={{
+                fontSize: '18px',
+                fontWeight: 800,
+                color: 'var(--color-text)',
+                margin: '0 0 10px 0',
+                letterSpacing: '-0.2px',
+              }}
+            >
+              Download Complete Bundle
+            </h3>
+
+            {/* Modal Description */}
+            <p
+              style={{
+                fontSize: '13px',
+                color: 'var(--color-text-secondary)',
+                lineHeight: '1.5',
+                margin: '0 0 24px 0',
+              }}
+            >
+              Download all generated workflow artifacts (Source-to-Target Mapping, Tool Specifications, Business Report, Python pipeline, Workflow JSON, SVG diagram, and diagnostics) in a single ZIP archive.
+            </p>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', justifyContent: 'center' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowBundleModal(false)}
+                style={{ flex: 1, padding: '9px 16px', fontSize: '13px' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  setShowBundleModal(false);
+                  triggerDirectDownload('zip');
+                }}
+                style={{ flex: 1, padding: '9px 16px', fontSize: '13px' }}
+              >
+                <Download size={14} />
+                <span>Download ZIP</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error Alert */}
       {downloadError && (
@@ -81,7 +238,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
         formatBadge=".zip"
         isPrimary={true}
         disabled={isGenerating}
-        onDownload={() => triggerDirectDownload('zip')}
+        onDownload={() => setShowBundleModal(true)}
       />
 
       {/* Individual Artifacts List */}
