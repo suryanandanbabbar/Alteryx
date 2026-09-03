@@ -32,6 +32,7 @@ from awa.analysis.business_area_classifier import (
 from awa.analysis.portfolio_analyzer import (
     build_portfolio_analysis,
     ALL_PORTFOLIO_BUSINESS_AREAS,
+    CONFIGURED_PORTFOLIO_BUSINESS_AREAS,
 )
 from awa.analysis.rationalisation_analyzer import build_rationalisation_analysis
 from awa.generators.portfolio_xlsx_generator import generate_portfolio_excel
@@ -190,7 +191,7 @@ class TestBusinessAreaReconciliation:
         # Invariant: All 5 business area groups materialized
         assert len(portfolio.business_areas) == 5
         group_names = [g.business_area for g in portfolio.business_areas]
-        assert set(group_names) == set(ALL_PORTFOLIO_BUSINESS_AREAS)
+        assert set(group_names) == set(CONFIGURED_PORTFOLIO_BUSINESS_AREAS)
 
         # Expected counts
         counts = portfolio.business_area_counts

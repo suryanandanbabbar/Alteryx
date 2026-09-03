@@ -48,11 +48,20 @@ from awa.analysis.workflow_criticality import (
 
 logger = logging.getLogger(__name__)
 
-ALL_PORTFOLIO_BUSINESS_AREAS: tuple[str, ...] = (
+CONFIGURED_PORTFOLIO_BUSINESS_AREAS = (
     "Claims & Risk",
     "Legal",
     "Underwriting",
     "Sales & Distribution",
+    "Actuarial",
+)
+
+ALL_PORTFOLIO_BUSINESS_AREAS = (
+    "Claims & Risk",
+    "Legal",
+    "Underwriting",
+    "Sales & Distribution",
+    "Actuarial",
     "Other / Unclassified",
 )
 
@@ -580,6 +589,8 @@ def build_portfolio_analysis(
             wf.criticality_confidence = crit_res.confidence
             wf.criticality_source = "deterministic"
             wf.factor_assessments = crit_res.factor_breakdown
+            wf.last_run = crit_res.factor_breakdown.get("last_run", {}).get("display_value") or "Not documented"
+            wf.frequency = crit_res.factor_breakdown.get("frequency", {}).get("display_value") or "Not documented"
 
     # 3. Compute Multi-Signal Relationships between all pairs of successful workflows
     relationships: list[WorkflowRelationship] = []
@@ -655,11 +666,19 @@ def build_portfolio_analysis(
     )
 
     # 6. Aggregate business areas and materialise ALL 5 configured business areas
+    CONFIGURED_PORTFOLIO_BUSINESS_AREAS = (
+        "Claims & Risk",
+        "Legal",
+        "Underwriting",
+        "Sales & Distribution",
+        "Actuarial",
+    )
     ALL_PORTFOLIO_BUSINESS_AREAS = (
         "Claims & Risk",
         "Legal",
         "Underwriting",
         "Sales & Distribution",
+        "Actuarial",
         "Other / Unclassified",
     )
     workflows_by_area: dict[str, list[PortfolioWorkflowSummary]] = {
@@ -677,6 +696,9 @@ def build_portfolio_analysis(
     for area in ALL_PORTFOLIO_BUSINESS_AREAS:
         wfs = workflows_by_area[area]
         area_counts[area] = len(wfs)
+
+    for area in CONFIGURED_PORTFOLIO_BUSINESS_AREAS:
+        wfs = workflows_by_area[area]
         business_area_groups.append(
             BusinessAreaGroup(
                 business_area=area,

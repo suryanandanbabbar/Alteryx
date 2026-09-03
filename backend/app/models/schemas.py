@@ -363,6 +363,8 @@ class PortfolioWorkflowSummaryDTO(BaseModel):
     criticality_confidence: str = "HIGH"
     criticality_source: str = "deterministic_fallback"
     factor_assessments: dict[str, Any] = Field(default_factory=dict)
+    last_run: str = "Not documented"
+    frequency: str = "Not documented"
 
 
 class DeterministicSignalsDTO(BaseModel):

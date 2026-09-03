@@ -68,7 +68,7 @@ DOMAINS_TAXONOMY = DOMAIN_TAXONOMY = {
     "Underwriting": {
         "underwriting", "underwrite", "underwriter", "applicant", "eligibility",
         "coverage", "premium", "policy", "risk_class", "policy_term",
-        "endorsement", "binder", "actuarial", "rating", "insured",
+        "endorsement", "binder", "rating", "insured",
         "deductible", "limit", "appetite", "guideline", "reinsurance",
     },
     "Sales & Distribution": {
@@ -76,6 +76,13 @@ DOMAINS_TAXONOMY = DOMAIN_TAXONOMY = {
         "channel", "commission", "customer", "client", "territory", "quota",
         "pipeline", "broker", "agent", "gross_sales", "net_sales",
         "product_sales", "marketing", "producer", "retail", "wholesale",
+    },
+    "Actuarial": {
+        "actuarial", "actuary", "triangulation", "ibnr", "loss_development",
+        "chain_ladder", "bornhuetter", "ferguson", "loss_reserving", "valuation",
+        "experience_study", "mortality_table", "morbidity", "lapse_rate",
+        "rate_filing", "loss_cost", "indication", "solvency", "capital_modeling",
+        "alm", "asset_liability", "tail_risk", "dynamic_financial_analysis",
     },
 }
 
@@ -205,7 +212,7 @@ TIER1_FUNCTIONAL_PATTERNS: dict[str, list[re.Pattern]] = {
         re.compile(r"\b(decision[\s_]+engine|rating[\s_]+engine|pricing[\s_]+engine)\b", re.IGNORECASE),
         re.compile(r"\b(coverage|binder)[\s_]+(acceptance|rejection|evaluation|determination)\b", re.IGNORECASE),
         re.compile(r"\b(risk[\s_]+appetite|risk[\s_]+assessment|risk[\s_]+evaluation|risk[\s_]+class|risk[\s_]+tier)\b", re.IGNORECASE),
-        re.compile(r"\b(actuarial[\s_]+rating|experience[\s_]+rating|manual[\s_]+rating)\b", re.IGNORECASE),
+        re.compile(r"\b(experience[\s_]+rating|manual[\s_]+rating)\b", re.IGNORECASE),
         re.compile(r"\bpolicy[\s_]+pricing\b", re.IGNORECASE),
     ],
     "Claims & Risk": [
@@ -232,6 +239,14 @@ TIER1_FUNCTIONAL_PATTERNS: dict[str, list[re.Pattern]] = {
         re.compile(r"\bcontract[\s_]+(compliance|review|clause|analytics|management|obligation|expiration)\b", re.IGNORECASE),
         re.compile(r"\b(insurance[\s_]+commissioner|naic[\s_]+reporting|gdpr[\s_]+compliance|data[\s_]+privacy[\s_]+audit)\b", re.IGNORECASE),
         re.compile(r"\b(attorney[\s_]+fees?|outside[\s_]+counsel|legal[\s_]+hold|ediscovery)\b", re.IGNORECASE),
+    ],
+    "Actuarial": [
+        re.compile(r"\bactuar(ial|y|ies)\b", re.IGNORECASE),
+        re.compile(r"\b(loss[\s_]+development|triangulation|chain[\s_]+ladder|bornhuetter[\s_]+ferguson|ibnr)\b", re.IGNORECASE),
+        re.compile(r"\b(experience[\s_]+stud(y|ies)|mortality[\s_]+table|morbidity[\s_]+table|lapse[\s_]+rate)\b", re.IGNORECASE),
+        re.compile(r"\b(rate[\s_]+filing|loss[\s_]+cost[\s_]+trend|actuarial[\s_]+indication)\b", re.IGNORECASE),
+        re.compile(r"\b(capital[\s_]+adequacy|solvency[\s_]+ii|risk[\s_]+based[\s_]+capital|rbc[\s_]+model)\b", re.IGNORECASE),
+        re.compile(r"\b(asset[\s_]+liability[\s_]+matching|alm[\s_]+model|cash[\s_]+flow[\s_]+projection)\b", re.IGNORECASE),
     ],
 }
 
@@ -261,6 +276,11 @@ TIER2_PURPOSE_PATTERNS: dict[str, list[re.Pattern]] = {
         re.compile(r"\blegal[\s_]+regulatory\b", re.IGNORECASE),
         re.compile(r"\bregulatory[\s_]+compliance\b", re.IGNORECASE),
     ],
+    "Actuarial": [
+        re.compile(r"\b(perform(s|ing|ed)?|calculat(e|es|ing|ed)|model(s|ing|ed)?)[\s_]+(actuarial|loss[\s_]+triangulation|ibnr|loss[\s_]+development|rate[\s_]+indications?)\b", re.IGNORECASE),
+        re.compile(r"\bactuarial[\s_]+valuation\b", re.IGNORECASE),
+        re.compile(r"\b(loss[\s_]+cost[\s_]+trend|mortality[\s_]+experience|capital[\s_]+adequacy)\b", re.IGNORECASE),
+    ],
 }
 
 TIER3_DECISION_PATTERNS: dict[str, list[re.Pattern]] = {
@@ -277,6 +297,9 @@ TIER3_DECISION_PATTERNS: dict[str, list[re.Pattern]] = {
     ],
     "Legal": [
         re.compile(r"\b(compliance[\s_]+check|statutory[\s_]+threshold|retention[\s_]+rule|disclosure[\s_]+rule|regulatory[\s_]+deadline|legal[\s_]+hold[\s_]+rule)\b", re.IGNORECASE),
+    ],
+    "Actuarial": [
+        re.compile(r"\b(development[\s_]+factor|link[\s_]+ratio|tail[\s_]+factor|actuarial[\s_]+assumption|trend[\s_]+factor|discount[\s_]+rate)\b", re.IGNORECASE),
     ],
 }
 
@@ -296,6 +319,10 @@ TIER6_PROCESS_PATTERNS: dict[str, list[re.Pattern]] = {
     "Legal": [
         re.compile(r"\b(regulatory[\s_]+filings?|compliance[\s_]+audit|litigation[\s_]+tracking|contract[\s_]+review|legal[\s_]+hold)\b", re.IGNORECASE),
         re.compile(r"\b(MatterID|FilingDate|ComplianceStatus|StatutoryCode|CounselFees)\b"),
+    ],
+    "Actuarial": [
+        re.compile(r"\b(actuarial[\s_]+model|loss[\s_]+development|triangulation|ibnr[\s_]+reserve|experience[\s_]+study)\b", re.IGNORECASE),
+        re.compile(r"\b(IBNRAmount|DevelopmentFactor|LinkRatio|LossCostTrend|SolvencyRatio)\b"),
     ],
 }
 
@@ -338,6 +365,15 @@ def classify_business_function_deterministic(
         if "litigation" in name_clean or "court" in name_clean or "matter" in purpose_clean or "legal" in name_clean:
             return "Legal litigation tracking and matter management"
         return "Regulatory compliance reporting and legal operations tracking"
+
+    if business_area == "Actuarial":
+        if "triangulation" in name_clean or "chain ladder" in purpose_clean or "ibnr" in purpose_clean or "reserve" in name_clean:
+            return "Actuarial loss triangulation and IBNR reserve development"
+        if "rate" in name_clean or "indication" in name_clean or "loss cost" in purpose_clean:
+            return "Rate filing indications and actuarial pricing review"
+        if "capital" in name_clean or "solvency" in name_clean or "alm" in purpose_clean:
+            return "Capital adequacy modeling and dynamic solvency analysis"
+        return "Actuarial valuation, loss reserving, and capital modeling"
 
     return "General technical data transformation"
 
@@ -454,11 +490,13 @@ def compose_deterministic_business_purpose(
         outcome_str = "to deliver structured performance measures that support sales distribution and reporting"
     elif business_area == "Legal":
         outcome_str = "to generate structured compliance records that support legal review and reporting"
+    elif business_area == "Actuarial":
+        outcome_str = "to provide validated actuarial models and indications that support reserving and valuation"
     else:
         outcome_str = "to produce structured operational outputs that support subsequent business processing"
 
     # 3. Assemble polished Executive Business Summary (~40-75 words)
-    if business_area in ("Underwriting", "Claims & Risk", "Sales & Distribution", "Legal"):
+    if business_area in ("Underwriting", "Claims & Risk", "Sales & Distribution", "Legal", "Actuarial"):
         return (
             f"The workflow supports {func.lower()} by {inp_str}. "
             f"{proc_clause} and produces the {out_deliverable_str} "

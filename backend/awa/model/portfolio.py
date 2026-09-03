@@ -93,6 +93,8 @@ class PortfolioWorkflowSummary:
     criticality_confidence: str = "HIGH"
     criticality_source: str = "deterministic_fallback"
     factor_assessments: dict[str, Any] = field(default_factory=dict)
+    last_run: str = "Not documented"
+    frequency: str = "Not documented"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -136,6 +138,8 @@ class PortfolioWorkflowSummary:
             "criticality_confidence": self.criticality_confidence,
             "criticality_source": self.criticality_source,
             "factor_assessments": self.factor_assessments,
+            "last_run": self.last_run or (self.factor_assessments.get("last_run", {}).get("display_value") or "Not documented"),
+            "frequency": self.frequency or (self.factor_assessments.get("frequency", {}).get("display_value") or "Not documented"),
         }
 
 

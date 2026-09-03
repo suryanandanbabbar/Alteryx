@@ -49,6 +49,8 @@ export interface PortfolioWorkflowSummaryDTO {
   criticality_confidence?: 'HIGH' | 'MEDIUM' | 'LOW';
   criticality_source?: string;
   factor_assessments?: Record<string, FactorAssessmentDTO>;
+  last_run?: string;
+  frequency?: string;
 }
 
 export interface FactorAssessmentDTO {

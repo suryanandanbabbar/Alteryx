@@ -10,19 +10,16 @@ import {
   Scale,
   FileCheck2,
   TrendingUp,
-  HelpCircle,
+  Calculator,
   Database,
   Target,
   LucideIcon,
   X,
   Info,
   Layers,
-  Download,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { api } from '../api/client';
-import { DocumentGenerationModal } from '../components/DocumentGenerationModal';
 import { PortfolioOverviewDTO, PortfolioWorkflowSummaryDTO, FactorAssessmentDTO } from '../types/portfolio';
 import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
 import { RationalisationPage } from './RationalisationPage';
@@ -38,6 +35,8 @@ interface PortfolioPageProps {
   onSelectBusinessArea?: (area: string | null) => void;
   onSelectWorkflow: (workflowId: string, businessArea?: string) => void | Promise<void>;
   onReset: () => void;
+  showRationalisation?: boolean;
+  setShowRationalisation?: (show: boolean) => void;
 }
 
 interface DomainConfig {
@@ -82,16 +81,15 @@ const CONFIGURED_BUSINESS_AREAS: DomainConfig[] = [
     borderColor: 'rgba(251, 191, 36, 0.25)',
     description: 'Producer commissions, sales volume & territory aggregation',
   },
+  {
+    name: 'Actuarial',
+    icon: Calculator,
+    color: '#f43f5e',
+    subtleBg: 'rgba(244, 63, 94, 0.08)',
+    borderColor: 'rgba(244, 63, 94, 0.25)',
+    description: 'Loss reserving, rate indications, capital modeling & experience studies',
+  },
 ];
-
-const UNCLASSIFIED_DOMAIN: DomainConfig = {
-  name: 'Other / Unclassified',
-  icon: HelpCircle,
-  color: '#94a3b8',
-  subtleBg: 'rgba(148, 163, 184, 0.06)',
-  borderColor: 'rgba(148, 163, 184, 0.2)',
-  description: 'Workflows pending explicit business-domain attribution',
-};
 
 const DEFAULT_BUSINESS_AREA_DESCRIPTIONS: Record<string, string> = {
   'Claims & Risk':
@@ -102,8 +100,8 @@ const DEFAULT_BUSINESS_AREA_DESCRIPTIONS: Record<string, string> = {
     'Legal business area encompasses workflows supporting legal operations, case-related information, regulatory analysis, legal reporting, and compliance-oriented data processing.',
   'Underwriting':
     'Underwriting business area encompasses workflows that support risk assessment, policy evaluation, underwriting decisions, pricing inputs, and portfolio analysis.',
-  'Other / Unclassified':
-    'These workflows could not be confidently associated with a recognised business area based on the available workflow output evidence.',
+  'Actuarial':
+    'Actuarial business area encompasses workflows that support actuarial valuation, loss reserving methodologies (e.g. triangulation, IBNR development), capital modeling, experience studies, and rate filing indications.',
 };
 
 // Color styling for deterministic complexity and criticality levels (HIGH -> Green, MEDIUM -> Yellow, LOW -> Red)
@@ -676,6 +674,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   onSelectBusinessArea,
   onSelectWorkflow,
   onReset,
+  showRationalisation: showRationalisationProp,
+  setShowRationalisation: setShowRationalisationProp,
 }) => {
   // Local fallback if selectedBusinessArea is not externally controlled
   const [localArea, setLocalArea] = useState<string | null>(null);
@@ -694,22 +694,10 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   const [inspectingWorkflow, setInspectingWorkflow] = useState<PortfolioWorkflowSummaryDTO | null>(null);
   const [inspectError, setInspectError] = useState<string | null>(null);
   const [activeInfoPanel, setActiveInfoPanel] = useState<InfoPanel>(null);
-  const [showRationalisation, setShowRationalisation] = useState<boolean>(false);
-  const [downloadingXlsx, setDownloadingXlsx] = useState<boolean>(false);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
-
-  const handleDownloadPortfolioXlsx = async () => {
-    if (downloadingXlsx) return;
-    setDownloadError(null);
-    setDownloadingXlsx(true);
-    try {
-      await api.downloadPortfolioXlsx(portfolio.portfolio_id, portfolio.portfolio_name);
-    } catch (err: any) {
-      setDownloadError(err.message || 'Failed to generate portfolio workbook. Please try again.');
-    } finally {
-      setDownloadingXlsx(false);
-    }
-  };
+  
+  const [localShowRationalisation, setLocalShowRationalisation] = useState<boolean>(false);
+  const isRationalisationVisible = showRationalisationProp !== undefined ? showRationalisationProp : localShowRationalisation;
+  const setRationalisationVisible = setShowRationalisationProp || setLocalShowRationalisation;
 
   // Close active info popover on Escape or click outside
   useEffect(() => {
@@ -759,26 +747,24 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
       'Legal': 0,
       'Underwriting': 0,
       'Sales & Distribution': 0,
-      'Other / Unclassified': 0,
+      'Actuarial': 0,
     };
 
     for (const w of portfolio.workflows) {
       if (w.status === 'SUCCESS') {
         const rawTag = w.business_area_tag || w.business_area?.business_area;
-        const tag = rawTag && counts[rawTag] !== undefined && rawTag !== 'UNCLASSIFIED'
-          ? rawTag
-          : 'Other / Unclassified';
-        counts[tag]++;
+        if (rawTag && counts[rawTag] !== undefined) {
+          counts[rawTag]++;
+        }
       }
     }
 
     return counts;
   }, [portfolio.workflows]);
 
-  // Determine visible business area cards:
-  // All 5 configured business areas must ALWAYS be displayed as cards, even when 0 workflows belong to them.
+  // Determine visible business area cards: Exactly the 5 configured business areas
   const visibleAreas = useMemo(() => {
-    return [...CONFIGURED_BUSINESS_AREAS, UNCLASSIFIED_DOMAIN];
+    return CONFIGURED_BUSINESS_AREAS;
   }, []);
 
   // Workflows for currently selected domain (Level 2)
@@ -786,29 +772,38 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
     if (!currentArea) return [];
     return portfolio.workflows.filter((w) => {
       const rawTag = w.business_area_tag || w.business_area?.business_area;
-      const tag = rawTag && rawTag !== 'UNCLASSIFIED' ? rawTag : 'Other / Unclassified';
-      return tag === currentArea;
+      return rawTag === currentArea;
     });
   }, [portfolio.workflows, currentArea]);
 
-  // Contextual summary strip metrics for Level 2
+  // Contextual summary strip metrics for Level 2 (Business Area Page)
   const areaMetrics = useMemo(() => {
-    let tools = 0;
-    let connections = 0;
+    const criticality = { HIGH: 0, MEDIUM: 0, LOW: 0 };
+    const complexity = { HIGH: 0, MEDIUM: 0, LOW: 0 };
     const uniqueSources = new Set<string>();
     const uniqueTargets = new Set<string>();
 
     for (const w of currentAreaWorkflows) {
-      tools += w.node_count || 0;
-      connections += w.connection_count || 0;
+      if (w.status === 'SUCCESS') {
+        const crit = w.criticality_level || 'LOW';
+        if (crit === 'HIGH') criticality.HIGH++;
+        else if (crit === 'MEDIUM') criticality.MEDIUM++;
+        else criticality.LOW++;
+
+        const comp = w.complexity_level || 'LOW';
+        if (comp === 'HIGH') complexity.HIGH++;
+        else if (comp === 'MEDIUM') complexity.MEDIUM++;
+        else complexity.LOW++;
+      }
+
       (w.sources || []).forEach((s) => uniqueSources.add(s));
       (w.targets || []).forEach((t) => uniqueTargets.add(t));
     }
 
     return {
       workflows: currentAreaWorkflows.length,
-      tools,
-      connections,
+      criticality,
+      complexity,
       sources: uniqueSources.size,
       targets: uniqueTargets.size,
     };
@@ -883,7 +878,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   // -------------------------------------------------------------------------
   // ETL RATIONALISATION: Whole-Estate Portfolio Intelligence Screen
   // -------------------------------------------------------------------------
-  if (showRationalisation) {
+  if (isRationalisationVisible) {
     return (
       <>
         {inspectingWorkflow && (
@@ -900,7 +895,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
         )}
         <RationalisationPage
           portfolioId={portfolio.portfolio_id}
-          onBackToPortfolio={() => setShowRationalisation(false)}
+          onBackToPortfolio={() => setRationalisationVisible(false)}
           onSelectWorkflow={(wid, area) => {
             const wf = portfolio.workflows.find((w) => w.workflow_id === wid);
             if (wf) {
@@ -1031,7 +1026,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
           </div>
         </div>
 
-        {/* Restrained Contextual Executive Metric Strip */}
+        {/* Restrained Contextual Executive Metric Strip for Business Area */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -1043,6 +1038,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
           boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
           flexWrap: 'wrap',
         }}>
+          {/* Workflows */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-text)' }}>
               {String(areaMetrics.workflows).padStart(2, '0')}
@@ -1054,28 +1050,39 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
 
           <div style={{ width: '1px', height: '18px', background: 'var(--color-border)' }} />
 
+          {/* Criticality H/M/L */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-text)' }}>
-              {String(areaMetrics.tools).padStart(2, '0')}
+            <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+              CRITICALITY
             </span>
-            <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Tools
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '700' }}>
+              <span style={{ color: '#22c55e' }}>H: {areaMetrics.criticality.HIGH}</span>
+              <span style={{ color: 'var(--color-border)' }}>|</span>
+              <span style={{ color: '#eab308' }}>M: {areaMetrics.criticality.MEDIUM}</span>
+              <span style={{ color: 'var(--color-border)' }}>|</span>
+              <span style={{ color: '#ef4444' }}>L: {areaMetrics.criticality.LOW}</span>
+            </div>
           </div>
 
           <div style={{ width: '1px', height: '18px', background: 'var(--color-border)' }} />
 
+          {/* Complexity H/M/L */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-text)' }}>
-              {String(areaMetrics.connections).padStart(2, '0')}
+            <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+              COMPLEXITY
             </span>
-            <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Connections
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '700' }}>
+              <span style={{ color: '#22c55e' }}>H: {areaMetrics.complexity.HIGH}</span>
+              <span style={{ color: 'var(--color-border)' }}>|</span>
+              <span style={{ color: '#eab308' }}>M: {areaMetrics.complexity.MEDIUM}</span>
+              <span style={{ color: 'var(--color-border)' }}>|</span>
+              <span style={{ color: '#ef4444' }}>L: {areaMetrics.complexity.LOW}</span>
+            </div>
           </div>
 
           <div style={{ width: '1px', height: '18px', background: 'var(--color-border)' }} />
 
+          {/* Production Targets */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '18px', fontWeight: '800', color: '#22c55e' }}>
               {String(areaMetrics.targets).padStart(2, '0')}
@@ -1087,6 +1094,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
 
           <div style={{ width: '1px', height: '18px', background: 'var(--color-border)' }} />
 
+          {/* Sources */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--color-text)' }}>
               {String(areaMetrics.sources).padStart(2, '0')}
@@ -1662,6 +1670,48 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                         />
                       )}
                     </div>
+
+                    {/* Operational Factor: Last Run */}
+                    <div
+                      style={{
+                        position: 'relative',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        background: 'var(--color-surface-secondary)',
+                        border: '1px solid var(--color-border)',
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                        Last Run:
+                      </span>
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text)' }}>
+                        {wf.last_run || wf.factor_assessments?.last_run?.display_value || (wf.factor_assessments?.last_run?.raw_value ? String(wf.factor_assessments.last_run.raw_value) : 'Not documented')}
+                      </span>
+                    </div>
+
+                    {/* Operational Factor: Frequency */}
+                    <div
+                      style={{
+                        position: 'relative',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '6px 12px',
+                        borderRadius: '6px',
+                        background: 'var(--color-surface-secondary)',
+                        border: '1px solid var(--color-border)',
+                      }}
+                    >
+                      <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                        Frequency:
+                      </span>
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text)' }}>
+                        {wf.frequency || wf.factor_assessments?.frequency?.display_value || (wf.factor_assessments?.frequency?.raw_value ? String(wf.factor_assessments.frequency.raw_value) : 'Not documented')}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Side-by-Side Sources & Targets Sections (Showing ALL datasets directly) */}
@@ -1768,54 +1818,6 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
       gap: '40px',
       position: 'relative',
     }}>
-      {/* Portfolio XLSX Generation Modal */}
-      {downloadingXlsx && <DocumentGenerationModal type="portfolio-xlsx" />}
-
-      {/* Download Error Alert Banner */}
-      {downloadError && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-sm)',
-          background: 'var(--color-error-subtle)',
-          border: '1px solid rgba(220, 38, 38, 0.3)',
-          color: 'var(--color-error)',
-          fontSize: '13px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-        }}>
-          <AlertTriangle size={16} style={{ flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>{downloadError}</div>
-          <button
-            onClick={() => handleDownloadPortfolioXlsx()}
-            style={{
-              padding: '4px 8px',
-              fontSize: '11px',
-              fontWeight: 600,
-              background: 'transparent',
-              border: '1px solid currentColor',
-              color: 'inherit',
-              borderRadius: '4px',
-              cursor: 'pointer',
-            }}
-          >
-            Retry
-          </button>
-          <button
-            onClick={() => setDownloadError(null)}
-            style={{
-              padding: '4px',
-              background: 'transparent',
-              border: 'none',
-              color: 'inherit',
-              cursor: 'pointer',
-            }}
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
       {/* Executive Hero Header */}
       <div style={{
         display: 'flex',
@@ -1856,42 +1858,45 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
             Your workflow estate, organised by business domain.
           </p>
 
-          {/* Portfolio Scale Indicator */}
+          {/* Portfolio Scale Indicators */}
           <div style={{
             display: 'flex',
-            alignItems: 'baseline',
-            gap: '12px',
+            alignItems: 'center',
+            gap: '16px',
             marginTop: '20px',
+            flexWrap: 'wrap',
           }}>
-            <div style={{
-              fontSize: '48px',
-              fontWeight: '800',
-              color: 'var(--color-text)',
-              letterSpacing: '-0.04em',
-              lineHeight: '1',
-              fontFeatureSettings: '"tnum"',
-            }}>
-              {String(metrics.successful_workflows).padStart(2, '0')}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <span style={{
-                fontSize: '11px',
-                fontWeight: '700',
-                textTransform: 'uppercase',
-                letterSpacing: '0.12em',
-                color: 'var(--color-text-muted)',
+            {/* Workflows Analysed Metric */}
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+              <div style={{
+                fontSize: '44px',
+                fontWeight: '800',
+                color: 'var(--color-text)',
+                letterSpacing: '-0.04em',
+                lineHeight: '1',
+                fontFeatureSettings: '"tnum"',
               }}>
-                WORKFLOWS ANALYSED
-              </span>
-              <span style={{ fontSize: '12px', color: 'var(--color-text-subtle)' }}>
-                Authoritative portfolio baseline
-              </span>
+                {String(metrics.successful_workflows).padStart(2, '0')}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.12em',
+                  color: 'var(--color-text-muted)',
+                }}>
+                  WORKFLOWS ANALYSED
+                </span>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-subtle)' }}>
+                  Authoritative portfolio baseline
+                </span>
+              </div>
             </div>
 
             {metrics.failed_workflows > 0 && (
               <div style={{
-                marginLeft: '16px',
+                marginLeft: '8px',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
@@ -1909,120 +1914,6 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
               </div>
             )}
           </div>
-        </div>
-
-        {/* Top-Right Header Actions */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          flexWrap: 'wrap',
-        }}>
-          {/* ETL Rationalisation Action */}
-          <button
-            onClick={() => setShowRationalisation(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 14px',
-              fontSize: '12px',
-              fontWeight: '600',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid rgba(16, 185, 129, 0.45)',
-              background: 'linear-gradient(135deg, rgba(6, 78, 59, 0.4) 0%, rgba(15, 23, 42, 0.85) 100%)',
-              color: '#ecfdf5',
-              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)',
-              cursor: 'pointer',
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(52, 211, 153, 0.8)';
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(6, 78, 59, 0.6) 0%, rgba(15, 23, 42, 0.95) 100%)';
-              e.currentTarget.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.3)';
-              e.currentTarget.style.transform = 'translateY(-1px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.45)';
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(6, 78, 59, 0.4) 0%, rgba(15, 23, 42, 0.85) 100%)';
-              e.currentTarget.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.15)';
-              e.currentTarget.style.transform = 'none';
-            }}
-          >
-            <span>Rationalisation Recommendation</span>
-            <span style={{ color: '#34d399', fontWeight: '700', marginLeft: '4px' }}>View →</span>
-          </button>
-
-          {/* Download Portfolio XLSX Action */}
-          <button
-            onClick={handleDownloadPortfolioXlsx}
-            disabled={downloadingXlsx}
-            title="Download overall ETL Portfolio Overview spreadsheet (.xlsx)"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 14px',
-              fontSize: '12px',
-              fontWeight: '600',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid rgba(56, 189, 248, 0.45)',
-              background: 'linear-gradient(135deg, rgba(3, 105, 161, 0.4) 0%, rgba(15, 23, 42, 0.85) 100%)',
-              color: '#f0f9ff',
-              boxShadow: '0 2px 8px rgba(56, 189, 248, 0.15)',
-              cursor: downloadingXlsx ? 'not-allowed' : 'pointer',
-              opacity: downloadingXlsx ? 0.7 : 1,
-              transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-            }}
-            onMouseEnter={(e) => {
-              if (downloadingXlsx) return;
-              e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.8)';
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(3, 105, 161, 0.6) 0%, rgba(15, 23, 42, 0.95) 100%)';
-              e.currentTarget.style.boxShadow = '0 4px 14px rgba(56, 189, 248, 0.3)';
-              e.currentTarget.style.transform = 'translateY(-1px)';
-            }}
-            onMouseLeave={(e) => {
-              if (downloadingXlsx) return;
-              e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.45)';
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(3, 105, 161, 0.4) 0%, rgba(15, 23, 42, 0.85) 100%)';
-              e.currentTarget.style.boxShadow = '0 2px 8px rgba(56, 189, 248, 0.15)';
-              e.currentTarget.style.transform = 'none';
-            }}
-          >
-            <Download size={14} color="#38bdf8" />
-            <span>Download Portfolio XLSX</span>
-          </button>
-
-          {/* Secondary Utility Action */}
-          <button
-            onClick={onReset}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 14px',
-              fontSize: '12px',
-              fontWeight: '600',
-              borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-surface)',
-              color: 'var(--color-text-secondary)',
-              cursor: 'pointer',
-              transition: 'all 0.18s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--color-text)';
-              e.currentTarget.style.borderColor = 'var(--color-text-muted)';
-              e.currentTarget.style.background = 'var(--color-surface-hover)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--color-text-secondary)';
-              e.currentTarget.style.borderColor = 'var(--color-border)';
-              e.currentTarget.style.background = 'var(--color-surface)';
-            }}
-          >
-            <RefreshCw size={13} /> Upload Different Portfolio
-          </button>
         </div>
       </div>
 

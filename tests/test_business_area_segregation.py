@@ -126,16 +126,22 @@ class TestBusinessAreaSegregation:
             business_purpose="Monitors product sales revenue, customer order pipelines, and distributor channels.",
             target_files=["Sales_Revenue.xlsx"], output_columns=["Sales_Amount", "Commission"]
         )
+        wf_actuarial = _make_dummy_canonical_result(
+            "wf_5", "Actuarial.yxmd",
+            business_purpose="Performs actuarial valuation, loss development triangulation, and IBNR reserve estimation.",
+            target_files=["Actuarial_IBNR.xlsx"], output_columns=["Accident_Year", "IBNR_Reserve"]
+        )
 
         portfolio = build_portfolio_analysis([
             ("Claims.yxmd", "Claims.yxmd", wf_claims),
             ("Legal.yxmd", "Legal.yxmd", wf_legal),
             ("Underwriting.yxmd", "Underwriting.yxmd", wf_uw),
             ("Sales.yxmd", "Sales.yxmd", wf_sales),
+            ("Actuarial.yxmd", "Actuarial.yxmd", wf_actuarial),
         ])
 
-        # Verify configured business areas are present (including Other / Unclassified)
-        assert len(portfolio.business_areas) in (4, 5)
+        # Verify configured business areas are present (exactly the 5 configured areas)
+        assert len(portfolio.business_areas) == 5
         counts = portfolio.business_area_counts
         for area in ALLOWED_BUSINESS_AREAS:
             assert counts[area] == 1
@@ -402,12 +408,20 @@ class TestBusinessAreaSegregation:
     def test_case_10_count_invariant(self):
         """Case 10: Sum of card workflow counts strictly equals total classified workflows."""
         workflows = [
-            _make_dummy_canonical_result(f"wf_{i}", f"Wf_{i}.yxmd", business_purpose="Arbitrary ETL process")
-            for i in range(10)
+            _make_dummy_canonical_result("wf_0", "Claims1.yxmd", "Processes insurance claim losses and claimant exposure.", ["Claims_Loss.xlsx"], ["Claim_ID", "Loss_Amount"]),
+            _make_dummy_canonical_result("wf_1", "Claims2.yxmd", "Reports fraud claim volume and payments.", ["Fraud_Claims.xlsx"], ["Claim_ID", "Fraud_Score"]),
+            _make_dummy_canonical_result("wf_2", "Legal1.yxmd", "Tracks litigation matters, contracts, and legal arbitration proceedings.", ["Litigation.xlsx"], ["Matter_ID", "Litigation_Status"]),
+            _make_dummy_canonical_result("wf_3", "Legal2.yxmd", "Audits regulatory compliance filings and legal disclosures.", ["Compliance.xlsx"], ["Compliance_ID", "Audit_Status"]),
+            _make_dummy_canonical_result("wf_4", "UW1.yxmd", "Evaluates policy underwriting eligibility, coverage limits, and premium calculations.", ["Policy_Underwriting.xlsx"], ["Policy_ID", "Premium"]),
+            _make_dummy_canonical_result("wf_5", "UW2.yxmd", "Assesses risk tier rating and policy underwriting acceptance.", ["Underwriting_Risk.xlsx"], ["Policy_ID", "Risk_Tier"]),
+            _make_dummy_canonical_result("wf_6", "Sales1.yxmd", "Monitors product sales revenue, customer order pipelines, and distributor channels.", ["Sales_Revenue.xlsx"], ["Sales_Amount", "Commission"]),
+            _make_dummy_canonical_result("wf_7", "Sales2.yxmd", "Calculates sales agent commission quotas and distribution volume.", ["Sales_Commissions.xlsx"], ["Agent_ID", "Quota"]),
+            _make_dummy_canonical_result("wf_8", "Actuarial1.yxmd", "Performs actuarial valuation, loss development triangulation, and IBNR reserve estimation.", ["Actuarial_IBNR.xlsx"], ["Accident_Year", "IBNR_Reserve"]),
+            _make_dummy_canonical_result("wf_9", "Actuarial2.yxmd", "Calculates actuarial rate indications and solvency capital modeling.", ["Rate_Indications.xlsx"], ["Experience_Year", "Rate_Indication"]),
         ]
 
         portfolio = build_portfolio_analysis([
-            (f"Wf_{i}.yxmd", f"Wf_{i}.yxmd", wf) for i, wf in enumerate(workflows)
+            (wf.source.original_filename, wf.source.original_filename, wf) for wf in workflows
         ])
 
         # Invariant 1: Sum of business_area_counts equals total successful workflows
