@@ -1892,7 +1892,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                               ...compStyle,
                             }}
                           >
-                            Complexity: {summary.complexity_level || 'LOW'} ({summary.complexity_score ?? 0}/100)
+                            Complexity: {summary.complexity_level || 'LOW'} 
                           </span>
                           <span
                             style={{
@@ -1903,7 +1903,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                               ...critStyle,
                             }}
                           >
-                            Criticality: {summary.criticality_level || 'LOW'} ({summary.criticality_score ?? 0}/100)
+                            Criticality: {summary.criticality_level || 'LOW'}
                           </span>
                         </div>
                       )}
@@ -1972,19 +1972,12 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                     val: selectedCandidate.deterministic_metrics.target_overlap,
                   },
                   {
-                    label: 'Transformation Logic',
+                    label: 'Logic Overlap',
                     val: selectedCandidate.deterministic_metrics.transformation_similarity,
                   },
+                
                   {
-                    label: 'Output Schema Overlap',
-                    val: selectedCandidate.deterministic_metrics.schema_similarity,
-                  },
-                  {
-                    label: 'Output Grain Alignment',
-                    val: selectedCandidate.deterministic_metrics.grain_similarity,
-                  },
-                  {
-                    label: 'DAG Topology Similarity',
+                    label: 'DAG Overlap',
                     val: selectedCandidate.deterministic_metrics.dag_similarity,
                   },
                 ].map((m) => {
@@ -2122,7 +2115,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   marginBottom: '6px',
                 }}
               >
-                EXECUTIVE RATIONALE
+                RECOMMENDATION RATIONALE
               </div>
               <p
                 style={{
@@ -2139,76 +2132,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                 {selectedCandidate.reasoning}
               </p>
             </div>
-
-            {/* Proposed Strategy */}
-            <div>
-              <div
-                style={{
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  color: 'var(--color-text-muted)',
-                  marginBottom: '6px',
-                }}
-              >
-                PROPOSED MIGRATION & RATIONALISATION STRATEGY
-              </div>
-              <p
-                style={{
-                  fontSize: '13.5px',
-                  lineHeight: '1.55',
-                  color: 'var(--color-text)',
-                  fontWeight: '500',
-                  margin: 0,
-                  padding: '14px 16px',
-                  borderRadius: '8px',
-                  background: 'var(--color-surface-secondary)',
-                  border: '1px solid var(--color-border-subtle)',
-                }}
-              >
-                {selectedCandidate.proposed_strategy}
-              </p>
-            </div>
-
-            {/* Retirement Safety Warning (if RETIRE_CANDIDATE) */}
-            {selectedCandidate.recommendation_type === 'RETIRE_CANDIDATE' && (
-              <div
-                style={{
-                  padding: '16px 20px',
-                  borderRadius: '8px',
-                  background: 'rgba(245, 158, 11, 0.1)',
-                  border: '1px solid rgba(245, 158, 11, 0.35)',
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '12px',
-                }}
-              >
-                <AlertTriangle size={20} color="#fbbf24" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div>
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: '800',
-                      color: '#fbbf24',
-                      marginBottom: '4px',
-                    }}
-                  >
-                    Retirement is not authorised.
-                  </div>
-                  <div
-                    style={{
-                      fontSize: '12.5px',
-                      lineHeight: '1.5',
-                      color: 'var(--color-text-secondary)',
-                    }}
-                  >
-                    This is a retirement candidate only. Validate scheduling, ownership, downstream consumers,
-                    and operational dependencies before retiring the workflow.
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Validation Requirements Checklist */}
             {selectedCandidate.validation_requirements.length > 0 && (
