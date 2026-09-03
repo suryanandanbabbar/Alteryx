@@ -1733,7 +1733,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
               e.currentTarget.style.transform = 'none';
             }}
           >
-            <span>ETL Rationalisation</span>
+            <span>Rationalisation Recommendation</span>
             <span style={{ color: '#34d399', fontWeight: '700', marginLeft: '4px' }}>View →</span>
           </button>
 

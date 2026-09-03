@@ -599,3 +599,67 @@ class TestLLMCriticalityAssessorQuality:
             assert out_file.exists()
             assert out_file.stat().st_size > 0
             mock_crit_gen.assert_not_called()
+
+    # 22. Large response (2000+ chars) with conversational surrounding text and nested factor assessments
+    def test_large_response_with_surrounding_prose_and_trailing_commas(self):
+        mock_client = MagicMock()
+        mock_client.is_available = True
+        mock_client.model_name = "azure-llama"
+
+        payload = _make_valid_llm_payload(
+            score=76.0,
+            level="HIGH",
+            justification="This enterprise workflow executes monthly statutory balance sheet calculations for regulatory compliance and downstream audit verification.",
+            has_downstream=True,
+        )
+        # Add detailed text to push payload over 2000 characters
+        payload["factor_assessments"]["production_outputs"]["rationale"] = "The workflow directly publishes the official statutory general ledger schedule and balance sheet statement required by federal audit standards."
+        payload["factor_assessments"]["downstream_dependency"]["rationale"] = "Multiple downstream financial consolidation workflows consume this balance sheet dataset on a scheduled basis for executive portfolio reporting."
+        payload["factor_assessments"]["business_deliverables"]["rationale"] = "This is a mandatory statutory filing deliverable supporting quarterly executive audit obligations across all underwriting lines of business."
+
+        raw_json_str = json.dumps(payload, indent=2)
+        # Introduce a trailing comma in factor assessments block
+        raw_json_str = raw_json_str.replace('"operational_context": {\n      "assessment": "NOT_ESTABLISHED",\n      "evidence": "None",\n      "rationale": "Not documented"\n    }', '"operational_context": {\n      "assessment": "NOT_ESTABLISHED",\n      "evidence": "None",\n      "rationale": "Not documented",\n    },')
+
+        # Surround with 500 chars of preamble and postamble prose
+        preamble = "Here is the comprehensive business criticality assessment for the requested Alteryx workflow based on the provided evidence package:\n\n"
+        postamble = "\n\nPlease let me know if you would like any further breakdown of the factor assessments or additional rationalisation guidance."
+        simulated_response = preamble + raw_json_str + postamble
+
+        assert len(simulated_response) > 2000
+
+        mock_client.generate.return_value = simulated_response
+
+        gen = LLMNarrativeGenerator(client=mock_client)
+        ev = _make_evidence(
+            downstream_consumers=["Downstream_Consolidation.yxmd"],
+            semantic_impact_signals=["Statutory / compliance / financial reporting deliverable"],
+        )
+        res = gen.generate_criticality_assessment(ev)
+
+        assert res.source == "llm"
+        assert res.criticality_score == 76.0
+        assert res.criticality_level == "HIGH"
+        assert "statutory balance sheet" in res.criticality_justification
+
+    # 23. Local Reproduction Harness with Sanitized Fixtures
+    @pytest.mark.parametrize(
+        "fixture_name,raw_response,expected_accepted",
+        [
+            ("plain_json", json.dumps(_make_valid_llm_payload(score=65.0, level="MEDIUM", justification="This is a valid business explanation describing the monthly reconciliation process for local branch accounting.", has_downstream=True)), True),
+            ("code_fence_json", f"```json\n{json.dumps(_make_valid_llm_payload(score=65.0, level='MEDIUM', justification='This is a valid business explanation describing the monthly reconciliation process for local branch accounting.', has_downstream=True))}\n```", True),
+            ("nested_wrapper", json.dumps({"criticality_assessment": _make_valid_llm_payload(score=65.0, level="MEDIUM", justification="This is a valid business explanation describing the monthly reconciliation process for local branch accounting.", has_downstream=True)}), True),
+            ("malformed_json", "{\"criticality_score\": 80, not_closed", False),
+            ("incomplete_json", json.dumps({"criticality_score": 75.0}), False),
+            ("arbitrary_prose", "The workflow scored 85 out of 100 on our internal evaluation scale.", False),
+        ],
+    )
+    def test_reproduction_harness_sanitized_fixtures(self, fixture_name, raw_response, expected_accepted):
+        parsed = _extract_structured_criticality_payload(raw_response)
+        if expected_accepted:
+            assert parsed is not None, f"Fixture {fixture_name} failed to extract structured payload"
+            assert "criticality_score" in parsed
+            assert "criticality_level" in parsed
+            assert "criticality_justification" in parsed
+        else:
+            assert parsed is None, f"Fixture {fixture_name} should have returned None but returned {parsed}"

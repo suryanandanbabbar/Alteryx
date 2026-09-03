@@ -16,7 +16,7 @@ CONCLUSIONS_PROMPT_VERSION = "2.0"
 TOOL_SPECIFICATIONS_PROMPT_VERSION = "1.0"
 PROCESS_STAGES_PROMPT_VERSION = "2.0"
 STTM_PROMPT_VERSION = "1.0"
-CRITICALITY_ASSESSMENT_PROMPT_VERSION = "3.0"
+CRITICALITY_ASSESSMENT_PROMPT_VERSION = "3.1"
 
 # ---------------------------------------------------------------------------
 # 1. Tool "What It Does" & Tool Specifications Prompts
@@ -970,7 +970,7 @@ def build_portfolio_business_area_classification_user_prompt(
 
 CRITICALITY_ASSESSMENT_SYSTEM_PROMPT = """You are a senior enterprise data architect and business intelligence assessor evaluating the business criticality of an ETL workflow for portfolio rationalisation and cloud migration planning.
 
-You are the PRIMARY BUSINESS MATERIALITY ASSESSOR. The deterministic metrics provide factual context, but you must make the contextual judgment of the workflow's business significance based on the supplied evidence. Do not merely narrate or copy a predetermined score.
+You are the PRIMARY BUSINESS MATERIALITY ASSESSOR. The deterministic metrics provide factual context, but you must make the contextual judgment of the workflow's business significance based on the supplied evidence. Do not merely copy or narrate a predetermined score.
 
 CRITICALITY EVALUATION PRINCIPLES:
 1. BUSINESS MATERIALITY OVER BLAST RADIUS: Assess the broader business consequence of workflow failure, not just technical dependency counts. Technical complexity (e.g. node count, tool diversity) is NOT criticality.
@@ -996,11 +996,19 @@ CALIBRATION ANCHORS (Guidance only — weigh actual evidence together):
 - MEDIUM (35–69): Meaningful operational or production role with material but bounded consequence, or localized dependency without broad critical disruption.
 - HIGH (70–100): Evidence supports consequential business impact, significant decision/output materiality, broad customer/client/enterprise/regulatory/financial consequence, or substantial dependency propagation.
 
-Return a JSON object conforming strictly to this format:
+CRITICAL OUTPUT FORMATTING RULES:
+- Return EXACTLY ONE valid raw JSON object.
+- Do NOT output any markdown formatting, backticks, or code fences (no ``` or ```json).
+- Do NOT include any introductory, conversational, or concluding text before or after the JSON.
+- Do NOT output chain-of-thought, thinking tags (<think>), or internal reasoning.
+- Keep each prose field concise and factual.
+- Each factor assessment evidence and rationale must be 1 concise sentence, not long essays.
+
+Return a JSON object conforming strictly to this structure:
 {
   "criticality_score": <number between 0 and 100>,
   "criticality_level": "LOW" | "MEDIUM" | "HIGH",
-  "criticality_justification": "<workflow-specific business explanation (40-80 words) of why this rating is appropriate>",
+  "criticality_justification": "<workflow-specific business explanation (30-60 words) of why this rating is appropriate>",
   "business_consequence": "<1-2 sentences on what specifically happens if the workflow stops executing>",
   "dependency_impact": "<1-2 sentences on propagation risk based on downstream consumers and pipeline position>",
   "affected_scope": "<supported business, customer, client, or enterprise scope, or bounded statement that scope is not established>",
@@ -1072,7 +1080,7 @@ OPERATIONAL METADATA:
 {op_str}
 
 {ref_str}
-Evaluate the business significance of this workflow across all 10 dimensions. Decide the final score and level using business judgment over the evidence, and return ONLY the structured JSON response."""
+Evaluate the business significance of this workflow across all 10 dimensions. Decide the final score and level using business judgment over the evidence, and return ONLY the single raw JSON object without code fences or surrounding text."""
 
 
 

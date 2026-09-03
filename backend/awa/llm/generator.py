@@ -845,6 +845,42 @@ def _try_parse_json_candidate(candidate_str: str) -> dict[str, Any] | None:
     return None
 
 
+def _find_balanced_json_candidates(text: str) -> list[str]:
+    """Find all balanced outermost JSON candidate strings { ... } in text respecting string quotes and escapes."""
+    candidates: list[str] = []
+    in_string = False
+    escape = False
+    brace_depth = 0
+    start_idx = -1
+
+    for i, ch in enumerate(text):
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            if in_string:
+                escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+
+        if ch == "{":
+            if brace_depth == 0:
+                start_idx = i
+            brace_depth += 1
+        elif ch == "}":
+            if brace_depth > 0:
+                brace_depth -= 1
+                if brace_depth == 0 and start_idx != -1:
+                    candidates.append(text[start_idx : i + 1])
+                    start_idx = -1
+
+    return candidates
+
+
 def _extract_structured_criticality_payload(raw_response: Any) -> dict[str, Any] | None:
     """Extract structured JSON payload containing complete criticality assessment fields."""
     if raw_response is None:
@@ -888,7 +924,13 @@ def _extract_structured_criticality_payload(raw_response: Any) -> dict[str, Any]
         if res is not None:
             return res
 
-    # 3. Progressive JSON scanning using JSONDecoder on balanced { ... } candidates
+    # 3. Find balanced JSON candidate objects from surrounding text
+    for cand in _find_balanced_json_candidates(text):
+        res = _try_parse_json_candidate(cand.strip())
+        if res is not None:
+            return res
+
+    # 4. Progressive JSON scanning using JSONDecoder as final candidate check
     decoder = json.JSONDecoder()
     pos = 0
     while True:

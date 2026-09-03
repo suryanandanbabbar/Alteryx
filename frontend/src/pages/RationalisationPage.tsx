@@ -551,7 +551,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
             color: 'var(--color-primary)',
           }}
         >
-          ETL RATIONALISATION
+          RATIONALISATION RECOMMENDATION
         </div>
 
         <h1
@@ -910,7 +910,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                     letterSpacing: '0.08em',
                   }}
                 >
-                  SHARED LOGIC
+                  SHARED FORMULAE
                 </span>
               </div>
               <span
@@ -986,7 +986,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                 { key: 'ALL', label: 'All Opportunities', count: totalOpportunities },
                 { key: 'CONSOLIDATE', label: 'Consolidate', count: counts.CONSOLIDATE || 0 },
                 { key: 'RETIRE_CANDIDATE', label: 'Retire Candidates', count: counts.RETIRE_CANDIDATE || 0 },
-                { key: 'SHARED_LOGIC', label: 'Shared Logic', count: counts.SHARED_LOGIC || 0 },
+                { key: 'SHARED_LOGIC', label: 'Shared Formulae', count: counts.SHARED_LOGIC || 0 },
                 { key: 'REVIEW', label: 'Review', count: counts.REVIEW || 0 },
               ].map((tab) => {
                 const isSelected = activeTab === tab.key;

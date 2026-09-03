@@ -880,7 +880,7 @@ def _build_rationalisation_sheet(
         "DAG Topology Similarity %",
         "Shared Operational Logic",
         "Unique Workflow Functionality",
-        "Proposed Strategy",
+        "Justification",
     ]
 
     ws.row_dimensions[1].height = 28
