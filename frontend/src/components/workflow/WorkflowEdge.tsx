@@ -12,11 +12,10 @@ export const WorkflowEdgeComponent: React.FC<EdgeProps<any>> = ({
   targetPosition,
   style = {},
   markerEnd,
-  selected,
   data,
 }) => {
   const edgeData = data as WorkflowEdgeData | undefined;
-  const isHighlighted = edgeData?.isHighlighted || selected;
+  const isHighlighted = edgeData?.isHighlighted;
   const isDimmed = edgeData?.isDimmed && !isHighlighted;
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({

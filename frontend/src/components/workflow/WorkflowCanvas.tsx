@@ -9,6 +9,7 @@ import {
   MarkerType,
   NodeTypes,
   EdgeTypes,
+  EdgeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { DiagramDTO, NodeDTO, ConnectionDTO, DiagnosticDTO } from '../../types/workflow';
@@ -48,7 +49,6 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
 
   const [direction, setDirection] = useState<'LR' | 'TB'>('LR');
   const [selectedToolId, setSelectedToolId] = useState<number | null>(externalSelectedToolId ?? null);
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
 
@@ -63,22 +63,6 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
       setSelectedToolId(externalSelectedToolId);
     }
   }, [externalSelectedToolId]);
-
-  // Handle Escape key to close inspector or exit fullscreen
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (selectedToolId !== null || selectedEdgeId !== null) {
-          setSelectedToolId(null);
-          setSelectedEdgeId(null);
-        } else if (isFullscreen) {
-          setIsFullscreen(false);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, selectedToolId, selectedEdgeId]);
 
   // Extract connections and diagnostics
   const connections: ConnectionDTO[] = useMemo(() => {
@@ -360,8 +344,8 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
 
     setEdges((prevEdges) =>
       prevEdges.map((edge) => {
-        const isHighlighted = lineage.connectedEdgeIds.has(edge.id) || selectedEdgeId === edge.id;
-        const hasActiveSelection = selectedToolId !== null || selectedEdgeId !== null;
+        const isHighlighted = lineage.connectedEdgeIds.has(edge.id);
+        const hasActiveSelection = selectedToolId !== null;
         const isDimmed = hasActiveSelection && !isHighlighted;
 
         const currentData = edge.data as WorkflowEdgeData;
@@ -388,7 +372,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         };
       })
     );
-  }, [selectedToolId, selectedEdgeId, lineage, matchedToolIds, activeMatchIndex, setNodes, setEdges]);
+  }, [selectedToolId, lineage, matchedToolIds, activeMatchIndex, setNodes, setEdges]);
 
   // Helper to focus and zoom specifically onto a selected node with surrounding lineage context,
   // accounting dynamically for any bottom docked inspector height.
@@ -458,7 +442,6 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
   const handleSelectNode = useCallback(
     (toolId: number | null) => {
       setSelectedToolId(toolId);
-      setSelectedEdgeId(null);
       if (toolId !== null) {
         // If opening inspector for the first time, assume default docked height 240px if not yet measured
         const anticipatedHeight = dockedInspectorHeight > 0 ? dockedInspectorHeight : 240;
@@ -509,7 +492,6 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
   const resetToOverview = useCallback(
     (customPadding?: number, duration = 300) => {
       setSelectedToolId(null);
-      setSelectedEdgeId(null);
       if (externalOnSelectTool) {
         externalOnSelectTool(null);
       }
@@ -525,7 +507,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (selectedToolId !== null || selectedEdgeId !== null) {
+        if (selectedToolId !== null) {
           resetToOverview();
         } else if (isFullscreen) {
           setIsFullscreen(false);
@@ -534,7 +516,7 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFullscreen, selectedToolId, selectedEdgeId, resetToOverview]);
+  }, [isFullscreen, selectedToolId, resetToOverview]);
 
   // Handle search text changes
   const handleSearchChange = (q: string) => {
@@ -558,7 +540,6 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     setNodes(layouted.nodes);
     setEdges(layouted.edges);
     setSelectedToolId(null);
-    setSelectedEdgeId(null);
     if (externalOnSelectTool) {
       externalOnSelectTool(null);
     }
@@ -586,6 +567,17 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
     reactFlow.zoomOut({ duration: 200 });
   };
 
+  // Ignore edge select changes so clicking edges is a true no-op
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange<WorkflowEdgeType>[]) => {
+      const nonSelectChanges = changes.filter((c) => c.type !== 'select');
+      if (nonSelectChanges.length > 0) {
+        onEdgesChange(nonSelectChanges);
+      }
+    },
+    [onEdgesChange]
+  );
+
   // Data for Inspector
   const selectedNodeDto = selectedToolId !== null ? nodeMap.get(selectedToolId) || null : null;
   const upstreamNodes = useMemo(() => {
@@ -599,19 +591,6 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
       .map((id) => nodeMap.get(id))
       .filter((n): n is NodeDTO => !!n);
   }, [lineage.downstreamToolIds, nodeMap]);
-
-  const selectedConnectionObj = useMemo(() => {
-    if (!selectedEdgeId) return null;
-    const conn = connections.find(
-      (c) => `e-${c.origin_tool_id}-${c.origin_anchor}-${c.destination_tool_id}-${c.destination_anchor}` === selectedEdgeId
-    );
-    if (!conn) return null;
-    return {
-      connection: conn,
-      sourceNode: nodeMap.get(conn.origin_tool_id),
-      targetNode: nodeMap.get(conn.destination_tool_id),
-    };
-  }, [selectedEdgeId, connections, nodeMap]);
 
   const handleToggleFullscreen = () => {
     setIsFullscreen((prev) => !prev);
@@ -692,12 +671,10 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
+            onEdgesChange={handleEdgesChange}
             onNodeClick={(_, node) => handleSelectNode(Number(node.id))}
-            onEdgeClick={(_, edge) => {
-              setSelectedEdgeId(edge.id);
-              setSelectedToolId(null);
-            }}
+            edgesFocusable={false}
+            edgesReconnectable={false}
             onPaneClick={() => {
               resetToOverview();
             }}
@@ -789,11 +766,11 @@ const WorkflowCanvasInternal: React.FC<WorkflowCanvasInternalProps> = ({
         </div>
 
         {/* Right Dedicated Inspector Panel (Non-obstructive Side-by-Side Flex) */}
-        {(selectedNodeDto || selectedConnectionObj) && (
+        {selectedNodeDto && (
           <WorkflowInspector
             analysisId={analysisId}
             selectedNode={selectedNodeDto}
-            selectedConnection={selectedConnectionObj}
+            selectedConnection={null}
             upstreamNodes={upstreamNodes}
             downstreamNodes={downstreamNodes}
             isBusinessOutput={selectedToolId ? businessOutputIds.has(selectedToolId) : false}
