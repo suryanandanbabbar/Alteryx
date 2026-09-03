@@ -29,6 +29,7 @@ from typing import Any, Optional
 
 from awa.model.analysis_result import CanonicalAnalysisResult
 from awa.model.portfolio import (
+    ConsolidationDecision,
     DependencyEvidence,
     DeterministicMetrics,
     OutputEvidence,
@@ -80,7 +81,8 @@ def normalize_name(name: str) -> str:
     """Normalize file or dataset name for deterministic matching."""
     if not name:
         return ""
-    clean = Path(name).name.strip().lower()
+    clean = str(name).replace("\\", "/").strip()
+    clean = Path(clean).name.strip().lower()
     # Remove file extension and extraneous symbols
     clean = re.sub(r"\.(xlsx|xls|csv|yxdb|tde|hyper|avro|parquet|json)$", "", clean)
     clean = re.sub(r"[^a-z0-9_]", "_", clean)
@@ -475,6 +477,11 @@ def build_workflow_fingerprint(
         complexity_score=summary.complexity_score or 0.0,
         criticality_level=summary.criticality_level or "LOW",
         criticality_score=summary.criticality_score or 0.0,
+        frequency=summary.frequency or (
+            summary.factor_assessments.get("frequency", {}).get("display_value")
+            if hasattr(summary, "factor_assessments") and isinstance(summary.factor_assessments, dict)
+            else "Not documented"
+        ) or "Not documented",
         downstream_consumers=downstream_consumers or [],
     )
 
@@ -499,14 +506,14 @@ def compare_workflows(
 ) -> WorkflowComparisonEvidence:
     """Deterministically compare two workflow fingerprints across all evidence dimensions."""
     # 1. Source overlap
-    src_a = set(fp_a.sources)
-    src_b = set(fp_b.sources)
+    src_a = {normalize_name(s) for s in fp_a.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
+    src_b = {normalize_name(s) for s in fp_b.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
     source_overlap = _jaccard_similarity(src_a, src_b)
     shared_sources = sorted(list(src_a & src_b))
 
     # 2. Production Target overlap
-    tgt_a = set(fp_a.production_targets)
-    tgt_b = set(fp_b.production_targets)
+    tgt_a = {normalize_name(t) for t in fp_a.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
+    tgt_b = {normalize_name(t) for t in fp_b.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
     target_overlap = _jaccard_similarity(tgt_a, tgt_b)
     shared_targets = sorted(list(tgt_a & tgt_b))
     distinct_targets_a = sorted(list(tgt_a - tgt_b))
@@ -626,6 +633,11 @@ def compare_workflows(
         dependency_notes=dep_notes,
     )
 
+    freq_a = (getattr(fp_a, "frequency", "Not documented") or "Not documented").strip()
+    freq_b = (getattr(fp_b, "frequency", "Not documented") or "Not documented").strip()
+    is_same_freq = bool(freq_a and freq_b and freq_a.lower() == freq_b.lower() and freq_a.lower() != "not documented")
+    frequency_overlap = 1.0 if is_same_freq else 0.0
+
     metrics = DeterministicMetrics(
         source_overlap=source_overlap,
         target_overlap=target_overlap,
@@ -633,6 +645,7 @@ def compare_workflows(
         schema_similarity=schema_similarity,
         grain_similarity=grain_similarity,
         dag_similarity=dag_similarity,
+        frequency_overlap=frequency_overlap,
     )
 
     # 9. Explainable Opportunity Score (0 - 100)
@@ -676,8 +689,217 @@ def compare_workflows(
 
 
 # ---------------------------------------------------------------------------
-# 3. Deterministic Candidate Detection & Safety Gates
+# 3. Deterministic Candidate Detection & Consolidation Rules
 # ---------------------------------------------------------------------------
+class ConsolidationRules:
+    """Exact auditable rule descriptors for pairwise workflow consolidation."""
+    RULE_A = "100% source overlap + at least one Low complexity + same frequency"
+    RULE_B = "Different outputs + at least one Low complexity + same frequency"
+    RULE_C = "Different outputs + both Medium/High complexity — do not merge"
+    RULE_D = "Logic can be incorporated while preserving existing result"
+    RULE_DEFAULT = "No consolidation criteria met — do not merge"
+
+
+def evaluate_consolidation_rules(
+    fp_a: WorkflowFingerprint,
+    fp_b: WorkflowFingerprint,
+    comp: WorkflowComparisonEvidence,
+) -> ConsolidationDecision:
+    """Evaluate pairwise deterministic consolidation/merge rules A, B, C, D from canonical evidence.
+
+    Rules:
+    - RULE A: If source/input files overlap 100% AND at least one workflow has Low complexity
+      AND both workflows have the same frequency -> recommend MERGE.
+    - RULE B: If the workflows have different outputs AND at least one workflow has Low complexity
+      AND both workflows have the same frequency -> recommend MERGE.
+    - RULE C: If outputs are different AND BOTH workflows are Medium or High complexity -> recommend DO NOT MERGE.
+    - RULE D: If Workflow B's logic can be incorporated into Workflow A while Workflow A still
+      produces the same existing result -> recommend MERGE.
+    """
+    # 1. Physical normalized sources (exclude *Unknown and empty)
+    src_a = {normalize_name(s) for s in fp_a.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
+    src_b = {normalize_name(s) for s in fp_b.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
+    is_source_100_pct = bool(src_a and src_b and src_a == src_b)
+    source_overlap_pct = _jaccard_similarity(src_a, src_b)
+
+    # 2. Physical normalized targets (exclude *Unknown and empty)
+    tgt_a = {normalize_name(t) for t in fp_a.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
+    tgt_b = {normalize_name(t) for t in fp_b.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
+    different_outputs = bool((tgt_a != tgt_b) and (tgt_a or tgt_b))
+    if tgt_a and tgt_b and tgt_a == tgt_b:
+        output_rel = "IDENTICAL"
+    elif tgt_a and tgt_b and not (tgt_a & tgt_b):
+        output_rel = "DIFFERENT"
+    elif tgt_a & tgt_b:
+        output_rel = "OVERLAPPING"
+    else:
+        output_rel = "DIFFERENT" if (tgt_a or tgt_b) else "NONE"
+
+    # 3. Complexity
+    comp_a = (getattr(fp_a, "complexity_level", "LOW") or "LOW").upper()
+    comp_b = (getattr(fp_b, "complexity_level", "LOW") or "LOW").upper()
+    has_low_complexity = (comp_a == "LOW" or comp_b == "LOW")
+    both_medium_or_high = (comp_a in ("MEDIUM", "HIGH") and comp_b in ("MEDIUM", "HIGH"))
+
+    # 4. Frequency
+    freq_a = (getattr(fp_a, "frequency", "Not documented") or "Not documented").strip()
+    freq_b = (getattr(fp_b, "frequency", "Not documented") or "Not documented").strip()
+    is_same_frequency = bool(freq_a and freq_b and freq_a.lower() == freq_b.lower())
+
+    # 5. Logic / Result Preservation (Rule D)
+    # Check if Workflow B's logic can be incorporated into Workflow A (or vice versa) while preserving existing result.
+    # Deterministic proof required: true functional subsumption (all transformations and targets of one workflow
+    # are completely covered by the other workflow).
+    sig_a = {s for s in fp_a.transformation_signatures if is_meaningful_evidence(s)}
+    sig_b = {s for s in fp_b.transformation_signatures if is_meaningful_evidence(s)}
+
+    logic_preservable = False
+    preservation_reason = ""
+    merge_direction: Optional[str] = None
+
+    if sig_b and sig_b.issubset(sig_a) and tgt_b and tgt_b.issubset(tgt_a) and len(sig_b) >= 2:
+        logic_preservable = True
+        preservation_reason = f"Functional subsumption: {fp_a.workflow_name} already executes all transformations and generates targets of {fp_b.workflow_name}."
+        merge_direction = f"{fp_a.workflow_name} absorbs {fp_b.workflow_name}"
+    elif sig_a and sig_a.issubset(sig_b) and tgt_a and tgt_a.issubset(tgt_b) and len(sig_a) >= 2:
+        logic_preservable = True
+        preservation_reason = f"Functional subsumption: {fp_b.workflow_name} already executes all transformations and generates targets of {fp_a.workflow_name}."
+        merge_direction = f"{fp_b.workflow_name} absorbs {fp_a.workflow_name}"
+
+    # Determine merge direction when not set by Rule D and recommendation is MERGE
+    if not merge_direction and has_low_complexity:
+        if comp_a != "LOW" and comp_b == "LOW":
+            merge_direction = f"{fp_a.workflow_name} absorbs {fp_b.workflow_name}"
+        elif comp_b != "LOW" and comp_a == "LOW":
+            merge_direction = f"{fp_b.workflow_name} absorbs {fp_a.workflow_name}"
+        elif fp_a.node_count > fp_b.node_count:
+            merge_direction = f"{fp_a.workflow_name} absorbs {fp_b.workflow_name}"
+        elif fp_b.node_count > fp_a.node_count:
+            merge_direction = f"{fp_b.workflow_name} absorbs {fp_a.workflow_name}"
+
+    # Build concise auditable evidence
+    source_desc = (
+        f"100% identical source files ({len(src_a)} datasets: {', '.join(sorted(src_a))})"
+        if is_source_100_pct
+        else (f"{round(source_overlap_pct * 100)}% overlap (shared: {', '.join(comp.shared_sources)})" if comp.shared_sources else f"{round(source_overlap_pct * 100)}% overlap (distinct sources)")
+    )
+    target_desc = (
+        f"Different output destinations ({fp_a.workflow_name}: {', '.join(sorted(tgt_a)) or 'None'} vs {fp_b.workflow_name}: {', '.join(sorted(tgt_b)) or 'None'})"
+        if different_outputs
+        else (f"Identical production targets ({', '.join(sorted(tgt_a))})" if tgt_a else "No production targets configured")
+    )
+    evidence = [
+        f"Source overlap: {source_desc}",
+        f"Production targets: {target_desc}",
+        f"Complexity: {fp_a.workflow_name} is {comp_a}, {fp_b.workflow_name} is {comp_b}",
+        f"Frequency: {fp_a.workflow_name} is '{freq_a}', {fp_b.workflow_name} is '{freq_b}' ({'Same frequency' if is_same_frequency else 'Different frequency'})",
+    ]
+    if logic_preservable:
+        evidence.append(f"Logic preservation: {preservation_reason}")
+
+    has_substantive_overlap = bool(
+        source_overlap_pct > 0.0
+        or comp.metrics.transformation_similarity > 0.0
+        or comp.shared_sources
+        or [s for s in comp.shared_logic if is_meaningful_evidence(s)]
+    )
+
+    # Decision evaluation hierarchy:
+    # 1. Rule D: Logic can be incorporated while preserving existing result
+    if logic_preservable:
+        return ConsolidationDecision(
+            recommendation="MERGE",
+            matched_rule=ConsolidationRules.RULE_D,
+            reason=f"Workflow logic can be unified while preserving existing production deliverables ({preservation_reason}).",
+            evidence=evidence,
+            source_overlap_pct=source_overlap_pct,
+            is_source_100_pct=is_source_100_pct,
+            output_relationship=output_rel,
+            complexity_a=comp_a,
+            complexity_b=comp_b,
+            frequency_a=freq_a,
+            frequency_b=freq_b,
+            is_same_frequency=is_same_frequency,
+            logic_preservable=True,
+            merge_direction=merge_direction,
+        )
+
+    # 2. Rule A: 100% source overlap + at least one Low complexity + same frequency
+    if is_source_100_pct and has_low_complexity and is_same_frequency:
+        return ConsolidationDecision(
+            recommendation="MERGE",
+            matched_rule=ConsolidationRules.RULE_A,
+            reason="Both workflows consume identical source inputs on the same operational schedule with at least one Low complexity workflow, qualifying for consolidation.",
+            evidence=evidence,
+            source_overlap_pct=source_overlap_pct,
+            is_source_100_pct=True,
+            output_relationship=output_rel,
+            complexity_a=comp_a,
+            complexity_b=comp_b,
+            frequency_a=freq_a,
+            frequency_b=freq_b,
+            is_same_frequency=True,
+            logic_preservable=False,
+            merge_direction=merge_direction,
+        )
+
+    # 3. Rule B: Different outputs + substantive commonality + at least one Low complexity + same frequency
+    if different_outputs and has_substantive_overlap and has_low_complexity and is_same_frequency:
+        return ConsolidationDecision(
+            recommendation="MERGE",
+            matched_rule=ConsolidationRules.RULE_B,
+            reason="Workflows generate different production outputs with common source or transformation processing on matching schedules, with at least one Low complexity workflow.",
+            evidence=evidence,
+            source_overlap_pct=source_overlap_pct,
+            is_source_100_pct=is_source_100_pct,
+            output_relationship="DIFFERENT",
+            complexity_a=comp_a,
+            complexity_b=comp_b,
+            frequency_a=freq_a,
+            frequency_b=freq_b,
+            is_same_frequency=True,
+            logic_preservable=False,
+            merge_direction=merge_direction,
+        )
+
+    # 4. Rule C: Different outputs + both Medium/High complexity
+    if different_outputs and both_medium_or_high:
+        return ConsolidationDecision(
+            recommendation="DO NOT MERGE",
+            matched_rule=ConsolidationRules.RULE_C,
+            reason="Both workflows have Medium or High complexity and produce different output targets; combining them would introduce unnecessary architectural coupling.",
+            evidence=evidence,
+            source_overlap_pct=source_overlap_pct,
+            is_source_100_pct=is_source_100_pct,
+            output_relationship="DIFFERENT",
+            complexity_a=comp_a,
+            complexity_b=comp_b,
+            frequency_a=freq_a,
+            frequency_b=freq_b,
+            is_same_frequency=is_same_frequency,
+            logic_preservable=False,
+            merge_direction=None,
+        )
+
+    # 5. Default fallback
+    return ConsolidationDecision(
+        recommendation="DO NOT MERGE",
+        matched_rule=ConsolidationRules.RULE_DEFAULT,
+        reason="Workflows do not satisfy consolidation merge criteria (lack of common source/logic evidence, incompatible complexity, or differing execution schedules).",
+        evidence=evidence,
+        source_overlap_pct=source_overlap_pct,
+        is_source_100_pct=is_source_100_pct,
+        output_relationship=output_rel,
+        complexity_a=comp_a,
+        complexity_b=comp_b,
+        frequency_a=freq_a,
+        frequency_b=freq_b,
+        is_same_frequency=is_same_frequency,
+        logic_preservable=False,
+        merge_direction=None,
+    )
+
+
 def detect_candidate_from_comparison(
     comp: WorkflowComparisonEvidence,
     fp_a: WorkflowFingerprint,
@@ -689,6 +911,9 @@ def detect_candidate_from_comparison(
     """
     m = comp.metrics
     t = RationalisationThresholds
+
+    # Evaluate exact consolidation rules A, B, C, D
+    consolidation_decision = evaluate_consolidation_rules(fp_a, fp_b, comp)
 
     # Build OutputEvidence
     output_evidence = OutputEvidence(
@@ -749,11 +974,8 @@ def detect_candidate_from_comparison(
     )
 
     # Safety Gate 2: Check CONSOLIDATE
-    can_consolidate = (
-        m.source_overlap >= t.CONSOLIDATE_SOURCE_OVERLAP_MIN
-        and m.transformation_similarity >= t.CONSOLIDATE_LOGIC_SIMILARITY_MIN
-        and comp.opportunity_score >= t.CONSOLIDATE_MIN_OPPORTUNITY_SCORE
-    )
+    # ONLY qualify as CONSOLIDATE if exact deterministic merge rules evaluated to MERGE
+    can_consolidate = (consolidation_decision.recommendation == "MERGE")
 
     # Safety Gate 3: Check SHARED_LOGIC
     can_shared_logic = (
@@ -762,10 +984,21 @@ def detect_candidate_from_comparison(
     )
 
     # Safety Gate 4: Check REVIEW
+    has_any_overlap = bool(
+        m.source_overlap > 0.0
+        or m.transformation_similarity > 0.0
+        or m.target_overlap > 0.0
+        or comp.shared_sources
+        or comp.shared_targets
+        or comp.shared_logic
+    )
     can_review = (
-        comp.opportunity_score >= t.MIN_SURFACE_SCORE
-        or m.source_overlap >= t.REVIEW_OVERLAP_MIN
-        or (len(comp.shared_sources) > 0 and m.transformation_similarity >= 0.20)
+        has_any_overlap
+        and (
+            comp.opportunity_score >= t.MIN_SURFACE_SCORE
+            or m.source_overlap >= t.REVIEW_OVERLAP_MIN
+            or (len(comp.shared_sources) > 0 and m.transformation_similarity >= 0.20)
+        )
     )
 
     # Determine recommendation and admissible bounds
@@ -810,11 +1043,28 @@ def detect_candidate_from_comparison(
             "Verify external consumers outside the uploaded portfolio do not query this target directly",
         ]
     elif recommendation_type == "CONSOLIDATE":
+        if comp.shared_sources:
+            source_desc_str = f"consume overlapping source datasets ({', '.join(comp.shared_sources)})"
+        elif consolidation_decision.is_source_100_pct:
+            source_desc_str = "consume identical source datasets"
+        else:
+            source_desc_str = f"operate on distinct source datasets ({len(fp_a.sources)} in {fp_a.workflow_name}, {len(fp_b.sources)} in {fp_b.workflow_name})"
+
+        if m.transformation_similarity > 0:
+            logic_desc_str = f"share {round(m.transformation_similarity * 100)}% core operational logic"
+        else:
+            logic_desc_str = "execute distinct transformation pipelines"
+
+        if comp.distinct_targets_a or comp.distinct_targets_b:
+            target_desc_str = f"distinct production outputs ({', '.join(comp.distinct_targets_a + comp.distinct_targets_b)})"
+        elif comp.shared_targets:
+            target_desc_str = f"shared targets ({', '.join(comp.shared_targets)})"
+        else:
+            target_desc_str = "configured output endpoints"
+
         reasoning = (
-            f"Both workflows consume identical/overlapping source datasets ({', '.join(comp.shared_sources)}) "
-            f"and share {round(m.transformation_similarity * 100)}% core operational logic, while generating "
-            f"{'distinct production outputs (' + ', '.join(comp.distinct_targets_a + comp.distinct_targets_b) + ')' if (comp.distinct_targets_a or comp.distinct_targets_b) else 'shared targets'}. "
-            f"Unified ingestion and transformation would streamline maintenance without compromising deliverables."
+            f"Both workflows {source_desc_str} and {logic_desc_str}, while generating {target_desc_str}. "
+            f"Consolidated execution would streamline maintenance and pipeline governance without compromising deliverables."
         )
         proposed_strategy = (
             "Centralize the common ingestion, filtering, and cleansing pipeline into a unified shared processing layer, "
@@ -907,6 +1157,23 @@ def detect_candidate_from_comparison(
         risk_context=risk_context,
         admissible_recommendations=admissible,
         llm_enrichment_status="DETERMINISTIC_BASELINE",
+        consolidation_decision=consolidation_decision,
+        sources_by_workflow={
+            fp_a.workflow_name: fp_a.sources,
+            fp_b.workflow_name: fp_b.sources,
+        },
+        source_fields_by_workflow={
+            fp_a.workflow_name: fp_a.source_fields,
+            fp_b.workflow_name: fp_b.source_fields,
+        },
+        transformations_by_workflow={
+            fp_a.workflow_name: [s for s in fp_a.transformation_signatures if is_meaningful_evidence(s)],
+            fp_b.workflow_name: [s for s in fp_b.transformation_signatures if is_meaningful_evidence(s)],
+        },
+        frequencies_by_workflow={
+            fp_a.workflow_name: fp_a.frequency,
+            fp_b.workflow_name: fp_b.frequency,
+        },
     )
 
     logger.info(

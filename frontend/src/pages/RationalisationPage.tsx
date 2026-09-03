@@ -8,7 +8,6 @@ import {
   Trash2,
   GitMerge,
   AlertTriangle,
-  CheckCircle2,
   ExternalLink,
   X,
   RefreshCw,
@@ -18,6 +17,7 @@ import {
   Check,
   Sparkles,
   Copy,
+  Clock,
 } from 'lucide-react';
 import {
   RationalisationAnalysisDTO,
@@ -293,6 +293,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCandidate, setSelectedCandidate] = useState<RationalisationCandidateDTO | null>(null);
+  const [activeEvidenceMetric, setActiveEvidenceMetric] = useState<'source' | 'target' | 'frequency' | 'logic' | 'dag'>('source');
   const [loadingStage, setLoadingStage] = useState<number>(0);
 
   const LOADING_STAGES = [
@@ -346,9 +347,14 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
     if (!analysis) return [];
     return analysis.candidates.filter((c) => {
       // Tab filter
-      if (activeTab !== 'ALL' && c.recommendation_type !== activeTab) {
+      if (activeTab === 'CONSOLIDATE') {
+        if (c.recommendation_type !== 'CONSOLIDATE' || c.consolidation_decision?.recommendation !== 'MERGE') {
+          return false;
+        }
+      } else if (activeTab !== 'ALL' && c.recommendation_type !== activeTab) {
         return false;
       }
+
       // Search filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -378,12 +384,17 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
     });
   }, [analysis, activeTab, searchQuery]);
 
-  const counts = analysis?.recommendation_counts || {
-    CONSOLIDATE: 0,
-    RETIRE_CANDIDATE: 0,
-    SHARED_LOGIC: 0,
-    REVIEW: 0,
-  };
+  const counts = useMemo(() => {
+    if (!analysis?.candidates) {
+      return { CONSOLIDATE: 0, RETIRE_CANDIDATE: 0, SHARED_LOGIC: 0, REVIEW: 0 };
+    }
+    return {
+      CONSOLIDATE: analysis.candidates.filter((c) => c.recommendation_type === 'CONSOLIDATE' && c.consolidation_decision?.recommendation === 'MERGE').length,
+      RETIRE_CANDIDATE: analysis.candidates.filter((c) => c.recommendation_type === 'RETIRE_CANDIDATE').length,
+      SHARED_LOGIC: analysis.candidates.filter((c) => c.recommendation_type === 'SHARED_LOGIC').length,
+      REVIEW: analysis.candidates.filter((c) => c.recommendation_type === 'REVIEW').length,
+    };
+  }, [analysis]);
 
   const totalOpportunities = analysis?.total_opportunities || 0;
 
@@ -451,12 +462,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
           border: '1px solid rgba(148, 163, 184, 0.25)',
         };
     }
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 70) return '#34d399';
-    if (score >= 45) return '#fbbf24';
-    return '#38bdf8';
   };
 
   const handleInspectClick = (wid: string) => {
@@ -1117,7 +1122,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                 const badge = getRecommendationBadge(cand.recommendation_type);
                 const confBadge = getConfidenceBadge(cand.confidence);
                 const BadgeIcon = badge.icon;
-                const scoreColor = getScoreColor(cand.opportunity_score);
 
                 return (
                   <div
@@ -1307,6 +1311,90 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                       })}
                     </div>
 
+                    {/* Consolidation / Merge Recommendation Strip (Only for CONSOLIDATE candidates) */}
+                    {cand.recommendation_type === 'CONSOLIDATE' && cand.consolidation_decision && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                          padding: '12px 16px',
+                          borderRadius: '8px',
+                          background:
+                            cand.consolidation_decision.recommendation === 'MERGE'
+                              ? 'rgba(16, 185, 129, 0.06)'
+                              : 'var(--color-surface-secondary)',
+                          border:
+                            cand.consolidation_decision.recommendation === 'MERGE'
+                              ? '1px solid rgba(16, 185, 129, 0.25)'
+                              : '1px solid var(--color-border-subtle)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '3px 9px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: '800',
+                                letterSpacing: '0.04em',
+                                textTransform: 'uppercase',
+                                background:
+                                  cand.consolidation_decision.recommendation === 'MERGE'
+                                    ? 'rgba(16, 185, 129, 0.15)'
+                                    : 'rgba(148, 163, 184, 0.15)',
+                                color:
+                                  cand.consolidation_decision.recommendation === 'MERGE'
+                                    ? '#34d399'
+                                    : '#94a3b8',
+                                border:
+                                  cand.consolidation_decision.recommendation === 'MERGE'
+                                    ? '1px solid rgba(16, 185, 129, 0.4)'
+                                    : '1px solid rgba(148, 163, 184, 0.3)',
+                              }}
+                            >
+                              <GitMerge size={12} />
+                              {cand.consolidation_decision.recommendation === 'MERGE' ? 'CONSOLIDATE: MERGE' : 'CONSOLIDATE: DO NOT MERGE'}
+                            </span>
+
+                            {cand.consolidation_decision.merge_direction && (
+                              <span
+                                style={{
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  color: '#38bdf8',
+                                  background: 'rgba(56, 189, 248, 0.08)',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  border: '1px solid rgba(56, 189, 248, 0.2)',
+                                }}
+                              >
+                                {cand.consolidation_decision.merge_direction}
+                              </span>
+                            )}
+                          </div>
+
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: '600',
+                              color: 'var(--color-text-muted)',
+                            }}
+                          >
+                            Rule: {cand.consolidation_decision.matched_rule}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', lineHeight: '1.45' }}>
+                          {cand.consolidation_decision.reason}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Deterministic Similarity Metrics Progress Bars */}
                     <div
                       style={{
@@ -1318,6 +1406,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                       {[
                         { label: 'Source Overlap', value: cand.deterministic_metrics.source_overlap },
                         { label: 'Target Overlap', value: cand.deterministic_metrics.target_overlap },
+                        { label: 'Frequency Overlap', value: cand.deterministic_metrics.frequency_overlap ?? 0 },
                         { label: 'Logic Similarity', value: cand.deterministic_metrics.transformation_similarity },
                         { label: 'DAG Similarity', value: cand.deterministic_metrics.dag_similarity },
                       ].map((m) => {
@@ -1749,6 +1838,36 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   >
                     {selectedCandidate.confidence} CONFIDENCE
                   </span>
+
+                  {selectedCandidate.consolidation_decision && (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        background:
+                          selectedCandidate.consolidation_decision.recommendation === 'MERGE'
+                            ? 'rgba(16, 185, 129, 0.15)'
+                            : 'rgba(148, 163, 184, 0.15)',
+                        color:
+                          selectedCandidate.consolidation_decision.recommendation === 'MERGE'
+                            ? '#34d399'
+                            : '#94a3b8',
+                        border:
+                          selectedCandidate.consolidation_decision.recommendation === 'MERGE'
+                            ? '1px solid rgba(16, 185, 129, 0.4)'
+                            : '1px solid rgba(148, 163, 184, 0.3)',
+                      }}
+                    >
+                      <GitMerge size={11} />
+                      {selectedCandidate.consolidation_decision.recommendation === 'MERGE' ? 'CONSOLIDATE: MERGE' : 'DO NOT MERGE'}
+                      {selectedCandidate.consolidation_decision.merge_direction ? ` (${selectedCandidate.consolidation_decision.merge_direction})` : ''}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1879,67 +1998,129 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               </div>
             </div>
 
-            {/* Similarity Metrics Breakdown */}
+            {/* Canonical Similarity Evidence Interactive Metric Selector */}
             <div>
               <div
                 style={{
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                  color: 'var(--color-text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
                   marginBottom: '10px',
                 }}
               >
-                CANONICAL SIMILARITY EVIDENCE
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    color: 'var(--color-text-muted)',
+                  }}
+                >
+                  CANONICAL SIMILARITY EVIDENCE (CLICK TO INSPECT)
+                </div>
+                <div style={{ fontSize: '11px', color: '#facc15', fontWeight: '600' }}>
+                  Select metric to inspect matching evidence
+                </div>
               </div>
+
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                  gap: '12px',
-                  padding: '16px',
-                  borderRadius: '8px',
-                  background: 'var(--color-surface-secondary)',
-                  border: '1px solid var(--color-border-subtle)',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: '10px',
+                  marginBottom: '16px',
                 }}
               >
                 {[
                   {
+                    key: 'source' as const,
                     label: 'Source Overlap',
                     val: selectedCandidate.deterministic_metrics.source_overlap,
+                    icon: Database,
                   },
                   {
+                    key: 'target' as const,
                     label: 'Target Overlap',
                     val: selectedCandidate.deterministic_metrics.target_overlap,
+                    icon: Target,
                   },
                   {
+                    key: 'frequency' as const,
+                    label: 'Frequency Overlap',
+                    val: selectedCandidate.deterministic_metrics.frequency_overlap ?? 0,
+                    icon: Clock,
+                  },
+                  {
+                    key: 'logic' as const,
                     label: 'Logic Overlap',
                     val: selectedCandidate.deterministic_metrics.transformation_similarity,
+                    icon: Cpu,
                   },
-                
                   {
+                    key: 'dag' as const,
                     label: 'DAG Overlap',
                     val: selectedCandidate.deterministic_metrics.dag_similarity,
+                    icon: Layers,
                   },
                 ].map((m) => {
                   const pct = Math.round(m.val * 100);
-                  const fillColor = pct >= 70 ? '#34d399' : pct >= 40 ? '#fbbf24' : '#38bdf8';
+                  const isSelected = activeEvidenceMetric === m.key;
+                  const Icon = m.icon;
+                  const barFill = isSelected ? '#facc15' : pct >= 70 ? '#34d399' : pct >= 40 ? '#fbbf24' : '#38bdf8';
+
                   return (
-                    <div key={m.label} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <button
+                      key={m.key}
+                      onClick={() => setActiveEvidenceMetric(m.key)}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        background: isSelected ? 'rgba(234, 179, 8, 0.09)' : 'var(--color-surface-secondary)',
+                        border: isSelected ? '1.5px solid #facc15' : '1px solid var(--color-border-subtle)',
+                        boxShadow: isSelected ? '0 0 12px rgba(234, 179, 8, 0.18)' : 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
                       <div
                         style={{
                           display: 'flex',
+                          alignItems: 'center',
                           justifyContent: 'space-between',
-                          fontSize: '11px',
-                          color: 'var(--color-text-secondary)',
+                          width: '100%',
                         }}
                       >
-                        <span>{m.label}</span>
-                        <span style={{ fontWeight: '700', color: 'var(--color-text)' }}>{pct}%</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Icon size={12} color={isSelected ? '#facc15' : 'var(--color-text-muted)'} />
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: isSelected ? '700' : '600',
+                              color: isSelected ? '#facc15' : 'var(--color-text-secondary)',
+                            }}
+                          >
+                            {m.label}
+                          </span>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '12px',
+                            fontWeight: '800',
+                            color: isSelected ? '#facc15' : 'var(--color-text)',
+                          }}
+                        >
+                          {pct}%
+                        </span>
                       </div>
+
                       <div
                         style={{
+                          width: '100%',
                           height: '5px',
                           borderRadius: '3px',
                           background: 'rgba(255, 255, 255, 0.08)',
@@ -1950,71 +2131,536 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           style={{
                             width: `${pct}%`,
                             height: '100%',
-                            background: fillColor,
+                            background: barFill,
                             borderRadius: '3px',
+                            transition: 'width 0.3s ease',
                           }}
                         />
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Defensive evidence filtering & lossless presentation */}
+            {/* Interactive Side-by-Side Evidence Inspection Panel */}
             {(() => {
-              const validShared = (selectedCandidate.shared_logic || []).filter(isMeaningfulEvidence);
-              const validUnique: Record<string, string[]> = {};
-              for (const [wfName, items] of Object.entries(selectedCandidate.unique_functionality || {})) {
-                if (Array.isArray(items)) {
-                  const filtered = items.filter(isMeaningfulEvidence);
-                  if (filtered.length > 0) {
-                    validUnique[wfName] = filtered;
-                  }
-                }
-              }
+              const wfA_name = selectedCandidate.workflow_names[0] || 'Workflow A';
+              const wfB_name = selectedCandidate.workflow_names[1] || 'Workflow B';
+              const wfA_id = selectedCandidate.workflow_ids[0] || '';
+              const wfB_id = selectedCandidate.workflow_ids[1] || '';
 
-              return (
-                <>
-                  {/* Shared Logic Operations */}
-                  {validShared.length > 0 && (
-                    <div>
+              const normalizeItem = (s: string) =>
+                s
+                  ? s
+                      .replace(/\\/g, '/')
+                      .split('/')
+                      .pop()
+                      ?.toLowerCase()
+                      .replace(/\.[a-z0-9]+$/, '')
+                      .replace(/[^a-z0-9_]/g, '_')
+                      .replace(/^_+|_+$/g, '') || ''
+                  : '';
+
+              if (activeEvidenceMetric === 'source') {
+                const sourcesA = selectedCandidate.sources_by_workflow?.[wfA_name] || workflowMap.get(wfA_id)?.sources || [];
+                const sourcesB = selectedCandidate.sources_by_workflow?.[wfB_name] || workflowMap.get(wfB_id)?.sources || [];
+                const normB = new Set(sourcesB.map(normalizeItem));
+                const normA = new Set(sourcesA.map(normalizeItem));
+
+                const fieldsMapA = selectedCandidate.source_fields_by_workflow?.[wfA_name] || {};
+                const fieldsMapB = selectedCandidate.source_fields_by_workflow?.[wfB_name] || {};
+                const allFieldsA = Object.values(fieldsMapA).flat();
+                const allFieldsB = Object.values(fieldsMapB).flat();
+                const setFieldsA = new Set(allFieldsA.map((f) => f.toLowerCase()));
+                const setFieldsB = new Set(allFieldsB.map((f) => f.toLowerCase()));
+
+                return (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      SOURCE DATASETS & COLUMN HEADERS (YELLOW = MATCHING)
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px' }}>
+                      {/* Left side: Workflow A */}
                       <div
                         style={{
-                          fontSize: '11px',
-                          fontWeight: '700',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.08em',
-                          color: 'var(--color-text-muted)',
-                          marginBottom: '8px',
-                        }}
-                      >
-                        SHARED OPERATIONAL LOGIC ({validShared.length})
-                      </div>
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '6px',
-                          padding: '14px 16px',
+                          padding: '16px',
                           borderRadius: '8px',
                           background: 'var(--color-surface-secondary)',
                           border: '1px solid var(--color-border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '12px',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
                         }}
                       >
-                        {validShared.map((item, idx) => (
-                          <EvidenceItemRow
-                            key={idx}
-                            item={item}
-                            icon={<CheckCircle2 size={15} color="#34d399" />}
-                          />
-                        ))}
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                          {wfA_name} ({sourcesA.length} source{sourcesA.length !== 1 ? 's' : ''})
+                        </div>
+                        {sourcesA.length === 0 ? (
+                          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No physical sources configured</div>
+                        ) : (
+                          sourcesA.map((src, idx) => {
+                            const isMatch = normB.has(normalizeItem(src));
+                            const fields = fieldsMapA[src] || fieldsMapA['sources'] || [];
+
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  padding: '10px 12px',
+                                  borderRadius: '6px',
+                                  background: isMatch ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface)',
+                                  border: isMatch ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '6px',
+                                  minWidth: 0,
+                                  maxWidth: '100%',
+                                  boxSizing: 'border-box',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                    <Database size={13} style={{ flexShrink: 0 }} color={isMatch ? '#facc15' : 'var(--color-text-muted)'} />
+                                    <span style={{ minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{src}</span>
+                                  </div>
+                                  {isMatch ? (
+                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                                      Matching Source
+                                    </span>
+                                  ) : (
+                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
+                                      Distinct
+                                    </span>
+                                  )}
+                                </div>
+                                {fields.length > 0 && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px', minWidth: 0 }}>
+                                    {fields.map((fld) => {
+                                      const isColMatch = setFieldsB.has(fld.toLowerCase());
+                                      return (
+                                        <span
+                                          key={fld}
+                                          style={{
+                                            fontSize: '10.5px',
+                                            fontWeight: isColMatch ? '700' : '500',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            background: isColMatch ? 'rgba(234, 179, 8, 0.18)' : 'var(--color-surface-secondary)',
+                                            color: isColMatch ? '#facc15' : 'var(--color-text-secondary)',
+                                            border: isColMatch ? '1px solid rgba(234, 179, 8, 0.4)' : '1px solid var(--color-border-subtle)',
+                                            maxWidth: '100%',
+                                            wordBreak: 'break-word',
+                                            overflowWrap: 'anywhere',
+                                          }}
+                                        >
+                                          {fld}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* Right side: Workflow B */}
+                      <div
+                        style={{
+                          padding: '16px',
+                          borderRadius: '8px',
+                          background: 'var(--color-surface-secondary)',
+                          border: '1px solid var(--color-border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '12px',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                          {wfB_name} ({sourcesB.length} source{sourcesB.length !== 1 ? 's' : ''})
+                        </div>
+                        {sourcesB.length === 0 ? (
+                          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No physical sources configured</div>
+                        ) : (
+                          sourcesB.map((src, idx) => {
+                            const isMatch = normA.has(normalizeItem(src));
+                            const fields = fieldsMapB[src] || fieldsMapB['sources'] || [];
+
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  padding: '10px 12px',
+                                  borderRadius: '6px',
+                                  background: isMatch ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface)',
+                                  border: isMatch ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '6px',
+                                  minWidth: 0,
+                                  maxWidth: '100%',
+                                  boxSizing: 'border-box',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                    <Database size={13} style={{ flexShrink: 0 }} color={isMatch ? '#facc15' : 'var(--color-text-muted)'} />
+                                    <span style={{ minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{src}</span>
+                                  </div>
+                                  {isMatch ? (
+                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                                      Matching Source
+                                    </span>
+                                  ) : (
+                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
+                                      Distinct
+                                    </span>
+                                  )}
+                                </div>
+                                {fields.length > 0 && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px', minWidth: 0 }}>
+                                    {fields.map((fld) => {
+                                      const isColMatch = setFieldsA.has(fld.toLowerCase());
+                                      return (
+                                        <span
+                                          key={fld}
+                                          style={{
+                                            fontSize: '10.5px',
+                                            fontWeight: isColMatch ? '700' : '500',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            background: isColMatch ? 'rgba(234, 179, 8, 0.18)' : 'var(--color-surface-secondary)',
+                                            color: isColMatch ? '#facc15' : 'var(--color-text-secondary)',
+                                            border: isColMatch ? '1px solid rgba(234, 179, 8, 0.4)' : '1px solid var(--color-border-subtle)',
+                                            maxWidth: '100%',
+                                            wordBreak: 'break-word',
+                                            overflowWrap: 'anywhere',
+                                          }}
+                                        >
+                                          {fld}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
                       </div>
                     </div>
-                  )}
+                  </div>
+                );
+              }
 
-                  {/* Unique Functionality Breakdown */}
-                  {Object.keys(validUnique).length > 0 && (
+              if (activeEvidenceMetric === 'target') {
+                const targetsA = selectedCandidate.output_evidence.production_targets[wfA_id] || [];
+                const targetsB = selectedCandidate.output_evidence.production_targets[wfB_id] || [];
+                const normB = new Set(targetsB.map(normalizeItem));
+                const normA = new Set(targetsA.map(normalizeItem));
+
+                return (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      PRODUCTION TARGETS (YELLOW = MATCHING DESTINATIONS)
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px' }}>
+                      {/* Left: Targets A */}
+                      <div
+                        style={{
+                          padding: '16px',
+                          borderRadius: '8px',
+                          background: 'var(--color-surface-secondary)',
+                          border: '1px solid var(--color-border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                          {wfA_name} ({targetsA.length} target{targetsA.length !== 1 ? 's' : ''})
+                        </div>
+                        {targetsA.length === 0 ? (
+                          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No production deliverables configured</div>
+                        ) : (
+                          targetsA.map((tgt, idx) => {
+                            const isMatch = normB.has(normalizeItem(tgt));
+                            const schema = selectedCandidate.output_evidence.output_schemas[tgt] || [];
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  padding: '10px 12px',
+                                  borderRadius: '6px',
+                                  background: isMatch ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface)',
+                                  border: isMatch ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '6px',
+                                  minWidth: 0,
+                                  maxWidth: '100%',
+                                  boxSizing: 'border-box',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                    <Target size={13} style={{ flexShrink: 0 }} color={isMatch ? '#facc15' : 'var(--color-text-muted)'} />
+                                    <span style={{ minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{tgt}</span>
+                                  </div>
+                                  {isMatch ? (
+                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px' }}>
+                                      Matching Target
+                                    </span>
+                                  ) : (
+                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
+                                      Distinct Output
+                                    </span>
+                                  )}
+                                </div>
+                                {schema.length > 0 && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px', minWidth: 0 }}>
+                                    {schema.map((col) => (
+                                      <span
+                                        key={col}
+                                        style={{
+                                          fontSize: '10.5px',
+                                          padding: '2px 6px',
+                                          borderRadius: '4px',
+                                          background: 'var(--color-surface-secondary)',
+                                          color: 'var(--color-text-secondary)',
+                                          border: '1px solid var(--color-border-subtle)',
+                                          maxWidth: '100%',
+                                          wordBreak: 'break-word',
+                                          overflowWrap: 'anywhere',
+                                        }}
+                                      >
+                                        {col}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+
+                      {/* Right: Targets B */}
+                      <div
+                        style={{
+                          padding: '16px',
+                          borderRadius: '8px',
+                          background: 'var(--color-surface-secondary)',
+                          border: '1px solid var(--color-border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                          {wfB_name} ({targetsB.length} target{targetsB.length !== 1 ? 's' : ''})
+                        </div>
+                        {targetsB.length === 0 ? (
+                          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No production deliverables configured</div>
+                        ) : (
+                          targetsB.map((tgt, idx) => {
+                            const isMatch = normA.has(normalizeItem(tgt));
+                            const schema = selectedCandidate.output_evidence.output_schemas[tgt] || [];
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  padding: '10px 12px',
+                                  borderRadius: '6px',
+                                  background: isMatch ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface)',
+                                  border: isMatch ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '6px',
+                                  minWidth: 0,
+                                  maxWidth: '100%',
+                                  boxSizing: 'border-box',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                    <Target size={13} style={{ flexShrink: 0 }} color={isMatch ? '#facc15' : 'var(--color-text-muted)'} />
+                                    <span style={{ minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{tgt}</span>
+                                  </div>
+                                  {isMatch ? (
+                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px' }}>
+                                      Matching Target
+                                    </span>
+                                  ) : (
+                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
+                                      Distinct Output
+                                    </span>
+                                  )}
+                                </div>
+                                {schema.length > 0 && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px', minWidth: 0 }}>
+                                    {schema.map((col) => (
+                                      <span
+                                        key={col}
+                                        style={{
+                                          fontSize: '10.5px',
+                                          padding: '2px 6px',
+                                          borderRadius: '4px',
+                                          background: 'var(--color-surface-secondary)',
+                                          color: 'var(--color-text-secondary)',
+                                          border: '1px solid var(--color-border-subtle)',
+                                          maxWidth: '100%',
+                                          wordBreak: 'break-word',
+                                          overflowWrap: 'anywhere',
+                                        }}
+                                      >
+                                        {col}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (activeEvidenceMetric === 'frequency') {
+                const freqA = selectedCandidate.frequencies_by_workflow?.[wfA_name] || workflowMap.get(wfA_id)?.frequency || 'Not documented';
+                const freqB = selectedCandidate.frequencies_by_workflow?.[wfB_name] || workflowMap.get(wfB_id)?.frequency || 'Not documented';
+                const isMatchingFreq = freqA.toLowerCase() === freqB.toLowerCase() && freqA.toLowerCase() !== 'not documented';
+
+                return (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      OPERATIONAL EXECUTION FREQUENCY (YELLOW = MATCHING SCHEDULE)
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px' }}>
+                      {/* Workflow A Frequency */}
+                      <div
+                        style={{
+                          padding: '16px',
+                          borderRadius: '8px',
+                          background: isMatchingFreq ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface-secondary)',
+                          border: isMatchingFreq ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                          {wfA_name}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                          <Clock size={16} style={{ flexShrink: 0 }} color={isMatchingFreq ? '#facc15' : 'var(--color-text-muted)'} />
+                          <span style={{ fontSize: '15px', fontWeight: '700', color: isMatchingFreq ? '#facc15' : 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                            {freqA}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: isMatchingFreq ? '#facc15' : 'var(--color-text-muted)' }}>
+                          {isMatchingFreq ? 'Matching Operational Schedule' : 'Schedule Mismatch'}
+                        </div>
+                      </div>
+
+                      {/* Workflow B Frequency */}
+                      <div
+                        style={{
+                          padding: '16px',
+                          borderRadius: '8px',
+                          background: isMatchingFreq ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface-secondary)',
+                          border: isMatchingFreq ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                          {wfB_name}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                          <Clock size={16} style={{ flexShrink: 0 }} color={isMatchingFreq ? '#facc15' : 'var(--color-text-muted)'} />
+                          <span style={{ fontSize: '15px', fontWeight: '700', color: isMatchingFreq ? '#facc15' : 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                            {freqB}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: isMatchingFreq ? '#facc15' : 'var(--color-text-muted)' }}>
+                          {isMatchingFreq ? 'Matching Operational Schedule' : 'Schedule Mismatch'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              if (activeEvidenceMetric === 'logic') {
+                const transA = (selectedCandidate.transformations_by_workflow?.[wfA_name] || []).filter(isMeaningfulEvidence);
+                const transB = (selectedCandidate.transformations_by_workflow?.[wfB_name] || []).filter(isMeaningfulEvidence);
+                const sharedList = (selectedCandidate.shared_logic || []).filter(isMeaningfulEvidence);
+                const sharedSet = new Set(sharedList.map((s) => s.toLowerCase().trim()));
+
+                const validUnique: Record<string, string[]> = {};
+                for (const [wfName, items] of Object.entries(selectedCandidate.unique_functionality || {})) {
+                  if (Array.isArray(items)) {
+                    const filtered = items.filter(isMeaningfulEvidence);
+                    if (filtered.length > 0) {
+                      validUnique[wfName] = filtered;
+                    }
+                  }
+                }
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div>
                       <div
                         style={{
@@ -2026,23 +2672,252 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           marginBottom: '8px',
                         }}
                       >
-                        UNIQUE WORKFLOW FUNCTIONALITY
+                        OPERATIONAL LOGIC & TRANSFORMATIONS (YELLOW = SHARED / EQUIVALENT)
                       </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px' }}>
+                        {/* Left: Logic A */}
+                        <div
+                          style={{
+                            padding: '16px',
+                            borderRadius: '8px',
+                            background: 'var(--color-surface-secondary)',
+                            border: '1px solid var(--color-border-subtle)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            minWidth: 0,
+                            maxWidth: '100%',
+                            boxSizing: 'border-box',
+                          }}
+                        >
+                          <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                            {wfA_name} ({transA.length} operation{transA.length !== 1 ? 's' : ''})
+                          </div>
+                          {transA.length === 0 ? (
+                            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No transformation steps recorded</div>
+                          ) : (
+                            transA.map((op, idx) => {
+                              const isMatch = sharedSet.has(op.toLowerCase().trim()) || transB.some((b) => b.toLowerCase().trim() === op.toLowerCase().trim());
+                              return (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    padding: '8px 12px',
+                                    borderRadius: '6px',
+                                    background: isMatch ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface)',
+                                    border: isMatch ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '8px',
+                                    minWidth: 0,
+                                    maxWidth: '100%',
+                                    boxSizing: 'border-box',
+                                  }}
+                                >
+                                  <span style={{ fontSize: '12px', color: isMatch ? '#facc15' : 'var(--color-text)', fontWeight: isMatch ? '700' : '400', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                    {op}
+                                  </span>
+                                  {isMatch && (
+                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px' }}>
+                                      Shared
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        {/* Right: Logic B */}
+                        <div
+                          style={{
+                            padding: '16px',
+                            borderRadius: '8px',
+                            background: 'var(--color-surface-secondary)',
+                            border: '1px solid var(--color-border-subtle)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            minWidth: 0,
+                            maxWidth: '100%',
+                            boxSizing: 'border-box',
+                          }}
+                        >
+                          <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                            {wfB_name} ({transB.length} operation{transB.length !== 1 ? 's' : ''})
+                          </div>
+                          {transB.length === 0 ? (
+                            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>No transformation steps recorded</div>
+                          ) : (
+                            transB.map((op, idx) => {
+                              const isMatch = sharedSet.has(op.toLowerCase().trim()) || transA.some((a) => a.toLowerCase().trim() === op.toLowerCase().trim());
+                              return (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    padding: '8px 12px',
+                                    borderRadius: '6px',
+                                    background: isMatch ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface)',
+                                    border: isMatch ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '8px',
+                                    minWidth: 0,
+                                    maxWidth: '100%',
+                                    boxSizing: 'border-box',
+                                  }}
+                                >
+                                  <span style={{ fontSize: '12px', color: isMatch ? '#facc15' : 'var(--color-text)', fontWeight: isMatch ? '700' : '400', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                    {op}
+                                  </span>
+                                  {isMatch && (
+                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px' }}>
+                                      Shared
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Unique Functionality Breakdown */}
+                    {Object.keys(validUnique).length > 0 && (
+                      <div>
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            color: 'var(--color-text-muted)',
+                            marginBottom: '8px',
+                          }}
+                        >
+                          UNIQUE WORKFLOW FUNCTIONALITY
+                        </div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                          }}
+                        >
+                          {Object.entries(validUnique).map(([wfName, items]) => (
+                            <UniqueWorkflowList key={wfName} wfName={wfName} items={items} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              if (activeEvidenceMetric === 'dag') {
+                const summaryA = wfA_id ? workflowMap.get(wfA_id) : null;
+                const summaryB = wfB_id ? workflowMap.get(wfB_id) : null;
+
+                return (
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.08em',
+                        color: 'var(--color-text-muted)',
+                        marginBottom: '8px',
+                      }}
+                    >
+                      DAG TOPOLOGY & COMPLEXITY ATTRIBUTES
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px' }}>
+                      {/* Left: DAG A */}
                       <div
                         style={{
+                          padding: '16px',
+                          borderRadius: '8px',
+                          background: 'var(--color-surface-secondary)',
+                          border: '1px solid var(--color-border-subtle)',
                           display: 'flex',
                           flexDirection: 'column',
                           gap: '10px',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
                         }}
                       >
-                        {Object.entries(validUnique).map(([wfName, items]) => (
-                          <UniqueWorkflowList key={wfName} wfName={wfName} items={items} />
-                        ))}
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                          {wfA_name}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <div style={{ padding: '8px', background: 'var(--color-surface)', borderRadius: '6px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Nodes / Tools</div>
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-text)' }}>{summaryA?.node_count ?? 'N/A'}</div>
+                          </div>
+                          <div style={{ padding: '8px', background: 'var(--color-surface)', borderRadius: '6px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Connections</div>
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-text)' }}>{summaryA?.connection_count ?? 'N/A'}</div>
+                          </div>
+                          <div style={{ padding: '8px', background: 'var(--color-surface)', borderRadius: '6px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Complexity</div>
+                            <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)' }}>{summaryA?.complexity_level ?? 'LOW'}</div>
+                          </div>
+                          <div style={{ padding: '8px', background: 'var(--color-surface)', borderRadius: '6px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Criticality</div>
+                            <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)' }}>{summaryA?.criticality_level ?? 'LOW'}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: DAG B */}
+                      <div
+                        style={{
+                          padding: '16px',
+                          borderRadius: '8px',
+                          background: 'var(--color-surface-secondary)',
+                          border: '1px solid var(--color-border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                          boxSizing: 'border-box',
+                        }}
+                      >
+                        <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                          {wfB_name}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <div style={{ padding: '8px', background: 'var(--color-surface)', borderRadius: '6px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Nodes / Tools</div>
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-text)' }}>{summaryB?.node_count ?? 'N/A'}</div>
+                          </div>
+                          <div style={{ padding: '8px', background: 'var(--color-surface)', borderRadius: '6px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Connections</div>
+                            <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-text)' }}>{summaryB?.connection_count ?? 'N/A'}</div>
+                          </div>
+                          <div style={{ padding: '8px', background: 'var(--color-surface)', borderRadius: '6px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Complexity</div>
+                            <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)' }}>{summaryB?.complexity_level ?? 'LOW'}</div>
+                          </div>
+                          <div style={{ padding: '8px', background: 'var(--color-surface)', borderRadius: '6px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Criticality</div>
+                            <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)' }}>{summaryB?.criticality_level ?? 'LOW'}</div>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  )}
-                </>
-              );
+                  </div>
+                );
+              }
+
+              return null;
             })()}
 
             {/* Why This Recommendation */}

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -397,6 +397,7 @@ class DeterministicMetricsDTO(BaseModel):
     schema_similarity: float = 0.0
     grain_similarity: float = 0.0
     dag_similarity: float = 0.0
+    frequency_overlap: float = 0.0
 
 
 class RiskContextDTO(BaseModel):
@@ -425,6 +426,23 @@ class DependencyEvidenceDTO(BaseModel):
     dependency_notes: str = ""
 
 
+class ConsolidationDecisionDTO(BaseModel):
+    recommendation: Literal["MERGE", "DO NOT MERGE"] = "DO NOT MERGE"
+    matched_rule: str = ""
+    reason: str = ""
+    evidence: list[str] = Field(default_factory=list)
+    source_overlap_pct: float = 0.0
+    is_source_100_pct: bool = False
+    output_relationship: str = ""
+    complexity_a: str = "LOW"
+    complexity_b: str = "LOW"
+    frequency_a: str = "Not documented"
+    frequency_b: str = "Not documented"
+    is_same_frequency: bool = False
+    logic_preservable: bool = False
+    merge_direction: Optional[str] = None
+
+
 class RationalisationCandidateDTO(BaseModel):
     candidate_id: str = ""
     workflow_ids: list[str]
@@ -444,6 +462,11 @@ class RationalisationCandidateDTO(BaseModel):
     risk_context: RiskContextDTO = Field(default_factory=RiskContextDTO)
     admissible_recommendations: list[str] = Field(default_factory=list)
     llm_enrichment_status: str = "DETERMINISTIC_BASELINE"
+    consolidation_decision: Optional[ConsolidationDecisionDTO] = None
+    sources_by_workflow: dict[str, list[str]] = Field(default_factory=dict)
+    source_fields_by_workflow: dict[str, dict[str, list[str]]] = Field(default_factory=dict)
+    transformations_by_workflow: dict[str, list[str]] = Field(default_factory=dict)
+    frequencies_by_workflow: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("shared_logic", mode="before")
     @classmethod

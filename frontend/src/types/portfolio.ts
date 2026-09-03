@@ -105,6 +105,7 @@ export interface DeterministicMetricsDTO {
   schema_similarity: number;
   grain_similarity: number;
   dag_similarity: number;
+  frequency_overlap: number;
 }
 
 export interface RiskContextDTO {
@@ -133,6 +134,23 @@ export interface DependencyEvidenceDTO {
   dependency_notes: string;
 }
 
+export interface ConsolidationDecisionDTO {
+  recommendation: 'MERGE' | 'DO NOT MERGE';
+  matched_rule: string;
+  reason: string;
+  evidence: string[];
+  source_overlap_pct: number;
+  is_source_100_pct: boolean;
+  output_relationship: string;
+  complexity_a: string;
+  complexity_b: string;
+  frequency_a: string;
+  frequency_b: string;
+  is_same_frequency: boolean;
+  logic_preservable: boolean;
+  merge_direction?: string | null;
+}
+
 export interface RationalisationCandidateDTO {
   candidate_id: string;
   workflow_ids: string[];
@@ -152,6 +170,11 @@ export interface RationalisationCandidateDTO {
   risk_context: RiskContextDTO;
   admissible_recommendations: string[];
   llm_enrichment_status: string;
+  consolidation_decision?: ConsolidationDecisionDTO | null;
+  sources_by_workflow?: Record<string, string[]>;
+  source_fields_by_workflow?: Record<string, Record<string, string[]>>;
+  transformations_by_workflow?: Record<string, string[]>;
+  frequencies_by_workflow?: Record<string, string>;
 }
 
 export interface RationalisationAnalysisDTO {

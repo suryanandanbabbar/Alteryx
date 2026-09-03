@@ -203,6 +203,7 @@ class DeterministicMetrics:
     schema_similarity: float = 0.0
     grain_similarity: float = 0.0
     dag_similarity: float = 0.0
+    frequency_overlap: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -212,6 +213,7 @@ class DeterministicMetrics:
             "schema_similarity": round(self.schema_similarity, 3),
             "grain_similarity": round(self.grain_similarity, 3),
             "dag_similarity": round(self.dag_similarity, 3),
+            "frequency_overlap": round(self.frequency_overlap, 3),
         }
 
 
@@ -304,6 +306,7 @@ class WorkflowFingerprint:
     complexity_score: float = 0.0
     criticality_level: str = "LOW"
     criticality_score: float = 0.0
+    frequency: str = "Not documented"
     downstream_consumers: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -336,6 +339,7 @@ class WorkflowFingerprint:
             "complexity_score": self.complexity_score,
             "criticality_level": self.criticality_level,
             "criticality_score": self.criticality_score,
+            "frequency": self.frequency,
             "downstream_consumers": self.downstream_consumers,
         }
 
@@ -384,6 +388,43 @@ class WorkflowComparisonEvidence:
 
 
 @dataclass
+class ConsolidationDecision:
+    """Pairwise deterministic consolidation/merge decision based on rules A, B, C, D."""
+    recommendation: str = "DO NOT MERGE"  # MERGE | DO NOT MERGE
+    matched_rule: str = ""
+    reason: str = ""
+    evidence: list[str] = field(default_factory=list)
+    source_overlap_pct: float = 0.0
+    is_source_100_pct: bool = False
+    output_relationship: str = ""  # DIFFERENT | IDENTICAL | OVERLAPPING | NONE
+    complexity_a: str = "LOW"
+    complexity_b: str = "LOW"
+    frequency_a: str = "Not documented"
+    frequency_b: str = "Not documented"
+    is_same_frequency: bool = False
+    logic_preservable: bool = False
+    merge_direction: Optional[str] = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "recommendation": self.recommendation,
+            "matched_rule": self.matched_rule,
+            "reason": self.reason,
+            "evidence": self.evidence,
+            "source_overlap_pct": round(self.source_overlap_pct, 3),
+            "is_source_100_pct": self.is_source_100_pct,
+            "output_relationship": self.output_relationship,
+            "complexity_a": self.complexity_a,
+            "complexity_b": self.complexity_b,
+            "frequency_a": self.frequency_a,
+            "frequency_b": self.frequency_b,
+            "is_same_frequency": self.is_same_frequency,
+            "logic_preservable": self.logic_preservable,
+            "merge_direction": self.merge_direction,
+        }
+
+
+@dataclass
 class RationalisationCandidate:
     """ETL Rationalisation candidate recommendation derived from deterministic signals and LLM qualification."""
     workflow_ids: list[str]
@@ -404,6 +445,11 @@ class RationalisationCandidate:
     risk_context: RiskContext = field(default_factory=RiskContext)
     admissible_recommendations: list[str] = field(default_factory=list)
     llm_enrichment_status: str = "DETERMINISTIC_BASELINE"
+    consolidation_decision: Optional[ConsolidationDecision] = None
+    sources_by_workflow: dict[str, list[str]] = field(default_factory=dict)
+    source_fields_by_workflow: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    transformations_by_workflow: dict[str, list[str]] = field(default_factory=dict)
+    frequencies_by_workflow: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -425,6 +471,11 @@ class RationalisationCandidate:
             "risk_context": self.risk_context.to_dict() if hasattr(self.risk_context, "to_dict") else self.risk_context,
             "admissible_recommendations": self.admissible_recommendations,
             "llm_enrichment_status": self.llm_enrichment_status,
+            "consolidation_decision": self.consolidation_decision.to_dict() if self.consolidation_decision else None,
+            "sources_by_workflow": self.sources_by_workflow,
+            "source_fields_by_workflow": self.source_fields_by_workflow,
+            "transformations_by_workflow": self.transformations_by_workflow,
+            "frequencies_by_workflow": self.frequencies_by_workflow,
         }
 
 
