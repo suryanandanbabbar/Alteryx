@@ -1,7 +1,7 @@
 import React from 'react';
-import { FileText, Table, Sparkles } from 'lucide-react';
+import { FileText, Table, Sparkles, Archive } from 'lucide-react';
 
-export type ReportType = 'business' | 'tool-specifications' | 'technical' | 'sttm' | 'portfolio-xlsx';
+export type ReportType = 'business' | 'tool-specifications' | 'technical' | 'sttm' | 'portfolio-xlsx' | 'bundle';
 
 interface DocumentGenerationModalProps {
   type: ReportType;
@@ -11,12 +11,15 @@ export const DocumentGenerationModal: React.FC<DocumentGenerationModalProps> = (
   const isBusiness = type === 'business';
   const isSttm = type === 'sttm';
   const isPortfolio = type === 'portfolio-xlsx';
+  const isBundle = type === 'bundle';
   const title = isBusiness
     ? 'Preparing Business Report'
     : isSttm
     ? 'Preparing Source-to-Target Mapping'
     : isPortfolio
     ? 'Preparing Portfolio Workbook'
+    : isBundle
+    ? 'Preparing Complete Bundle'
     : 'Preparing Tool Specifications';
   const subtitle = isBusiness
     ? 'Generating your Business Report... AI-generated analysis is being prepared.'
@@ -24,6 +27,8 @@ export const DocumentGenerationModal: React.FC<DocumentGenerationModalProps> = (
     ? 'Generating your Source-to-Target Mapping... AI-powered lineage analysis is being prepared.'
     : isPortfolio
     ? 'Generating your ETL Portfolio Overview (.xlsx)... Projecting canonical workflow features, technical inventory, and rationalisation analysis.'
+    : isBundle
+    ? 'Packaging all workflow artifacts into a unified archive (.zip)... Preparing reports, code, specifications, and data lineage.'
     : 'Generating your Tool Specifications... AI-generated tool analysis is being prepared.';
 
   return (
@@ -116,7 +121,7 @@ export const DocumentGenerationModal: React.FC<DocumentGenerationModalProps> = (
               boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)',
             }}
           >
-            {isBusiness ? <FileText size={30} /> : <Table size={30} />}
+            {isBundle ? <Archive size={30} /> : isBusiness ? <FileText size={30} /> : <Table size={30} />}
 
             {/* Sparkle Badge */}
             <div

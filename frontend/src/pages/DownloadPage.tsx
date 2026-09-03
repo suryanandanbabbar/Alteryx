@@ -23,10 +23,14 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showBundleModal]);
 
-  const handleDownloadWithModal = async (type: 'docx' | 'tool-specifications' | 'sttm') => {
+  const handleDownloadWithModal = async (type: 'docx' | 'tool-specifications' | 'sttm' | 'zip') => {
     if (generatingReport) return; // Prevent duplicate clicks
     setDownloadError(null);
-    const reportType: ReportType = type === 'docx' ? 'business' : type === 'sttm' ? 'sttm' : 'tool-specifications';
+    const reportType: ReportType =
+      type === 'docx' ? 'business' :
+      type === 'sttm' ? 'sttm' :
+      type === 'zip' ? 'bundle' :
+      'tool-specifications';
     setGeneratingReport(reportType);
 
     try {
@@ -38,7 +42,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
     }
   };
 
-  const triggerDirectDownload = (type: 'json' | 'python' | 'svg' | 'zip') => {
+  const triggerDirectDownload = (type: 'json' | 'python' | 'svg') => {
     window.location.href = api.getDownloadUrl(analysisId, type);
   };
 
@@ -183,7 +187,7 @@ export const DownloadPage: React.FC<DownloadPageProps> = ({ analysisId }) => {
                 className="btn-primary"
                 onClick={() => {
                   setShowBundleModal(false);
-                  triggerDirectDownload('zip');
+                  handleDownloadWithModal('zip');
                 }}
                 style={{ flex: 1, padding: '9px 16px', fontSize: '13px' }}
               >
