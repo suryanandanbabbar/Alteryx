@@ -353,8 +353,8 @@ class TestPortfolioBusinessPurposeAndTag:
         assert groups["Claims & Risk"].workflow_count == 1
         assert groups["Claims & Risk"].workflows[0].workflow_id == "legacy_01"
 
-    def test_criticality_semantic_impact_boosts(self):
-        """Criticality increases when business purpose evidences deliverables, scope, customer, client impact."""
+    def test_criticality_5_factor_deterministic_scoring(self):
+        """Criticality calculates technical and operational factors deterministically."""
         ctx = PortfolioDependencyContext()
         base = calculate_workflow_criticality(
             workflow_id="wf_test",
@@ -363,35 +363,23 @@ class TestPortfolioBusinessPurposeAndTag:
             targets=["output.xlsx"],
             inspection_sinks=[],
             context=ctx,
-            business_purpose="Standard data processing workflow.",
+            operational_metadata={"last_run": "5 months ago", "frequency": "Monthly"},
         )
 
-        enhanced = calculate_workflow_criticality(
-            workflow_id="wf_test",
-            workflow_filename="Test.yxmd",
-            sources=["input.csv"],
-            targets=["output.xlsx"],
-            inspection_sinks=[],
-            context=ctx,
-            business_purpose=(
-                "This enterprise-wide workflow processes claimant coverage decisions and "
-                "adjudicates policyholder indemnity payments for auto and property insurance."
-            ),
-        )
+        assert base.score == 36.0
+        assert base.level == "MEDIUM"
+        assert base.breakdown["downstream_outputs"] == 40.0
+        assert base.breakdown["upstream_sources"] == 40.0
+        assert base.breakdown["etl_consumers"] == 0.0
+        assert base.breakdown["last_run"] == 40.0
+        assert base.breakdown["frequency"] == 60.0
 
-        assert enhanced.score > base.score
-        # 2 dimensions matched (Scope + Customer) = 50.0 operational score
-        assert enhanced.breakdown["business_purpose_impact"] == 50.0
-        assert enhanced.breakdown["operational"] == 50.0
-        assert any("customer/claimant" in f.lower() for f in enhanced.factors)
-        assert any("scope" in f.lower() for f in enhanced.factors)
-
-    def test_criticality_anti_double_counting_guard(self):
-        """Repeating the same impact keyword multiple times counts at most once per dimension."""
-        ctx = PortfolioDependencyContext()
-        repetitive_purpose = (
-            "Processes customer benefits. Handles customer payments for customer accounts. "
-            "Supports claimant coverage and claimant settlement outcomes."
+    def test_criticality_portfolio_consumer_boost(self):
+        """Adding consuming workflows increases etl_consumers score deterministically."""
+        ctx = PortfolioDependencyContext(
+            source_to_consumers={
+                "output.xlsx": [("wf_c1", "Consumer1.yxmd")],
+            }
         )
 
         assessment = calculate_workflow_criticality(
@@ -401,19 +389,17 @@ class TestPortfolioBusinessPurposeAndTag:
             targets=["output.xlsx"],
             inspection_sinks=[],
             context=ctx,
-            business_purpose=repetitive_purpose,
+            operational_metadata={"last_run": "today", "frequency": "Daily"},
         )
 
-        # Customer impact flag must count only once (25.0 operational score)
-        assert assessment.breakdown["business_purpose_impact"] == 25.0
-        assert assessment.breakdown["operational"] == 25.0
-        customer_factors = [f for f in assessment.factors if "customer" in f.lower()]
-        assert len(customer_factors) == 1
+        assert assessment.breakdown["etl_consumers"] == 60.0
+        assert assessment.breakdown["last_run"] == 100.0
+        assert assessment.breakdown["frequency"] == 90.0
+        assert assessment.score > 50.0
 
-    def test_criticality_non_impact_produces_zero_boost(self):
-        """Arbitrary technical or incidental text does not trigger false positive criticality boosts."""
+    def test_criticality_missing_operational_metadata_scored_zero(self):
+        """Missing operational metadata scores 0.0 for last_run and frequency without failure."""
         ctx = PortfolioDependencyContext()
-        neutral_purpose = "Internal utility script that parses xml tags and verifies syntax formatting."
 
         assessment = calculate_workflow_criticality(
             workflow_id="wf_neutral",
@@ -422,11 +408,13 @@ class TestPortfolioBusinessPurposeAndTag:
             targets=["output.xlsx"],
             inspection_sinks=[],
             context=ctx,
-            business_purpose=neutral_purpose,
+            operational_metadata=None,
         )
 
-        assert assessment.breakdown["business_purpose_impact"] == 0.0
-        assert not any("business impact" in f.lower() for f in assessment.factors)
+        assert assessment.breakdown["last_run"] == 0.0
+        assert assessment.breakdown["frequency"] == 0.0
+        assert assessment.operational_score == 0.0
+
 
     # -----------------------------------------------------------------------
     # Mandatory Adversarial Boundary Tests (7-Tier Functional Hierarchy)

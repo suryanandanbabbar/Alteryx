@@ -1335,11 +1335,11 @@ def compose_deterministic_criticality_fallback(
         affected_scope=affected,
         migration_implication=migration,
         confidence="HIGH",
-        source="deterministic_fallback",
+        source="deterministic",
         model="deterministic",
         prompt_version=CRITICALITY_ASSESSMENT_PROMPT_VERSION,
         criticality_factors=factors_list[:6],
-        deterministic_reference_score=round(score, 1),
+        deterministic_reference_score=evidence.deterministic_reference_score,
     )
 
 
@@ -1673,124 +1673,8 @@ class LLMNarrativeGenerator:
         self,
         evidence: CriticalityEvidencePackage,
     ) -> CriticalityAssessmentResult:
-        """Generate an LLM-driven, evidence-grounded criticality assessment with validation and fallback."""
-        from .prompts import (
-            CRITICALITY_ASSESSMENT_PROMPT_VERSION,
-            build_criticality_assessment_system_prompt,
-            build_criticality_assessment_user_prompt,
-        )
-
-        fallback_result = compose_deterministic_criticality_fallback(evidence)
-
-        # If LLM client is unavailable or not configured, return deterministic fallback directly
-        if not self.client or not getattr(self.client, "is_available", True):
-            return fallback_result
-
-        cache_key = compute_cache_key(
-            workflow_id=evidence.workflow_id or evidence.workflow_filename or "default_workflow",
-            scope_key="criticality_assessment",
-            prompt_version=CRITICALITY_ASSESSMENT_PROMPT_VERSION,
-            model_name=self.client.model_name,
-            facts_payload=evidence.to_dict(),
-        )
-
-        cached = self._cache.get(cache_key)
-        if cached is not None and isinstance(cached, CriticalityAssessmentResult):
-            logger.info("[LLM CACHE] type=criticality_assessment status=HIT")
-            return cached
-
-        logger.info("[LLM CACHE] type=criticality_assessment status=MISS")
-
-        system_prompt = build_criticality_assessment_system_prompt()
-        user_prompt = build_criticality_assessment_user_prompt(evidence)
-
-        try:
-            raw_response = self.client.generate(system_prompt, user_prompt)
-
-            raw_type = type(raw_response).__name__
-            raw_len = len(raw_response) if isinstance(raw_response, (str, list, dict)) else 0
-            raw_snippet = repr(raw_response)[:100].replace("\n", " ") if raw_response is not None else "None"
-            if self.client and hasattr(self.client, "config"):
-                api_key = getattr(self.client.config, "api_key", "")
-                if api_key and len(api_key) > 8:
-                    raw_snippet = raw_snippet.replace(api_key, "[REDACTED]")
-
-            logger.debug(
-                "[CRITICALITY PARSE DEBUG] stage=raw_received raw_type=%s length=%d snippet=%.100s",
-                raw_type,
-                raw_len,
-                raw_snippet,
-            )
-
-            parsed, extract_stage, extract_reason = _extract_and_normalize_criticality(raw_response)
-
-            if parsed is not None:
-                is_valid, val_stage, val_reason = _validate_criticality_assessment(parsed, evidence)
-                if is_valid:
-                    raw_score = float(parsed["criticality_score"])
-                    raw_level = str(parsed["criticality_level"]).upper()
-
-                    factor_assessments_map: dict[str, FactorAssessment] = {}
-                    raw_factors = parsed.get("factor_assessments", {})
-                    if isinstance(raw_factors, dict):
-                        for dim, f_data in raw_factors.items():
-                            if isinstance(f_data, dict):
-                                factor_assessments_map[dim] = FactorAssessment(
-                                    dimension=dim,
-                                    assessment=str(f_data.get("assessment", "NOT_ESTABLISHED")).upper(),  # type: ignore
-                                    evidence=str(f_data.get("evidence", "")),
-                                    rationale=str(f_data.get("rationale", "")),
-                                )
-
-                    criticality_factors: list[str] = []
-                    for dim, fa in factor_assessments_map.items():
-                        if fa.assessment in ("HIGH", "MEDIUM"):
-                            criticality_factors.append(f"{dim.replace('_', ' ').title()}: {fa.rationale}")
-                    if not criticality_factors:
-                        criticality_factors = fallback_result.criticality_factors
-
-                    result = CriticalityAssessmentResult(
-                        criticality_score=round(raw_score, 1),
-                        criticality_level=raw_level,  # type: ignore
-                        factor_assessments=factor_assessments_map,
-                        criticality_justification=str(parsed.get("criticality_justification", "")).strip(),
-                        business_consequence=str(parsed.get("business_consequence", "")).strip(),
-                        dependency_impact=str(parsed.get("dependency_impact", "")).strip(),
-                        affected_scope=str(parsed.get("affected_scope", "")).strip(),
-                        migration_implication=str(parsed.get("migration_implication", "")).strip(),
-                        confidence=str(parsed.get("confidence", "HIGH")).upper(),  # type: ignore
-                        source="llm",
-                        model=self.client.model_name,
-                        prompt_version=CRITICALITY_ASSESSMENT_PROMPT_VERSION,
-                        criticality_factors=criticality_factors[:6],
-                        deterministic_reference_score=evidence.deterministic_reference_score,
-                    )
-                    self._cache.set(cache_key, result)
-                    logger.info(
-                        "[LLM CRITICALITY] criticality_assessment accepted: stage=accepted score=%.1f level=%s factors=%d",
-                        result.criticality_score,
-                        result.criticality_level,
-                        len(result.factor_assessments),
-                    )
-                    return result
-                else:
-                    logger.warning(
-                        "[LLM CRITICALITY] Criticality assessment validation rejected: stage=%s reason=%s. Using fallback.",
-                        val_stage,
-                        val_reason,
-                    )
-            else:
-                logger.warning(
-                    "[LLM CRITICALITY] Output did not contain valid structured JSON for criticality. stage=%s reason=%s raw_type=%s length=%d. Using fallback.",
-                    extract_stage,
-                    extract_reason,
-                    raw_type,
-                    raw_len,
-                )
-        except Exception as exc:
-            logger.warning("[LLM CRITICALITY] generate_criticality_assessment failed: %s. Using fallback.", exc)
-
-        return fallback_result
+        """Generate a purely deterministic 5-factor criticality assessment without LLM calls."""
+        return compose_deterministic_criticality_fallback(evidence)
 
 
     def generate_executive_summary(

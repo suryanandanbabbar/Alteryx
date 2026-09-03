@@ -145,21 +145,146 @@ interface DeterministicInfoPopoverProps {
   onClose: () => void;
 }
 
+interface CriticalityItem {
+  key: string;
+  name: string;
+  category: 'Technical' | 'Operational';
+  firstViewDisplay: string;
+  value: string | number;
+  weight: string;
+  score: string;
+  contribution: string;
+}
+
 const DeterministicInfoPopover: React.FC<DeterministicInfoPopoverProps> = ({
   type,
   score = 0,
   level = 'LOW',
   factors = [],
-  justification,
-  consequence,
-  dependencyImpact,
-  migrationImplication,
-  source,
+  justification: _justification,
+  consequence: _consequence,
+  dependencyImpact: _dependencyImpact,
+  migrationImplication: _migrationImplication,
+  source: _source,
+  factorAssessments,
   onClose,
 }) => {
   const isComplexity = type === 'complexity';
   const title = isComplexity ? 'DETERMINISTIC COMPLEXITY' : 'CRITICALITY ASSESSMENT';
   const [showTechnicalAudit, setShowTechnicalAudit] = useState(false);
+
+  const getCriticalityItems = (): CriticalityItem[] => {
+    if (factorAssessments && Object.keys(factorAssessments).length > 0) {
+      const dOut = factorAssessments.downstream_outputs;
+      const uSrc = factorAssessments.upstream_sources;
+      const eCon = factorAssessments.etl_consumers;
+      const lRun = factorAssessments.last_run;
+      const freq = factorAssessments.frequency;
+
+      const outCount = dOut?.raw_value ?? 0;
+      const srcCount = uSrc?.raw_value ?? 0;
+      const etlCount = eCon?.raw_value ?? 0;
+
+      return [
+        {
+          key: 'downstream_outputs',
+          name: dOut?.name || 'Downstream outputs',
+          category: 'Technical',
+          firstViewDisplay: dOut?.display_value || `${outCount} downstream output${outCount === 1 ? '' : 's'}`,
+          value: outCount,
+          weight: `${dOut?.weight_pct ?? 20}%`,
+          score: `${Number(dOut?.factor_score ?? 0).toFixed(1)}/100`,
+          contribution: `${Number(dOut?.weighted_contribution_pct ?? 0).toFixed(1)}%`,
+        },
+        {
+          key: 'upstream_sources',
+          name: uSrc?.name || 'Upstream sources',
+          category: 'Technical',
+          firstViewDisplay: uSrc?.display_value || `${srcCount} upstream source${srcCount === 1 ? '' : 's'}`,
+          value: srcCount,
+          weight: `${uSrc?.weight_pct ?? 20}%`,
+          score: `${Number(uSrc?.factor_score ?? 0).toFixed(1)}/100`,
+          contribution: `${Number(uSrc?.weighted_contribution_pct ?? 0).toFixed(1)}%`,
+        },
+        {
+          key: 'etl_consumers',
+          name: eCon?.name || 'ETL workflow consumers',
+          category: 'Technical',
+          firstViewDisplay: eCon?.display_value || `${etlCount} consuming ETL workflow${etlCount === 1 ? '' : 's'}`,
+          value: etlCount,
+          weight: `${eCon?.weight_pct ?? 20}%`,
+          score: `${Number(eCon?.factor_score ?? 0).toFixed(1)}/100`,
+          contribution: `${Number(eCon?.weighted_contribution_pct ?? 0).toFixed(1)}%`,
+        },
+        {
+          key: 'last_run',
+          name: lRun?.name || 'Last Run',
+          category: 'Operational',
+          firstViewDisplay: lRun?.display_value || (lRun?.raw_value ? String(lRun.raw_value) : 'Not documented'),
+          value: lRun?.raw_value ? String(lRun.raw_value) : 'Not documented',
+          weight: `${lRun?.weight_pct ?? 20}%`,
+          score: `${Number(lRun?.factor_score ?? 0).toFixed(1)}/100`,
+          contribution: `${Number(lRun?.weighted_contribution_pct ?? 0).toFixed(1)}%`,
+        },
+        {
+          key: 'frequency',
+          name: freq?.name || 'Frequency',
+          category: 'Operational',
+          firstViewDisplay: freq?.display_value || (freq?.raw_value ? String(freq.raw_value) : 'Not documented'),
+          value: freq?.raw_value ? String(freq.raw_value) : 'Not documented',
+          weight: `${freq?.weight_pct ?? 20}%`,
+          score: `${Number(freq?.factor_score ?? 0).toFixed(1)}/100`,
+          contribution: `${Number(freq?.weighted_contribution_pct ?? 0).toFixed(1)}%`,
+        },
+      ];
+    }
+
+    // Fallback parsing from factors array
+    return factors.map((f, idx) => {
+      const parts = f.split(' -> ');
+      const name = parts[0] || `Factor ${idx + 1}`;
+      let val: string | number = '0';
+      let scoreStr = '0.0/100';
+      let contribStr = '0.0%';
+      let fvDisplay = name;
+
+      if (parts.length >= 3) {
+        const valPart = parts[1];
+        const valMatch = valPart.match(/Value:\s*([^|]+)/i);
+        if (valMatch) val = valMatch[1].trim();
+
+        const scorePart = parts[2];
+        const scoreMatch = scorePart.match(/Factor Score:\s*([^|]+)/i);
+        if (scoreMatch) scoreStr = scoreMatch[1].trim();
+        const contribMatch = scorePart.match(/Contribution:\s*([^\s)]+)/i);
+        if (contribMatch) contribStr = contribMatch[1].trim();
+      }
+
+      if (name.toLowerCase().includes('downstream')) {
+        fvDisplay = `${val} downstream output${String(val) === '1' ? '' : 's'}`;
+      } else if (name.toLowerCase().includes('upstream')) {
+        fvDisplay = `${val} upstream source${String(val) === '1' ? '' : 's'}`;
+      } else if (name.toLowerCase().includes('etl') || name.toLowerCase().includes('consumer')) {
+        fvDisplay = `${val} consuming ETL workflow${String(val) === '1' ? '' : 's'}`;
+      } else {
+        fvDisplay = val ? String(val) : 'Not documented';
+      }
+
+      const category: 'Technical' | 'Operational' = idx < 3 ? 'Technical' : 'Operational';
+      return {
+        key: `factor_${idx}`,
+        name,
+        category,
+        firstViewDisplay: fvDisplay,
+        value: val,
+        weight: '20%',
+        score: scoreStr,
+        contribution: contribStr,
+      };
+    });
+  };
+
+  const criticalityItems = getCriticalityItems();
 
   return (
     <div
@@ -215,20 +340,20 @@ const DeterministicInfoPopover: React.FC<DeterministicInfoPopoverProps> = ({
           >
             {title}
           </span>
-          {!isComplexity && source && (
+          {!isComplexity && (
             <span
               style={{
                 fontSize: '9.5px',
                 fontWeight: '700',
                 padding: '2px 6px',
                 borderRadius: '3px',
-                background: source === 'llm' ? 'rgba(34, 197, 94, 0.15)' : 'rgba(148, 163, 184, 0.15)',
-                color: source === 'llm' ? '#4ade80' : 'var(--color-text-subtle)',
+                background: 'rgba(59, 130, 246, 0.15)',
+                color: '#60a5fa',
                 textTransform: 'uppercase',
                 letterSpacing: '0.04em',
               }}
             >
-              {source === 'llm' ? 'LLM Assessed' : 'Deterministic Fallback'}
+              Deterministic
             </span>
           )}
         </div>
@@ -289,52 +414,120 @@ const DeterministicInfoPopover: React.FC<DeterministicInfoPopoverProps> = ({
       {/* Hairline Divider */}
       <div style={{ height: '1px', background: 'var(--color-border-subtle)' }} />
 
-      {/* Criticality Business Explanation */}
+      {/* Criticality 5-Factor Definition & Contributor View */}
       {!isComplexity && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {justification && (
-            <div>
-              <div style={{ fontSize: '10.5px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '4px' }}>
-                Why This Matters
-              </div>
-              <div style={{ fontSize: '12.5px', lineHeight: '1.45', color: 'var(--color-text-secondary)' }}>
-                {justification}
-              </div>
+          <div
+            style={{
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid var(--color-border-subtle)',
+              borderRadius: '6px',
+              padding: '10px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '11px',
+                fontWeight: '800',
+                color: 'var(--color-text)',
+                letterSpacing: '0.04em',
+                marginBottom: '2px',
+              }}
+            >
+              Criticality
             </div>
-          )}
 
-          {consequence && (
+            {/* Technical Factors */}
             <div>
-              <div style={{ fontSize: '10.5px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '3px' }}>
-                Potential Consequence
+              <div
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  color: '#60a5fa',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>•</span>
+                <span>Technical Factors</span>
               </div>
-              <div style={{ fontSize: '12px', lineHeight: '1.4', color: 'var(--color-text-secondary)' }}>
-                {consequence}
-              </div>
+              <ul
+                style={{
+                  margin: '3px 0 0 14px',
+                  padding: 0,
+                  listStyle: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                }}
+              >
+                {criticalityItems
+                  .filter((item) => item.category === 'Technical')
+                  .map((item) => (
+                    <li
+                      key={item.key}
+                      style={{
+                        fontSize: '11px',
+                        color: 'var(--color-text-secondary)',
+                        display: 'flex',
+                        gap: '6px',
+                      }}
+                    >
+                      <span style={{ color: 'var(--color-text-muted)' }}>•</span>
+                      <span>{item.firstViewDisplay}</span>
+                    </li>
+                  ))}
+              </ul>
             </div>
-          )}
 
-          {dependencyImpact && (
-            <div>
-              <div style={{ fontSize: '10.5px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '3px' }}>
-                Dependency Impact
+            {/* Operational Factors */}
+            <div style={{ marginTop: '2px' }}>
+              <div
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  color: '#f59e0b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <span>•</span>
+                <span>Operational Factors</span>
               </div>
-              <div style={{ fontSize: '12px', lineHeight: '1.4', color: 'var(--color-text-secondary)' }}>
-                {dependencyImpact}
-              </div>
+              <ul
+                style={{
+                  margin: '3px 0 0 14px',
+                  padding: 0,
+                  listStyle: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                }}
+              >
+                {criticalityItems
+                  .filter((item) => item.category === 'Operational')
+                  .map((item) => (
+                    <li
+                      key={item.key}
+                      style={{
+                        fontSize: '11px',
+                        color: 'var(--color-text-secondary)',
+                        display: 'flex',
+                        gap: '6px',
+                      }}
+                    >
+                      <span style={{ color: 'var(--color-text-muted)' }}>•</span>
+                      <span>{item.firstViewDisplay}</span>
+                    </li>
+                  ))}
+              </ul>
             </div>
-          )}
-
-          {migrationImplication && (
-            <div>
-              <div style={{ fontSize: '10.5px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '3px' }}>
-                Migration Implication
-              </div>
-              <div style={{ fontSize: '12px', lineHeight: '1.4', color: 'var(--color-text-secondary)' }}>
-                {migrationImplication}
-              </div>
-            </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -389,65 +582,88 @@ const DeterministicInfoPopover: React.FC<DeterministicInfoPopoverProps> = ({
           )}
         </div>
       ) : (
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowTechnicalAudit(!showTechnicalAudit)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              padding: '4px 0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              color: 'var(--color-text-muted)',
-              fontSize: '11px',
-              fontWeight: '700',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              cursor: 'pointer',
-            }}
-          >
-            <span>Technical Audit Evidence ({factors?.length || 0})</span>
-            {showTechnicalAudit ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-          </button>
-
-          {showTechnicalAudit && (
-            <ul
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowTechnicalAudit(!showTechnicalAudit)}
               style={{
-                margin: '6px 0 0 0',
-                padding: 0,
-                listStyle: 'none',
+                background: 'transparent',
+                border: 'none',
+                padding: '4px 0',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '5px',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                color: 'var(--color-text-muted)',
+                fontSize: '11px',
+                fontWeight: '700',
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                cursor: 'pointer',
               }}
             >
-              {factors && factors.length > 0 ? (
-                factors.map((f, i) => (
+              <span>FACTOR EVIDENCE BREAKDOWN ({criticalityItems.length || 5})</span>
+              {showTechnicalAudit ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+
+            {showTechnicalAudit && (
+              <ul
+                style={{
+                  margin: '6px 0 0 0',
+                  padding: 0,
+                  listStyle: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px',
+                }}
+              >
+                {criticalityItems.map((item) => (
                   <li
-                    key={i}
+                    key={item.key}
                     style={{
                       display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '6px',
+                      flexDirection: 'column',
+                      gap: '2px',
                       fontSize: '11.5px',
                       lineHeight: '1.4',
-                      color: 'var(--color-text-subtle)',
+                      color: 'var(--color-text-secondary)',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      padding: '6px 8px',
+                      borderRadius: '4px',
+                      border: '1px solid rgba(255, 255, 255, 0.04)',
                     }}
                   >
-                    <span style={{ color: 'var(--color-primary)', fontWeight: '700' }}>•</span>
-                    <span>{f}</span>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', color: 'var(--color-text)', fontWeight: '600' }}>
+                      <span style={{ color: 'var(--color-primary)', fontWeight: '700' }}>•</span>
+                      <span>{item.name}</span>
+                    </div>
+                    <div style={{ paddingLeft: '14px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                      Value: <span style={{ color: 'var(--color-text)', fontWeight: '600' }}>{item.value}</span> | Weight: <span style={{ color: 'var(--color-text)', fontWeight: '600' }}>{item.weight}</span>
+                    </div>
+                    <div style={{ paddingLeft: '14px', fontSize: '10.5px', color: 'var(--color-text-muted)', fontWeight: '500' }}>
+                      Factor Score: <span style={{ color: 'var(--color-text-secondary)', fontWeight: '600' }}>{item.score}</span> | Contribution: <span style={{ color: 'var(--color-text-secondary)', fontWeight: '600' }}>{item.contribution}</span>
+                    </div>
                   </li>
-                ))
-              ) : (
-                <li style={{ fontSize: '11.5px', color: 'var(--color-text-subtle)', fontStyle: 'italic' }}>
-                  No technical factors recorded.
-                </li>
-              )}
-            </ul>
-          )}
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Business Impact Note */}
+          <div
+            style={{
+              fontSize: '10px',
+              lineHeight: '1.4',
+              color: 'var(--color-text-muted)',
+              fontStyle: 'italic',
+              marginTop: '4px',
+              borderTop: '1px solid var(--color-border-subtle)',
+              paddingTop: '6px',
+            }}
+          >
+            * Business impact factors can be added further once the information about downstream targets/consumers is available
+          </div>
         </div>
       )}
     </div>

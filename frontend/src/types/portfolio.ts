@@ -52,10 +52,18 @@ export interface PortfolioWorkflowSummaryDTO {
 }
 
 export interface FactorAssessmentDTO {
-  dimension: string;
-  assessment: 'HIGH' | 'MEDIUM' | 'LOW' | 'NOT_ESTABLISHED';
-  evidence: string;
-  rationale: string;
+  name?: string;
+  category?: string;
+  raw_value?: number | string;
+  display_value?: string;
+  weight_pct?: number;
+  raw_evidence?: string;
+  factor_score?: number;
+  weighted_contribution_pct?: number;
+  dimension?: string;
+  assessment?: 'HIGH' | 'MEDIUM' | 'LOW' | 'NOT_ESTABLISHED';
+  evidence?: string;
+  rationale?: string;
 }
 
 export interface DeterministicSignalsDTO {
