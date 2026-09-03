@@ -1998,7 +1998,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               </div>
             </div>
 
-            {/* Canonical Similarity Evidence Interactive Metric Selector */}
+            {/* Overlap Evidence Interactive Metric Selector */}
             <div>
               <div
                 style={{
@@ -2017,7 +2017,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                     color: 'var(--color-text-muted)',
                   }}
                 >
-                  CANONICAL SIMILARITY EVIDENCE (CLICK TO INSPECT)
+                  OVERLAP EVIDENCE (CLICK TO INSPECT)
                 </div>
                 <div style={{ fontSize: '11px', color: '#facc15', fontWeight: '600' }}>
                   Select metric to inspect matching evidence
