@@ -1176,27 +1176,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           {badge.label}
                         </span>
 
-                        {/* Opportunity Score Chip */}
-                        <span
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '4px 10px',
-                            borderRadius: '6px',
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            background: 'var(--color-surface-secondary)',
-                            border: '1px solid var(--color-border)',
-                            color: 'var(--color-text-secondary)',
-                          }}
-                        >
-                          <span style={{ color: 'var(--color-text-muted)' }}>Opportunity Score:</span>
-                          <span style={{ color: scoreColor, fontWeight: '800' }}>
-                            {cand.opportunity_score.toFixed(0)}/100
-                          </span>
-                        </span>
-
                         {/* LLM Status Indicator */}
                         <span
                           style={{
@@ -1402,7 +1381,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           marginBottom: '4px',
                         }}
                       >
-                        WHY IT MATTERS
+                        RECOMMENDATION RATIONALE
                       </div>
                       <p
                         style={{
@@ -1413,33 +1392,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         }}
                       >
                         {cand.reasoning}
-                      </p>
-                    </div>
-
-                    {/* Proposed Action */}
-                    <div>
-                      <div
-                        style={{
-                          fontSize: '11px',
-                          fontWeight: '700',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.08em',
-                          color: 'var(--color-text-muted)',
-                          marginBottom: '4px',
-                        }}
-                      >
-                        PROPOSED ACTION
-                      </div>
-                      <p
-                        style={{
-                          fontSize: '13px',
-                          lineHeight: '1.5',
-                          color: 'var(--color-text)',
-                          fontWeight: '500',
-                          margin: 0,
-                        }}
-                      >
-                        {cand.proposed_strategy}
                       </p>
                     </div>
 
@@ -1796,16 +1748,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                     }}
                   >
                     {selectedCandidate.confidence} CONFIDENCE
-                  </span>
-
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      color: getScoreColor(selectedCandidate.opportunity_score),
-                    }}
-                  >
-                    Score: {selectedCandidate.opportunity_score.toFixed(0)}/100
                   </span>
                 </div>
               </div>
