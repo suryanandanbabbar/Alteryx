@@ -30,6 +30,7 @@ export const App: React.FC = () => {
   const [selectedBusinessArea, setSelectedBusinessArea] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<string>('overview');
   const [selectedToolId, setSelectedToolId] = useState<number | null>(null);
+  const [selectedToolTypeFilter, setSelectedToolTypeFilter] = useState<string | null>(null);
 
   const [showRationalisation, setShowRationalisation] = useState<boolean>(false);
   const [downloadingXlsx, setDownloadingXlsx] = useState<boolean>(false);
@@ -58,6 +59,7 @@ export const App: React.FC = () => {
     }
     setActiveSection('overview');
     setSelectedToolId(null);
+    setSelectedToolTypeFilter(null);
     setShowRationalisation(false);
   };
 
@@ -67,6 +69,7 @@ export const App: React.FC = () => {
     setSelectedBusinessArea(null);
     setActiveSection('overview');
     setSelectedToolId(null);
+    setSelectedToolTypeFilter(null);
     setShowRationalisation(false);
   };
 
@@ -118,6 +121,8 @@ export const App: React.FC = () => {
               portfolio={portfolio}
               selectedBusinessArea={selectedBusinessArea}
               onSelectBusinessArea={(area) => setSelectedBusinessArea(area)}
+              selectedToolType={selectedToolTypeFilter}
+              onSelectToolType={setSelectedToolTypeFilter}
               onSelectWorkflow={async (workflowId, businessArea) => {
                 try {
                   if (businessArea) {
@@ -198,6 +203,10 @@ export const App: React.FC = () => {
             <ToolsPage
               analysisId={overview.analysis_id}
               selectedToolId={selectedToolId}
+              portfolio={portfolio}
+              selectedToolType={selectedToolTypeFilter}
+              onSelectToolType={setSelectedToolTypeFilter}
+              onNavigateToPortfolio={portfolio ? () => setOverview(null) : undefined}
             />
           )}
           {activeSection === 'json' && (

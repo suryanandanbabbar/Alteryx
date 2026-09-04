@@ -33,6 +33,8 @@ interface PortfolioPageProps {
   portfolio: PortfolioOverviewDTO;
   selectedBusinessArea?: string | null;
   onSelectBusinessArea?: (area: string | null) => void;
+  selectedToolType?: string | null;
+  onSelectToolType?: (toolType: string | null) => void;
   onSelectWorkflow: (workflowId: string, businessArea?: string) => void | Promise<void>;
   onReset: () => void;
   showRationalisation?: boolean;
@@ -683,6 +685,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   portfolio,
   selectedBusinessArea,
   onSelectBusinessArea,
+  selectedToolType,
+  onSelectToolType,
   onSelectWorkflow,
   onReset,
   showRationalisation: showRationalisationProp,
@@ -766,6 +770,12 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
 
     for (const w of portfolio.workflows) {
       if (w.status === 'SUCCESS') {
+        if (selectedToolType) {
+          const hasTool = (w.tool_types || []).some(
+            (t) => t.toLowerCase() === selectedToolType.toLowerCase()
+          );
+          if (!hasTool) continue;
+        }
         const rawTag = w.business_area_tag || w.business_area?.business_area;
         if (rawTag && primaryKeys.has(rawTag)) {
           counts[rawTag]++;
@@ -776,7 +786,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
     }
 
     return counts;
-  }, [portfolio.workflows]);
+  }, [portfolio.workflows, selectedToolType]);
 
   // Determine visible business area cards: Exactly the 5 configured business areas, plus Other ONLY if count > 0
   const visibleAreas = useMemo(() => {
@@ -832,18 +842,24 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
     };
   }, [currentAreaWorkflows]);
 
-  // Filtered workflows for Level 2 Dashboard Summary search
+  // Filtered workflows for Level 2 Dashboard Summary search & tool filter
   const filteredAreaWorkflows = useMemo(() => {
-    if (!searchQuery) return currentAreaWorkflows;
+    let result = currentAreaWorkflows;
+    if (selectedToolType) {
+      result = result.filter((w) =>
+        (w.tool_types || []).some((t) => t.toLowerCase() === selectedToolType.toLowerCase())
+      );
+    }
+    if (!searchQuery) return result;
     const q = searchQuery.toLowerCase();
-    return currentAreaWorkflows.filter((w) => (
+    return result.filter((w) => (
       w.filename.toLowerCase().includes(q) ||
       w.relative_path.toLowerCase().includes(q) ||
       w.sources.some((s) => s.toLowerCase().includes(q)) ||
       w.targets.some((t) => t.toLowerCase().includes(q)) ||
       (w.business_purpose && w.business_purpose.toLowerCase().includes(q))
     ));
-  }, [currentAreaWorkflows, searchQuery]);
+  }, [currentAreaWorkflows, searchQuery, selectedToolType]);
 
   // Render ALL dataset chips directly without truncation (+1 more is completely removed)
   const renderAllDatasetChips = (items: string[], emptyLabel: string = 'None', isTarget: boolean = false) => {
@@ -1171,6 +1187,40 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
               </button>
             )}
           </div>
+
+          {selectedToolType && (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              background: 'rgba(56, 189, 248, 0.1)',
+              border: '1px solid rgba(56, 189, 248, 0.25)',
+              borderRadius: '6px',
+              fontSize: '12px',
+              color: '#38bdf8',
+              fontWeight: 600,
+            }}>
+              <span>Tool: {selectedToolType}</span>
+              {onSelectToolType && (
+                <button
+                  onClick={() => onSelectToolType(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#38bdf8',
+                    cursor: 'pointer',
+                    padding: '0',
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  title="Clear tool filter"
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          )}
 
           <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
             Showing {filteredAreaWorkflows.length} of {currentAreaWorkflows.length} workflows
@@ -1939,6 +1989,56 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Tool Filter Active Banner (Level 1) */}
+      {selectedToolType && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 18px',
+          background: 'rgba(56, 189, 248, 0.08)',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          borderRadius: '10px',
+          marginBottom: '24px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
+              Filtered by tool usage:
+            </span>
+            <span style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              color: '#38bdf8',
+              background: 'rgba(56, 189, 248, 0.15)',
+              padding: '3px 10px',
+              borderRadius: '6px',
+            }}>
+              {selectedToolType}
+            </span>
+          </div>
+          {onSelectToolType && (
+            <button
+              onClick={() => onSelectToolType(null)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 12px',
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--color-text)',
+                cursor: 'pointer',
+              }}
+            >
+              <X size={13} /> Clear Tool Filter
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Domain Cards Responsive Grid */}
       <div style={{
