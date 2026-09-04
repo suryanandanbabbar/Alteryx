@@ -501,6 +501,7 @@ def _build_executive_summary_sheet(
         "Legal",
         "Underwriting",
         "Sales & Distribution",
+        "Actuarial",
         "Other / Unclassified",
     ]
 
@@ -559,7 +560,7 @@ def _build_executive_summary_sheet(
 
 
 # ---------------------------------------------------------------------------
-# Sheet 2: Portfolio Summary
+# Sheet 2: Portfolio Summary / Inventory
 # ---------------------------------------------------------------------------
 
 def _build_portfolio_summary_sheet(
@@ -592,6 +593,7 @@ def _build_portfolio_summary_sheet(
         "Input Count",
         "Output Count",
         "Last Run",
+        "Frequency",
         "Business Area Tag Source",
     ]
 
@@ -600,7 +602,7 @@ def _build_portfolio_summary_sheet(
         cell = ws.cell(row=1, column=col_idx, value=h)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
-        cell.alignment = ALIGN_HEADER_CENTER if col_idx in (13, 14, 16, 17, 18, 19, 20, 21, 22) else ALIGN_HEADER
+        cell.alignment = ALIGN_HEADER_CENTER if col_idx in (13, 14, 16, 17, 18, 19, 20, 21, 22, 23) else ALIGN_HEADER
         cell.border = CELL_BORDER
 
     current_row = 2
@@ -621,7 +623,55 @@ def _build_portfolio_summary_sheet(
         cust_impact = _derive_customer_impact(w)
         client_impact = _derive_client_impact(w)
         biz_scope = "Not determined from available evidence"
-        last_run = "Not documented"
+
+        # Authoritative Last Run from canonical metadata
+        last_run = getattr(w, "last_run", None)
+        if not last_run or last_run == "Not documented":
+            if hasattr(w, "factor_assessments") and isinstance(w.factor_assessments, dict):
+                last_run = w.factor_assessments.get("last_run", {}).get("display_value")
+        if not last_run or last_run == "Not documented":
+            if res and res.business_summary and res.business_summary.factor_assessments:
+                last_run = res.business_summary.factor_assessments.get("last_run", {}).get("display_value")
+        if not last_run or last_run == "Not documented":
+            if res and res.workflow and res.workflow.metadata and res.workflow.metadata.properties:
+                props = res.workflow.metadata.properties
+                meta = props.get("MetaInfo", {}) if isinstance(props.get("MetaInfo"), dict) else {}
+                last_run = (
+                    props.get("last_run")
+                    or props.get("last_executed")
+                    or props.get("last_run_date")
+                    or props.get("lastRun")
+                    or props.get("LastRun")
+                    or meta.get("last_run")
+                    or meta.get("lastRun")
+                    or meta.get("LastRun")
+                )
+        if not last_run or not str(last_run).strip():
+            last_run = "Not documented"
+
+        # Authoritative Frequency from canonical deterministic metadata
+        freq = getattr(w, "frequency", None)
+        if not freq or freq == "Not documented":
+            if hasattr(w, "factor_assessments") and isinstance(w.factor_assessments, dict):
+                freq = w.factor_assessments.get("frequency", {}).get("display_value")
+        if not freq or freq == "Not documented":
+            if res and res.business_summary and res.business_summary.factor_assessments:
+                freq = res.business_summary.factor_assessments.get("frequency", {}).get("display_value")
+        if not freq or freq == "Not documented":
+            if res and res.workflow and res.workflow.metadata and res.workflow.metadata.properties:
+                props = res.workflow.metadata.properties
+                meta = props.get("MetaInfo", {}) if isinstance(props.get("MetaInfo"), dict) else {}
+                freq = (
+                    props.get("frequency")
+                    or props.get("schedule")
+                    or props.get("run_frequency")
+                    or props.get("frequency_schedule")
+                    or props.get("Frequency")
+                    or meta.get("frequency")
+                    or meta.get("Frequency")
+                )
+        if not freq or not str(freq).strip():
+            freq = "Not documented"
 
         row_values = [
             (w.filename, BOLD_BODY_FONT, ALIGN_WRAP_TOP, None),
@@ -645,6 +695,7 @@ def _build_portfolio_summary_sheet(
             (w.source_count, BODY_FONT, ALIGN_CENTER_TOP, "#,##0"),
             (w.target_count, BODY_FONT, ALIGN_CENTER_TOP, "#,##0"),
             (last_run, BODY_FONT, ALIGN_CENTER_TOP, None),
+            (freq, BODY_FONT, ALIGN_CENTER_TOP, None),
             (w.business_area_tag_source, BODY_FONT, ALIGN_CENTER_TOP, None),
         ]
 
@@ -661,7 +712,7 @@ def _build_portfolio_summary_sheet(
 
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
-    _autofit_columns(ws, {1: 28, 2: 20, 3: 24, 4: 45, 5: 45, 6: 45, 7: 30, 8: 30, 9: 30, 10: 30, 11: 30, 12: 24, 13: 15, 14: 16, 15: 45, 16: 15})
+    _autofit_columns(ws, {1: 28, 2: 20, 3: 24, 4: 45, 5: 45, 6: 45, 7: 30, 8: 30, 9: 30, 10: 30, 11: 30, 12: 24, 13: 15, 14: 16, 15: 45, 16: 15, 21: 18, 22: 18, 23: 24})
 
 
 # ---------------------------------------------------------------------------
@@ -750,7 +801,7 @@ def _build_technical_inventory_sheet(
 
 
 # ---------------------------------------------------------------------------
-# Sheet 5: Rationalisation & Dependencies
+# Sheet 4: Rationalisation Recommendation
 # ---------------------------------------------------------------------------
 
 def _build_rationalisation_sheet(
@@ -768,13 +819,12 @@ def _build_rationalisation_sheet(
         "Business Area B",
         "Opportunity Score",
         "Recommendation / Disposition",
-        "Source Overlap %",
-        "Target Overlap %",
-        "Transformation Logic Similarity %",
-        "Output Schema Overlap %",
-        "Output Grain Alignment",
-        "DAG Topology Similarity %",
-        "Shared Operational Logic",
+        "Source Metadata Overlap %",
+        "Target Metadata Overlap %",
+        "Frequency Overlap %",
+        "Logic Overlap %",
+        "DAG Overlap %",
+        "Shared Formulae",
         "Unique Workflow Functionality",
         "Justification",
     ]
@@ -784,10 +834,20 @@ def _build_rationalisation_sheet(
         cell = ws.cell(row=1, column=col_idx, value=h)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
-        cell.alignment = ALIGN_HEADER_CENTER if 5 <= col_idx <= 12 else ALIGN_HEADER
+        cell.alignment = ALIGN_HEADER_CENTER if 5 <= col_idx <= 11 else ALIGN_HEADER
         cell.border = CELL_BORDER
 
     candidates = (rationalisation.candidates if rationalisation else []) or portfolio.rationalisation_candidates
+
+    # Helper to convert normalized 0-1 metrics to standard Excel percentage floats
+    def _to_pct_value(val: Any) -> float:
+        try:
+            f = float(val)
+            if f > 1.0:
+                return f / 100.0
+            return max(0.0, f)
+        except (ValueError, TypeError):
+            return 0.0
 
     current_row = 2
     for idx, c in enumerate(candidates):
@@ -809,17 +869,30 @@ def _build_rationalisation_sheet(
         opp_score = getattr(c, "opportunity_score", 0.0) or 0.0
         rec_type = c.recommendation_type or "REVIEW"
 
-        # Detailed metrics if candidate came from pairwise comparison
-        src_overlap = getattr(c, "source_overlap", 0.0) or 0.0
-        tgt_overlap = getattr(c, "target_overlap", 0.0) or 0.0
-        trans_overlap = getattr(c, "transformation_similarity", 0.0) or 0.0
-        schema_overlap = getattr(c, "schema_similarity", 0.0) or 0.0
-        grain_align = getattr(c, "grain_alignment", "Aligned") or "Aligned"
-        topo_overlap = getattr(c, "topology_similarity", 0.0) or 0.0
+        # Sourced directly from deterministic_metrics (canonical rationalisation evidence)
+        dm = getattr(c, "deterministic_metrics", None)
+        if dm is not None:
+            src_overlap = getattr(dm, "source_overlap", 0.0) or 0.0
+            tgt_overlap = getattr(dm, "target_overlap", 0.0) or 0.0
+            freq_overlap = getattr(dm, "frequency_overlap", 0.0) or 0.0
+            trans_overlap = getattr(dm, "transformation_similarity", 0.0) or 0.0
+            dag_overlap = getattr(dm, "dag_similarity", 0.0) or 0.0
+        else:
+            src_overlap = getattr(c, "source_overlap", 0.0) or 0.0
+            tgt_overlap = getattr(c, "target_overlap", 0.0) or 0.0
+            freq_overlap = getattr(c, "frequency_overlap", 0.0) or 0.0
+            trans_overlap = getattr(c, "transformation_similarity", 0.0) or 0.0
+            dag_overlap = getattr(c, "dag_similarity", getattr(c, "topology_similarity", 0.0)) or 0.0
 
-        # Lossless shared & unique evidence
+        src_val = _to_pct_value(src_overlap)
+        tgt_val = _to_pct_value(tgt_overlap)
+        freq_val = _to_pct_value(freq_overlap)
+        logic_val = _to_pct_value(trans_overlap)
+        dag_val = _to_pct_value(dag_overlap)
+
+        # Lossless shared formulae & unique functionality
         shared_logic_items = getattr(c, "shared_logic", []) or []
-        shared_text = "\n".join(shared_logic_items) if shared_logic_items else "No shared operational logic identified"
+        shared_text = "\n".join(shared_logic_items) if shared_logic_items else "No shared formulae identified"
 
         unique_dict = getattr(c, "unique_functionality", {}) or {}
         unique_lines: list[str] = []
@@ -839,12 +912,11 @@ def _build_rationalisation_sheet(
             (area_b, BODY_FONT, ALIGN_WRAP_TOP, None),
             (opp_score, BOLD_BODY_FONT, ALIGN_CENTER_TOP, "0.0"),
             (rec_type, BOLD_BODY_FONT, ALIGN_CENTER_TOP, None),
-            (src_overlap, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
-            (tgt_overlap, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
-            (trans_overlap, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
-            (schema_overlap, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
-            (grain_align, BODY_FONT, ALIGN_CENTER_TOP, None),
-            (topo_overlap, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
+            (src_val, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
+            (tgt_val, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
+            (freq_val, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
+            (logic_val, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
+            (dag_val, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
             (shared_text, BODY_FONT, ALIGN_WRAP_TOP, None),
             (unique_text, BODY_FONT, ALIGN_WRAP_TOP, None),
             (strategy, BODY_FONT, ALIGN_WRAP_TOP, None),
@@ -866,7 +938,7 @@ def _build_rationalisation_sheet(
 
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
-    _autofit_columns(ws, {1: 28, 2: 28, 3: 20, 4: 20, 13: 50, 14: 50, 15: 45})
+    _autofit_columns(ws, {1: 28, 2: 28, 3: 20, 4: 20, 5: 16, 6: 22, 7: 24, 8: 24, 9: 20, 10: 18, 11: 18, 12: 50, 13: 50, 14: 45})
 
 
 # ---------------------------------------------------------------------------

@@ -254,15 +254,15 @@ class TestBusinessAreaReconciliation:
         assert "Criticality" not in header_text
         assert "High" not in header_text
 
-        # 3. Check all cells in columns 5 onwards in rows 9-15 are completely empty
-        for r in range(9, 15):
+        # 3. Check all cells in columns 5 onwards in rows 9-16 are completely empty
+        for r in range(9, 16):
             for c in range(5, 10):
                 val = ws.cell(row=r, column=c).value
                 assert val is None, f"Expected cell ({r}, {c}) to be None, got '{val}'"
 
-        # 4. Check data rows for all 5 areas (Rows 10 to 14)
+        # 4. Check data rows for all 6 areas (Rows 10 to 15)
         area_rows: dict[str, int] = {}
-        for r in range(10, 15):
+        for r in range(10, 16):
             area_name = ws.cell(row=r, column=1).value
             count_val = ws.cell(row=r, column=2).value
             func_val = ws.cell(row=r, column=3).value
@@ -279,6 +279,7 @@ class TestBusinessAreaReconciliation:
         assert area_rows["Other / Unclassified"] == 1
         assert area_rows["Legal"] == 0
         assert area_rows["Sales & Distribution"] == 0
+        assert area_rows["Actuarial"] == 0
         assert sum(area_rows.values()) == 3
 
     def test_llm_disabled_analyze_canonical_claims_volume(self):

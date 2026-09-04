@@ -1950,10 +1950,8 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                     icon: Layers,
                   },
                 ].map((m) => {
-                  const pct = Math.round(m.val * 100);
                   const isSelected = activeEvidenceMetric === m.key;
                   const Icon = m.icon;
-                  const barFill = isSelected ? '#facc15' : pct >= 70 ? '#34d399' : pct >= 40 ? '#fbbf24' : '#38bdf8';
 
                   return (
                     <button

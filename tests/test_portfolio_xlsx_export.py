@@ -152,23 +152,30 @@ class TestPortfolioXLSXExport:
             if area_val:
                 found_areas.add(str(area_val).strip())
 
-        # All 4 configured business areas + Other / Unclassified must exist
+        # All 5 configured primary business areas + Other / Unclassified must exist
         assert "Claims & Risk" in found_areas
         assert "Legal" in found_areas
         assert "Underwriting" in found_areas
         assert "Sales & Distribution" in found_areas
+        assert "Actuarial" in found_areas
         assert "Other / Unclassified" in found_areas
 
         # Zero workflow areas must be represented with count 0
         for row in range(9, 20):
             area_val = ws.cell(row=row, column=1).value
-            if area_val == "Legal":
+            if area_val in ("Legal", "Actuarial"):
                 count_val = ws.cell(row=row, column=2).value
                 assert count_val == 0
 
     def test_inventory_one_row_per_workflow(self, tmp_path, sample_portfolio_and_results):
-        """Inventory must contain exactly one row per analysed workflow with canonical values."""
+        """Inventory must contain exactly one row per analysed workflow with canonical values, Last Run, and Frequency."""
         portfolio, successful_results = sample_portfolio_and_results
+        # Add metadata for last_run and frequency to test population
+        portfolio.workflows[0].last_run = "10 days ago"
+        portfolio.workflows[0].frequency = "Daily"
+        portfolio.workflows[1].last_run = "Not documented"
+        portfolio.workflows[1].frequency = "Monthly"
+
         rationalisation = build_rationalisation_analysis(portfolio, successful_results, use_llm=False)
 
         export_file = tmp_path / "ETL_Portfolio_Overview.xlsx"
@@ -176,6 +183,12 @@ class TestPortfolioXLSXExport:
 
         wb = openpyxl.load_workbook(export_file)
         ws = wb["Inventory"]
+
+        # Check headers: Last Run | Frequency
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 24)]
+        assert headers[20] == "Last Run"
+        assert headers[21] == "Frequency"
+        assert headers[22] == "Business Area Tag Source"
 
         # 2 workflows -> exactly rows 2 and 3
         wf_names = [ws.cell(row=r, column=1).value for r in (2, 3)]
@@ -185,17 +198,21 @@ class TestPortfolioXLSXExport:
         # Row 4 must be empty
         assert ws.cell(row=4, column=1).value is None
 
-        # Check canonical Business Purpose and Business Function
+        # Check canonical Business Purpose, Business Function, Last Run, and Frequency
         for r in (2, 3):
             name = ws.cell(row=r, column=1).value
             if name == "Demo_Claims.yxmd":
                 assert ws.cell(row=r, column=2).value == "Claims & Risk"
                 assert ws.cell(row=r, column=3).value == "Claims Analytics & Reporting"
                 assert "reconciles quarterly claims" in ws.cell(row=r, column=4).value
+                assert ws.cell(row=r, column=21).value == "10 days ago"
+                assert ws.cell(row=r, column=22).value == "Daily"
             elif name == "FTSE_100.yxmd":
                 assert ws.cell(row=r, column=2).value == "Sales & Distribution"
                 assert ws.cell(row=r, column=3).value == "Sales & Commercial Analytics"
                 assert "FTSE market metrics" in ws.cell(row=r, column=4).value
+                assert ws.cell(row=r, column=21).value == "Not documented"
+                assert ws.cell(row=r, column=22).value == "Monthly"
 
     def test_technical_inventory_deterministic_taxonomy(self, tmp_path, sample_portfolio_and_results):
         """Technical Inventory must deterministically count tool categories and flags without LLM guesses."""
@@ -224,8 +241,8 @@ class TestPortfolioXLSXExport:
                 has_python = ws.cell(row=r, column=11).value
                 assert has_python in ("Yes", "No")
 
-    def test_rationalisation_recommendation_sheet_evidence_integrity(self, tmp_path, sample_portfolio_and_results):
-        """Rationalisation Recommendation sheet must project candidate pairs without empty 'Join on =' or truncated formulas."""
+    def test_rationalisation_recommendation_sheet_headers_and_metrics(self, tmp_path, sample_portfolio_and_results):
+        """Rationalisation Recommendation sheet must contain exact renamed headers, no unwanted columns, and valid metrics."""
         portfolio, successful_results = sample_portfolio_and_results
         rationalisation = build_rationalisation_analysis(portfolio, successful_results, use_llm=False)
 
@@ -235,9 +252,34 @@ class TestPortfolioXLSXExport:
         wb = openpyxl.load_workbook(export_file)
         ws = wb["Rationalisation Recommendation"]
 
+        # Exact required headers in order
+        expected_headers = [
+            "Workflow A",
+            "Workflow B",
+            "Business Area A",
+            "Business Area B",
+            "Opportunity Score",
+            "Recommendation / Disposition",
+            "Source Metadata Overlap %",
+            "Target Metadata Overlap %",
+            "Frequency Overlap %",
+            "Logic Overlap %",
+            "DAG Overlap %",
+            "Shared Formulae",
+            "Unique Workflow Functionality",
+            "Justification",
+        ]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, len(expected_headers) + 1)]
+        assert headers == expected_headers
+
+        # Verify unwanted columns are absent
+        assert "Output Schema Overlap %" not in headers
+        assert "Output Grain Alignment" not in headers
+        assert "Output Grain Alignment %" not in headers
+
         # Check candidate rows if present
         for r in range(2, ws.max_row + 1):
-            shared_logic = ws.cell(row=r, column=13).value
+            shared_logic = ws.cell(row=r, column=12).value
             if shared_logic:
                 assert "Join on =" not in str(shared_logic)
                 assert "Shared join key: =" not in str(shared_logic)
@@ -320,3 +362,113 @@ class TestPortfolioXLSXExport:
         resp = client.get("/api/portfolio/non_existent_portfolio_id/export/xlsx")
         assert resp.status_code == 404
         assert "not found" in resp.json()["detail"]
+
+    def test_actuarial_workflows_mapped_to_actuarial_bucket(self, tmp_path, sample_portfolio_and_results):
+        """Actuarial workflows must be included dynamically in Actuarial area count and Inventory."""
+        portfolio, successful_results = sample_portfolio_and_results
+
+        # Add an Actuarial workflow
+        act_wf = PortfolioWorkflowSummary(
+            workflow_id="wf_actuarial_01",
+            filename="Actuarial_Triangulation.yxmd",
+            relative_path="Actuarial_Triangulation.yxmd",
+            business_area_tag="Actuarial",
+            business_function="Actuarial Reserving",
+            business_purpose="Performs loss development triangulation and IBNR reserving.",
+            last_run="2024-03-01",
+            frequency="Quarterly",
+            status="SUCCESS",
+        )
+        portfolio.workflows.append(act_wf)
+        portfolio.metrics.total_workflows += 1
+        portfolio.metrics.successful_workflows += 1
+
+        export_file = tmp_path / "actuarial_test.xlsx"
+        generate_portfolio_excel(portfolio, successful_results, None, export_file)
+
+        wb = openpyxl.load_workbook(export_file)
+        ws_exec = wb["Executive Summary"]
+        ws_inv = wb["Inventory"]
+
+        # In Executive Summary, Actuarial count must be 1
+        actuarial_found = False
+        for r in range(9, 20):
+            if ws_exec.cell(row=r, column=1).value == "Actuarial":
+                actuarial_found = True
+                assert ws_exec.cell(row=r, column=2).value == 1
+                assert ws_exec.cell(row=r, column=3).value == "Actuarial Reserving"
+        assert actuarial_found
+
+        # In Inventory, Actuarial_Triangulation.yxmd must have Business Area = Actuarial, Last Run = 2024-03-01, Frequency = Quarterly
+        inv_names = [ws_inv.cell(row=r, column=1).value for r in range(2, 5)]
+        assert "Actuarial_Triangulation.yxmd" in inv_names
+        for r in range(2, 5):
+            if ws_inv.cell(row=r, column=1).value == "Actuarial_Triangulation.yxmd":
+                assert ws_inv.cell(row=r, column=2).value == "Actuarial"
+                assert ws_inv.cell(row=r, column=21).value == "2024-03-01"
+                assert ws_inv.cell(row=r, column=22).value == "Quarterly"
+
+    def test_rationalisation_similarity_metrics_populated_accurately(self, tmp_path, sample_portfolio_and_results):
+        """Rationalisation Recommendation columns must carry exact deterministic similarity values with 0.0% formatting."""
+        portfolio, successful_results = sample_portfolio_and_results
+
+        from awa.model.portfolio import RationalisationAnalysis, RationalisationCandidate, DeterministicMetrics
+
+        cand = RationalisationCandidate(
+            workflow_ids=["wf_claims_01", "wf_ftse_02"],
+            workflow_names=["Demo_Claims.yxmd", "FTSE_100.yxmd"],
+            recommendation_type="CONSOLIDATE",
+            opportunity_score=85.5,
+            deterministic_metrics=DeterministicMetrics(
+                source_overlap=1.0,
+                target_overlap=0.625,
+                frequency_overlap=1.0,
+                transformation_similarity=0.45,
+                dag_similarity=0.75,
+            ),
+            shared_logic=["Formula: [Amount] * 1.2", "Filter: [Active] = 1"],
+            unique_functionality={"Demo_Claims.yxmd": ["Summarize claims"]},
+            reasoning="Consolidation candidate due to identical sources and matching frequency.",
+        )
+
+        rat = RationalisationAnalysis(
+            portfolio_id=portfolio.portfolio_id,
+            candidates=[cand],
+        )
+
+        export_file = tmp_path / "rat_metrics_test.xlsx"
+        generate_portfolio_excel(portfolio, successful_results, rat, export_file)
+
+        wb = openpyxl.load_workbook(export_file)
+        ws = wb["Rationalisation Recommendation"]
+
+        assert ws.cell(row=2, column=1).value == "Demo_Claims.yxmd"
+        assert ws.cell(row=2, column=2).value == "FTSE_100.yxmd"
+        assert ws.cell(row=2, column=5).value == 85.5
+        assert ws.cell(row=2, column=6).value == "CONSOLIDATE"
+
+        # Col 7: Source Metadata Overlap %
+        assert ws.cell(row=2, column=7).value == 1.0
+        assert ws.cell(row=2, column=7).number_format == "0.0%"
+
+        # Col 8: Target Metadata Overlap %
+        assert ws.cell(row=2, column=8).value == 0.625
+        assert ws.cell(row=2, column=8).number_format == "0.0%"
+
+        # Col 9: Frequency Overlap %
+        assert ws.cell(row=2, column=9).value == 1.0
+        assert ws.cell(row=2, column=9).number_format == "0.0%"
+
+        # Col 10: Logic Overlap %
+        assert ws.cell(row=2, column=10).value == 0.45
+        assert ws.cell(row=2, column=10).number_format == "0.0%"
+
+        # Col 11: DAG Overlap %
+        assert ws.cell(row=2, column=11).value == 0.75
+        assert ws.cell(row=2, column=11).number_format == "0.0%"
+
+        # Col 12: Shared Formulae
+        shared_val = ws.cell(row=2, column=12).value
+        assert "Formula: [Amount] * 1.2" in shared_val
+        assert "Filter: [Active] = 1" in shared_val
+

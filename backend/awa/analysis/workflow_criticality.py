@@ -317,17 +317,33 @@ def calculate_workflow_criticality(
     last_run_input = None
     frequency_input = None
     if operational_metadata and isinstance(operational_metadata, dict):
+        op_dict = dict(operational_metadata)
+        if isinstance(operational_metadata.get("MetaInfo"), dict):
+            op_dict.update(operational_metadata["MetaInfo"])
+
+        norm_map = {k.lower().replace("_", "").replace(" ", ""): v for k, v in op_dict.items() if isinstance(k, str)}
+
         last_run_input = (
-            operational_metadata.get("last_run")
-            or operational_metadata.get("last_executed")
-            or operational_metadata.get("last_run_date")
-            or operational_metadata.get("lastRun")
+            op_dict.get("last_run")
+            or op_dict.get("last_executed")
+            or op_dict.get("last_run_date")
+            or op_dict.get("lastRun")
+            or op_dict.get("LastRun")
+            or norm_map.get("lastrun")
+            or norm_map.get("lastexecuted")
+            or norm_map.get("lastrundate")
+            or norm_map.get("rundate")
         )
         frequency_input = (
-            operational_metadata.get("frequency")
-            or operational_metadata.get("schedule")
-            or operational_metadata.get("run_frequency")
-            or operational_metadata.get("frequency_schedule")
+            op_dict.get("frequency")
+            or op_dict.get("schedule")
+            or op_dict.get("run_frequency")
+            or op_dict.get("frequency_schedule")
+            or op_dict.get("Frequency")
+            or norm_map.get("frequency")
+            or norm_map.get("schedule")
+            or norm_map.get("runfrequency")
+            or norm_map.get("frequencyschedule")
         )
     last_run_score, last_run_raw = normalize_last_run_score(last_run_input)
 
