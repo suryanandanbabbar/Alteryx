@@ -1085,7 +1085,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
           </div>
 
           <h1 style={{
-            fontSize: '34px',
+            fontSize: '24px',
             fontWeight: '800',
             color: 'var(--color-text)',
             letterSpacing: '-0.02em',
@@ -1959,7 +1959,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
           </div>
 
           <h1 style={{
-            fontSize: '34px',
+            fontSize: '24px',
             fontWeight: '800',
             color: 'var(--color-text)',
             letterSpacing: '-0.03em',
@@ -1996,7 +1996,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                 lineHeight: '1',
                 fontFeatureSettings: '"tnum"',
               }}>
-                {String(metrics.successful_workflows).padStart(2, '0')}
+                {String(metrics.successful_workflows ?? portfolio.workflows.filter((w) => w.status === 'SUCCESS').length).padStart(2, '0')} / {String(metrics.total_workflows ?? portfolio.workflows.length).padStart(2, '0')}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <span style={{

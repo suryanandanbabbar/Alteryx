@@ -38,7 +38,6 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
     setExpandedStage((prev) => (prev === stageNum ? null : stageNum));
   };
 
-  const workflowName = overview.metadata.name || 'Alteryx Workflow';
   const oneLinePurpose = bs?.one_line_purpose || 'Data preparation and reporting workflow';
 
   return (

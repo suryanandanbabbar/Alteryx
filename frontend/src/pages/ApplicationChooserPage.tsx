@@ -138,7 +138,7 @@ export const ApplicationChooserPage: React.FC<ApplicationChooserPageProps> = ({ 
           </div>
 
           <h1 style={{
-            fontSize: '32px',
+            fontSize: '24px',
             fontWeight: '800',
             color: 'var(--color-text)',
             letterSpacing: '-0.5px',

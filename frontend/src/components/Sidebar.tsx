@@ -126,7 +126,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside style={{
-      width: collapsed ? '64px' : '280px',
+      width: collapsed ? '64px' : '310px',
       minWidth: collapsed ? '64px' : '260px',
       height: '100vh',
       position: 'sticky',

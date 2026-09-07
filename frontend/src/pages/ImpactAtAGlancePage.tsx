@@ -21,7 +21,6 @@ import {
   CheckCircle2,
   ExternalLink,
   Layers,
-  ArrowLeft,
   Search,
 } from 'lucide-react';
 import { AnalysisOverviewDTO, BusinessStageDTO } from '../types/workflow';
@@ -153,7 +152,7 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
   }, [rationalisation_candidates]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: '1400px', width: '100%' }}>
       {/* 1. Header / Hero Section (Restrained Enterprise Dashboard) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -166,7 +165,7 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
               color: 'var(--color-primary)',
             }}
           >
-            IMPACT AT A GLANCE
+            ETL Intelligence
           </span>
           <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>•</span>
           <span
@@ -190,7 +189,7 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
 
         <h1
           style={{
-            fontSize: '30px',
+            fontSize: '24px',
             fontWeight: '800',
             color: 'var(--color-text)',
             letterSpacing: '-0.02em',
@@ -198,7 +197,7 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
             margin: '2px 0 0 0',
           }}
         >
-          ETL Portfolio Impact Summary
+          Impact at a Glance
         </h1>
 
         <p
@@ -556,8 +555,9 @@ interface WorkflowImpactViewProps {
 const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
   overview,
   onNavigateToSection,
-  onBackToPortfolio,
 }) => {
+  const [activeModal, setActiveModal] = useState<WorkflowEvidenceModalType>(null);
+
   if (!overview) {
     return (
       <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
@@ -566,7 +566,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
     );
   }
 
-  const { metrics, business_summary, execution_order, source } = overview;
+  const { metrics, business_summary, execution_order } = overview;
   const toolSupport = metrics.support_summary || {};
   const fullySupported = toolSupport['FULL'] || 0;
   const passThrough = toolSupport['PASS_THROUGH'] || 0;
@@ -587,7 +587,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1400px', width: '100%' }}>
       {/* 1. Header Navigation & Title */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
@@ -651,7 +651,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
         </p>
       </div>
 
-      {/* 2. Top Quantity KPI Cards */}
+      {/* 2. Top Quantity KPI Cards (Open Evidence Modals, No Navigation) */}
       <div
         style={{
           display: 'grid',
@@ -665,7 +665,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
           subtext="Raw Ingest Feeds"
           icon={Database}
           color="#38bdf8"
-          onClick={() => onNavigateToSection?.('overview')}
+          onClick={() => setActiveModal('sources')}
         />
         <KpiCard
           label="Processing Tools"
@@ -673,7 +673,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
           subtext="Node Graph Entities"
           icon={Sliders}
           color="#fb923c"
-          onClick={() => onNavigateToSection?.('tools')}
+          onClick={() => setActiveModal('tools')}
         />
         <KpiCard
           label="Process Stages"
@@ -681,7 +681,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
           subtext="Logical Stages / Pipelines"
           icon={Layers}
           color="#a855f7"
-          onClick={() => onNavigateToSection?.('overview')}
+          onClick={() => setActiveModal('stages')}
         />
         <KpiCard
           label="Lineage Mappings"
@@ -689,7 +689,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
           subtext="Column-Level STTM"
           icon={Share2}
           color="#f43f5e"
-          onClick={() => onNavigateToSection?.('overview')}
+          onClick={() => setActiveModal('lineage')}
         />
         <KpiCard
           label="Business Outputs"
@@ -697,7 +697,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
           subtext="Published Deliverables"
           icon={Target}
           color="#eab308"
-          onClick={() => onNavigateToSection?.('overview')}
+          onClick={() => setActiveModal('outputs')}
         />
         <KpiCard
           label="Connections"
@@ -705,7 +705,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
           subtext="Data-Flow Edges"
           icon={GitFork}
           color="#34d399"
-          onClick={() => onNavigateToSection?.('diagram')}
+          onClick={() => setActiveModal('connections')}
         />
       </div>
 
@@ -977,6 +977,1217 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
           <strong style={{ color: 'var(--color-text)' }}>{stageCount}</strong> logical process stages,{' '}
           <strong style={{ color: 'var(--color-text)' }}>{lineageCount}</strong> column-level lineage mappings, and{' '}
           <strong style={{ color: 'var(--color-text)' }}>{outputCount}</strong> final business deliverables with full AI-assisted semantic documentation.
+        </div>
+      </div>
+
+      {/* 7. Stateful Evidence Modal */}
+      {activeModal && (
+        <WorkflowEvidenceModal
+          activeModal={activeModal}
+          overview={overview}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+// ============================================================================
+// SINGLE WORKFLOW EVIDENCE MODAL (Minimalist, Accessible, In-Page Popup)
+// ============================================================================
+
+export type WorkflowEvidenceModalType =
+  | 'sources'
+  | 'tools'
+  | 'stages'
+  | 'lineage'
+  | 'outputs'
+  | 'connections'
+  | null;
+
+interface WorkflowEvidenceModalProps {
+  activeModal: NonNullable<WorkflowEvidenceModalType>;
+  overview: AnalysisOverviewDTO;
+  onClose: () => void;
+}
+
+const WorkflowEvidenceModal: React.FC<WorkflowEvidenceModalProps> = ({
+  activeModal,
+  overview,
+  onClose,
+}) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedToolType, setSelectedToolType] = useState<string | null>(null);
+  const [expandedToolTypes, setExpandedToolTypes] = useState<Record<string, boolean>>({});
+  const [expandedStages, setExpandedStages] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  const toggleToolType = (type: string) => {
+    setExpandedToolTypes((prev) => ({ ...prev, [type]: !prev[type] }));
+  };
+
+  const toggleStage = (stageNum: number) => {
+    setExpandedStages((prev) => ({ ...prev, [stageNum]: !prev[stageNum] }));
+  };
+
+  const { metrics, business_summary, execution_order = [], connections = [] } = overview;
+  const inputCount = metrics.input_count || business_summary?.source_inputs?.length || 0;
+  const totalTools = metrics.total_nodes || execution_order.length || 0;
+  const stageCount = business_summary?.processing_stages?.length || metrics.container_count || 1;
+  const lineageCount = business_summary?.lineage?.length || 0;
+  const outputCount = metrics.business_output_count || metrics.output_count || business_summary?.business_outputs?.length || 0;
+  const totalConnections = connections.length || metrics.total_connections || 0;
+
+  // Tool lookup map
+  const toolMap = useMemo(() => {
+    const map = new Map<number, { name: string; tool_type: string; visual_category: string }>();
+    execution_order.forEach((step) => {
+      map.set(step.tool_id, {
+        name: step.name || step.tool_type,
+        tool_type: step.tool_type,
+        visual_category: step.visual_category,
+      });
+    });
+    return map;
+  }, [execution_order]);
+
+  // Tool to Process Stage map
+  const toolToStageMap = useMemo(() => {
+    const map = new Map<number, { stage_number: number; name: string; short_title?: string }>();
+    (business_summary?.processing_stages || []).forEach((st) => {
+      (st.tool_ids || []).forEach((tid) => {
+        map.set(tid, { stage_number: st.stage_number, name: st.name, short_title: st.short_title });
+      });
+    });
+    return map;
+  }, [business_summary?.processing_stages]);
+
+  // Tool type grouping
+  const toolTypeGroups = useMemo(() => {
+    const groups = new Map<string, typeof execution_order>();
+    execution_order.forEach((step) => {
+      const type = step.tool_type || 'Unknown';
+      if (!groups.has(type)) {
+        groups.set(type, []);
+      }
+      groups.get(type)!.push(step);
+    });
+    return Array.from(groups.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [execution_order]);
+
+  const q = searchQuery.toLowerCase().trim();
+
+  // Filtered sources
+  const filteredSources = useMemo(() => {
+    const list = business_summary?.source_inputs || [];
+    if (!q) return list;
+    return list.filter((s) =>
+      (s.name && s.name.toLowerCase().includes(q)) ||
+      (s.source_filename && s.source_filename.toLowerCase().includes(q)) ||
+      (s.raw_source && s.raw_source.toLowerCase().includes(q)) ||
+      (s.sheet_or_table && s.sheet_or_table.toLowerCase().includes(q)) ||
+      (s.description && s.description.toLowerCase().includes(q)) ||
+      String(s.tool_id).includes(q)
+    );
+  }, [business_summary?.source_inputs, q]);
+
+  // Filtered tool groups (combining selectedToolType + searchQuery)
+  const filteredToolGroups = useMemo(() => {
+    let groups = toolTypeGroups;
+    if (selectedToolType) {
+      groups = groups.filter(([type]) => type === selectedToolType);
+    }
+    if (!q) return groups;
+
+    return groups
+      .map(([type, tools]) => {
+        const matchingTools = tools.filter((t) => {
+          const stage = toolToStageMap.get(t.tool_id);
+          return (
+            t.name.toLowerCase().includes(q) ||
+            t.tool_type.toLowerCase().includes(q) ||
+            (t.visual_category && t.visual_category.toLowerCase().includes(q)) ||
+            (t.summary && t.summary.toLowerCase().includes(q)) ||
+            (t.container_name && t.container_name.toLowerCase().includes(q)) ||
+            (stage && stage.name.toLowerCase().includes(q)) ||
+            String(t.tool_id).includes(q)
+          );
+        });
+        return [type, matchingTools] as [string, typeof execution_order];
+      })
+      .filter(([type, tools]) => {
+        if (selectedToolType) return true;
+        return type.toLowerCase().includes(q) || tools.length > 0;
+      });
+  }, [toolTypeGroups, selectedToolType, q, toolToStageMap]);
+
+  // Total matching tools count across all visible groups
+  const matchingToolsCount = useMemo(() => {
+    return filteredToolGroups.reduce((acc, [, tools]) => acc + tools.length, 0);
+  }, [filteredToolGroups]);
+
+  // Filtered stages
+  const filteredStages = useMemo(() => {
+    const list = business_summary?.processing_stages || [];
+    if (!q) return list;
+    return list.filter((st) =>
+      st.name.toLowerCase().includes(q) ||
+      (st.summary && st.summary.toLowerCase().includes(q)) ||
+      (st.description && st.description.toLowerCase().includes(q)) ||
+      (st.business_purpose && st.business_purpose.toLowerCase().includes(q)) ||
+      (st.major_transformation && st.major_transformation.toLowerCase().includes(q)) ||
+      (st.short_title && st.short_title.toLowerCase().includes(q))
+    );
+  }, [business_summary?.processing_stages, q]);
+
+  // Filtered lineage
+  const filteredLineage = useMemo(() => {
+    const list = business_summary?.lineage || [];
+    if (!q) return list;
+    return list.filter((l) =>
+      l.source_name.toLowerCase().includes(q) ||
+      l.target_name.toLowerCase().includes(q) ||
+      (l.transformation_summary && l.transformation_summary.toLowerCase().includes(q)) ||
+      (l.transformation && l.transformation.toLowerCase().includes(q)) ||
+      String(l.source_tool_id).includes(q) ||
+      String(l.target_tool_id).includes(q)
+    );
+  }, [business_summary?.lineage, q]);
+
+  // Filtered outputs
+  const filteredOutputs = useMemo(() => {
+    const list = business_summary?.business_outputs || [];
+    if (!q) return list;
+    return list.filter((o) =>
+      (o.name && o.name.toLowerCase().includes(q)) ||
+      (o.raw_destination && o.raw_destination.toLowerCase().includes(q)) ||
+      (o.destination_type && o.destination_type.toLowerCase().includes(q)) ||
+      (o.sheet_or_table && o.sheet_or_table.toLowerCase().includes(q)) ||
+      (o.business_meaning && o.business_meaning.toLowerCase().includes(q)) ||
+      (o.likely_use && o.likely_use.toLowerCase().includes(q)) ||
+      String(o.tool_id).includes(q)
+    );
+  }, [business_summary?.business_outputs, q]);
+
+  // Filtered connections
+  const filteredConnections = useMemo(() => {
+    if (!q) return connections;
+    return connections.filter((c) => {
+      const origin = toolMap.get(c.origin_tool_id);
+      const dest = toolMap.get(c.destination_tool_id);
+      return (
+        String(c.origin_tool_id).includes(q) ||
+        String(c.destination_tool_id).includes(q) ||
+        (origin?.tool_type && origin.tool_type.toLowerCase().includes(q)) ||
+        (dest?.tool_type && dest.tool_type.toLowerCase().includes(q)) ||
+        (origin?.name && origin.name.toLowerCase().includes(q)) ||
+        (dest?.name && dest.name.toLowerCase().includes(q)) ||
+        c.origin_anchor.toLowerCase().includes(q) ||
+        c.destination_anchor.toLowerCase().includes(q)
+      );
+    });
+  }, [connections, toolMap, q]);
+
+  let modalBadge = '';
+  let modalTitle = '';
+  let headlineMetric = '';
+  let headlineExplanation = '';
+  let searchPlaceholder = 'Filter evidence...';
+
+  switch (activeModal) {
+    case 'sources':
+      modalBadge = 'DATA SOURCES · RAW INGEST FEEDS';
+      modalTitle = 'Data Sources Evidence';
+      headlineMetric = `${inputCount} Data Sources`;
+      headlineExplanation = 'Input sources identified in this workflow.';
+      searchPlaceholder = 'Filter by source name, sheet, or tool ID...';
+      break;
+    case 'tools':
+      modalBadge = selectedToolType
+        ? `PROCESSING TOOLS · FILTERED BY ${selectedToolType.toUpperCase()}`
+        : 'PROCESSING TOOLS · NODE GRAPH ENTITIES';
+      modalTitle = 'Processing Tools Evidence';
+      if (selectedToolType) {
+        headlineMetric = `${matchingToolsCount} of ${totalTools} Tools · ${selectedToolType}`;
+        headlineExplanation = q
+          ? `Showing ${matchingToolsCount} ${selectedToolType} instances matching "${searchQuery}".`
+          : `Showing all ${matchingToolsCount} authoritative ${selectedToolType} instances.`;
+      } else {
+        headlineMetric = q
+          ? `${matchingToolsCount} of ${totalTools} Processing Tools`
+          : `${totalTools} Processing Tools`;
+        headlineExplanation = 'Tool and node operation footprint extracted from this workflow AST.';
+      }
+      searchPlaceholder = selectedToolType
+        ? `Filter ${selectedToolType} instances by name, summary, stage, or #ID...`
+        : 'Filter by tool type, name, summary, or ID...';
+      break;
+    case 'stages':
+      modalBadge = 'PROCESS STAGES · LOGICAL PIPELINES';
+      modalTitle = 'Process Stages Evidence';
+      headlineMetric = `${stageCount} Process Stages`;
+      headlineExplanation = 'Logical processing stages and functional pipelines extracted from this workflow.';
+      searchPlaceholder = 'Filter by stage name or description...';
+      break;
+    case 'lineage':
+      modalBadge = 'LINEAGE MAPPINGS · COLUMN-LEVEL STTM';
+      modalTitle = 'Lineage Mapping Evidence';
+      headlineMetric = `${lineageCount} Lineage Mappings`;
+      headlineExplanation = 'Source-to-target column transformation and data flow mapping.';
+      searchPlaceholder = 'Filter by source, target, or transformation...';
+      break;
+    case 'outputs':
+      modalBadge = 'BUSINESS OUTPUTS · PUBLISHED DELIVERABLES';
+      modalTitle = 'Business Outputs Evidence';
+      headlineMetric = `${outputCount} Business Outputs`;
+      headlineExplanation = 'Published deliverables and destination target sinks produced by this workflow.';
+      searchPlaceholder = 'Filter by output name, format, or tool ID...';
+      break;
+    case 'connections':
+      modalBadge = 'GRAPH TOPOLOGY · DATA-FLOW EDGES';
+      modalTitle = 'Workflow Connections Evidence';
+      headlineMetric = `${totalConnections} Data-Flow Connections`;
+      headlineExplanation = 'Direct acyclic graph connections and data dependencies between workflow nodes.';
+      searchPlaceholder = 'Filter by origin/destination tool or ID...';
+      break;
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={modalTitle}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 1000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+        boxSizing: 'border-box',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        style={{
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-md, 8px)',
+          width: '100%',
+          maxWidth: activeModal === 'lineage' || activeModal === 'connections' ? '760px' : '680px',
+          maxHeight: '85vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
+        }}
+      >
+        {/* Modal Header */}
+        <div
+          style={{
+            padding: '18px 22px',
+            borderBottom: '1px solid var(--color-border)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: '16px',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: '10.5px',
+                fontWeight: '800',
+                color: 'var(--color-primary)',
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                marginBottom: '4px',
+              }}
+            >
+              {modalBadge}
+            </div>
+            <h2 style={{ fontSize: '17px', fontWeight: '800', color: 'var(--color-text)', margin: '0 0 4px 0' }}>
+              {modalTitle}
+            </h2>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)', marginBottom: '2px' }}>
+              {headlineMetric}
+            </div>
+            <div style={{ fontSize: '11.5px', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+              {headlineExplanation}
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            aria-label="Close dialog"
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm, 4px)',
+              padding: '6px',
+              color: 'var(--color-text-muted)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'var(--color-text)';
+              e.currentTarget.style.borderColor = 'var(--color-text-muted)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--color-text-muted)';
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+            }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Modal Search Bar */}
+        <div style={{ padding: '10px 22px 0 22px', display: 'flex', alignItems: 'center' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              width: '100%',
+              background: 'var(--color-surface-secondary)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm, 4px)',
+              padding: '6px 10px',
+            }}
+          >
+            <Search size={14} color="var(--color-text-muted)" />
+            <input
+              type="text"
+              placeholder={searchPlaceholder}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                color: 'var(--color-text)',
+                fontSize: '12px',
+                width: '100%',
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: 0 }}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Modal Scrollable Body */}
+        <div style={{ padding: '16px 22px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          
+          {/* =================================================================== */}
+          {/* 1. DATA SOURCES MODAL                                               */}
+          {/* =================================================================== */}
+          {activeModal === 'sources' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {filteredSources.length > 0 ? (
+                filteredSources.map((src, idx) => {
+                  const formatBadge =
+                    (src.source_filename || src.raw_source || '').endsWith('.xlsx') || (src.source_filename || src.raw_source || '').endsWith('.xls')
+                      ? 'EXCEL'
+                      : (src.source_filename || src.raw_source || '').endsWith('.csv')
+                      ? 'CSV'
+                      : (src.source_filename || src.raw_source || '').endsWith('.yxdb')
+                      ? 'YXDB'
+                      : src.source_type === 'DATABASE' || (src.raw_source || '').includes('dbo.') || (src.raw_source || '').includes('SELECT')
+                      ? 'DATABASE'
+                      : 'DATASET';
+
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        background: 'var(--color-surface-secondary)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-sm, 6px)',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                          <Database size={14} color="#38bdf8" style={{ flexShrink: 0 }} />
+                          <span style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--color-text)', wordBreak: 'break-all' }}>
+                            {src.source_filename || src.raw_source || src.name}
+                          </span>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: '700',
+                            padding: '2px 6px',
+                            borderRadius: '3px',
+                            background: 'rgba(56, 189, 248, 0.1)',
+                            color: '#38bdf8',
+                            border: '1px solid rgba(56, 189, 248, 0.25)',
+                            flexShrink: 0,
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {formatBadge}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        <span>Tool #{src.tool_id} ({src.name || src.source_type})</span>
+                        {src.sheet_or_table && (
+                          <>
+                            <span>·</span>
+                            <span>Sheet/Table: <strong style={{ color: 'var(--color-text-secondary)' }}>{src.sheet_or_table}</strong></span>
+                          </>
+                        )}
+                        {src.container_name && (
+                          <>
+                            <span>·</span>
+                            <span>Container: {src.container_name}</span>
+                          </>
+                        )}
+                      </div>
+
+                      {(src.description || src.business_role) && (
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.4, borderTop: '1px solid var(--color-border)', paddingTop: '6px' }}>
+                          {src.description || src.business_role}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '12px', textAlign: 'center', padding: '20px' }}>
+                  No data sources matching filter.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* =================================================================== */}
+          {/* 2. PROCESSING TOOLS MODAL                                           */}
+          {/* =================================================================== */}
+          {activeModal === 'tools' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Grouped tool filter chips strip */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
+                {/* All Tools (Full inventory) Chip */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedToolType(null)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '4px 10px',
+                    borderRadius: '4px',
+                    background: selectedToolType === null ? 'rgba(251, 146, 60, 0.2)' : 'var(--color-surface-secondary)',
+                    border: selectedToolType === null ? '1px solid #fb923c' : '1px solid var(--color-border)',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    color: selectedToolType === null ? '#fb923c' : 'var(--color-text)',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedToolType !== null) {
+                      e.currentTarget.style.borderColor = 'var(--color-text-muted)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedToolType !== null) {
+                      e.currentTarget.style.borderColor = 'var(--color-border)';
+                    }
+                  }}
+                >
+                  <span>All Tools</span>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      background: selectedToolType === null ? '#fb923c' : 'var(--color-surface)',
+                      color: selectedToolType === null ? '#0f172a' : 'var(--color-text-muted)',
+                      padding: '1px 5px',
+                      borderRadius: '3px',
+                      fontWeight: '800',
+                    }}
+                  >
+                    {totalTools}
+                  </span>
+                </button>
+
+                {toolTypeGroups.map(([type, tools]) => {
+                  const isSelected = selectedToolType === type;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setSelectedToolType(isSelected ? null : type)}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '4px 10px',
+                        borderRadius: '4px',
+                        background: isSelected ? 'rgba(251, 146, 60, 0.2)' : 'var(--color-surface-secondary)',
+                        border: isSelected ? '1px solid #fb923c' : '1px solid var(--color-border)',
+                        fontSize: '11px',
+                        fontWeight: isSelected ? '700' : '600',
+                        color: isSelected ? '#fb923c' : 'var(--color-text)',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = 'var(--color-text-muted)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = 'var(--color-border)';
+                        }
+                      }}
+                    >
+                      <span>{type}</span>
+                      <strong style={{ color: isSelected ? '#fb923c' : 'var(--color-text-muted)' }}>
+                        × {tools.length}
+                      </strong>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Active Filter Indicator & Clear Filter Action */}
+              {selectedToolType && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: 'rgba(251, 146, 60, 0.08)',
+                    border: '1px solid rgba(251, 146, 60, 0.25)',
+                    borderRadius: 'var(--radius-sm, 4px)',
+                    padding: '8px 12px',
+                    fontSize: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Sliders size={13} color="#fb923c" />
+                    <span style={{ color: 'var(--color-text)' }}>
+                      Filtered by <strong style={{ color: '#fb923c' }}>{selectedToolType}</strong> ({matchingToolsCount} of {totalTools} tools)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedToolType(null)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#fb923c',
+                      fontSize: '11.5px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.textDecoration = 'underline';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.textDecoration = 'none';
+                    }}
+                  >
+                    <X size={13} /> Clear filter
+                  </button>
+                </div>
+              )}
+
+              {/* Detailed Tool List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {filteredToolGroups.length > 0 ? (
+                  filteredToolGroups.map(([type, tools]) => {
+                    const isExpanded = selectedToolType ? true : (expandedToolTypes[type] ?? true);
+                    return (
+                      <div
+                        key={type}
+                        style={{
+                          background: 'var(--color-surface-secondary)',
+                          border: selectedToolType === type ? '1px solid rgba(251, 146, 60, 0.4)' : '1px solid var(--color-border)',
+                          borderRadius: 'var(--radius-sm, 6px)',
+                          padding: '10px 14px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                        }}
+                      >
+                        <div
+                          onClick={() => {
+                            if (!selectedToolType) toggleToolType(type);
+                          }}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            cursor: selectedToolType ? 'default' : 'pointer',
+                            userSelect: 'none',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Sliders size={13} color="#fb923c" />
+                            <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)' }}>
+                              {type}
+                            </span>
+                            {selectedToolType && (
+                              <span
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: '700',
+                                  padding: '1px 6px',
+                                  borderRadius: '3px',
+                                  background: 'rgba(251, 146, 60, 0.15)',
+                                  color: '#fb923c',
+                                  border: '1px solid rgba(251, 146, 60, 0.3)',
+                                  textTransform: 'uppercase',
+                                }}
+                              >
+                                ACTIVE FILTER
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                              {tools.length} {tools.length === 1 ? 'instance' : 'instances'}
+                            </span>
+                            {!selectedToolType && (
+                              isExpanded ? <ChevronUp size={13} color="var(--color-text-muted)" /> : <ChevronDown size={13} color="var(--color-text-muted)" />
+                            )}
+                          </div>
+                        </div>
+
+                        {isExpanded && (
+                          <div
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                              gap: '8px',
+                              paddingTop: '8px',
+                              borderTop: '1px solid var(--color-border)',
+                            }}
+                          >
+                            {tools.length > 0 ? (
+                              tools.map((t) => {
+                                const stage = toolToStageMap.get(t.tool_id);
+                                return (
+                                  <div
+                                    key={t.tool_id}
+                                    style={{
+                                      background: 'var(--color-surface)',
+                                      border: '1px solid var(--color-border)',
+                                      borderRadius: '6px',
+                                      padding: '10px 12px',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: '5px',
+                                    }}
+                                  >
+                                    {/* Tool Header: ID, Category, Step */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <span
+                                          style={{
+                                            fontSize: '11px',
+                                            fontFamily: 'var(--font-mono)',
+                                            fontWeight: '800',
+                                            color: '#fb923c',
+                                          }}
+                                        >
+                                          #{t.tool_id}
+                                        </span>
+                                        {t.visual_category && (
+                                          <span
+                                            style={{
+                                              fontSize: '9.5px',
+                                              color: 'var(--color-text-muted)',
+                                              textTransform: 'uppercase',
+                                              padding: '1px 5px',
+                                              borderRadius: '3px',
+                                              background: 'var(--color-surface-secondary)',
+                                              border: '1px solid var(--color-border)',
+                                              fontWeight: '600',
+                                            }}
+                                          >
+                                            {t.visual_category}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                                        Step {t.step_number}
+                                      </span>
+                                    </div>
+
+                                    {/* Tool Name */}
+                                    <div
+                                      style={{
+                                        fontSize: '12px',
+                                        fontWeight: '700',
+                                        color: 'var(--color-text)',
+                                        wordBreak: 'break-word',
+                                      }}
+                                    >
+                                      {t.name || t.tool_type}
+                                    </div>
+
+                                    {/* Tool Summary */}
+                                    {t.summary && (
+                                      <div
+                                        style={{
+                                          fontSize: '11px',
+                                          color: 'var(--color-text-secondary)',
+                                          lineHeight: 1.35,
+                                        }}
+                                      >
+                                        {t.summary}
+                                      </div>
+                                    )}
+
+                                    {/* Container / Process Stage Metadata */}
+                                    {(t.container_name || stage) && (
+                                      <div
+                                        style={{
+                                          display: 'flex',
+                                          flexDirection: 'column',
+                                          gap: '2px',
+                                          fontSize: '10px',
+                                          color: 'var(--color-text-muted)',
+                                          paddingTop: '4px',
+                                          borderTop: '1px solid var(--color-border)',
+                                          marginTop: '2px',
+                                        }}
+                                      >
+                                        {stage && (
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <span style={{ color: '#a855f7', fontWeight: '700' }}>
+                                              {stage.short_title || `Stage 0${stage.stage_number}`}:
+                                            </span>
+                                            <span style={{ color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                              {stage.name}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {t.container_name && (
+                                          <div>
+                                            <span>Container: </span>
+                                            <strong style={{ color: 'var(--color-text-secondary)' }}>{t.container_name}</strong>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div style={{ color: 'var(--color-text-muted)', fontSize: '11.5px', padding: '10px', textAlign: 'center', gridColumn: '1 / -1' }}>
+                                No {type} tools matching &quot;{searchQuery}&quot;.
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: '12px', textAlign: 'center', padding: '30px' }}>
+                    {selectedToolType
+                      ? `No ${selectedToolType} tools matching filter.`
+                      : 'No processing tools matching filter.'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* =================================================================== */}
+          {/* 3. PROCESS STAGES MODAL                                             */}
+          {/* =================================================================== */}
+          {activeModal === 'stages' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {filteredStages.length > 0 ? (
+                filteredStages.map((stage: BusinessStageDTO) => {
+                  const isExpanded = expandedStages[stage.stage_number] ?? true;
+                  return (
+                    <div
+                      key={stage.stage_number}
+                      style={{
+                        background: 'var(--color-surface-secondary)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-sm, 6px)',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}
+                    >
+                      <div
+                        onClick={() => toggleStage(stage.stage_number)}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontFamily: 'var(--font-mono)',
+                              fontWeight: '800',
+                              color: '#a855f7',
+                            }}
+                          >
+                            {stage.short_title || `STAGE ${String(stage.stage_number).padStart(2, '0')}`}
+                          </span>
+                          <span style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--color-text)' }}>
+                            {stage.name}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                            {stage.tool_count} steps
+                          </span>
+                          {isExpanded ? <ChevronUp size={14} color="var(--color-text-muted)" /> : <ChevronDown size={14} color="var(--color-text-muted)" />}
+                        </div>
+                      </div>
+
+                      <p style={{ fontSize: '11.5px', color: 'var(--color-text-secondary)', margin: 0, lineHeight: 1.4 }}>
+                        {stage.summary || stage.description}
+                      </p>
+
+                      {isExpanded && (stage.business_purpose || stage.major_transformation || (stage.tool_ids && stage.tool_ids.length > 0)) && (
+                        <div
+                          style={{
+                            marginTop: '4px',
+                            paddingTop: '6px',
+                            borderTop: '1px solid var(--color-border)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '4px',
+                            fontSize: '11px',
+                          }}
+                        >
+                          {stage.business_purpose && (
+                            <div>
+                              <strong style={{ color: 'var(--color-text)' }}>Business Purpose: </strong>
+                              <span style={{ color: 'var(--color-text-secondary)' }}>{stage.business_purpose}</span>
+                            </div>
+                          )}
+                          {stage.major_transformation && (
+                            <div>
+                              <strong style={{ color: 'var(--color-text)' }}>Major Transformation: </strong>
+                              <span style={{ color: 'var(--color-text-secondary)' }}>{stage.major_transformation}</span>
+                            </div>
+                          )}
+                          {stage.tool_ids && stage.tool_ids.length > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', marginTop: '2px' }}>
+                              <span style={{ color: 'var(--color-text-muted)', fontSize: '10.5px' }}>Underlying Tools:</span>
+                              {stage.tool_ids.map((id) => (
+                                <span
+                                  key={id}
+                                  style={{
+                                    fontSize: '9.5px',
+                                    fontFamily: 'var(--font-mono)',
+                                    padding: '1px 5px',
+                                    borderRadius: '3px',
+                                    background: 'var(--color-surface)',
+                                    border: '1px solid var(--color-border)',
+                                    color: 'var(--color-text-secondary)',
+                                  }}
+                                >
+                                  #{id}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '12px', textAlign: 'center', padding: '20px' }}>
+                  No process stages matching filter.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* =================================================================== */}
+          {/* 4. LINEAGE MAPPINGS MODAL                                           */}
+          {/* =================================================================== */}
+          {activeModal === 'lineage' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {filteredLineage.length > 0 ? (
+                filteredLineage.map((l, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      background: 'var(--color-surface-secondary)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-sm, 6px)',
+                      padding: '10px 14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Share2 size={13} color="#f43f5e" />
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-text)' }}>
+                          {l.source_name}
+                        </span>
+                        <ArrowRight size={12} color="#f43f5e" />
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--color-primary)' }}>
+                          {l.target_name}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono)', color: 'var(--color-text-muted)' }}>
+                        Tool #{l.source_tool_id} → Tool #{l.target_tool_id}
+                      </span>
+                    </div>
+
+                    {(l.transformation_summary || l.transformation) && (
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.35 }}>
+                        {l.transformation_summary || l.transformation}
+                      </div>
+                    )}
+
+                    {l.intermediate_stages && l.intermediate_stages.length > 0 && (
+                      <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                        <span>Stage Path:</span>
+                        <span style={{ color: 'var(--color-text-secondary)' }}>{l.intermediate_stages.join(' → ')}</span>
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '12px', textAlign: 'center', padding: '20px' }}>
+                  No column-level lineage mappings matching filter.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* =================================================================== */}
+          {/* 5. BUSINESS OUTPUTS MODAL                                           */}
+          {/* =================================================================== */}
+          {activeModal === 'outputs' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {filteredOutputs.length > 0 ? (
+                filteredOutputs.map((out, idx) => {
+                  const formatBadge =
+                    (out.raw_destination || out.name || '').endsWith('.xlsx') || (out.raw_destination || out.name || '').endsWith('.xls')
+                      ? 'EXCEL'
+                      : (out.raw_destination || out.name || '').endsWith('.csv')
+                      ? 'CSV'
+                      : (out.raw_destination || out.name || '').endsWith('.yxdb')
+                      ? 'YXDB'
+                      : out.destination_type === 'DATABASE' || (out.raw_destination || '').includes('dbo.')
+                      ? 'DATABASE'
+                      : 'DELIVERABLE';
+
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        background: 'var(--color-surface-secondary)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-sm, 6px)',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                          <Target size={14} color="#eab308" style={{ flexShrink: 0 }} />
+                          <span style={{ fontSize: '12.5px', fontWeight: '700', color: 'var(--color-text)', wordBreak: 'break-all' }}>
+                            {out.raw_destination || out.name}
+                          </span>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: '700',
+                            padding: '2px 6px',
+                            borderRadius: '3px',
+                            background: 'rgba(234, 179, 8, 0.1)',
+                            color: '#eab308',
+                            border: '1px solid rgba(234, 179, 8, 0.25)',
+                            flexShrink: 0,
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {formatBadge}
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        <span>Tool #{out.tool_id} ({out.name})</span>
+                        {out.sheet_or_table && (
+                          <>
+                            <span>·</span>
+                            <span>Sheet/Table: <strong style={{ color: 'var(--color-text-secondary)' }}>{out.sheet_or_table}</strong></span>
+                          </>
+                        )}
+                        {out.container_name && (
+                          <>
+                            <span>·</span>
+                            <span>Container: {out.container_name}</span>
+                          </>
+                        )}
+                      </div>
+
+                      {(out.business_meaning || out.likely_use || out.business_purpose) && (
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.4, borderTop: '1px solid var(--color-border)', paddingTop: '6px' }}>
+                          {out.business_meaning || out.likely_use || out.business_purpose}
+                        </div>
+                      )}
+
+                      {out.upstream_sources && out.upstream_sources.length > 0 && (
+                        <div style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>
+                          Upstream Sources: {out.upstream_sources.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '12px', textAlign: 'center', padding: '20px' }}>
+                  No business outputs matching filter.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* =================================================================== */}
+          {/* 6. CONNECTIONS MODAL                                                */}
+          {/* =================================================================== */}
+          {activeModal === 'connections' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {filteredConnections.length > 0 ? (
+                filteredConnections.map((c, idx) => {
+                  const origin = toolMap.get(c.origin_tool_id);
+                  const dest = toolMap.get(c.destination_tool_id);
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        background: 'var(--color-surface-secondary)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-sm, 4px)',
+                        padding: '8px 12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                        <GitFork size={13} color="#34d399" style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text)', whiteSpace: 'nowrap' }}>
+                          #{c.origin_tool_id} {origin?.tool_type || 'Node'}
+                        </span>
+                        <ArrowRight size={12} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+                        <span style={{ fontSize: '12px', fontWeight: '600', color: 'var(--color-text)', whiteSpace: 'nowrap' }}>
+                          #{c.destination_tool_id} {dest?.tool_type || 'Node'}
+                        </span>
+                      </div>
+
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontFamily: 'var(--font-mono)',
+                          color: 'var(--color-text-muted)',
+                          background: 'var(--color-surface)',
+                          border: '1px solid var(--color-border)',
+                          padding: '2px 6px',
+                          borderRadius: '3px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {c.origin_anchor} → {c.destination_anchor}
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '12px', textAlign: 'center', padding: '20px' }}>
+                  No graph connections matching filter.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div
+          style={{
+            padding: '12px 22px',
+            borderTop: '1px solid var(--color-border)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            background: 'var(--color-surface-secondary)',
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm, 4px)',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: '600',
+              color: 'var(--color-text)',
+              cursor: 'pointer',
+            }}
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

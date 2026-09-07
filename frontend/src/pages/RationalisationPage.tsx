@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  ArrowLeft,
   ArrowRight,
   Search,
   ShieldCheck,
@@ -276,14 +275,13 @@ const UniqueWorkflowList: React.FC<{ wfName: string; items: string[] }> = ({ wfN
 
 interface RationalisationPageProps {
   portfolioId: string;
-  onBackToPortfolio: () => void;
+  onBackToPortfolio?: () => void;
   onSelectWorkflow: (workflowId: string, businessArea?: string) => void | Promise<void>;
   workflows: PortfolioWorkflowSummaryDTO[];
 }
 
 export const RationalisationPage: React.FC<RationalisationPageProps> = ({
   portfolioId,
-  onBackToPortfolio,
   onSelectWorkflow,
   workflows,
 }) => {
@@ -474,7 +472,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
       style={{
         maxWidth: '1440px',
         margin: '0 auto',
-        padding: '0 24px 64px 24px',
         display: 'flex',
         flexDirection: 'column',
         gap: '28px',
@@ -482,48 +479,21 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
         color: 'var(--color-text)',
       }}
     >
-      {/* 1. Top Navigation Strip */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '16px',
-        }}
-      >
-        <button
-          onClick={onBackToPortfolio}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '7px 14px',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--color-border)',
-            background: 'var(--color-surface)',
-            color: 'var(--color-text-secondary)',
-            fontSize: '12.5px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            transition: 'all 0.18s ease',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = 'var(--color-text)';
-            e.currentTarget.style.borderColor = 'var(--color-text-muted)';
-            e.currentTarget.style.background = 'var(--color-surface-hover)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = 'var(--color-text-secondary)';
-            e.currentTarget.style.borderColor = 'var(--color-border)';
-            e.currentTarget.style.background = 'var(--color-surface)';
-          }}
-          title="Return to Business Area Portfolio"
-        >
-          <ArrowLeft size={15} /> All Business Areas
-        </button>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      {/* 1. Executive Page Header */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: '800',
+              textTransform: 'uppercase',
+              letterSpacing: '0.14em',
+              color: 'var(--color-primary)',
+            }}
+          >
+            RATIONALISATION RECOMMENDATION
+          </span>
+          <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>•</span>
           <span
             style={{
               display: 'inline-flex',
@@ -543,25 +513,10 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
             Deterministic Evidence + AI Qualified
           </span>
         </div>
-      </div>
-
-      {/* 2. Executive Page Header */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div
-          style={{
-            fontSize: '11px',
-            fontWeight: '800',
-            textTransform: 'uppercase',
-            letterSpacing: '0.14em',
-            color: 'var(--color-primary)',
-          }}
-        >
-          RATIONALISATION RECOMMENDATION
-        </div>
 
         <h1
           style={{
-            fontSize: '34px',
+            fontSize: '24px',
             fontWeight: '800',
             color: 'var(--color-text)',
             letterSpacing: '-0.02em',
