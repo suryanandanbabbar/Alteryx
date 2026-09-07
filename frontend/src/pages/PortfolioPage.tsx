@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   ArrowRight,
-  ArrowLeft,
   ArrowUpRight,
   AlertTriangle,
+  AlertCircle,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -20,10 +20,12 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { api } from '../api/client';
 import { PortfolioOverviewDTO, PortfolioWorkflowSummaryDTO, FactorAssessmentDTO } from '../types/portfolio';
 import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
 import { RationalisationPage } from './RationalisationPage';
 import { ImpactAtAGlancePage } from './ImpactAtAGlancePage';
+import { ComplexityCriticalityPage } from './ComplexityCriticalityPage';
 
 export type InfoPanel =
   | { type: 'complexity'; workflowId: string }
@@ -42,6 +44,8 @@ interface PortfolioPageProps {
   setShowRationalisation?: (show: boolean) => void;
   showImpact?: boolean;
   setShowImpact?: (show: boolean) => void;
+  showComplexityCriticality?: boolean;
+  setShowComplexityCriticality?: (show: boolean) => void;
 }
 
 interface DomainConfig {
@@ -691,11 +695,13 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   selectedToolType,
   onSelectToolType,
   onSelectWorkflow,
-  onReset,
+  onReset: _onReset,
   showRationalisation: showRationalisationProp,
   setShowRationalisation: setShowRationalisationProp,
   showImpact: showImpactProp,
   setShowImpact: setShowImpactProp,
+  showComplexityCriticality: showComplexityCriticalityProp,
+  setShowComplexityCriticality: setShowComplexityCriticalityProp,
 }) => {
   // Local fallback if selectedBusinessArea is not externally controlled
   const [localArea, setLocalArea] = useState<string | null>(null);
@@ -722,6 +728,47 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   const [localShowImpact, setLocalShowImpact] = useState<boolean>(false);
   const isImpactVisible = showImpactProp !== undefined ? showImpactProp : localShowImpact;
   const setImpactVisible = setShowImpactProp || setLocalShowImpact;
+
+  const [localShowComplexityCriticality, setLocalShowComplexityCriticality] = useState<boolean>(false);
+  const isComplexityCriticalityVisible = showComplexityCriticalityProp !== undefined ? showComplexityCriticalityProp : localShowComplexityCriticality;
+  const setComplexityCriticalityVisible = setShowComplexityCriticalityProp || setLocalShowComplexityCriticality;
+
+  const [kpiOntologyUrl, setKpiOntologyUrl] = useState<string | null>(null);
+  const [kpiNotification, setKpiNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getConfig()
+      .then((cfg) => {
+        if (isMounted) {
+          setKpiOntologyUrl(cfg.kpi_ontology_bank_url || null);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load application configuration in PortfolioPage:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleKpiOntologyClick = () => {
+    if (kpiOntologyUrl) {
+      try {
+        const parsed = new URL(kpiOntologyUrl);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          window.open(parsed.href, '_blank', 'noopener,noreferrer');
+          return;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    setKpiNotification('KPI Ontology Bank is not configured.');
+    setTimeout(() => {
+      setKpiNotification(null);
+    }, 4000);
+  };
 
   // Close active info popover on Escape or click outside
   useEffect(() => {
@@ -997,6 +1044,40 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   }
 
   // -------------------------------------------------------------------------
+  // COMPLEXITY & CRITICALITY: Dedicated Multi-Factor Explanation Screen
+  // -------------------------------------------------------------------------
+  if (isComplexityCriticalityVisible) {
+    return (
+      <>
+        {inspectingWorkflow && (
+          <AnalysisLoadingScreen
+            fileName={inspectingWorkflow.filename}
+            isOverlay={true}
+            error={inspectError}
+            onRetry={() => handleInspect(inspectingWorkflow)}
+            onCancel={() => {
+              setInspectingWorkflow(null);
+              setInspectError(null);
+            }}
+          />
+        )}
+        <ComplexityCriticalityPage
+          portfolio={portfolio}
+          onBackToPortfolio={() => setComplexityCriticalityVisible(false)}
+          onSelectWorkflow={(wid, area) => {
+            const wf = portfolio.workflows.find((w) => w.workflow_id === wid);
+            if (wf) {
+              handleInspect(wf);
+            } else {
+              onSelectWorkflow(wid, area);
+            }
+          }}
+        />
+      </>
+    );
+  }
+
+  // -------------------------------------------------------------------------
   // LEVEL 2: Dashboard Summary — Wide Horizontal Workflow Intelligence Cards
   // -------------------------------------------------------------------------
   if (currentArea) {
@@ -1008,44 +1089,147 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
     return (
       <div style={{ maxWidth: '1440px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '32px' }}>
         {/* Business Area Contextual Header */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{
-            fontSize: '11px',
-            fontWeight: '700',
-            textTransform: 'uppercase',
-            letterSpacing: '0.14em',
-            color: 'var(--color-primary)',
-          }}>
-            ETL WORKFLOW INVENTORY
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: '20px',
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '280px' }}>
+            <div style={{
+              fontSize: '11px',
+              fontWeight: '700',
+              textTransform: 'uppercase',
+              letterSpacing: '0.14em',
+              color: 'var(--color-primary)',
+            }}>
+              ETL WORKFLOW INVENTORY
+            </div>
+
+            <h1 style={{
+              fontSize: '24px',
+              fontWeight: '800',
+              color: 'var(--color-text)',
+              letterSpacing: '-0.02em',
+              lineHeight: '1.2',
+              margin: '2px 0 0 0',
+            }}>
+              {currentArea}
+            </h1>
+
+            <p style={{
+              fontSize: '15px',
+              lineHeight: '1.6',
+              color: 'var(--color-text-secondary)',
+              margin: '4px 0 0 0',
+              maxWidth: '960px',
+            }}>
+              {currentAreaDescription}
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+              <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
+                {currentAreaWorkflows.length} {currentAreaWorkflows.length === 1 ? 'Workflow' : 'Workflows'}
+              </span>
+            </div>
           </div>
 
-          <h1 style={{
-            fontSize: '24px',
-            fontWeight: '800',
-            color: 'var(--color-text)',
-            letterSpacing: '-0.02em',
-            lineHeight: '1.2',
-            margin: '2px 0 0 0',
-          }}>
-            {currentArea}
-          </h1>
+          {/* Top-Right Action Group: KPI Ontology Bank & Complexity & Criticality */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleKpiOntologyClick}
+                className="btn-secondary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  borderRadius: 'var(--radius-sm, 6px)',
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text)';
+                  e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
+                  e.currentTarget.style.borderColor = 'var(--color-border-hover, var(--color-primary-border))';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                  e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+                  e.currentTarget.style.borderColor = 'var(--color-border)';
+                }}
+              >
+                <span>KPI Ontology Bank</span>
+                <ArrowRight size={13} />
+              </button>
 
-          <p style={{
-            fontSize: '15px',
-            lineHeight: '1.6',
-            color: 'var(--color-text-secondary)',
-            margin: '4px 0 0 0',
-            maxWidth: '960px',
-          }}>
-            {currentAreaDescription}
-          </p>
+              <button
+                type="button"
+                onClick={() => setComplexityCriticalityVisible(true)}
+                className="btn-secondary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  borderRadius: 'var(--radius-sm, 6px)',
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  whiteSpace: 'nowrap',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text)';
+                  e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
+                  e.currentTarget.style.borderColor = 'var(--color-border-hover, var(--color-primary-border))';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                  e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+                  e.currentTarget.style.borderColor = 'var(--color-border)';
+                }}
+              >
+                <span>Complexity &amp; Criticality</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-            <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
-              {currentAreaWorkflows.length} {currentAreaWorkflows.length === 1 ? 'Workflow' : 'Workflows'}
-            </span>
+            {kpiNotification && (
+              <div
+                role="alert"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  borderRadius: 'var(--radius-sm, 4px)',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  color: '#ef4444',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                }}
+              >
+                <AlertCircle size={13} style={{ flexShrink: 0 }} />
+                <span>{kpiNotification}</span>
+              </div>
+            )}
           </div>
         </div>
+
 
         {/* Restrained Contextual Executive Metric Strip for Business Area */}
         <div style={{
@@ -1890,7 +2074,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
             letterSpacing: '0.14em',
             color: 'var(--color-primary)',
           }}>
-            ETL DISCOVERY &amp; INTELLIGENCE AGENTS
+            ETL DISCOVERY &amp; INTELLIGENCE
           </div>
 
           <h1 style={{
@@ -1966,6 +2150,100 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Top-Right Action Group (Level 1): KPI Ontology Bank & Complexity & Criticality */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleKpiOntologyClick}
+              className="btn-secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                fontSize: '12px',
+                fontWeight: '600',
+                borderRadius: 'var(--radius-sm, 6px)',
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-text)';
+                e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
+                e.currentTarget.style.borderColor = 'var(--color-border-hover, var(--color-primary-border))';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+                e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+                e.currentTarget.style.borderColor = 'var(--color-border)';
+              }}
+            >
+              <span>KPI Ontology Bank</span>
+              <ArrowRight size={13} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setComplexityCriticalityVisible(true)}
+              className="btn-secondary"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                fontSize: '12px',
+                fontWeight: '600',
+                borderRadius: 'var(--radius-sm, 6px)',
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-text)';
+                e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
+                e.currentTarget.style.borderColor = 'var(--color-border-hover, var(--color-primary-border))';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+                e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+                e.currentTarget.style.borderColor = 'var(--color-border)';
+              }}
+            >
+              <span>Complexity &amp; Criticality</span>
+              <ArrowRight size={13} />
+            </button>
+          </div>
+
+          {kpiNotification && (
+            <div
+              role="alert"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: 'var(--radius-sm, 4px)',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                color: '#ef4444',
+                fontSize: '12px',
+                fontWeight: '500',
+              }}
+            >
+              <AlertCircle size={13} style={{ flexShrink: 0 }} />
+              <span>{kpiNotification}</span>
+            </div>
+          )}
         </div>
       </div>
 

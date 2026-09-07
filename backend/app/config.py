@@ -76,6 +76,25 @@ def validate_code_based_workflows_url(url: str | None) -> str | None:
     return trimmed
 
 
+def validate_kpi_ontology_bank_url(url: str | None) -> str | None:
+    """Validate that the configured KPI Ontology Bank URL is a valid HTTP/HTTPS URL."""
+    if url is None:
+        return None
+    trimmed = str(url).strip()
+    if not trimmed:
+        return None
+    parsed = urlparse(trimmed)
+    if parsed.scheme.lower() not in ("http", "https"):
+        raise ValueError(
+            f"Invalid KPI_ONTOLOGY_BANK_URL scheme '{parsed.scheme}'. Only 'http' and 'https' are allowed."
+        )
+    if not parsed.netloc and not parsed.hostname:
+        raise ValueError(
+            f"Invalid KPI_ONTOLOGY_BANK_URL '{trimmed}'. A valid hostname is required."
+        )
+    return trimmed
+
+
 class Settings(BaseModel):
     """AWA server settings."""
     cors_origins: list[str] = Field(
@@ -102,11 +121,21 @@ class Settings(BaseModel):
             os.getenv("CODE_BASED_WORKFLOWS_URL") or os.getenv("AWA_CODE_BASED_WORKFLOWS_URL")
         )
     )
+    kpi_ontology_bank_url: str | None = Field(
+        default_factory=lambda: validate_kpi_ontology_bank_url(
+            os.getenv("KPI_ONTOLOGY_BANK_URL") or os.getenv("AWA_KPI_ONTOLOGY_BANK_URL")
+        )
+    )
 
     @field_validator("code_based_workflows_url", mode="after")
     @classmethod
     def check_code_based_url(cls, v: str | None) -> str | None:
         return validate_code_based_workflows_url(v)
+
+    @field_validator("kpi_ontology_bank_url", mode="after")
+    @classmethod
+    def check_kpi_ontology_url(cls, v: str | None) -> str | None:
+        return validate_kpi_ontology_bank_url(v)
 
 
 def get_settings() -> Settings:

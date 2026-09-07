@@ -264,5 +264,6 @@ export interface AnalysisOverviewDTO {
 
 export interface AppConfigDTO {
   code_based_workflows_url: string | null;
+  kpi_ontology_bank_url: string | null;
 }
 

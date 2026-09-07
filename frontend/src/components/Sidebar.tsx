@@ -7,19 +7,19 @@ import {
   Code, 
   Terminal, 
   Download, 
-  ArrowLeft, 
-  FileText, 
   Menu, 
   Sliders,
   Sparkles,
   RefreshCw,
-  FolderKanban,
   FileSpreadsheet,
-  Loader2,
   Zap,
   Layers,
   ChevronDown,
   ChevronUp,
+  FolderKanban,
+  FileText,
+  ArrowLeft,
+  Loader2,
   LucideIcon,
 } from 'lucide-react';
 
@@ -41,7 +41,7 @@ export const defaultWorkflowNavItems: NavItemConfig[] = [
 ];
 
 export const defaultPortfolioNavItems: NavItemConfig[] = [
-  { id: 'inventory', label: 'ETL Workflow Inventory', caption: 'ETL Discovery', icon: Layers },
+  { id: 'inventory', label: 'ETL Workflow Inventory', caption: 'ETL Discovery & Intelligence', icon: Layers },
   { id: 'rationalisation', label: 'Rationalisation Recommendation', caption: 'ETL Rationalisation', icon: Sparkles },
   { id: 'impact', label: 'Impact at a Glance', caption: 'ETL Intelligence', icon: Zap },
   { id: 'download_xlsx', label: 'Download Portfolio Document', caption: ' ', icon: FileSpreadsheet },
@@ -56,10 +56,12 @@ interface SidebarProps {
   onReset: () => void;
   onOpenRationalisation?: () => void;
   onOpenImpact?: () => void;
+  onOpenComplexityCriticality?: () => void;
   onOpenInventory?: (businessArea?: string | null) => void;
   selectedBusinessArea?: string | null;
   isRationalisationOpen?: boolean;
   isImpactOpen?: boolean;
+  isComplexityCriticalityOpen?: boolean;
   onDownloadPortfolioXlsx?: () => void;
   isDownloadingXlsx?: boolean;
   workflowNavItems?: NavItemConfig[];
@@ -118,9 +120,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return map;
   }, [portfolioNavItems]);
 
-  const inventoryItem = portfolioItemMap.get('inventory') || { id: 'inventory', label: 'ETL Workflow Inventory', caption: 'ETL Workflow Inventory', icon: Layers };
-  const rationalisationItem = portfolioItemMap.get('rationalisation') || { id: 'rationalisation', label: 'Rationalisation Recommendation', caption: 'Rationalisation Recommendation', icon: Sparkles };
-  const impactItem = portfolioItemMap.get('impact') || { id: 'impact', label: 'Impact at a Glance', caption: 'Impact at a Glance', icon: Zap };
+  const inventoryItem = portfolioItemMap.get('inventory') || { id: 'inventory', label: 'ETL Workflow Inventory', caption: 'ETL Discovery', icon: Layers };
+  const rationalisationItem = portfolioItemMap.get('rationalisation') || { id: 'rationalisation', label: 'Rationalisation Recommendation', caption: 'ETL Rationalisation', icon: Sparkles };
+  const impactItem = portfolioItemMap.get('impact') || { id: 'impact', label: 'Impact at a Glance', caption: 'ETL Intelligence', icon: Zap };
   const downloadItem = portfolioItemMap.get('download_xlsx') || { id: 'download_xlsx', label: 'Download Portfolio Document', caption: 'Download Portfolio Document', icon: FileSpreadsheet };
   const resetItem = portfolioItemMap.get('reset') || { id: 'reset', label: 'Upload Different Portfolio', caption: 'Upload Different Portfolio', icon: RefreshCw };
 

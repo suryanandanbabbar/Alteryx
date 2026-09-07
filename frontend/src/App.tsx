@@ -38,6 +38,7 @@ export const App: React.FC = () => {
 
   const [showRationalisation, setShowRationalisation] = useState<boolean>(false);
   const [showImpact, setShowImpact] = useState<boolean>(false);
+  const [showComplexityCriticality, setShowComplexityCriticality] = useState<boolean>(false);
   const [downloadingXlsx, setDownloadingXlsx] = useState<boolean>(false);
 
   const handleDownloadPortfolioXlsx = async () => {
@@ -67,6 +68,7 @@ export const App: React.FC = () => {
     setSelectedToolTypeFilter(null);
     setShowRationalisation(false);
     setShowImpact(false);
+    setShowComplexityCriticality(false);
   };
 
   const handleReset = () => {
@@ -78,6 +80,7 @@ export const App: React.FC = () => {
     setSelectedToolTypeFilter(null);
     setShowRationalisation(false);
     setShowImpact(false);
+    setShowComplexityCriticality(false);
     setSelectedApp('chooser');
   };
 
@@ -121,19 +124,28 @@ export const App: React.FC = () => {
           onOpenRationalisation={() => {
             setShowRationalisation(true);
             setShowImpact(false);
+            setShowComplexityCriticality(false);
           }}
           onOpenImpact={() => {
             setShowImpact(true);
             setShowRationalisation(false);
+            setShowComplexityCriticality(false);
+          }}
+          onOpenComplexityCriticality={() => {
+            setShowComplexityCriticality(true);
+            setShowRationalisation(false);
+            setShowImpact(false);
           }}
           onOpenInventory={(businessArea) => {
             setShowRationalisation(false);
             setShowImpact(false);
+            setShowComplexityCriticality(false);
             setSelectedBusinessArea(businessArea ?? null);
           }}
           selectedBusinessArea={selectedBusinessArea}
           isRationalisationOpen={showRationalisation}
           isImpactOpen={showImpact}
+          isComplexityCriticalityOpen={showComplexityCriticality}
           onDownloadPortfolioXlsx={handleDownloadPortfolioXlsx}
           isDownloadingXlsx={downloadingXlsx}
         />
@@ -176,12 +188,15 @@ export const App: React.FC = () => {
               setShowRationalisation={setShowRationalisation}
               showImpact={showImpact}
               setShowImpact={setShowImpact}
+              showComplexityCriticality={showComplexityCriticality}
+              setShowComplexityCriticality={setShowComplexityCriticality}
             />
           </main>
         </div>
       </div>
     );
   }
+
 
   if (!overview) {
     return null;

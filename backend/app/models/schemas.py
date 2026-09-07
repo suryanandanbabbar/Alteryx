@@ -548,4 +548,5 @@ class PortfolioOverviewDTO(BaseModel):
 class AppConfigDTO(BaseModel):
     """Public application configuration metadata exposed to the frontend."""
     code_based_workflows_url: str | None = None
+    kpi_ontology_bank_url: str | None = None
 

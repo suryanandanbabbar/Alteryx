@@ -15,5 +15,6 @@ def get_public_config() -> AppConfigDTO:
     current_settings = get_settings()
     return AppConfigDTO(
         code_based_workflows_url=current_settings.code_based_workflows_url,
+        kpi_ontology_bank_url=current_settings.kpi_ontology_bank_url,
     )
 

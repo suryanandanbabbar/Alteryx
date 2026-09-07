@@ -3839,6 +3839,9 @@ const InteractiveLifecycleStep: React.FC<InteractiveLifecycleStepProps> = ({
         }}
       />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-muted)' }}>
+          Step {stepNumber}
+        </span>
         <span
           style={{
             fontSize: '11px',
