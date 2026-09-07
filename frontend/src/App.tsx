@@ -13,11 +13,13 @@ import { JsonPage } from './pages/JsonPage';
 import { PythonPage } from './pages/PythonPage';
 import { DownloadPage } from './pages/DownloadPage';
 import { PortfolioPage } from './pages/PortfolioPage';
+import { ImpactAtAGlancePage } from './pages/ImpactAtAGlancePage';
 import { DocumentGenerationModal } from './components/DocumentGenerationModal';
 import { api, isPortfolioResponse } from './api/client';
 
 const SECTION_TITLES: Record<string, string> = {
   overview: 'Overview',
+  impact: 'Impact at a Glance',
   diagram: 'Workflow Diagram',
   tools: 'Tools & Configuration',
   json: 'JSON',
@@ -35,6 +37,7 @@ export const App: React.FC = () => {
   const [selectedToolTypeFilter, setSelectedToolTypeFilter] = useState<string | null>(null);
 
   const [showRationalisation, setShowRationalisation] = useState<boolean>(false);
+  const [showImpact, setShowImpact] = useState<boolean>(false);
   const [downloadingXlsx, setDownloadingXlsx] = useState<boolean>(false);
 
   const handleDownloadPortfolioXlsx = async () => {
@@ -63,6 +66,7 @@ export const App: React.FC = () => {
     setSelectedToolId(null);
     setSelectedToolTypeFilter(null);
     setShowRationalisation(false);
+    setShowImpact(false);
   };
 
   const handleReset = () => {
@@ -73,6 +77,7 @@ export const App: React.FC = () => {
     setSelectedToolId(null);
     setSelectedToolTypeFilter(null);
     setShowRationalisation(false);
+    setShowImpact(false);
     setSelectedApp('chooser');
   };
 
@@ -113,7 +118,22 @@ export const App: React.FC = () => {
         <Sidebar
           portfolio={portfolio}
           onReset={handleReset}
-          onOpenRationalisation={() => setShowRationalisation(true)}
+          onOpenRationalisation={() => {
+            setShowRationalisation(true);
+            setShowImpact(false);
+          }}
+          onOpenImpact={() => {
+            setShowImpact(true);
+            setShowRationalisation(false);
+          }}
+          onOpenInventory={(businessArea) => {
+            setShowRationalisation(false);
+            setShowImpact(false);
+            setSelectedBusinessArea(businessArea ?? null);
+          }}
+          selectedBusinessArea={selectedBusinessArea}
+          isRationalisationOpen={showRationalisation}
+          isImpactOpen={showImpact}
           onDownloadPortfolioXlsx={handleDownloadPortfolioXlsx}
           isDownloadingXlsx={downloadingXlsx}
         />
@@ -154,6 +174,8 @@ export const App: React.FC = () => {
               onReset={handleReset}
               showRationalisation={showRationalisation}
               setShowRationalisation={setShowRationalisation}
+              showImpact={showImpact}
+              setShowImpact={setShowImpact}
             />
           </main>
         </div>
@@ -206,6 +228,14 @@ export const App: React.FC = () => {
               overview={overview}
               onSelectTool={handleSelectTool}
               onNavigateToDiagram={() => setActiveSection('diagram')}
+            />
+          )}
+          {activeSection === 'impact' && (
+            <ImpactAtAGlancePage
+              mode="workflow"
+              overview={overview}
+              onNavigateToSection={(section) => setActiveSection(section)}
+              onBackToPortfolio={portfolio ? () => setOverview(null) : undefined}
             />
           )}
           {activeSection === 'diagram' && (

@@ -23,6 +23,7 @@ import {
 import { PortfolioOverviewDTO, PortfolioWorkflowSummaryDTO, FactorAssessmentDTO } from '../types/portfolio';
 import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
 import { RationalisationPage } from './RationalisationPage';
+import { ImpactAtAGlancePage } from './ImpactAtAGlancePage';
 
 export type InfoPanel =
   | { type: 'complexity'; workflowId: string }
@@ -39,6 +40,8 @@ interface PortfolioPageProps {
   onReset: () => void;
   showRationalisation?: boolean;
   setShowRationalisation?: (show: boolean) => void;
+  showImpact?: boolean;
+  setShowImpact?: (show: boolean) => void;
 }
 
 interface DomainConfig {
@@ -691,6 +694,8 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   onReset,
   showRationalisation: showRationalisationProp,
   setShowRationalisation: setShowRationalisationProp,
+  showImpact: showImpactProp,
+  setShowImpact: setShowImpactProp,
 }) => {
   // Local fallback if selectedBusinessArea is not externally controlled
   const [localArea, setLocalArea] = useState<string | null>(null);
@@ -713,6 +718,10 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
   const [localShowRationalisation, setLocalShowRationalisation] = useState<boolean>(false);
   const isRationalisationVisible = showRationalisationProp !== undefined ? showRationalisationProp : localShowRationalisation;
   const setRationalisationVisible = setShowRationalisationProp || setLocalShowRationalisation;
+
+  const [localShowImpact, setLocalShowImpact] = useState<boolean>(false);
+  const isImpactVisible = showImpactProp !== undefined ? showImpactProp : localShowImpact;
+  const setImpactVisible = setShowImpactProp || setLocalShowImpact;
 
   // Close active info popover on Escape or click outside
   useEffect(() => {
@@ -913,6 +922,44 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
       </div>
     );
   };
+
+  // -------------------------------------------------------------------------
+  // IMPACT AT A GLANCE: Whole-Estate Executive Impact Screen
+  // -------------------------------------------------------------------------
+  if (isImpactVisible) {
+    return (
+      <>
+        {inspectingWorkflow && (
+          <AnalysisLoadingScreen
+            fileName={inspectingWorkflow.filename}
+            isOverlay={true}
+            error={inspectError}
+            onRetry={() => handleInspect(inspectingWorkflow)}
+            onCancel={() => {
+              setInspectingWorkflow(null);
+              setInspectError(null);
+            }}
+          />
+        )}
+        <ImpactAtAGlancePage
+          mode="portfolio"
+          portfolio={portfolio}
+          onSelectWorkflow={(wid, area) => {
+            const wf = portfolio.workflows.find((w) => w.workflow_id === wid);
+            if (wf) {
+              handleInspect(wf);
+            } else {
+              onSelectWorkflow(wid, area);
+            }
+          }}
+          onOpenRationalisation={() => {
+            setImpactVisible(false);
+            setRationalisationVisible(true);
+          }}
+        />
+      </>
+    );
+  }
 
   // -------------------------------------------------------------------------
   // ETL RATIONALISATION: Whole-Estate Portfolio Intelligence Screen

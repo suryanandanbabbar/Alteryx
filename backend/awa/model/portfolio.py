@@ -95,6 +95,7 @@ class PortfolioWorkflowSummary:
     factor_assessments: dict[str, Any] = field(default_factory=dict)
     last_run: str = "Not documented"
     frequency: str = "Not documented"
+    processing_stages: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -140,6 +141,7 @@ class PortfolioWorkflowSummary:
             "factor_assessments": self.factor_assessments,
             "last_run": self.last_run or (self.factor_assessments.get("last_run", {}).get("display_value") or "Not documented"),
             "frequency": self.frequency or (self.factor_assessments.get("frequency", {}).get("display_value") or "Not documented"),
+            "processing_stages": self.processing_stages,
         }
 
 

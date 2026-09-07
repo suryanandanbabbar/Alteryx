@@ -18,8 +18,8 @@ CRITICAL INVARIANTS:
 3. Technical subtotal = 60%, Operational subtotal = 40%, Total = 100%.
 4. Score bounded to [0.0, 100.0].
    - 0–34: LOW
-   - 35–69: MEDIUM
-   - 70–100: HIGH
+   - 35–60: MEDIUM
+   - 61–100: HIGH
 5. Missing/unknown evidence is never fabricated (normalized explicitly to 0.0 with clear evidence label).
 """
 
@@ -38,7 +38,7 @@ TECHNICAL_WEIGHT_TOTAL: float = 0.60    # 60%
 OPERATIONAL_WEIGHT_TOTAL: float = 0.40  # 40%
 
 CRITICALITY_LOW_MAX: float = 34.0
-CRITICALITY_MEDIUM_MAX: float = 69.0
+CRITICALITY_MEDIUM_MAX: float = 60.0
 
 BUSINESS_IMPACT_NOTE: str = (
     "* Business impact factors can be added further once the information about downstream targets/consumers is available"

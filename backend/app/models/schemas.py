@@ -365,6 +365,7 @@ class PortfolioWorkflowSummaryDTO(BaseModel):
     factor_assessments: dict[str, Any] = Field(default_factory=dict)
     last_run: str = "Not documented"
     frequency: str = "Not documented"
+    processing_stages: list[BusinessStageDTO] = Field(default_factory=list)
 
 
 class DeterministicSignalsDTO(BaseModel):

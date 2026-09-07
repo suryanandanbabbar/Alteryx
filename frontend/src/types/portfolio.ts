@@ -2,6 +2,8 @@
  * TypeScript definitions for Multi-Workflow Portfolio Analysis and ETL Rationalisation.
  */
 
+import { BusinessStageDTO } from './workflow';
+
 export interface BusinessAreaClassificationDTO {
   business_area: string;
   confidence: string;
@@ -51,6 +53,7 @@ export interface PortfolioWorkflowSummaryDTO {
   factor_assessments?: Record<string, FactorAssessmentDTO>;
   last_run?: string;
   frequency?: string;
+  processing_stages?: BusinessStageDTO[];
 }
 
 export interface FactorAssessmentDTO {

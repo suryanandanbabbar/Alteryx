@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AnalysisOverviewDTO } from '../types/workflow';
 import { PortfolioOverviewDTO } from '../types/portfolio';
 import { 
@@ -15,8 +15,38 @@ import {
   RefreshCw,
   FolderKanban,
   FileSpreadsheet,
-  Loader2
+  Loader2,
+  Zap,
+  Layers,
+  ChevronDown,
+  ChevronUp,
+  LucideIcon,
 } from 'lucide-react';
+
+export interface NavItemConfig {
+  id: string;
+  label: string;
+  caption?: string;
+  icon: LucideIcon;
+}
+
+export const defaultWorkflowNavItems: NavItemConfig[] = [
+  { id: 'overview', label: 'Workflow Overview', caption: 'ETL Intelligence', icon: BarChart2 },
+  { id: 'impact', label: 'Impact at a Glance', caption: 'ETL Intelligence', icon: Zap },
+  { id: 'diagram', label: 'Workflow Diagram', caption: 'ETL Intelligence', icon: GitFork },
+  { id: 'tools', label: 'Tools & Configuration', caption: 'ETL Intelligence', icon: Sliders },
+  { id: 'json', label: 'Migrate to JSON', caption: 'ETL Migration', icon: Code },
+  { id: 'python', label: 'Migrate to Python', caption: 'ETL Migration', icon: Terminal },
+  { id: 'downloads', label: 'Download', caption: ' ', icon: Download },
+];
+
+export const defaultPortfolioNavItems: NavItemConfig[] = [
+  { id: 'inventory', label: 'ETL Workflow Inventory', caption: 'ETL Discovery', icon: Layers },
+  { id: 'rationalisation', label: 'Rationalisation Recommendation', caption: 'ETL Rationalisation', icon: Sparkles },
+  { id: 'impact', label: 'Impact at a Glance', caption: 'ETL Intelligence', icon: Zap },
+  { id: 'download_xlsx', label: 'Download Portfolio Document', caption: ' ', icon: FileSpreadsheet },
+  { id: 'reset', label: 'Upload Different Portfolio', caption: ' ', icon: RefreshCw },
+];
 
 interface SidebarProps {
   overview?: AnalysisOverviewDTO | null;
@@ -25,8 +55,15 @@ interface SidebarProps {
   onNavigate?: (section: string) => void;
   onReset: () => void;
   onOpenRationalisation?: () => void;
+  onOpenImpact?: () => void;
+  onOpenInventory?: (businessArea?: string | null) => void;
+  selectedBusinessArea?: string | null;
+  isRationalisationOpen?: boolean;
+  isImpactOpen?: boolean;
   onDownloadPortfolioXlsx?: () => void;
   isDownloadingXlsx?: boolean;
+  workflowNavItems?: NavItemConfig[];
+  portfolioNavItems?: NavItemConfig[];
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -36,21 +73,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   onReset,
   onOpenRationalisation,
+  onOpenImpact,
+  onOpenInventory,
+  selectedBusinessArea,
+  isRationalisationOpen = false,
+  isImpactOpen = false,
   onDownloadPortfolioXlsx,
   isDownloadingXlsx = false,
+  workflowNavItems = defaultWorkflowNavItems,
+  portfolioNavItems = defaultPortfolioNavItems,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
+  const [inventoryExpanded, setInventoryExpanded] = useState(true);
 
   const isPortfolioMode = Boolean(portfolio && !overview);
+  const isInventoryActive = isPortfolioMode && !isRationalisationOpen && !isImpactOpen;
 
-  const workflowNavItems = [
-    { id: 'overview', label: 'Workflow Overview', icon: BarChart2 },
-    { id: 'diagram', label: 'Workflow Diagram', icon: GitFork },
-    { id: 'tools', label: 'Tools & Configuration', icon: Sliders },
-    { id: 'json', label: 'Migrate to JSON', icon: Code },
-    { id: 'python', label: 'Migrate to Python', icon: Terminal },
-    { id: 'downloads', label: 'Download', icon: Download },
-  ];
+  // Extract dynamic business areas from portfolio data
+  const availableBusinessAreas = useMemo(() => {
+    if (!portfolio) return [];
+    if (portfolio.business_areas && portfolio.business_areas.length > 0) {
+      return portfolio.business_areas
+        .filter((ba) => (ba.workflow_count > 0) || (ba.workflows && ba.workflows.length > 0))
+        .map((ba) => ({
+          name: ba.business_area,
+          count: ba.workflow_count || ba.workflows?.length || 0,
+        }));
+    }
+    // Dynamic fallback from portfolio.workflows
+    const counts = new Map<string, number>();
+    (portfolio.workflows || []).forEach((w) => {
+      const tag = w.business_area_tag || w.business_area?.business_area || 'Other / Unclassified';
+      counts.set(tag, (counts.get(tag) || 0) + 1);
+    });
+    return Array.from(counts.entries()).map(([name, count]) => ({ name, count }));
+  }, [portfolio]);
+
+  const totalPortfolioWorkflows = portfolio?.metrics?.total_workflows ?? portfolio?.workflows?.length ?? 0;
+
+  // Helper map for configurable portfolio items
+  const portfolioItemMap = useMemo(() => {
+    const map = new Map<string, NavItemConfig>();
+    portfolioNavItems.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [portfolioNavItems]);
+
+  const inventoryItem = portfolioItemMap.get('inventory') || { id: 'inventory', label: 'ETL Workflow Inventory', caption: 'ETL Workflow Inventory', icon: Layers };
+  const rationalisationItem = portfolioItemMap.get('rationalisation') || { id: 'rationalisation', label: 'Rationalisation Recommendation', caption: 'Rationalisation Recommendation', icon: Sparkles };
+  const impactItem = portfolioItemMap.get('impact') || { id: 'impact', label: 'Impact at a Glance', caption: 'Impact at a Glance', icon: Zap };
+  const downloadItem = portfolioItemMap.get('download_xlsx') || { id: 'download_xlsx', label: 'Download Portfolio Document', caption: 'Download Portfolio Document', icon: FileSpreadsheet };
+  const resetItem = portfolioItemMap.get('reset') || { id: 'reset', label: 'Upload Different Portfolio', caption: 'Upload Different Portfolio', icon: RefreshCw };
 
   return (
     <aside style={{
@@ -149,36 +221,223 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Portfolio Mode Actions or Workflow Navigation List */}
       {isPortfolioMode ? (
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-          {/* Action 1: Rationalisation Recommendation */}
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, overflowY: 'auto' }}>
+          {/* Action 1: ETL Workflow Inventory (with Business Area Submenu) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <button
+              onClick={() => {
+                if (collapsed) {
+                  onOpenInventory?.(null);
+                  return;
+                }
+                if (!isInventoryActive) {
+                  onOpenInventory?.(selectedBusinessArea || null);
+                  setInventoryExpanded(true);
+                } else {
+                  setInventoryExpanded(!inventoryExpanded);
+                }
+              }}
+              aria-label={inventoryItem.label}
+              title={collapsed ? inventoryItem.label : undefined}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: collapsed ? 'center' : 'space-between',
+                padding: collapsed ? '9px 0' : '8px 12px',
+                borderRadius: 'var(--radius-sm)',
+                border: isInventoryActive ? '1px solid var(--color-primary-border)' : '1px solid transparent',
+                background: isInventoryActive ? 'var(--color-primary-subtle)' : 'transparent',
+                color: isInventoryActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                textAlign: 'left',
+                width: '100%',
+                transition: 'all 0.12s ease',
+              }}
+              onMouseEnter={(e) => {
+                if (!isInventoryActive) {
+                  e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
+                  e.currentTarget.style.color = 'var(--color-text)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isInventoryActive) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                }
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: collapsed ? '0' : '10px',
+                justifyContent: 'center',
+                overflow: 'hidden',
+              }}>
+                <Layers size={16} color={isInventoryActive ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
+                {!collapsed && (
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '13px', fontWeight: isInventoryActive ? '600' : '500', whiteSpace: 'nowrap' }}>
+                      {inventoryItem.label}
+                    </span>
+                    <span style={{ fontSize: '10px', color: isInventoryActive ? 'var(--color-primary)' : 'var(--color-text-muted)', fontWeight: '500', opacity: 0.85 }}>
+                      {inventoryItem.caption || inventoryItem.label}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {!collapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {inventoryExpanded ? (
+                    <ChevronUp size={14} color="var(--color-text-muted)" />
+                  ) : (
+                    <ChevronDown size={14} color="var(--color-text-muted)" />
+                  )}
+                </div>
+              )}
+            </button>
+
+            {/* Business Area Submenu */}
+            {!collapsed && inventoryExpanded && (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '2px',
+                marginLeft: '12px',
+                paddingLeft: '12px',
+                borderLeft: '1px solid var(--color-border)',
+                marginTop: '2px',
+                marginBottom: '4px',
+              }}>
+                {/* All Workflows Option */}
+                <button
+                  onClick={() => onOpenInventory?.(null)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '5px 8px',
+                    borderRadius: 'var(--radius-sm, 4px)',
+                    border: 'none',
+                    background: isInventoryActive && selectedBusinessArea === null ? 'var(--color-primary-subtle, rgba(249, 115, 22, 0.12))' : 'transparent',
+                    color: isInventoryActive && selectedBusinessArea === null ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                    cursor: 'pointer',
+                    fontSize: '11.5px',
+                    fontWeight: isInventoryActive && selectedBusinessArea === null ? '700' : '500',
+                    textAlign: 'left',
+                    transition: 'all 0.12s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!(isInventoryActive && selectedBusinessArea === null)) {
+                      e.currentTarget.style.color = 'var(--color-text)';
+                      e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!(isInventoryActive && selectedBusinessArea === null)) {
+                      e.currentTarget.style.color = 'var(--color-text-secondary)';
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }
+                  }}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    All Workflows
+                  </span>
+                  <span style={{
+                    fontSize: '10.5px',
+                    padding: '1px 5px',
+                    borderRadius: '4px',
+                    background: 'var(--color-surface-secondary)',
+                    color: 'var(--color-text-muted)',
+                  }}>
+                    {totalPortfolioWorkflows}
+                  </span>
+                </button>
+
+                {/* Individual Business Areas */}
+                {availableBusinessAreas.map((area) => {
+                  const isAreaActive = isInventoryActive && selectedBusinessArea === area.name;
+                  return (
+                    <button
+                      key={area.name}
+                      onClick={() => onOpenInventory?.(area.name)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '5px 8px',
+                        borderRadius: 'var(--radius-sm, 4px)',
+                        border: 'none',
+                        background: isAreaActive ? 'var(--color-primary-subtle, rgba(249, 115, 22, 0.12))' : 'transparent',
+                        color: isAreaActive ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: '11.5px',
+                        fontWeight: isAreaActive ? '700' : '500',
+                        textAlign: 'left',
+                        transition: 'all 0.12s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isAreaActive) {
+                          e.currentTarget.style.color = 'var(--color-text)';
+                          e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isAreaActive) {
+                          e.currentTarget.style.color = 'var(--color-text-secondary)';
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {area.name}
+                      </span>
+                      <span style={{
+                        fontSize: '10.5px',
+                        padding: '1px 5px',
+                        borderRadius: '4px',
+                        background: 'var(--color-surface-secondary)',
+                        color: isAreaActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
+                      }}>
+                        {area.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Action 2: Rationalisation Recommendation */}
           <button
             onClick={onOpenRationalisation}
-            aria-label="Rationalisation Recommendation"
-            title={collapsed ? 'Rationalisation Recommendation' : undefined}
+            aria-label={rationalisationItem.label}
+            title={collapsed ? rationalisationItem.label : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: collapsed ? 'center' : 'space-between',
-              padding: collapsed ? '10px 0' : '10px 12px',
+              padding: collapsed ? '9px 0' : '8px 12px',
               borderRadius: 'var(--radius-sm)',
-              border: '1px solid rgba(16, 185, 129, 0.4)',
-              background: 'linear-gradient(135deg, rgba(6, 78, 59, 0.35) 0%, rgba(15, 23, 42, 0.8) 100%)',
-              color: '#ecfdf5',
+              border: isRationalisationOpen ? '1px solid var(--color-primary-border)' : '1px solid transparent',
+              background: isRationalisationOpen ? 'var(--color-primary-subtle)' : 'transparent',
+              color: isRationalisationOpen ? 'var(--color-primary)' : 'var(--color-text-secondary)',
               cursor: 'pointer',
               textAlign: 'left',
               width: '100%',
-              transition: 'all 0.15s ease',
-              boxShadow: '0 2px 6px rgba(16, 185, 129, 0.12)',
+              transition: 'all 0.12s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(52, 211, 153, 0.8)';
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(6, 78, 59, 0.55) 0%, rgba(15, 23, 42, 0.95) 100%)';
-              e.currentTarget.style.transform = 'translateY(-1px)';
+              if (!isRationalisationOpen) {
+                e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
+                e.currentTarget.style.color = 'var(--color-text)';
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)';
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(6, 78, 59, 0.35) 0%, rgba(15, 23, 42, 0.8) 100%)';
-              e.currentTarget.style.transform = 'none';
+              if (!isRationalisationOpen) {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+              }
             }}
           >
             <div style={{
@@ -188,58 +447,123 @@ export const Sidebar: React.FC<SidebarProps> = ({
               justifyContent: 'center',
               overflow: 'hidden',
             }}>
-              <Sparkles size={16} color="#34d399" />
+              <Sparkles size={16} color={isRationalisationOpen ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
               {!collapsed && (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '12.5px', fontWeight: '700', whiteSpace: 'nowrap', color: '#ecfdf5' }}>
-                    Rationalisation Recommendation
+                  <span style={{ fontSize: '13px', fontWeight: isRationalisationOpen ? '600' : '500', whiteSpace: 'nowrap' }}>
+                    {rationalisationItem.label}
                   </span>
-                  <span style={{ fontSize: '10.5px', color: '#6ee7b7', fontWeight: '500' }}>
-                    ETL Rationalisation
+                  <span style={{ fontSize: '10px', color: isRationalisationOpen ? 'var(--color-primary)' : 'var(--color-text-muted)', fontWeight: '500', opacity: 0.85 }}>
+                    {rationalisationItem.caption || rationalisationItem.label}
                   </span>
                 </div>
               )}
             </div>
 
-            {!collapsed && (
-              <span style={{ color: '#34d399', fontWeight: '700', fontSize: '11.5px', flexShrink: 0 }}>
-                
-              </span>
+            {/* Active Dot Indicator */}
+            {!collapsed && isRationalisationOpen && (
+              <div style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: 'var(--color-primary)',
+              }} />
             )}
           </button>
 
-          {/* Action 2: Download Portfolio XLSX */}
+          {/* Action 3: Impact at a Glance */}
+          <button
+            onClick={onOpenImpact}
+            aria-label={impactItem.label}
+            title={collapsed ? impactItem.label : undefined}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: collapsed ? 'center' : 'space-between',
+              padding: collapsed ? '9px 0' : '8px 12px',
+              borderRadius: 'var(--radius-sm)',
+              border: isImpactOpen ? '1px solid var(--color-primary-border)' : '1px solid transparent',
+              background: isImpactOpen ? 'var(--color-primary-subtle)' : 'transparent',
+              color: isImpactOpen ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              width: '100%',
+              transition: 'all 0.12s ease',
+            }}
+            onMouseEnter={(e) => {
+              if (!isImpactOpen) {
+                e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
+                e.currentTarget.style.color = 'var(--color-text)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isImpactOpen) {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+              }
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: collapsed ? '0' : '10px',
+              justifyContent: 'center',
+              overflow: 'hidden',
+            }}>
+              <Zap size={16} color={isImpactOpen ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
+              {!collapsed && (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: '13px', fontWeight: isImpactOpen ? '600' : '500', whiteSpace: 'nowrap' }}>
+                    {impactItem.label}
+                  </span>
+                  <span style={{ fontSize: '10px', color: isImpactOpen ? 'var(--color-primary)' : 'var(--color-text-muted)', fontWeight: '500', opacity: 0.85 }}>
+                    {impactItem.caption || impactItem.label}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Active Dot Indicator */}
+            {!collapsed && isImpactOpen && (
+              <div style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: 'var(--color-primary)',
+              }} />
+            )}
+          </button>
+
+          {/* Action 4: Download Portfolio XLSX */}
           <button
             onClick={onDownloadPortfolioXlsx}
             disabled={isDownloadingXlsx}
-            aria-label="Download Portfolio XLSX"
-            title={collapsed ? 'Download Portfolio XLSX' : undefined}
+            aria-label={downloadItem.label}
+            title={collapsed ? downloadItem.label : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: collapsed ? 'center' : 'flex-start',
-              padding: collapsed ? '10px 0' : '10px 12px',
+              padding: collapsed ? '9px 0' : '8px 12px',
               borderRadius: 'var(--radius-sm)',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              background: 'linear-gradient(135deg, rgba(3, 105, 161, 0.3) 0%, rgba(15, 23, 42, 0.75) 100%)',
-              color: '#f0f9ff',
+              border: '1px solid transparent',
+              background: 'transparent',
+              color: 'var(--color-text-secondary)',
               cursor: isDownloadingXlsx ? 'not-allowed' : 'pointer',
               opacity: isDownloadingXlsx ? 0.7 : 1,
               textAlign: 'left',
               width: '100%',
-              transition: 'all 0.15s ease',
+              transition: 'all 0.12s ease',
             }}
             onMouseEnter={(e) => {
               if (isDownloadingXlsx) return;
-              e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.8)';
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(3, 105, 161, 0.5) 0%, rgba(15, 23, 42, 0.9) 100%)';
-              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
+              e.currentTarget.style.color = 'var(--color-text)';
             }}
             onMouseLeave={(e) => {
               if (isDownloadingXlsx) return;
-              e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.35)';
-              e.currentTarget.style.background = 'linear-gradient(135deg, rgba(3, 105, 161, 0.3) 0%, rgba(15, 23, 42, 0.75) 100%)';
-              e.currentTarget.style.transform = 'none';
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = 'var(--color-text-secondary)';
             }}
           >
             <div style={{
@@ -250,51 +574,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
               overflow: 'hidden',
             }}>
               {isDownloadingXlsx ? (
-                <Loader2 size={16} color="#38bdf8" className="animate-spin" />
+                <Loader2 size={16} color="var(--color-primary)" className="animate-spin" />
               ) : (
-                <FileSpreadsheet size={16} color="#38bdf8" />
+                <FileSpreadsheet size={16} color="var(--color-text-muted)" />
               )}
               {!collapsed && (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '12.5px', fontWeight: '600', whiteSpace: 'nowrap', color: '#f0f9ff' }}>
-                    Download Portfolio Document
+                  <span style={{ fontSize: '13px', fontWeight: '500', whiteSpace: 'nowrap' }}>
+                    {downloadItem.label}
                   </span>
-                  <span style={{ fontSize: '10.5px', color: '#7dd3fc', fontWeight: '500' }}>
-                    {isDownloadingXlsx ? 'Generating...' : ''}
+                  <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: '500', opacity: 0.85 }}>
+                    {isDownloadingXlsx ? 'Generating...' : (downloadItem.caption || downloadItem.label)}
                   </span>
                 </div>
               )}
             </div>
           </button>
 
-          {/* Action 3: Upload Different Portfolio */}
+          {/* Action 5: Upload Different Portfolio */}
           <button
             onClick={onReset}
-            aria-label="Upload Different Portfolio"
-            title={collapsed ? 'Upload Different Portfolio' : undefined}
+            aria-label={resetItem.label}
+            title={collapsed ? resetItem.label : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: collapsed ? 'center' : 'flex-start',
-              padding: collapsed ? '10px 0' : '10px 12px',
+              padding: collapsed ? '9px 0' : '8px 12px',
               borderRadius: 'var(--radius-sm)',
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-surface)',
+              border: '1px solid transparent',
+              background: 'transparent',
               color: 'var(--color-text-secondary)',
               cursor: 'pointer',
               textAlign: 'left',
               width: '100%',
-              transition: 'all 0.15s ease',
+              transition: 'all 0.12s ease',
             }}
             onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--color-surface-secondary)';
               e.currentTarget.style.color = 'var(--color-text)';
-              e.currentTarget.style.borderColor = 'var(--color-text-muted)';
-              e.currentTarget.style.background = 'var(--color-surface-hover)';
             }}
             onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
               e.currentTarget.style.color = 'var(--color-text-secondary)';
-              e.currentTarget.style.borderColor = 'var(--color-border)';
-              e.currentTarget.style.background = 'var(--color-surface)';
             }}
           >
             <div style={{
@@ -307,8 +629,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <RefreshCw size={16} color="var(--color-text-muted)" />
               {!collapsed && (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontSize: '12.5px', fontWeight: '600', whiteSpace: 'nowrap', color: 'var(--color-text)' }}>
-                    Upload Different Portfolio
+                  <span style={{ fontSize: '13px', fontWeight: '500', whiteSpace: 'nowrap' }}>
+                    {resetItem.label}
+                  </span>
+                  <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', fontWeight: '500', opacity: 0.85 }}>
+                    {resetItem.caption || resetItem.label}
                   </span>
                 </div>
               )}
@@ -331,7 +656,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: collapsed ? 'center' : 'space-between',
-                  padding: collapsed ? '9px 0' : '9px 12px',
+                  padding: collapsed ? '9px 0' : '8px 12px',
                   borderRadius: 'var(--radius-sm)',
                   border: isActive ? '1px solid var(--color-primary-border)' : '1px solid transparent',
                   background: isActive ? 'var(--color-primary-subtle)' : 'transparent',
@@ -364,9 +689,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 }}>
                   <Icon size={16} color={isActive ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
                   {!collapsed && (
-                    <span style={{ fontSize: '13px', fontWeight: isActive ? '600' : '500', whiteSpace: 'nowrap' }}>
-                      {item.label}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '13px', fontWeight: isActive ? '600' : '500', whiteSpace: 'nowrap' }}>
+                        {item.label}
+                      </span>
+                      <span style={{ fontSize: '10px', color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)', fontWeight: '500', opacity: 0.85 }}>
+                        {item.caption || item.label}
+                      </span>
+                    </div>
                   )}
                 </div>
 

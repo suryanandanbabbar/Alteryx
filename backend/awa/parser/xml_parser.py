@@ -304,18 +304,18 @@ def _parse_all_nodes(root: ET.Element, raw_xml_text: str = "", source_spans: dic
             return
 
         # 5. Executable Tool Node
-        tool_type = _derive_tool_type(plugin)
+        engine_settings = {}
+        engine_el = node.find("EngineSettings")
+        if engine_el is not None:
+            engine_settings = dict(engine_el.attrib)
+
+        tool_type = _derive_tool_type(plugin, engine_el)
         position = _extract_position(gui_settings)
         name = _extract_annotation_name(node)
         annotation = _extract_annotation_text(node)
         config_el = node.find(".//Configuration")
         configuration = extract_tool_config(config_el, tool_type)
         output_fields = _extract_fields(node)
-
-        engine_settings = {}
-        engine_el = node.find("EngineSettings")
-        if engine_el is not None:
-            engine_settings = dict(engine_el.attrib)
 
         tool_span_info = spans_map.get(str(tool_id), {})
         container_id = parent_container.tool_id if parent_container else tool_span_info.get("container_id")
@@ -365,22 +365,46 @@ def _parse_all_nodes(root: ET.Element, raw_xml_text: str = "", source_spans: dic
     return tools, containers, textboxes
 
 
-def _derive_tool_type(plugin: str) -> str:
-    """Derive the tool type name from the full plugin string.
+def _derive_tool_type(plugin: str, engine_el: ET.Element | None = None) -> str:
+    """Derive the canonical tool type name from plugin string or engine settings.
 
     Examples:
         'AlteryxBasePluginsGui.Filter.Filter' → 'Filter'
         'AlteryxBasePluginsGui.DbFileInput.DbFileInput' → 'DbFileInput'
         'box_input_v1.0.3' → 'box_input_v1.0.3' (version-dotted, keep full)
     """
-    if not plugin:
-        return ""
+    if plugin:
+        cleaned_plugin = plugin.strip()
+        # If the plugin itself is purely numeric or invalid, skip direct return
+        if not cleaned_plugin.isdigit() and cleaned_plugin not in ("null", "undefined", "[object Object]"):
+            last = cleaned_plugin.rsplit(".", 1)[-1].strip()
+            if last and not last.isdigit():
+                return last
+            # If last is a digit (e.g. version suffix), find the last non-digit segment
+            parts = [p.strip() for p in cleaned_plugin.split(".") if p.strip() and not p.strip().isdigit()]
+            if parts:
+                return parts[-1]
 
-    last = plugin.rsplit(".", 1)[-1]
-    if last.isdigit():
-        return plugin
+    # Fallback to EngineSettings if plugin was empty or numeric
+    if engine_el is not None:
+        entry = engine_el.get("EngineDllEntryPoint") or ""
+        if entry:
+            cleaned_entry = entry.strip()
+            last = cleaned_entry.rsplit(".", 1)[-1].strip()
+            if last and not last.isdigit():
+                return last
+        macro = engine_el.get("Macro") or ""
+        if macro:
+            macro_stem = Path(macro).stem.strip()
+            if macro_stem and not macro_stem.isdigit():
+                return macro_stem
+        dll = engine_el.get("EngineDll") or ""
+        if dll:
+            dll_stem = Path(dll).stem.replace("AlteryxBasePluginsEngine", "").strip()
+            if dll_stem and not dll_stem.isdigit():
+                return dll_stem
 
-    return last
+    return "Unknown"
 
 
 def _extract_position(gui_settings: ET.Element | None) -> Position | None:

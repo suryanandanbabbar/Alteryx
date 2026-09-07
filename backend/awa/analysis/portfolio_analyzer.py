@@ -429,9 +429,13 @@ def build_portfolio_analysis(
         srcs = _extract_workflow_sources(res)
         tgts, sinks, classifications = _extract_workflow_targets_and_sinks(res)
 
-        tool_seq = [res.workflow.tools[t].tool_type for t in res.execution_order if t in res.workflow.tools]
+        tool_seq = [
+            (res.workflow.tools[t].tool_type if res.workflow.tools[t].tool_type and not res.workflow.tools[t].tool_type.isdigit() else "Unknown")
+            for t in res.execution_order if t in res.workflow.tools
+        ]
         for ttype in tool_seq:
-            tool_counter[ttype] = tool_counter.get(ttype, 0) + 1
+            clean_type = ttype.strip() if isinstance(ttype, str) and ttype.strip() and not ttype.strip().isdigit() else "Unknown"
+            tool_counter[clean_type] = tool_counter.get(clean_type, 0) + 1
 
         for s in srcs:
             source_to_wfs.setdefault(s, []).append((wid, filename))
@@ -498,6 +502,10 @@ def build_portfolio_analysis(
         # Deterministic Workflow Complexity Assessment
         complexity = calculate_workflow_complexity(res)
 
+        wf_stages: list[dict[str, Any]] = []
+        if hasattr(res, "business_summary") and res.business_summary and getattr(res.business_summary, "processing_stages", None):
+            wf_stages = [stg.to_dict() if hasattr(stg, "to_dict") else stg for stg in res.business_summary.processing_stages]
+
         summaries.append(
             PortfolioWorkflowSummary(
                 workflow_id=wid,
@@ -524,6 +532,7 @@ def build_portfolio_analysis(
                 complexity_score=complexity.score,
                 complexity_level=complexity.level,
                 complexity_factors=complexity.factors,
+                processing_stages=wf_stages,
             )
         )
 
