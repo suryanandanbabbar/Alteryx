@@ -242,3 +242,385 @@ def test_synthetic_missing_field_rejection():
     assert subsumed is False
     assert ev.missing_fields_count == 1
     assert "missing_col" in ev.missing_fields
+
+
+def test_embedded_csv_headers_and_subsumption_workflow_01_and_wf02():
+    """Verify that Workflow A with embedded CSV headers in TextInput and Join is subsumed by Workflow B."""
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_01",
+        workflow_name="Workflow_01.yxmd",
+        sources=["textinput_8_field1", "textinput_11_field1", "textinput_19_field1"],
+        source_types={"textinput_8_field1": "FILE", "textinput_11_field1": "FILE", "textinput_19_field1": "FILE"},
+        source_fields={"textinput_8_field1": ["field1"]},
+        production_targets=[],
+        inspection_sinks=["Browse (Tool #15)"],
+        output_schemas={},
+        output_grain=["UNKNOWN"],
+        tool_types=["TextInput", "TextToColumns", "Join", "Unique", "BrowseV2"],
+        transformation_signatures=["Join on: Claim_ID=Claim_ID", "Unique deduplication on Claim_ID"],
+        filters=[],
+        join_keys=["Claim_ID=Claim_ID"],
+        aggregations=[],
+        formulas=["DateTimeDiff([Claim_Date], [Loss_Date], 'days')"],
+        has_python=False,
+        has_r=False,
+        has_macros=False,
+        node_count=12,
+        edge_count=11,
+        dag_depth=5,
+        branch_points=1,
+        merge_points=1,
+        topological_sequence=["TextInput", "TextToColumns", "Join", "Unique", "BrowseV2"],
+        complexity_level="LOW",
+        complexity_score=18.0,
+        criticality_level="LOW",
+        criticality_score=15.0,
+        frequency="Daily",
+        downstream_consumers=[],
+        canonical_columns={
+            "claim_id": ColumnEvidence(original_name="Claim_ID", normalized_name="claim_id", source_dataset="TextInput (Tool #8)", provenance="TextInput #8 embedded CSV header", sample_values=["CLM0001", "CLM0002"], is_required=True),
+            "diagnosis_type": ColumnEvidence(original_name="Diagnosis_Type", normalized_name="diagnosis_type", source_dataset="TextInput (Tool #8)", provenance="TextInput #8 embedded CSV header", sample_values=["Disability", "Accident"], is_required=True),
+            "icd_code": ColumnEvidence(original_name="ICD_Code", normalized_name="icd_code", source_dataset="TextInput (Tool #8)", provenance="TextInput #8 embedded CSV header", sample_values=["M54.5", "S93.4"], is_required=True),
+        },
+        required_columns=["claim_id", "diagnosis_type", "icd_code"],
+        available_columns=["claim_id", "diagnosis_type", "icd_code", "field1"],
+        raw_data_rows_inspected=26,
+        sample_data_evidence=[
+            {"field": "Claim_ID", "normalized": "claim_id", "tool_id": "8", "tool_type": "TextInput", "samples": ["CLM0001", "CLM0002"], "row_count": 26},
+            {"field": "Diagnosis_Type", "normalized": "diagnosis_type", "tool_id": "8", "tool_type": "TextInput", "samples": ["Disability", "Accident"], "row_count": 26},
+            {"field": "ICD_Code", "normalized": "icd_code", "tool_id": "8", "tool_type": "TextInput", "samples": ["M54.5", "S93.4"], "row_count": 26},
+        ],
+        operations_summary=[
+            {"tool_id": "9", "tool_type": "Join", "operation": "Join on Claim_ID=Claim_ID", "keys": ["Claim_ID=Claim_ID"]},
+            {"tool_id": "10", "tool_type": "Unique", "operation": "Unique deduplication on Claim_ID", "fields": ["Claim_ID"]},
+        ],
+    )
+
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_02",
+        workflow_name="WF02.yxmd",
+        sources=["source_13", "source_19", "source_26", "textinput_14_field1", "textinput_1_claim_id_ltd_transition_flag", "textinput_8_field1"],
+        source_types={"source_13": "FILE", "source_19": "FILE", "source_26": "FILE", "textinput_14_field1": "FILE", "textinput_1_claim_id_ltd_transition_flag": "FILE", "textinput_8_field1": "FILE"},
+        source_fields={"source_13": ["claim_id", "diagnosis_type", "icd_code", "gender", "state", "region", "zipcode", "salary_band"]},
+        production_targets=["Consolidated_Claims.yxdb"],
+        inspection_sinks=[],
+        output_schemas={"Consolidated_Claims.yxdb": ["claim_id", "diagnosis_type", "icd_code", "gender", "state", "region", "zipcode", "salary_band"]},
+        output_grain=["Claim_ID"],
+        tool_types=["TextInput", "Join", "Unique", "Filter", "Formula", "Union", "DbFileOutput"],
+        transformation_signatures=["Join on: Claim_ID=Claim_ID", "Unique deduplication on Claim_ID", "Formula: DateTimeDiff"],
+        filters=["[Diagnosis_Type] != 'Unknown'"],
+        join_keys=["Claim_ID=Claim_ID"],
+        aggregations=[],
+        formulas=["DateTimeDiff([Claim_Date], [Loss_Date], 'days')"],
+        has_python=False,
+        has_r=False,
+        has_macros=False,
+        node_count=35,
+        edge_count=38,
+        dag_depth=8,
+        branch_points=3,
+        merge_points=2,
+        topological_sequence=["TextInput", "Join", "Unique", "Filter", "Formula", "Union", "DbFileOutput"],
+        complexity_level="MEDIUM",
+        complexity_score=45.0,
+        criticality_level="LOW",
+        criticality_score=20.0,
+        frequency="Daily",
+        downstream_consumers=[],
+        canonical_columns={
+            "claim_id": ColumnEvidence(original_name="Claim_ID", normalized_name="claim_id", source_dataset="Consolidated_Claims.yxdb", provenance="Input", is_required=True),
+            "diagnosis_type": ColumnEvidence(original_name="Diagnosis_Type", normalized_name="diagnosis_type", source_dataset="Consolidated_Claims.yxdb", provenance="Input", is_required=True),
+            "icd_code": ColumnEvidence(original_name="ICD_Code", normalized_name="icd_code", source_dataset="Consolidated_Claims.yxdb", provenance="Input", is_required=True),
+            "gender": ColumnEvidence(original_name="Gender", normalized_name="gender", source_dataset="Consolidated_Claims.yxdb", provenance="Input", is_required=False),
+            "state": ColumnEvidence(original_name="State", normalized_name="state", source_dataset="Consolidated_Claims.yxdb", provenance="Input", is_required=False),
+            "zipcode": ColumnEvidence(original_name="ZIPCode", normalized_name="zipcode", source_dataset="Consolidated_Claims.yxdb", provenance="Input", is_required=False),
+            "salary_band": ColumnEvidence(original_name="Salary_Band", normalized_name="salary_band", source_dataset="Consolidated_Claims.yxdb", provenance="Input", is_required=False),
+        },
+        required_columns=["claim_id", "diagnosis_type", "icd_code", "gender", "state", "zipcode", "salary_band"],
+        available_columns=["claim_id", "diagnosis_type", "icd_code", "gender", "state", "region", "zipcode", "salary_band"],
+        raw_data_rows_inspected=150,
+        sample_data_evidence=[
+            {"field": "Claim_ID", "normalized": "claim_id", "tool_id": "1", "tool_type": "TextInput", "samples": ["CLM0001", "CLM0002", "CLM0003"], "row_count": 150},
+        ],
+        operations_summary=[
+            {"tool_id": "15", "tool_type": "Join", "operation": "Join on Claim_ID=Claim_ID", "keys": ["Claim_ID=Claim_ID"]},
+            {"tool_id": "16", "tool_type": "Unique", "operation": "Unique deduplication on Claim_ID", "fields": ["Claim_ID"]},
+            {"tool_id": "17", "tool_type": "Filter", "operation": "Filter predicate: [Diagnosis_Type] != 'Unknown'", "expression": "[Diagnosis_Type] != 'Unknown'"},
+            {"tool_id": "18", "tool_type": "Union", "operation": "Union of input datasets (Mode: ByName)", "mode": "ByName"},
+        ],
+    )
+
+    comp = compare_workflows(fp_a, fp_b)
+
+    # 1. Source overlap is low (1 shared out of 8 unique sources = 1/8 = 12.5% ~ 13%)
+    assert comp.metrics.source_overlap < 0.20, "Source Metadata Overlap must remain ~13% (source identity)"
+
+    # 2. Forward Direction A -> B: 100% Data Subsumption
+    subsumed_fwd, ev_fwd = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
+    assert subsumed_fwd is True, "Workflow_01 must be subsumed into WF02"
+    assert ev_fwd is not None
+    assert ev_fwd.data_coverage_pct == 1.0
+    assert ev_fwd.missing_fields_count == 0
+    assert ev_fwd.processing_compatibility == "SUPPORTED"
+    assert ev_fwd.output_compatibility in ("INSPECTION_SINK_ONLY", "COMPATIBLE")
+    assert ev_fwd.has_unresolved_unique_functionality is False
+    assert set(ev_fwd.shared_required_fields) == {"claim_id", "diagnosis_type", "icd_code"}
+
+    # 3. Reverse Direction B -> A: Must be rejected
+    subsumed_rev, ev_rev = evaluate_directional_data_subsumption(fp_b, fp_a, comp)
+    assert subsumed_rev is False, "WF02 cannot be subsumed into Workflow_01"
+    assert ev_rev is not None
+    assert ev_rev.missing_fields_count > 0
+
+    # 4. Consolidation rule & Candidate classification precedence
+    decision = evaluate_consolidation_rules(fp_a, fp_b, comp)
+    assert decision.recommendation == "MERGE"
+    assert decision.matched_rule == ConsolidationRules.RULE_DATA_SUBSUMPTION
+    assert decision.data_subsumption_evidence is not None
+
+    cand = detect_candidate_from_comparison(comp, fp_a, fp_b)
+    assert cand is not None
+    # Precedence: Must be CONSOLIDATE (MERGE), NOT SHARED_LOGIC (Shared Formulae)!
+    assert cand.recommendation_type == "CONSOLIDATE"
+    assert cand.data_subsumption_evidence is not None
+    assert "Workflow_01.yxmd can be consolidated into WF02.yxmd" in cand.data_subsumption_evidence.direction_statement
+
+
+def test_shared_formulae_preserved_when_missing_required_data():
+    """Verify that SHARED_LOGIC (Shared Formulae) is preserved when merge gates fail due to missing fields."""
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_alpha",
+        workflow_name="Alpha.yxmd",
+        sources=["alpha_src.csv"],
+        source_types={"alpha_src.csv": "FILE"},
+        source_fields={"alpha_src.csv": ["claim_id", "unique_alpha_code"]},
+        production_targets=["Alpha_Out.xlsx"],
+        inspection_sinks=[],
+        output_schemas={"Alpha_Out.xlsx": ["claim_id", "unique_alpha_code", "calc_diff"]},
+        output_grain=["claim_id"],
+        tool_types=["DbFileInput", "Formula", "DbFileOutput"],
+        transformation_signatures=["Formula: calc_diff = DateTimeDiff([Date_A], [Date_B], 'days')"],
+        filters=[],
+        join_keys=[],
+        aggregations=[],
+        formulas=["DateTimeDiff([Date_A], [Date_B], 'days')"],
+        has_python=False,
+        has_r=False,
+        has_macros=False,
+        node_count=3,
+        edge_count=2,
+        dag_depth=3,
+        branch_points=0,
+        merge_points=0,
+        topological_sequence=["DbFileInput", "Formula", "DbFileOutput"],
+        complexity_level="MEDIUM",
+        complexity_score=40.0,
+        criticality_level="LOW",
+        criticality_score=10.0,
+        frequency="Daily",
+        downstream_consumers=[],
+        canonical_columns={
+            "claim_id": ColumnEvidence(original_name="claim_id", normalized_name="claim_id", source_dataset="alpha_src.csv", is_required=True),
+            "unique_alpha_code": ColumnEvidence(original_name="unique_alpha_code", normalized_name="unique_alpha_code", source_dataset="alpha_src.csv", is_required=True),
+        },
+        required_columns=["claim_id", "unique_alpha_code"],
+        available_columns=["claim_id", "unique_alpha_code", "calc_diff"],
+        raw_data_rows_inspected=0,
+        sample_data_evidence=[],
+        operations_summary=[
+            {"tool_id": "2", "tool_type": "Formula", "operation": "Formula: calc_diff = DateTimeDiff", "target_field": "calc_diff"},
+        ],
+    )
+
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_beta",
+        workflow_name="Beta.yxmd",
+        sources=["beta_src.csv"],
+        source_types={"beta_src.csv": "FILE"},
+        source_fields={"beta_src.csv": ["claim_id", "beta_col"]},
+        production_targets=["Beta_Out.xlsx"],
+        inspection_sinks=[],
+        output_schemas={"Beta_Out.xlsx": ["claim_id", "beta_col", "calc_diff"]},
+        output_grain=["claim_id"],
+        tool_types=["DbFileInput", "Formula", "DbFileOutput"],
+        transformation_signatures=["Formula: calc_diff = DateTimeDiff([Date_A], [Date_B], 'days')"],
+        filters=[],
+        join_keys=[],
+        aggregations=[],
+        formulas=["DateTimeDiff([Date_A], [Date_B], 'days')"],
+        has_python=False,
+        has_r=False,
+        has_macros=False,
+        node_count=3,
+        edge_count=2,
+        dag_depth=3,
+        branch_points=0,
+        merge_points=0,
+        topological_sequence=["DbFileInput", "Formula", "DbFileOutput"],
+        complexity_level="MEDIUM",
+        complexity_score=40.0,
+        criticality_level="LOW",
+        criticality_score=10.0,
+        frequency="Daily",
+        downstream_consumers=[],
+        canonical_columns={
+            "claim_id": ColumnEvidence(original_name="claim_id", normalized_name="claim_id", source_dataset="beta_src.csv", is_required=True),
+            "beta_col": ColumnEvidence(original_name="beta_col", normalized_name="beta_col", source_dataset="beta_src.csv", is_required=True),
+        },
+        required_columns=["claim_id", "beta_col"],
+        available_columns=["claim_id", "beta_col", "calc_diff"],
+        raw_data_rows_inspected=0,
+        sample_data_evidence=[],
+        operations_summary=[
+            {"tool_id": "2", "tool_type": "Formula", "operation": "Formula: calc_diff = DateTimeDiff", "target_field": "calc_diff"},
+        ],
+    )
+
+    comp = compare_workflows(fp_a, fp_b)
+
+    # Directional subsumption must FAIL (Beta does not have unique_alpha_code)
+    subsumed_fwd, ev_fwd = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
+    assert subsumed_fwd is False
+    assert "unique_alpha_code" in ev_fwd.missing_fields
+
+    # Decision must NOT be MERGE
+    decision = evaluate_consolidation_rules(fp_a, fp_b, comp)
+    assert decision.recommendation == "DO NOT MERGE"
+
+    # Candidate recommendation must remain SHARED_LOGIC (Shared Formulae)
+    cand = detect_candidate_from_comparison(comp, fp_a, fp_b)
+    assert cand is not None
+    assert cand.recommendation_type == "SHARED_LOGIC"
+
+
+def test_xml_textinput_csv_header_extraction():
+    """Verify that extract_workflow_column_and_data_evidence parses embedded CSV headers from <Data><r><c>."""
+    from awa.model.tool import Tool, ToolConfiguration
+    from awa.model.workflow import Workflow, WorkflowMetadata
+    from awa.model.field import Field
+    from awa.model.analysis_result import CanonicalAnalysisResult
+    from awa.analysis.rationalisation_analyzer import extract_workflow_column_and_data_evidence
+
+    xml_textinput = """
+    <Configuration>
+        <NumRows value="5" />
+        <Fields>
+            <Field name="Field1" />
+        </Fields>
+        <Data>
+            <r>
+                <c>Claim_ID,Diagnosis_Type,ICD_Code</c>
+            </r>
+            <r>
+                <c>CLM0001,Disability,M54.5</c>
+            </r>
+            <r>
+                <c>CLM0002,Accident,S93.4</c>
+            </r>
+            <r>
+                <c>CLM0003,Disability,M54.5</c>
+            </r>
+        </Data>
+    </Configuration>
+    """
+
+    xml_join = """
+    <Configuration>
+        <JoinInfo connection="Left">
+            <Field field="Claim_ID" />
+        </JoinInfo>
+        <JoinInfo connection="Right">
+            <Field field="Claim_ID" />
+        </JoinInfo>
+        <SelectConfiguration>
+            <Configuration outputConnection="Join">
+                <SelectFields>
+                    <SelectField field="Left_Claim_ID" selected="True" />
+                    <SelectField field="Right_Diagnosis_Type" selected="True" rename="Diagnosis_Type" />
+                    <SelectField field="Right_ICD_Code" selected="True" rename="ICD_Code" />
+                </SelectFields>
+            </Configuration>
+        </SelectConfiguration>
+    </Configuration>
+    """
+
+    xml_unique = """
+    <Configuration>
+        <UniqueFields>
+            <Field field="Claim_ID" />
+        </UniqueFields>
+    </Configuration>
+    """
+
+    tool_input = Tool(
+        tool_id=8,
+        plugin="AlteryxBasePluginsGui.TextInput.TextInput",
+        tool_type="TextInput",
+        name="Claims Data Input",
+        position=None,
+        configuration=ToolConfiguration(raw_xml=xml_textinput, parsed={"fields": ["Field1"]}),
+        output_fields=[
+            Field(name="Claim_ID", type="V_WString"),
+            Field(name="Diagnosis_Type", type="V_WString"),
+            Field(name="ICD_Code", type="V_WString"),
+        ],
+    )
+
+    tool_join = Tool(
+        tool_id=9,
+        plugin="AlteryxBasePluginsGui.Join.Join",
+        tool_type="Join",
+        name="Join on Claim_ID",
+        position=None,
+        configuration=ToolConfiguration(raw_xml=xml_join, parsed={}),
+    )
+
+    tool_unique = Tool(
+        tool_id=10,
+        plugin="AlteryxBasePluginsGui.Unique.Unique",
+        tool_type="Unique",
+        name="Deduplicate Claims",
+        position=None,
+        configuration=ToolConfiguration(raw_xml=xml_unique, parsed={}),
+    )
+
+    wf = Workflow(
+        tools={8: tool_input, 9: tool_join, 10: tool_unique},
+        connections=[],
+        metadata=WorkflowMetadata(name="Workflow_01.yxmd", version="2021.4"),
+    )
+
+    from unittest.mock import MagicMock
+    res = MagicMock(workflow=wf, lineage=None)
+
+    summary = PortfolioWorkflowSummary(
+        workflow_id="wf_01",
+        filename="Workflow_01.yxmd",
+        relative_path="Workflow_01.yxmd",
+        status="SUCCESS",
+        node_count=3,
+        connection_count=2,
+    )
+
+    cols, req_cols, avail_cols, rows_cnt, sample_ev, ops = extract_workflow_column_and_data_evidence(summary, res)
+
+    # 1. Available columns must contain the extracted CSV business headers
+    assert "claim_id" in avail_cols
+    assert "diagnosis_type" in avail_cols
+    assert "icd_code" in avail_cols
+
+    # 2. Required columns must identify the join key & deduplication key
+    assert "claim_id" in req_cols
+
+    # 3. Sample values must be captured from the subsequent data rows
+    assert rows_cnt >= 4
+    claim_sample = next((s for s in sample_ev if s["normalized"] == "claim_id"), None)
+    assert claim_sample is not None
+    assert "CLM0001" in claim_sample["samples"]
+    assert "CLM0002" in claim_sample["samples"]
+
+    diag_sample = next((s for s in sample_ev if s["normalized"] == "diagnosis_type"), None)
+    assert diag_sample is not None
+    assert "Disability" in diag_sample["samples"]
+
+

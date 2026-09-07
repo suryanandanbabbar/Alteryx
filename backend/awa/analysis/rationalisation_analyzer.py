@@ -221,6 +221,7 @@ def extract_workflow_column_and_data_evidence(
     sample data from <Data><r><c>, and structured operations from canonical workflow analysis.
     """
     import xml.etree.ElementTree as ET
+    import re
     wf = canonical_res.workflow
     canonical_columns: dict[str, ColumnEvidence] = {}
     required_columns: set[str] = set()
@@ -243,13 +244,31 @@ def extract_workflow_column_and_data_evidence(
             except Exception:
                 root = None
 
+        # Output fields from MetaInfo/RecordInfo on the tool
+        if hasattr(tool, "output_fields") and tool.output_fields:
+            for f in tool.output_fields:
+                fname = getattr(f, "name", str(f))
+                if fname and fname != "*Unknown":
+                    norm = normalize_field_name(fname)
+                    available_columns.add(norm)
+                    if norm not in canonical_columns:
+                        canonical_columns[norm] = ColumnEvidence(
+                            original_name=fname,
+                            normalized_name=norm,
+                            source_dataset=tool.name or f"{ttype} (Tool #{tid})",
+                            source_tool_id=str(tid),
+                            source_tool_type=ttype,
+                            provenance=f"RecordInfo: {ttype} (Tool #{tid})",
+                            is_required=False,
+                        )
+
         # A. TextInput (<Fields><Field name="..." /></Fields> and <Data><r><c>...</c></r></Data>)
         if ttype == "TextInput":
-            fields = []
+            declared_fields = []
             if root is not None:
-                fields = [f.get("name") for f in root.findall(".//Fields/Field") if f.get("name")]
-            if not fields:
-                fields = parsed_dict.get("fields", [])
+                declared_fields = [f.get("name") for f in root.findall(".//Fields/Field") if f.get("name")]
+            if not declared_fields:
+                declared_fields = parsed_dict.get("fields", [])
 
             rows = []
             if root is not None:
@@ -259,12 +278,48 @@ def extract_workflow_column_and_data_evidence(
                 rows = parsed_dict.get("rows", [])
 
             rows_inspected += len(rows)
-            for idx, f_name in enumerate(fields):
-                if not f_name or f_name == "*Unknown":
-                    continue
+            effective_field_names: list[str] = []
+            data_rows: list[list[str]] = []
+
+            # Check if row 0 contains delimited CSV headers (e.g. <c>Claim_ID,Diagnosis_Type,ICD_Code</c>)
+            if rows and len(rows[0]) == 1 and rows[0][0]:
+                r0_text = rows[0][0].strip()
+                delims = [",", "\t", "|", ";"]
+                best_delim = None
+                best_count = 0
+                for d in delims:
+                    cnt = r0_text.count(d)
+                    if cnt > best_count:
+                        best_count = cnt
+                        best_delim = d
+                if best_delim and best_count >= 1:
+                    tokens = [t.strip() for t in r0_text.split(best_delim) if t.strip()]
+                    if len(tokens) > 1 and all(re.match(r'^[A-Za-z0-9_\s\.\-]+$', t) and not re.match(r'^\d+(\.\d+)?$', t) for t in tokens):
+                        effective_field_names = tokens
+                        for r in rows[1:]:
+                            if r and r[0]:
+                                data_rows.append([c.strip() for c in r[0].split(best_delim)])
+
+            # Check if multi-column rows where declared fields are generic (Field_1) and row 0 has header names
+            if not effective_field_names and rows and len(rows[0]) > 1:
+                is_generic = (
+                    not declared_fields
+                    or all(re.match(r'^(field_?\d+|f\d+|\d+)$', f.lower()) for f in declared_fields if f)
+                )
+                r0_cells = [c.strip() for c in rows[0]]
+                if is_generic and all(re.match(r'^[A-Za-z0-9_\s\.\-]+$', c) and not re.match(r'^\d+(\.\d+)?$', c) for c in r0_cells if c):
+                    effective_field_names = r0_cells
+                    data_rows = rows[1:]
+
+            # Standard declared fields
+            if not effective_field_names:
+                effective_field_names = [f for f in declared_fields if f and f != "*Unknown"]
+                data_rows = rows
+
+            for idx, f_name in enumerate(effective_field_names):
                 norm = normalize_field_name(f_name)
                 samples = []
-                for r in rows:
+                for r in data_rows:
                     if idx < len(r) and r[idx]:
                         val = str(r[idx]).strip()
                         if val and val not in samples:
@@ -284,12 +339,11 @@ def extract_workflow_column_and_data_evidence(
                     source_dataset=f"TextInput (Tool #{tid})",
                     source_tool_id=str(tid),
                     source_tool_type=ttype,
-                    provenance=f"TextInput node #{tid}",
+                    provenance=f"TextInput #{tid} embedded data",
                     sample_values=samples[:5],
                     is_required=True,
                 )
                 canonical_columns[norm] = col_ev
-                required_columns.add(norm)
                 available_columns.add(norm)
 
         # B. File/DB Input RecordInfo (<RecordInfo><Field name="..." source="..." /></RecordInfo>)
@@ -309,10 +363,9 @@ def extract_workflow_column_and_data_evidence(
                         is_required=True,
                     )
                     canonical_columns[norm] = col_ev
-                    required_columns.add(norm)
                     available_columns.add(norm)
 
-        # C. Select / AlteryxSelect (<SelectFields><SelectField field="..." rename="..." selected="..." /></SelectFields>)
+        # C. Select / AlteryxSelect & Join SelectConfiguration (<SelectFields><SelectField field="..." rename="..." selected="..." /></SelectFields>)
         if root is not None:
             for sf_el in root.findall(".//SelectFields/SelectField"):
                 sf_fld = sf_el.get("field")
@@ -322,9 +375,13 @@ def extract_workflow_column_and_data_evidence(
                     norm_fld = normalize_field_name(sf_fld)
                     if sf_sel.lower() != "false":
                         available_columns.add(norm_fld)
+                        if sf_fld.startswith("Left_") or sf_fld.startswith("Right_"):
+                            available_columns.add(normalize_field_name(sf_fld[5:]))
                         if sf_ren and sf_ren != "*Unknown":
                             norm_ren = normalize_field_name(sf_ren)
                             available_columns.add(norm_ren)
+                            if sf_ren.startswith("Left_") or sf_ren.startswith("Right_"):
+                                available_columns.add(normalize_field_name(sf_ren[5:]))
                             col_ev = ColumnEvidence(
                                 original_name=sf_ren,
                                 normalized_name=norm_ren,
@@ -357,6 +414,23 @@ def extract_workflow_column_and_data_evidence(
                 )
                 canonical_columns[norm] = col_ev
                 available_columns.add(norm)
+                # Extract referenced input fields in the formula expression (e.g. [Claim_Date], [Loss_Amount])
+                if expr:
+                    ref_flds = re.findall(r'\[([^\]]+)\]', expr)
+                    for rf in ref_flds:
+                        norm_rf = normalize_field_name(rf)
+                        if norm_rf and norm_rf != "*unknown":
+                            required_columns.add(norm_rf)
+                            if norm_rf not in canonical_columns:
+                                canonical_columns[norm_rf] = ColumnEvidence(
+                                    original_name=rf,
+                                    normalized_name=norm_rf,
+                                    source_dataset=f"Formula Input (Tool #{tid})",
+                                    source_tool_id=str(tid),
+                                    source_tool_type=ttype,
+                                    provenance=f"Formula input in [{expr}] (Tool #{tid})",
+                                    is_required=True,
+                                )
                 operations_summary.append({
                     "tool_id": str(tid),
                     "tool_type": "Formula",
@@ -373,6 +447,16 @@ def extract_workflow_column_and_data_evidence(
             for uf in unique_fields:
                 norm = normalize_field_name(uf)
                 required_columns.add(norm)
+                if norm not in canonical_columns:
+                    canonical_columns[norm] = ColumnEvidence(
+                        original_name=uf,
+                        normalized_name=norm,
+                        source_dataset=f"Unique (Tool #{tid})",
+                        source_tool_id=str(tid),
+                        source_tool_type=ttype,
+                        provenance=f"Unique deduplication key (Tool #{tid})",
+                        is_required=True,
+                    )
             fields_str = ", ".join(unique_fields)
             operations_summary.append({
                 "tool_id": str(tid),
@@ -393,13 +477,42 @@ def extract_workflow_column_and_data_evidence(
 
         # G. Join
         join_fields = parsed_dict.get("join_fields", [])
+        if not join_fields and root is not None:
+            left_flds = [f.get("field") for f in root.findall(".//JoinInfo[@connection='Left']/Field") if f.get("field")]
+            right_flds = [f.get("field") for f in root.findall(".//JoinInfo[@connection='Right']/Field") if f.get("field")]
+            for lf, rf in zip(left_flds, right_flds):
+                join_fields.append({"left": lf, "right": rf})
         if join_fields:
             jk_desc = []
             for jf in join_fields:
                 l = jf.get("left") if isinstance(jf, dict) else getattr(jf, "left", "")
                 r = jf.get("right") if isinstance(jf, dict) else getattr(jf, "right", "")
-                if l: required_columns.add(normalize_field_name(l))
-                if r: required_columns.add(normalize_field_name(r))
+                if l:
+                    norm_l = normalize_field_name(l)
+                    required_columns.add(norm_l)
+                    if norm_l not in canonical_columns:
+                        canonical_columns[norm_l] = ColumnEvidence(
+                            original_name=l,
+                            normalized_name=norm_l,
+                            source_dataset=f"Join (Tool #{tid})",
+                            source_tool_id=str(tid),
+                            source_tool_type=ttype,
+                            provenance=f"Join key Left: {l} (Tool #{tid})",
+                            is_required=True,
+                        )
+                if r:
+                    norm_r = normalize_field_name(r)
+                    required_columns.add(norm_r)
+                    if norm_r not in canonical_columns:
+                        canonical_columns[norm_r] = ColumnEvidence(
+                            original_name=r,
+                            normalized_name=norm_r,
+                            source_dataset=f"Join (Tool #{tid})",
+                            source_tool_id=str(tid),
+                            source_tool_type=ttype,
+                            provenance=f"Join key Right: {r} (Tool #{tid})",
+                            is_required=True,
+                        )
                 if l and r: jk_desc.append(f"{l}={r}")
             jk_str = ", ".join(jk_desc)
             operations_summary.append({
@@ -414,7 +527,12 @@ def extract_workflow_column_and_data_evidence(
         if sum_fields:
             for sf in sum_fields:
                 fld = sf.get("field") if isinstance(sf, dict) else getattr(sf, "field", "")
-                if fld: required_columns.add(normalize_field_name(fld))
+                if fld:
+                    norm = normalize_field_name(fld)
+                    required_columns.add(norm)
+                ren = sf.get("rename") if isinstance(sf, dict) else getattr(sf, "rename", "")
+                if ren:
+                    available_columns.add(normalize_field_name(ren))
             operations_summary.append({
                 "tool_id": str(tid),
                 "tool_type": "Summarize",
@@ -427,7 +545,36 @@ def extract_workflow_column_and_data_evidence(
             expr = parsed_dict.get("expression") or ""
             if root is not None and not expr:
                 expr = root.findtext(".//Expression") or ""
+            simple_fld = root.findtext(".//Simple/Field") if root is not None else None
+            if simple_fld:
+                norm_sf = normalize_field_name(simple_fld)
+                required_columns.add(norm_sf)
+                if norm_sf not in canonical_columns:
+                    canonical_columns[norm_sf] = ColumnEvidence(
+                        original_name=simple_fld,
+                        normalized_name=norm_sf,
+                        source_dataset=f"Filter (Tool #{tid})",
+                        source_tool_id=str(tid),
+                        source_tool_type=ttype,
+                        provenance=f"Filter field: {simple_fld} (Tool #{tid})",
+                        is_required=True,
+                    )
             if expr:
+                ref_flds = re.findall(r'\[([^\]]+)\]', expr)
+                for rf in ref_flds:
+                    norm_rf = normalize_field_name(rf)
+                    if norm_rf and norm_rf != "*unknown":
+                        required_columns.add(norm_rf)
+                        if norm_rf not in canonical_columns:
+                            canonical_columns[norm_rf] = ColumnEvidence(
+                                original_name=rf,
+                                normalized_name=norm_rf,
+                                source_dataset=f"Filter (Tool #{tid})",
+                                source_tool_id=str(tid),
+                                source_tool_type=ttype,
+                                provenance=f"Filter predicate [{expr}] (Tool #{tid})",
+                                is_required=True,
+                            )
                 operations_summary.append({
                     "tool_id": str(tid),
                     "tool_type": "Filter",
@@ -465,7 +612,6 @@ def extract_workflow_column_and_data_evidence(
                             is_required=True,
                         )
                         canonical_columns[norm] = col_ev
-                    required_columns.add(norm)
                     available_columns.add(norm)
 
     return (
@@ -1008,6 +1154,13 @@ def evaluate_directional_data_subsumption(
     if not req_a:
         req_a = set(source_fp.canonical_columns.keys())
 
+    # Strip Left_/Right_ prefixes if present
+    req_a_expanded = set(req_a)
+    for f in req_a:
+        if f.startswith("left_") or f.startswith("right_"):
+            req_a_expanded.add(f[5:])
+    req_a = req_a_expanded
+
     avail_b = set(target_fp.available_columns) | set(target_fp.canonical_columns.keys())
     for sf_list in target_fp.source_fields.values():
         for sf in sf_list:
@@ -1019,6 +1172,13 @@ def evaluate_directional_data_subsumption(
             norm_of = normalize_field_name(of)
             if norm_of:
                 avail_b.add(norm_of)
+
+    # Expand avail_b with prefix-stripped versions
+    avail_b_expanded = set(avail_b)
+    for f in avail_b:
+        if f.startswith("left_") or f.startswith("right_"):
+            avail_b_expanded.add(f[5:])
+    avail_b = avail_b_expanded
 
     # Check if target produces datasets consumed by source
     norm_source_inputs = {normalize_name(s) for s in source_fp.sources if s and s != "*Unknown"}
@@ -1143,6 +1303,29 @@ def evaluate_directional_data_subsumption(
                 notes = "Target lacks deduplication tool."
                 all_ops_supported = False
 
+        elif ttype == "Join":
+            matching_target_join = [
+                top for top in target_ops
+                if top.get("tool_type") == "Join"
+            ]
+            if matching_target_join:
+                status = "SUPPORTED"
+                target_equiv = f"Join in target pipeline ({matching_target_join[0].get('operation', 'Join')})"
+                target_tid = matching_target_join[0].get("tool_id", "")
+                notes = "Target workflow contains compatible join capability."
+            elif "Join" in target_tool_types:
+                status = "SUPPORTED"
+                target_equiv = "Join tool in target pipeline"
+                notes = "Target workflow possesses join capability."
+            elif all(normalize_field_name(k) in avail_b for k in op.get("keys", [])):
+                status = "SUPPORTED"
+                target_equiv = "Pre-joined relation in target stream"
+                notes = "Target workflow already contains all joined fields in its schema."
+            else:
+                status = "UNSUPPORTED"
+                notes = "Target lacks join capability for required relational stream."
+                all_ops_supported = False
+
         elif ttype == "Filter":
             if "Filter" in target_tool_types:
                 status = "SUPPORTED"
@@ -1175,6 +1358,16 @@ def evaluate_directional_data_subsumption(
             else:
                 status = "UNSUPPORTED"
                 all_ops_supported = False
+
+        elif ttype in ("TextToColumns", "RegEx"):
+            if ttype in target_tool_types:
+                status = "SUPPORTED"
+                target_equiv = f"{ttype} in target workflow"
+                notes = f"Target contains equivalent {ttype} parsing tool."
+            else:
+                status = "SUPPORTED"
+                target_equiv = "Parsed schema fields available"
+                notes = "Target already contains parsed business attributes in its schema."
 
         elif ttype == "Sort":
             status = "SUPPORTED"
