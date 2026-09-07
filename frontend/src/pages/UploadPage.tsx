@@ -382,6 +382,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess, onBackT
         maxWidth: '680px',
         margin: '0 auto',
         width: '100%',
+        whiteSpace: 'nowrap',
         boxSizing: 'border-box',
       }}>
         {/* Header Block */}
