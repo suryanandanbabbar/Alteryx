@@ -624,3 +624,64 @@ def test_xml_textinput_csv_header_extraction():
     assert "Disability" in diag_sample["samples"]
 
 
+def test_merge_candidate_admissible_bounds_and_llm_immutability():
+    """Verify that a candidate with MERGE recommendation has admissible=['CONSOLIDATE'] and cannot be downgraded by LLM."""
+    import json
+    from unittest.mock import MagicMock
+    from awa.analysis.rationalisation_analyzer import enrich_candidate_with_llm, detect_candidate_from_comparison, compare_workflows
+    from awa.model.portfolio import ConsolidationDecision
+
+    # Build fingerprints where WF_A is subsumed by WF_B
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_01",
+        workflow_name="Workflow_01.yxmd",
+        sources=["source_a.csv"],
+        production_targets=[],
+        inspection_sinks=["Browse (Tool #5)"],
+        source_fields={"source_a.csv": ["claim_id", "diagnosis_type"]},
+        transformation_signatures=["join:claim_id", "filter:claim_id"],
+        complexity_level="LOW",
+        criticality_level="LOW",
+        frequency="Daily",
+        available_columns=["claim_id", "diagnosis_type", "icd_code"],
+        required_columns=["claim_id", "diagnosis_type"],
+    )
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_03",
+        workflow_name="WF03.yxmd",
+        sources=["source_b.csv"],
+        production_targets=["claims_mart.yxdb"],
+        inspection_sinks=[],
+        source_fields={"source_b.csv": ["claim_id", "diagnosis_type", "icd_code", "claim_amount", "member_id"]},
+        output_schemas={"claims_mart.yxdb": ["claim_id", "diagnosis_type", "icd_code", "claim_amount", "member_id"]},
+        transformation_signatures=["join:claim_id", "filter:claim_id", "formula:calculate_risk"],
+        complexity_level="MEDIUM",
+        criticality_level="HIGH",
+        frequency="Daily",
+        available_columns=["claim_id", "diagnosis_type", "icd_code", "claim_amount", "member_id"],
+        required_columns=["claim_id", "diagnosis_type"],
+    )
+
+    comp = compare_workflows(fp_a, fp_b)
+    cand = detect_candidate_from_comparison(comp, fp_a, fp_b)
+
+    assert cand is not None
+    assert cand.recommendation_type == "CONSOLIDATE"
+    assert cand.admissible_recommendations == ["CONSOLIDATE"]
+    assert cand.consolidation_decision is not None
+    assert cand.consolidation_decision.recommendation == "MERGE"
+
+    # Even if LLM returns SHARED_LOGIC, candidate recommendation_type MUST stay CONSOLIDATE
+    mock_client = MagicMock()
+    mock_client.generate.return_value = json.dumps({
+        "recommendation": "SHARED_LOGIC",
+        "workflow_ids": ["wf_01", "wf_03"],
+        "reasoning": "Both workflows process claims.",
+    })
+    mock_generator = MagicMock(client=mock_client)
+
+    enriched = enrich_candidate_with_llm(cand, mock_generator, {"wf_01", "wf_03"}, {"source_a.csv", "source_b.csv"})
+    assert enriched.recommendation_type == "CONSOLIDATE"
+
+
+

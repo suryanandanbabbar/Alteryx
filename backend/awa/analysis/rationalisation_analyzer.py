@@ -1827,7 +1827,7 @@ def detect_candidate_from_comparison(
         admissible = ["RETIRE_CANDIDATE", "REVIEW"]
     elif can_consolidate:
         recommendation_type = "CONSOLIDATE"
-        admissible = ["CONSOLIDATE", "SHARED_LOGIC", "REVIEW"]
+        admissible = ["CONSOLIDATE"]
     elif can_shared_logic:
         recommendation_type = "SHARED_LOGIC"
         admissible = ["SHARED_LOGIC", "REVIEW"]
@@ -2169,7 +2169,13 @@ def enrich_candidate_with_llm(
 
         if is_valid:
             rec = parsed.get("recommendation") or parsed.get("recommendation_type")
-            if rec in candidate.admissible_recommendations:
+            if candidate.recommendation_type == "CONSOLIDATE" and (
+                (candidate.consolidation_decision and candidate.consolidation_decision.recommendation == "MERGE")
+                or candidate.data_subsumption_evidence is not None
+            ):
+                # Deterministic MERGE classification is strictly immutable and cannot be overridden by LLM
+                candidate.recommendation_type = "CONSOLIDATE"
+            elif rec in candidate.admissible_recommendations:
                 candidate.recommendation_type = rec
             candidate.reasoning = parsed.get("reasoning", candidate.reasoning).strip()
             if parsed.get("proposed_strategy"):
