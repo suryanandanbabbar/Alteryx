@@ -8,6 +8,7 @@ import { AnalysisLoadingScreen } from '../components/AnalysisLoadingScreen';
 
 interface UploadPageProps {
   onUploadSuccess: (result: AnalysisOverviewDTO | PortfolioOverviewDTO) => void;
+  onBackToChooser?: () => void;
 }
 
 export const SUPPORTED_EXTENSIONS = ['.yxmd', '.yxwz', '.xml'] as const;
@@ -135,7 +136,7 @@ async function scanDirectoryHandle(handle: any, currentPath: string): Promise<No
   return entries;
 }
 
-export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
+export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess, onBackToChooser }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [analyzingFileName, setAnalyzingFileName] = useState<string | undefined>(undefined);
@@ -309,7 +310,37 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
         justifyContent: 'space-between',
         padding: '0 32px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {onBackToChooser && (
+            <button
+              onClick={onBackToChooser}
+              style={{
+                background: 'none',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '4px 10px',
+                fontSize: '12px',
+                fontWeight: '500',
+                color: 'var(--color-text-secondary)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'border-color 0.15s ease, color 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-primary-border)';
+                e.currentTarget.style.color = 'var(--color-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--color-border)';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+              }}
+              title="Back to Application Chooser"
+            >
+              ← Change Application
+            </button>
+          )}
           <span style={{
             fontSize: '12px',
             fontWeight: '600',

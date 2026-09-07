@@ -543,3 +543,8 @@ class PortfolioOverviewDTO(BaseModel):
     business_areas: list[BusinessAreaGroupDTO] = Field(default_factory=list)
     created_at: float
 
+
+class AppConfigDTO(BaseModel):
+    """Public application configuration metadata exposed to the frontend."""
+    code_based_workflows_url: str | None = None
+

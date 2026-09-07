@@ -261,3 +261,8 @@ export interface AnalysisOverviewDTO {
   diagnostics: DiagnosticDTO[];
   business_summary?: WorkflowBusinessSummaryDTO | null;
 }
+
+export interface AppConfigDTO {
+  code_based_workflows_url: string | null;
+}
+

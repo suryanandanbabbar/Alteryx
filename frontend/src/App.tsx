@@ -4,6 +4,7 @@ import { PortfolioOverviewDTO } from './types/portfolio';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { SplashScreen } from './components/SplashScreen';
+import { ApplicationChooserPage } from './pages/ApplicationChooserPage';
 import { UploadPage } from './pages/UploadPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { DiagramPage } from './pages/DiagramPage';
@@ -25,6 +26,7 @@ const SECTION_TITLES: Record<string, string> = {
 };
 
 export const App: React.FC = () => {
+  const [selectedApp, setSelectedApp] = useState<'chooser' | 'alteryx'>('chooser');
   const [overview, setOverview] = useState<AnalysisOverviewDTO | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioOverviewDTO | null>(null);
   const [selectedBusinessArea, setSelectedBusinessArea] = useState<string | null>(null);
@@ -71,6 +73,7 @@ export const App: React.FC = () => {
     setSelectedToolId(null);
     setSelectedToolTypeFilter(null);
     setShowRationalisation(false);
+    setSelectedApp('chooser');
   };
 
   const handleSelectTool = (toolId: number) => {
@@ -78,12 +81,24 @@ export const App: React.FC = () => {
     setActiveSection('tools');
   };
 
-  // If no active analysis and no active portfolio, render upload view
+  // If no active analysis and no active portfolio, render application chooser or upload view
   if (!overview && !portfolio) {
+    if (selectedApp === 'chooser') {
+      return (
+        <>
+          <SplashScreen />
+          <ApplicationChooserPage onSelectAlteryx={() => setSelectedApp('alteryx')} />
+        </>
+      );
+    }
+
     return (
       <>
         <SplashScreen />
-        <UploadPage onUploadSuccess={handleUploadSuccess} />
+        <UploadPage
+          onUploadSuccess={handleUploadSuccess}
+          onBackToChooser={() => setSelectedApp('chooser')}
+        />
       </>
     );
   }

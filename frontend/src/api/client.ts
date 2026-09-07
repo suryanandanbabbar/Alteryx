@@ -6,6 +6,7 @@ import {
   AnalysisOverviewDTO,
   DiagramDTO,
   PythonOutputDTO,
+  AppConfigDTO,
 } from '../types/workflow';
 import { PortfolioOverviewDTO, RationalisationAnalysisDTO } from '../types/portfolio';
 
@@ -199,6 +200,11 @@ export const api = {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(blobUrl);
+  },
+
+  async getConfig(): Promise<AppConfigDTO> {
+    const res = await fetch(`${BASE_URL}/config`);
+    return handleResponse<AppConfigDTO>(res);
   },
 };
 

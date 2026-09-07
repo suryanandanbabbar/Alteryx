@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from backend.app.config import settings
 from backend.app.api.health import router as health_router
+from backend.app.api.config import router as config_router
 from backend.app.api.upload import router as upload_router
 from backend.app.api.analysis import router as analysis_router
 from backend.app.api.download import router as download_router
@@ -59,10 +60,12 @@ app.add_middleware(
 
 # Include API routers under /api prefix
 app.include_router(health_router, prefix="/api")
+app.include_router(config_router, prefix="/api")
 app.include_router(upload_router, prefix="/api")
 app.include_router(analysis_router, prefix="/api")
 app.include_router(download_router, prefix="/api")
 app.include_router(portfolio_router, prefix="/api")
+
 
 
 @app.get("/")
