@@ -77,10 +77,10 @@ export const JsonPage: React.FC<JsonPageProps> = ({ analysisId }) => {
           textTransform: 'uppercase',
           marginBottom: '4px',
         }}>
-          JSON
+          ETL Migration
         </div>
         <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', margin: 0 }}>
-          Canonical Intermediate Representation
+          Migration to JSON
         </h2>
       </div>
 

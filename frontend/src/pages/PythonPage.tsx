@@ -78,10 +78,10 @@ export const PythonPage: React.FC<PythonPageProps> = ({ analysisId }) => {
           textTransform: 'uppercase',
           marginBottom: '4px',
         }}>
-          Python
+          ETL Migration
         </div>
         <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', margin: 0 }}>
-          Python / Pandas Pipeline Translation
+          Migration to Python
         </h2>
       </div>
 

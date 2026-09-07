@@ -199,7 +199,7 @@ export const ToolsPage: React.FC<ToolsPageProps> = ({
             textTransform: 'uppercase',
             marginBottom: '4px',
           }}>
-            Tools &amp; Configuration
+            ETL Intelligence
           </div>
           <h2 style={{
             fontSize: '22px',

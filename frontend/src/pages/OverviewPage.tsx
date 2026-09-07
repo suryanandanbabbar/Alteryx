@@ -54,10 +54,10 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
             textTransform: 'uppercase',
             marginBottom: '4px',
           }}>
-            Workflow Overview
+            ETL Intelligence
           </div>
           <h1 style={{ fontSize: '24px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.4px', margin: 0 }}>
-            {workflowName}
+            Workflow Overview
           </h1>
           <p style={{ fontSize: '14px', color: 'var(--color-text-secondary)', margin: '4px 0 0 0' }}>
             {oneLinePurpose}

@@ -90,10 +90,10 @@ export const DiagramPage: React.FC<DiagramPageProps> = ({ analysisId, selectedTo
           textTransform: 'uppercase',
           marginBottom: '4px',
         }}>
-          Workflow Diagram
+          ETL Intelligence
         </div>
         <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)', letterSpacing: '-0.3px', margin: 0 }}>
-          Interactive Workflow DAG
+          Interactive Workflow Diagram
         </h2>
       </div>
 

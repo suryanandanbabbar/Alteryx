@@ -32,11 +32,11 @@ export interface NavItemConfig {
 
 export const defaultWorkflowNavItems: NavItemConfig[] = [
   { id: 'overview', label: 'Workflow Overview', caption: 'ETL Intelligence', icon: BarChart2 },
-  { id: 'impact', label: 'Impact at a Glance', caption: 'ETL Intelligence', icon: Zap },
   { id: 'diagram', label: 'Workflow Diagram', caption: 'ETL Intelligence', icon: GitFork },
   { id: 'tools', label: 'Tools & Configuration', caption: 'ETL Intelligence', icon: Sliders },
   { id: 'json', label: 'Migrate to JSON', caption: 'ETL Migration', icon: Code },
   { id: 'python', label: 'Migrate to Python', caption: 'ETL Migration', icon: Terminal },
+  { id: 'impact', label: 'Impact at a Glance', caption: 'ETL Intelligence', icon: Zap },
   { id: 'downloads', label: 'Download', caption: ' ', icon: Download },
 ];
 

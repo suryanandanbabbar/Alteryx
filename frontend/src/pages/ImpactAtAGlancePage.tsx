@@ -587,7 +587,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* 1. Header Navigation & Title */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
@@ -601,7 +601,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
                 color: 'var(--color-primary)',
               }}
             >
-              WORKFLOW IMPACT AT A GLANCE
+              ETL Intelligence
             </span>
             <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>•</span>
             <span
@@ -622,32 +622,11 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
               Deterministic Discovery + AI Semantics
             </span>
           </div>
-
-          {onBackToPortfolio && (
-            <button
-              onClick={onBackToPortfolio}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-surface)',
-                color: 'var(--color-text-secondary)',
-                fontSize: '12px',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
-            >
-              <ArrowLeft size={14} /> Back to Portfolio
-            </button>
-          )}
         </div>
 
         <h1
           style={{
-            fontSize: '30px',
+            fontSize: '24px',
             fontWeight: '800',
             color: 'var(--color-text)',
             letterSpacing: '-0.02em',
@@ -655,7 +634,7 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
             margin: '2px 0 0 0',
           }}
         >
-          {source.original_filename}
+          Impact at a Glance
         </h1>
 
         <p
@@ -2649,9 +2628,6 @@ const InteractiveLifecycleStep: React.FC<InteractiveLifecycleStepProps> = ({
         }}
       />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '10.5px', fontWeight: '800', color: color, letterSpacing: '0.06em' }}>
-          STEP {stepNumber}
-        </span>
         <span
           style={{
             fontSize: '11px',
