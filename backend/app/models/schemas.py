@@ -427,6 +427,38 @@ class DependencyEvidenceDTO(BaseModel):
     dependency_notes: str = ""
 
 
+class ColumnEvidenceDTO(BaseModel):
+    original_name: str
+    normalized_name: str
+    source_dataset: str = ""
+    source_tool_id: str = ""
+    source_tool_type: str = ""
+    provenance: str = "Source metadata unavailable"
+    sample_values: list[str] = Field(default_factory=list)
+    is_required: bool = False
+
+
+class DataSubsumptionEvidenceDTO(BaseModel):
+    source_workflow_id: str
+    source_workflow_name: str
+    target_workflow_id: str
+    target_workflow_name: str
+    data_coverage_pct: float = 0.0
+    missing_fields_count: int = 0
+    missing_fields: list[str] = Field(default_factory=list)
+    shared_required_fields: list[str] = Field(default_factory=list)
+    additional_fields_in_target: list[str] = Field(default_factory=list)
+    field_provenance_map: dict[str, ColumnEvidenceDTO] = Field(default_factory=dict)
+    sample_data_matches: list[dict[str, Any]] = Field(default_factory=list)
+    processing_substitutability_matrix: list[dict[str, Any]] = Field(default_factory=list)
+    processing_compatibility: str = "SUPPORTED"
+    output_compatibility: str = "COMPATIBLE"
+    has_unresolved_unique_functionality: bool = False
+    unresolved_unique_details: list[str] = Field(default_factory=list)
+    direction_statement: str = ""
+    recommendation_summary: str = ""
+
+
 class ConsolidationDecisionDTO(BaseModel):
     recommendation: Literal["MERGE", "DO NOT MERGE"] = "DO NOT MERGE"
     matched_rule: str = ""
@@ -442,6 +474,7 @@ class ConsolidationDecisionDTO(BaseModel):
     is_same_frequency: bool = False
     logic_preservable: bool = False
     merge_direction: Optional[str] = None
+    data_subsumption_evidence: Optional[DataSubsumptionEvidenceDTO] = None
 
 
 class RationalisationCandidateDTO(BaseModel):
@@ -464,6 +497,7 @@ class RationalisationCandidateDTO(BaseModel):
     admissible_recommendations: list[str] = Field(default_factory=list)
     llm_enrichment_status: str = "DETERMINISTIC_BASELINE"
     consolidation_decision: Optional[ConsolidationDecisionDTO] = None
+    data_subsumption_evidence: Optional[DataSubsumptionEvidenceDTO] = None
     sources_by_workflow: dict[str, list[str]] = Field(default_factory=dict)
     source_fields_by_workflow: dict[str, dict[str, list[str]]] = Field(default_factory=dict)
     transformations_by_workflow: dict[str, list[str]] = Field(default_factory=dict)

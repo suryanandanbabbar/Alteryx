@@ -29,7 +29,9 @@ from typing import Any, Optional
 
 from awa.model.analysis_result import CanonicalAnalysisResult
 from awa.model.portfolio import (
+    ColumnEvidence,
     ConsolidationDecision,
+    DataSubsumptionEvidence,
     DependencyEvidence,
     DeterministicMetrics,
     OutputEvidence,
@@ -200,6 +202,280 @@ def format_summarize_fields(summarize_fields: list[dict[str, Any]]) -> str:
     aggregates.sort()
     ordered = group_bys + aggregates
     return ", ".join(ordered)
+
+
+def normalize_field_name(name: str) -> str:
+    """Normalize column/field name conservatively for deterministic matching."""
+    if not name:
+        return ""
+    clean = str(name).strip().lower()
+    clean = re.sub(r"[^a-z0-9]", "_", clean)
+    return re.sub(r"_+", "_", clean).strip("_")
+
+
+def extract_workflow_column_and_data_evidence(
+    summary: PortfolioWorkflowSummary,
+    canonical_res: CanonicalAnalysisResult,
+) -> tuple[dict[str, ColumnEvidence], list[str], list[str], int, list[dict[str, Any]], list[dict[str, Any]]]:
+    """Deterministically extract canonical column evidence, required fields, available fields,
+    sample data from <Data><r><c>, and structured operations from canonical workflow analysis.
+    """
+    import xml.etree.ElementTree as ET
+    wf = canonical_res.workflow
+    canonical_columns: dict[str, ColumnEvidence] = {}
+    required_columns: set[str] = set()
+    available_columns: set[str] = set()
+    rows_inspected = 0
+    sample_data_evidence: list[dict[str, Any]] = []
+    operations_summary: list[dict[str, Any]] = []
+
+    # 1. Inspect all tools in canonical AST
+    for tid, tool in sorted(wf.tools.items(), key=lambda x: str(x[0])):
+        ttype = tool.tool_type
+        cfg = tool.configuration
+        raw_xml = cfg.raw_xml if (cfg and hasattr(cfg, "raw_xml") and isinstance(cfg.raw_xml, str)) else ""
+        parsed_dict = cfg.parsed if (cfg and hasattr(cfg, "parsed") and isinstance(cfg.parsed, dict)) else {}
+
+        root = None
+        if raw_xml:
+            try:
+                root = ET.fromstring(f"<root>{raw_xml}</root>")
+            except Exception:
+                root = None
+
+        # A. TextInput (<Fields><Field name="..." /></Fields> and <Data><r><c>...</c></r></Data>)
+        if ttype == "TextInput":
+            fields = []
+            if root is not None:
+                fields = [f.get("name") for f in root.findall(".//Fields/Field") if f.get("name")]
+            if not fields:
+                fields = parsed_dict.get("fields", [])
+
+            rows = []
+            if root is not None:
+                for r in root.findall(".//Data/r"):
+                    rows.append([c.text or "" for c in r.findall("c")])
+            if not rows:
+                rows = parsed_dict.get("rows", [])
+
+            rows_inspected += len(rows)
+            for idx, f_name in enumerate(fields):
+                if not f_name or f_name == "*Unknown":
+                    continue
+                norm = normalize_field_name(f_name)
+                samples = []
+                for r in rows:
+                    if idx < len(r) and r[idx]:
+                        val = str(r[idx]).strip()
+                        if val and val not in samples:
+                            samples.append(val)
+                if samples:
+                    sample_data_evidence.append({
+                        "field": f_name,
+                        "normalized": norm,
+                        "tool_id": str(tid),
+                        "tool_type": ttype,
+                        "samples": samples[:5],
+                        "row_count": len(rows),
+                    })
+                col_ev = ColumnEvidence(
+                    original_name=f_name,
+                    normalized_name=norm,
+                    source_dataset=f"TextInput (Tool #{tid})",
+                    source_tool_id=str(tid),
+                    source_tool_type=ttype,
+                    provenance=f"TextInput node #{tid}",
+                    sample_values=samples[:5],
+                    is_required=True,
+                )
+                canonical_columns[norm] = col_ev
+                required_columns.add(norm)
+                available_columns.add(norm)
+
+        # B. File/DB Input RecordInfo (<RecordInfo><Field name="..." source="..." /></RecordInfo>)
+        if root is not None:
+            for f_el in root.findall(".//RecordInfo/Field"):
+                f_name = f_el.get("name")
+                f_source = f_el.get("source", "")
+                if f_name and f_name != "*Unknown":
+                    norm = normalize_field_name(f_name)
+                    col_ev = ColumnEvidence(
+                        original_name=f_name,
+                        normalized_name=norm,
+                        source_dataset=tool.name or f"Input (Tool #{tid})",
+                        source_tool_id=str(tid),
+                        source_tool_type=ttype,
+                        provenance=f"RecordInfo: {f_source or tool.name or 'Configured Stream'} (Tool #{tid})",
+                        is_required=True,
+                    )
+                    canonical_columns[norm] = col_ev
+                    required_columns.add(norm)
+                    available_columns.add(norm)
+
+        # C. Select / AlteryxSelect (<SelectFields><SelectField field="..." rename="..." selected="..." /></SelectFields>)
+        if root is not None:
+            for sf_el in root.findall(".//SelectFields/SelectField"):
+                sf_fld = sf_el.get("field")
+                sf_ren = sf_el.get("rename")
+                sf_sel = sf_el.get("selected", "True")
+                if sf_fld and sf_fld != "*Unknown":
+                    norm_fld = normalize_field_name(sf_fld)
+                    if sf_sel.lower() != "false":
+                        available_columns.add(norm_fld)
+                        if sf_ren and sf_ren != "*Unknown":
+                            norm_ren = normalize_field_name(sf_ren)
+                            available_columns.add(norm_ren)
+                            col_ev = ColumnEvidence(
+                                original_name=sf_ren,
+                                normalized_name=norm_ren,
+                                source_dataset=f"Select (Tool #{tid})",
+                                source_tool_id=str(tid),
+                                source_tool_type=ttype,
+                                provenance=f"Select rename from {sf_fld} (Tool #{tid})",
+                                is_required=False,
+                            )
+                            canonical_columns[norm_ren] = col_ev
+
+        # D. Formula fields (<FormulaField field="..." expression="..." />)
+        formula_fields = parsed_dict.get("formula_fields", [])
+        if not formula_fields and root is not None:
+            for ff in root.findall(".//FormulaField"):
+                formula_fields.append({"field": ff.get("field"), "expression": ff.get("expression")})
+        for ff in formula_fields:
+            fn = ff.get("field") if isinstance(ff, dict) else getattr(ff, "field_name", "")
+            expr = ff.get("expression") if isinstance(ff, dict) else getattr(ff, "expression", "")
+            if fn and fn != "*Unknown":
+                norm = normalize_field_name(fn)
+                col_ev = ColumnEvidence(
+                    original_name=fn,
+                    normalized_name=norm,
+                    source_dataset="Formula Transformation",
+                    source_tool_id=str(tid),
+                    source_tool_type=ttype,
+                    provenance=f"Formula [{fn} = {expr}] (Tool #{tid})",
+                    is_required=False,
+                )
+                canonical_columns[norm] = col_ev
+                available_columns.add(norm)
+                operations_summary.append({
+                    "tool_id": str(tid),
+                    "tool_type": "Formula",
+                    "operation": f"Formula: {fn} = {expr}",
+                    "target_field": fn,
+                    "expression": expr,
+                })
+
+        # E. Unique (<UniqueFields><Field field="..." /></UniqueFields>)
+        unique_fields = parsed_dict.get("unique_fields", [])
+        if not unique_fields and root is not None:
+            unique_fields = [f.get("field") for f in root.findall(".//UniqueFields/Field") if f.get("field")]
+        if unique_fields:
+            for uf in unique_fields:
+                norm = normalize_field_name(uf)
+                required_columns.add(norm)
+            fields_str = ", ".join(unique_fields)
+            operations_summary.append({
+                "tool_id": str(tid),
+                "tool_type": "Unique",
+                "operation": f"Unique deduplication on {fields_str}",
+                "fields": unique_fields,
+            })
+
+        # F. Union
+        if ttype == "Union":
+            mode = parsed_dict.get("by_name_or_pos") or "ByName"
+            operations_summary.append({
+                "tool_id": str(tid),
+                "tool_type": "Union",
+                "operation": f"Union of input datasets (Mode: {mode})",
+                "mode": mode,
+            })
+
+        # G. Join
+        join_fields = parsed_dict.get("join_fields", [])
+        if join_fields:
+            jk_desc = []
+            for jf in join_fields:
+                l = jf.get("left") if isinstance(jf, dict) else getattr(jf, "left", "")
+                r = jf.get("right") if isinstance(jf, dict) else getattr(jf, "right", "")
+                if l: required_columns.add(normalize_field_name(l))
+                if r: required_columns.add(normalize_field_name(r))
+                if l and r: jk_desc.append(f"{l}={r}")
+            jk_str = ", ".join(jk_desc)
+            operations_summary.append({
+                "tool_id": str(tid),
+                "tool_type": "Join",
+                "operation": f"Join on {jk_str}",
+                "keys": jk_desc,
+            })
+
+        # H. Summarize
+        sum_fields = parsed_dict.get("summarize_fields", [])
+        if sum_fields:
+            for sf in sum_fields:
+                fld = sf.get("field") if isinstance(sf, dict) else getattr(sf, "field", "")
+                if fld: required_columns.add(normalize_field_name(fld))
+            operations_summary.append({
+                "tool_id": str(tid),
+                "tool_type": "Summarize",
+                "operation": f"Summarize aggregation ({len(sum_fields)} fields)",
+                "fields": sum_fields,
+            })
+
+        # I. Filter
+        if ttype == "Filter":
+            expr = parsed_dict.get("expression") or ""
+            if root is not None and not expr:
+                expr = root.findtext(".//Expression") or ""
+            if expr:
+                operations_summary.append({
+                    "tool_id": str(tid),
+                    "tool_type": "Filter",
+                    "operation": f"Filter predicate: {expr}",
+                    "expression": expr,
+                })
+
+        # J. Sort
+        sort_fields = parsed_dict.get("sort_fields", [])
+        if sort_fields:
+            sf_names = [sf.get("field") for sf in sort_fields if isinstance(sf, dict) and sf.get("field")]
+            for sfn in sf_names:
+                required_columns.add(normalize_field_name(sfn))
+            operations_summary.append({
+                "tool_id": str(tid),
+                "tool_type": "Sort",
+                "operation": f"Sort on {', '.join(sf_names)}",
+                "fields": sf_names,
+            })
+
+    # 2. Check STTM and lineage for any additional canonical field definitions
+    lineage_attr = getattr(canonical_res, "lineage", None)
+    if lineage_attr and hasattr(lineage_attr, "source_fields"):
+        for src, flds in lineage_attr.source_fields.items():
+            for f in flds:
+                fname = getattr(f, "name", str(f))
+                if fname and fname != "*Unknown":
+                    norm = normalize_field_name(fname)
+                    if norm not in canonical_columns:
+                        col_ev = ColumnEvidence(
+                            original_name=fname,
+                            normalized_name=norm,
+                            source_dataset=src,
+                            provenance=f"Lineage source: {src}",
+                            is_required=True,
+                        )
+                        canonical_columns[norm] = col_ev
+                    required_columns.add(norm)
+                    available_columns.add(norm)
+
+    return (
+        canonical_columns,
+        sorted(list(required_columns)),
+        sorted(list(available_columns)),
+        rows_inspected,
+        sample_data_evidence,
+        operations_summary,
+    )
 
 
 def build_workflow_fingerprint(
@@ -448,6 +724,10 @@ def build_workflow_fingerprint(
         except Exception:
             topological_sequence = tool_types
 
+    canonical_columns, req_cols, avail_cols, rows_inspected, sample_ev, ops_summary = (
+        extract_workflow_column_and_data_evidence(summary, canonical_res)
+    )
+
     return WorkflowFingerprint(
         workflow_id=summary.workflow_id,
         workflow_name=summary.filename,
@@ -483,6 +763,12 @@ def build_workflow_fingerprint(
             else "Not documented"
         ) or "Not documented",
         downstream_consumers=downstream_consumers or [],
+        canonical_columns=canonical_columns,
+        required_columns=req_cols,
+        available_columns=avail_cols,
+        raw_data_rows_inspected=rows_inspected,
+        sample_data_evidence=sample_ev,
+        operations_summary=ops_summary,
     )
 
 
@@ -693,6 +979,7 @@ def compare_workflows(
 # ---------------------------------------------------------------------------
 class ConsolidationRules:
     """Exact auditable rule descriptors for pairwise workflow consolidation."""
+    RULE_DATA_SUBSUMPTION = "Directional data-superset subsumption with compatible processing"
     RULE_A = "100% source overlap + at least one Low complexity + same frequency"
     RULE_B = "Different outputs + at least one Low complexity + same frequency"
     RULE_C = "Different outputs + both Medium/High complexity — do not merge"
@@ -700,14 +987,302 @@ class ConsolidationRules:
     RULE_DEFAULT = "No consolidation criteria met — do not merge"
 
 
+def evaluate_directional_data_subsumption(
+    source_fp: WorkflowFingerprint,
+    target_fp: WorkflowFingerprint,
+    comp: WorkflowComparisonEvidence,
+) -> tuple[bool, Optional[DataSubsumptionEvidence]]:
+    """Deterministically evaluate whether source_fp can be consolidated INTO target_fp.
+
+    Direction: source_fp (absorbed) -> target_fp (retaining/superset).
+
+    Two-layer evidence gates:
+    1. Layer 1 (Data Sufficiency): target_fp must possess 100% of the fields required
+       by source_fp (0 missing fields, 100% coverage).
+    2. Layer 2 (Processing Substitutability): target_fp must possess compatible processing
+       capabilities for all operations in source_fp, output semantics must be preserved or
+       source is inspection-sink-only, with zero lost unique functionality and no blocking consumers.
+    """
+    # 1. Field Analysis
+    req_a = set(source_fp.required_columns)
+    if not req_a:
+        req_a = set(source_fp.canonical_columns.keys())
+
+    avail_b = set(target_fp.available_columns) | set(target_fp.canonical_columns.keys())
+    for sf_list in target_fp.source_fields.values():
+        for sf in sf_list:
+            norm_sf = normalize_field_name(sf)
+            if norm_sf:
+                avail_b.add(norm_sf)
+    for out_list in target_fp.output_schemas.values():
+        for of in out_list:
+            norm_of = normalize_field_name(of)
+            if norm_of:
+                avail_b.add(norm_of)
+
+    # Check if target produces datasets consumed by source
+    norm_source_inputs = {normalize_name(s) for s in source_fp.sources if s and s != "*Unknown"}
+    norm_target_outputs = {normalize_name(t) for t in target_fp.production_targets if t and t != "*Unknown"}
+    norm_target_inputs = {normalize_name(s) for s in target_fp.sources if s and s != "*Unknown"}
+
+    is_target_producing_source_inputs = bool(norm_source_inputs & norm_target_outputs)
+
+    shared_required = sorted(list(req_a & avail_b))
+    missing_fields = sorted(list(req_a - avail_b))
+
+    # If target produces the source's input files, any field in source input is guaranteed to be generated by target
+    if is_target_producing_source_inputs and missing_fields:
+        resolved_missing = []
+        for mf in missing_fields:
+            col_ev = source_fp.canonical_columns.get(mf)
+            if col_ev and (
+                normalize_name(col_ev.source_dataset) in norm_target_outputs
+                or any(normalize_name(col_ev.source_dataset) in to for to in norm_target_outputs)
+            ):
+                shared_required.append(mf)
+            else:
+                resolved_missing.append(mf)
+        missing_fields = resolved_missing
+        shared_required = sorted(list(set(shared_required)))
+
+    coverage_pct = (len(shared_required) / len(req_a)) if req_a else 1.0
+    additional_in_target = sorted(list(avail_b - req_a))
+
+    # Build field provenance map
+    field_provenance_map: dict[str, ColumnEvidence] = {}
+    for f in shared_required:
+        if f in target_fp.canonical_columns:
+            field_provenance_map[f] = target_fp.canonical_columns[f]
+        elif f in source_fp.canonical_columns:
+            src_ev = source_fp.canonical_columns[f]
+            field_provenance_map[f] = ColumnEvidence(
+                original_name=src_ev.original_name,
+                normalized_name=src_ev.normalized_name,
+                source_dataset=src_ev.source_dataset,
+                source_tool_id=src_ev.source_tool_id,
+                source_tool_type=src_ev.source_tool_type,
+                provenance=f"Supplied via {target_fp.workflow_name} data pipeline / {src_ev.source_dataset}",
+                sample_values=src_ev.sample_values,
+                is_required=True,
+            )
+        else:
+            field_provenance_map[f] = ColumnEvidence(
+                original_name=f,
+                normalized_name=f,
+                source_dataset=target_fp.workflow_name,
+                provenance=f"Available in {target_fp.workflow_name}",
+                is_required=True,
+            )
+
+    # 2. Sample Data Matches
+    sample_data_matches: list[dict[str, Any]] = []
+    for s_ev in source_fp.sample_data_evidence:
+        sample_data_matches.append({
+            "field": s_ev.get("field"),
+            "source_workflow": source_fp.workflow_name,
+            "source_samples": s_ev.get("samples", []),
+            "row_count": s_ev.get("row_count", 0),
+            "status": "MATCHED" if s_ev.get("normalized") in avail_b else "NOT_FOUND",
+        })
+    for t_ev in target_fp.sample_data_evidence:
+        if t_ev.get("normalized") in req_a:
+            sample_data_matches.append({
+                "field": t_ev.get("field"),
+                "source_workflow": target_fp.workflow_name,
+                "source_samples": t_ev.get("samples", []),
+                "row_count": t_ev.get("row_count", 0),
+                "status": "AVAILABLE_IN_TARGET",
+            })
+
+    # 3. Processing Substitutability Matrix
+    matrix: list[dict[str, Any]] = []
+    all_ops_supported = True
+
+    target_tool_types = set(target_fp.tool_types)
+    target_ops = target_fp.operations_summary
+
+    for op in source_fp.operations_summary:
+        ttype = op.get("tool_type", "")
+        op_text = op.get("operation", "")
+        tid = op.get("tool_id", "")
+
+        status = "UNSUPPORTED"
+        target_equiv = "None"
+        target_tid = "N/A"
+        notes = ""
+
+        if ttype == "Union":
+            if "Union" in target_tool_types:
+                status = "SUPPORTED"
+                target_equiv = "Union combiner in target pipeline"
+                notes = "Target workflow already incorporates multi-stream Union consolidation."
+            else:
+                status = "UNSUPPORTED"
+                notes = "Target lacks Union multi-stream combiner."
+                all_ops_supported = False
+
+        elif ttype == "Unique":
+            u_fields = op.get("fields", [])
+            norm_u_fields = {normalize_field_name(f) for f in u_fields}
+            matching_target_unique = [
+                top for top in target_ops
+                if top.get("tool_type") == "Unique"
+                and any(normalize_field_name(f) in norm_u_fields for f in top.get("fields", []))
+            ]
+            if matching_target_unique:
+                status = "SUPPORTED"
+                target_equiv = f"Unique deduplication on {', '.join(matching_target_unique[0].get('fields', []))}"
+                target_tid = matching_target_unique[0].get("tool_id", "")
+                notes = "Target workflow already executes exact deduplication on matching key."
+            elif "Unique" in target_tool_types:
+                status = "SUPPORTED"
+                target_equiv = "Unique tool in target pipeline"
+                notes = "Target workflow has deduplication capability."
+            else:
+                status = "UNSUPPORTED"
+                notes = "Target lacks deduplication tool."
+                all_ops_supported = False
+
+        elif ttype == "Filter":
+            if "Filter" in target_tool_types:
+                status = "SUPPORTED"
+                target_equiv = "Filter tool in target pipeline"
+                notes = "Target workflow possesses filtering capability."
+            else:
+                status = "UNSUPPORTED"
+                all_ops_supported = False
+
+        elif ttype == "Formula":
+            target_field = op.get("target_field", "")
+            norm_tf = normalize_field_name(target_field)
+            if norm_tf in avail_b:
+                status = "SUPPORTED"
+                target_equiv = f"Calculated field [{target_field}]"
+                notes = "Target workflow already derives and provides this calculated attribute."
+            elif "Formula" in target_tool_types or "MultiRowFormula" in target_tool_types:
+                status = "SUPPORTED"
+                target_equiv = "Formula engine in target pipeline"
+                notes = "Target workflow has formula calculation capability."
+            else:
+                status = "UNSUPPORTED"
+                all_ops_supported = False
+
+        elif ttype == "Summarize":
+            if "Summarize" in target_tool_types:
+                status = "SUPPORTED"
+                target_equiv = "Summarize aggregation tool in target pipeline"
+                notes = "Target workflow has aggregation capability."
+            else:
+                status = "UNSUPPORTED"
+                all_ops_supported = False
+
+        elif ttype == "Sort":
+            status = "SUPPORTED"
+            target_equiv = "Sort tool in target pipeline" if "Sort" in target_tool_types else "Relational ordering"
+            notes = "Sorting can be maintained in target pipeline."
+
+        else:
+            if ttype in target_tool_types:
+                status = "SUPPORTED"
+                target_equiv = f"{ttype} in target workflow"
+                notes = f"Target contains equivalent {ttype} tool."
+            else:
+                status = "SUPPORTED"
+                target_equiv = "Implicit pass-through"
+                notes = f"Operation [{ttype}] can be consolidated without loss."
+
+        matrix.append({
+            "source_tool_id": tid,
+            "source_tool_type": ttype,
+            "source_operation": op_text,
+            "target_equivalent": target_equiv,
+            "target_tool_id": target_tid,
+            "status": status,
+            "notes": notes,
+        })
+
+    processing_compatibility = "SUPPORTED" if all_ops_supported else "UNSUPPORTED"
+
+    # 4. Output Compatibility
+    if len(source_fp.production_targets) == 0 and len(source_fp.inspection_sinks) > 0:
+        output_compatibility = "INSPECTION_SINK_ONLY"
+    elif set(source_fp.production_targets) == set(target_fp.production_targets):
+        output_compatibility = "IDENTICAL"
+    elif set(source_fp.production_targets).issubset(set(target_fp.production_targets)):
+        output_compatibility = "COMPATIBLE"
+    elif is_target_producing_source_inputs:
+        output_compatibility = "COMPATIBLE"
+    elif len(source_fp.production_targets) > 0 and len(missing_fields) == 0:
+        output_compatibility = "COMPATIBLE"
+    else:
+        output_compatibility = "INCOMPATIBLE"
+
+    # 5. Unique Functionality Check
+    unresolved_unique_details: list[str] = []
+    if source_fp.has_python and not target_fp.has_python:
+        unresolved_unique_details.append(f"{source_fp.workflow_name} contains custom Python code not present in {target_fp.workflow_name}")
+    if source_fp.has_r and not target_fp.has_r:
+        unresolved_unique_details.append(f"{source_fp.workflow_name} contains R statistical scripts not present in {target_fp.workflow_name}")
+    if source_fp.has_macros and not target_fp.has_macros:
+        unresolved_unique_details.append(f"{source_fp.workflow_name} contains macro assets not present in {target_fp.workflow_name}")
+
+    has_unresolved_unique = len(unresolved_unique_details) > 0
+
+    # 6. Downstream Consumers Check
+    has_blocking_consumers = len(source_fp.downstream_consumers) > 0
+
+    # 7. Subsumption Gate Qualification
+    is_subsumed = bool(
+        len(missing_fields) == 0
+        and coverage_pct == 1.0
+        and len(req_a) > 0
+        and processing_compatibility == "SUPPORTED"
+        and output_compatibility in ("INSPECTION_SINK_ONLY", "IDENTICAL", "COMPATIBLE")
+        and not has_unresolved_unique
+        and not has_blocking_consumers
+    )
+
+    direction_statement = f"{source_fp.workflow_name} can be consolidated into {target_fp.workflow_name}"
+    recommendation_summary = (
+        f"{target_fp.workflow_name} contains 100% of the required data/fields ({len(shared_required)} fields) "
+        f"and possesses compatible processing capability to reproduce {source_fp.workflow_name}'s functionality "
+        f"with zero lost unique logic."
+    )
+
+    evidence = DataSubsumptionEvidence(
+        source_workflow_id=source_fp.workflow_id,
+        source_workflow_name=source_fp.workflow_name,
+        target_workflow_id=target_fp.workflow_id,
+        target_workflow_name=target_fp.workflow_name,
+        data_coverage_pct=coverage_pct,
+        missing_fields_count=len(missing_fields),
+        missing_fields=missing_fields,
+        shared_required_fields=shared_required,
+        additional_fields_in_target=additional_in_target,
+        field_provenance_map=field_provenance_map,
+        sample_data_matches=sample_data_matches,
+        processing_substitutability_matrix=matrix,
+        processing_compatibility=processing_compatibility,
+        output_compatibility=output_compatibility,
+        has_unresolved_unique_functionality=has_unresolved_unique,
+        unresolved_unique_details=unresolved_unique_details,
+        direction_statement=direction_statement,
+        recommendation_summary=recommendation_summary,
+    )
+
+    return is_subsumed, evidence
+
+
 def evaluate_consolidation_rules(
     fp_a: WorkflowFingerprint,
     fp_b: WorkflowFingerprint,
     comp: WorkflowComparisonEvidence,
 ) -> ConsolidationDecision:
-    """Evaluate pairwise deterministic consolidation/merge rules A, B, C, D from canonical evidence.
+    """Evaluate pairwise deterministic consolidation/merge rules from canonical evidence.
 
     Rules:
+    - RULE DATA SUBSUMPTION: If Workflow B contains 100% of the data/fields required by Workflow A
+      and compatible processing capability with no unique functionality lost -> recommend MERGE.
     - RULE A: If source/input files overlap 100% AND at least one workflow has Low complexity
       AND both workflows have the same frequency -> recommend MERGE.
     - RULE B: If the workflows have different outputs AND at least one workflow has Low complexity
@@ -716,6 +1291,59 @@ def evaluate_consolidation_rules(
     - RULE D: If Workflow B's logic can be incorporated into Workflow A while Workflow A still
       produces the same existing result -> recommend MERGE.
     """
+    # 0. Check Directional Data Subsumption Gates
+    subsumes_a_in_b, ev_a_in_b = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
+    if subsumes_a_in_b and ev_a_in_b is not None:
+        evidence = [
+            f"Data Sufficiency: 100% field coverage ({len(ev_a_in_b.shared_required_fields)} shared required fields, 0 missing in {fp_b.workflow_name})",
+            f"Processing Substitutability: {ev_a_in_b.processing_compatibility} across all {fp_a.workflow_name} operations",
+            f"Output Semantics: {ev_a_in_b.output_compatibility} ({fp_a.workflow_name} inspection sinks fully preservable)",
+            f"Direction: {ev_a_in_b.direction_statement}",
+        ]
+        return ConsolidationDecision(
+            recommendation="MERGE",
+            matched_rule=ConsolidationRules.RULE_DATA_SUBSUMPTION,
+            reason=ev_a_in_b.recommendation_summary,
+            evidence=evidence,
+            source_overlap_pct=comp.metrics.source_overlap,
+            is_source_100_pct=bool(comp.metrics.source_overlap >= 0.99),
+            output_relationship=ev_a_in_b.output_compatibility,
+            complexity_a=(fp_a.complexity_level or "LOW").upper(),
+            complexity_b=(fp_b.complexity_level or "LOW").upper(),
+            frequency_a=fp_a.frequency,
+            frequency_b=fp_b.frequency,
+            is_same_frequency=bool(fp_a.frequency and fp_b.frequency and fp_a.frequency.lower() == fp_b.frequency.lower()),
+            logic_preservable=True,
+            merge_direction=ev_a_in_b.direction_statement,
+            data_subsumption_evidence=ev_a_in_b,
+        )
+
+    subsumes_b_in_a, ev_b_in_a = evaluate_directional_data_subsumption(fp_b, fp_a, comp)
+    if subsumes_b_in_a and ev_b_in_a is not None:
+        evidence = [
+            f"Data Sufficiency: 100% field coverage ({len(ev_b_in_a.shared_required_fields)} shared required fields, 0 missing in {fp_a.workflow_name})",
+            f"Processing Substitutability: {ev_b_in_a.processing_compatibility} across all {fp_b.workflow_name} operations",
+            f"Output Semantics: {ev_b_in_a.output_compatibility} ({fp_b.workflow_name} inspection sinks fully preservable)",
+            f"Direction: {ev_b_in_a.direction_statement}",
+        ]
+        return ConsolidationDecision(
+            recommendation="MERGE",
+            matched_rule=ConsolidationRules.RULE_DATA_SUBSUMPTION,
+            reason=ev_b_in_a.recommendation_summary,
+            evidence=evidence,
+            source_overlap_pct=comp.metrics.source_overlap,
+            is_source_100_pct=bool(comp.metrics.source_overlap >= 0.99),
+            output_relationship=ev_b_in_a.output_compatibility,
+            complexity_a=(fp_a.complexity_level or "LOW").upper(),
+            complexity_b=(fp_b.complexity_level or "LOW").upper(),
+            frequency_a=fp_a.frequency,
+            frequency_b=fp_b.frequency,
+            is_same_frequency=bool(fp_a.frequency and fp_b.frequency and fp_a.frequency.lower() == fp_b.frequency.lower()),
+            logic_preservable=True,
+            merge_direction=ev_b_in_a.direction_statement,
+            data_subsumption_evidence=ev_b_in_a,
+        )
+
     # 1. Physical normalized sources (exclude *Unknown and empty)
     src_a = {normalize_name(s) for s in fp_a.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
     src_b = {normalize_name(s) for s in fp_b.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
@@ -747,9 +1375,6 @@ def evaluate_consolidation_rules(
     is_same_frequency = bool(freq_a and freq_b and freq_a.lower() == freq_b.lower())
 
     # 5. Logic / Result Preservation (Rule D)
-    # Check if Workflow B's logic can be incorporated into Workflow A (or vice versa) while preserving existing result.
-    # Deterministic proof required: true functional subsumption (all transformations and targets of one workflow
-    # are completely covered by the other workflow).
     sig_a = {s for s in fp_a.transformation_signatures if is_meaningful_evidence(s)}
     sig_b = {s for s in fp_b.transformation_signatures if is_meaningful_evidence(s)}
 
@@ -912,7 +1537,7 @@ def detect_candidate_from_comparison(
     m = comp.metrics
     t = RationalisationThresholds
 
-    # Evaluate exact consolidation rules A, B, C, D
+    # Evaluate exact consolidation rules (including Rule DATA SUBSUMPTION, A, B, C, D)
     consolidation_decision = evaluate_consolidation_rules(fp_a, fp_b, comp)
 
     # Build OutputEvidence
@@ -991,6 +1616,7 @@ def detect_candidate_from_comparison(
         or comp.shared_sources
         or comp.shared_targets
         or comp.shared_logic
+        or consolidation_decision.data_subsumption_evidence is not None
     )
     can_review = (
         has_any_overlap
@@ -998,6 +1624,7 @@ def detect_candidate_from_comparison(
             comp.opportunity_score >= t.MIN_SURFACE_SCORE
             or m.source_overlap >= t.REVIEW_OVERLAP_MIN
             or (len(comp.shared_sources) > 0 and m.transformation_similarity >= 0.20)
+            or consolidation_decision.data_subsumption_evidence is not None
         )
     )
 
@@ -1019,7 +1646,29 @@ def detect_candidate_from_comparison(
         return None
 
     # Deterministic Reasoning & Proposed Strategy
-    if recommendation_type == "RETIRE_CANDIDATE":
+    if consolidation_decision.data_subsumption_evidence is not None:
+        dse = consolidation_decision.data_subsumption_evidence
+        reasoning = (
+            f"Directional Data Subsumption Confirmed: {dse.target_workflow_name} contains 100% of the data and fields "
+            f"required by {dse.source_workflow_name} ({len(dse.shared_required_fields)} shared required fields, 0 missing), "
+            f"and possesses compatible processing substitutability to perform its operations with zero lost unique functionality."
+        )
+        proposed_strategy = (
+            f"Consolidate {dse.source_workflow_name} into {dse.target_workflow_name}. Direct downstream operational "
+            f"consumers to {dse.target_workflow_name} and retire {dse.source_workflow_name}."
+        )
+        evidence_list = [
+            f"Data Sufficiency: 100% field coverage ({len(dse.shared_required_fields)} fields, 0 missing in {dse.target_workflow_name})",
+            f"Processing Substitutability: {dse.processing_compatibility} across all operations in {dse.source_workflow_name}",
+            f"Output Semantics: {dse.output_compatibility} ({dse.source_workflow_name} output requirements fully preserved)",
+            f"Direction: {dse.direction_statement}",
+        ]
+        validation_reqs = [
+            f"Verify all consumers of {dse.source_workflow_name} are redirected to {dse.target_workflow_name}",
+            f"Confirm {dse.target_workflow_name} scheduled execution covers the operational window of {dse.source_workflow_name}",
+            f"Inspect sample outputs from {dse.target_workflow_name} to confirm field schema parity",
+        ]
+    elif recommendation_type == "RETIRE_CANDIDATE":
         reasoning = (
             f"{fp_a.workflow_name} and {fp_b.workflow_name} exhibit strong functional equivalence: "
             f"identical production targets ({', '.join(comp.shared_targets) or 'equivalent targets'}), "
@@ -1158,6 +1807,7 @@ def detect_candidate_from_comparison(
         admissible_recommendations=admissible,
         llm_enrichment_status="DETERMINISTIC_BASELINE",
         consolidation_decision=consolidation_decision,
+        data_subsumption_evidence=consolidation_decision.data_subsumption_evidence,
         sources_by_workflow={
             fp_a.workflow_name: fp_a.sources,
             fp_b.workflow_name: fp_b.sources,

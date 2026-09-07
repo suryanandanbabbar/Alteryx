@@ -310,6 +310,12 @@ class WorkflowFingerprint:
     criticality_score: float = 0.0
     frequency: str = "Not documented"
     downstream_consumers: list[str] = field(default_factory=list)
+    canonical_columns: dict[str, ColumnEvidence] = field(default_factory=dict)
+    required_columns: list[str] = field(default_factory=list)
+    available_columns: list[str] = field(default_factory=list)
+    raw_data_rows_inspected: int = 0
+    sample_data_evidence: list[dict[str, Any]] = field(default_factory=list)
+    operations_summary: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -343,6 +349,12 @@ class WorkflowFingerprint:
             "criticality_score": self.criticality_score,
             "frequency": self.frequency,
             "downstream_consumers": self.downstream_consumers,
+            "canonical_columns": {k: v.to_dict() for k, v in self.canonical_columns.items()},
+            "required_columns": self.required_columns,
+            "available_columns": self.available_columns,
+            "raw_data_rows_inspected": self.raw_data_rows_inspected,
+            "sample_data_evidence": self.sample_data_evidence,
+            "operations_summary": self.operations_summary,
         }
 
 
@@ -406,6 +418,7 @@ class ConsolidationDecision:
     is_same_frequency: bool = False
     logic_preservable: bool = False
     merge_direction: Optional[str] = None
+    data_subsumption_evidence: Optional[DataSubsumptionEvidence] = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -423,6 +436,80 @@ class ConsolidationDecision:
             "is_same_frequency": self.is_same_frequency,
             "logic_preservable": self.logic_preservable,
             "merge_direction": self.merge_direction,
+            "data_subsumption_evidence": self.data_subsumption_evidence.to_dict() if self.data_subsumption_evidence else None,
+        }
+
+
+@dataclass
+class ColumnEvidence:
+    """Deterministic evidence for an individual column/field in a workflow."""
+    original_name: str
+    normalized_name: str
+    source_dataset: str = ""
+    source_tool_id: str = ""
+    source_tool_type: str = ""
+    provenance: str = "Source metadata unavailable"
+    sample_values: list[str] = field(default_factory=list)
+    is_required: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "original_name": self.original_name,
+            "normalized_name": self.normalized_name,
+            "source_dataset": self.source_dataset,
+            "source_tool_id": self.source_tool_id,
+            "source_tool_type": self.source_tool_type,
+            "provenance": self.provenance,
+            "sample_values": self.sample_values,
+            "is_required": self.is_required,
+        }
+
+
+@dataclass
+class DataSubsumptionEvidence:
+    """Directional data-superset and processing subsumption evidence (Workflow A -> Workflow B)."""
+    source_workflow_id: str
+    source_workflow_name: str
+    target_workflow_id: str
+    target_workflow_name: str
+    data_coverage_pct: float = 0.0
+    missing_fields_count: int = 0
+    missing_fields: list[str] = field(default_factory=list)
+    shared_required_fields: list[str] = field(default_factory=list)
+    additional_fields_in_target: list[str] = field(default_factory=list)
+    field_provenance_map: dict[str, Any] = field(default_factory=dict)
+    sample_data_matches: list[dict[str, Any]] = field(default_factory=list)
+    processing_substitutability_matrix: list[dict[str, Any]] = field(default_factory=list)
+    processing_compatibility: str = "SUPPORTED"  # SUPPORTED | PARTIALLY_SUPPORTED | UNSUPPORTED
+    output_compatibility: str = "COMPATIBLE"     # COMPATIBLE | INSPECTION_SINK_ONLY | IDENTICAL | INCOMPATIBLE
+    has_unresolved_unique_functionality: bool = False
+    unresolved_unique_details: list[str] = field(default_factory=list)
+    direction_statement: str = ""
+    recommendation_summary: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "source_workflow_id": self.source_workflow_id,
+            "source_workflow_name": self.source_workflow_name,
+            "target_workflow_id": self.target_workflow_id,
+            "target_workflow_name": self.target_workflow_name,
+            "data_coverage_pct": round(self.data_coverage_pct, 4),
+            "missing_fields_count": self.missing_fields_count,
+            "missing_fields": self.missing_fields,
+            "shared_required_fields": self.shared_required_fields,
+            "additional_fields_in_target": self.additional_fields_in_target,
+            "field_provenance_map": {
+                k: v.to_dict() if hasattr(v, "to_dict") else v
+                for k, v in self.field_provenance_map.items()
+            },
+            "sample_data_matches": self.sample_data_matches,
+            "processing_substitutability_matrix": self.processing_substitutability_matrix,
+            "processing_compatibility": self.processing_compatibility,
+            "output_compatibility": self.output_compatibility,
+            "has_unresolved_unique_functionality": self.has_unresolved_unique_functionality,
+            "unresolved_unique_details": self.unresolved_unique_details,
+            "direction_statement": self.direction_statement,
+            "recommendation_summary": self.recommendation_summary,
         }
 
 
@@ -448,6 +535,7 @@ class RationalisationCandidate:
     admissible_recommendations: list[str] = field(default_factory=list)
     llm_enrichment_status: str = "DETERMINISTIC_BASELINE"
     consolidation_decision: Optional[ConsolidationDecision] = None
+    data_subsumption_evidence: Optional[DataSubsumptionEvidence] = None
     sources_by_workflow: dict[str, list[str]] = field(default_factory=dict)
     source_fields_by_workflow: dict[str, dict[str, list[str]]] = field(default_factory=dict)
     transformations_by_workflow: dict[str, list[str]] = field(default_factory=dict)
@@ -474,6 +562,7 @@ class RationalisationCandidate:
             "admissible_recommendations": self.admissible_recommendations,
             "llm_enrichment_status": self.llm_enrichment_status,
             "consolidation_decision": self.consolidation_decision.to_dict() if self.consolidation_decision else None,
+            "data_subsumption_evidence": self.data_subsumption_evidence.to_dict() if self.data_subsumption_evidence else None,
             "sources_by_workflow": self.sources_by_workflow,
             "source_fields_by_workflow": self.source_fields_by_workflow,
             "transformations_by_workflow": self.transformations_by_workflow,

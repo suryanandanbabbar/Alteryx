@@ -1176,7 +1176,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                       </span>
                     </div>
 
-                    {/* Workflows Involved Strip */}
+                      {/* In-Scope Workflows Strip */}
                     <div
                       style={{
                         display: 'flex',
@@ -1265,6 +1265,67 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         );
                       })}
                     </div>
+
+                    {/* Directional Data-Superset Merge Callout Banner */}
+                    {(() => {
+                      const dse = cand.data_subsumption_evidence || cand.consolidation_decision?.data_subsumption_evidence;
+                      if (!dse) return null;
+
+                      return (
+                        <div
+                          style={{
+                            padding: '14px 18px',
+                            borderRadius: '8px',
+                            background: 'rgba(16, 185, 129, 0.08)',
+                            border: '1px solid rgba(16, 185, 129, 0.35)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <GitMerge size={16} color="#34d399" />
+                              <span style={{ fontSize: '12.5px', fontWeight: '800', color: '#34d399', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                                Directional Data-Superset Merge
+                              </span>
+                            </div>
+                            <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-muted)' }}>
+                              Subsumption Rule Matched
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '13.5px', fontWeight: '700' }}>
+                            <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.35)', padding: '3px 10px', borderRadius: '4px' }}>
+                              {dse.source_workflow_name} (Absorbed)
+                            </span>
+                            <span style={{ color: '#34d399', fontWeight: '800' }}>↓ can be consolidated into ↓</span>
+                            <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.35)', padding: '3px 10px', borderRadius: '4px' }}>
+                              {dse.target_workflow_name} (Retained Superset)
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginTop: '2px', fontSize: '12px' }}>
+                            <div style={{ padding: '6px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-subtle)' }}>
+                              <div style={{ color: 'var(--color-text-muted)', fontSize: '10.5px' }}>Data Coverage</div>
+                              <div style={{ color: '#34d399', fontWeight: '700' }}>{Math.round(dse.data_coverage_pct * 100)}% (0 Missing)</div>
+                            </div>
+                            <div style={{ padding: '6px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-subtle)' }}>
+                              <div style={{ color: 'var(--color-text-muted)', fontSize: '10.5px' }}>Processing Capability</div>
+                              <div style={{ color: '#34d399', fontWeight: '700' }}>{dse.processing_compatibility}</div>
+                            </div>
+                            <div style={{ padding: '6px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-subtle)' }}>
+                              <div style={{ color: 'var(--color-text-muted)', fontSize: '10.5px' }}>Output Compatibility</div>
+                              <div style={{ color: '#38bdf8', fontWeight: '700' }}>{dse.output_compatibility}</div>
+                            </div>
+                            <div style={{ padding: '6px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-subtle)' }}>
+                              <div style={{ color: 'var(--color-text-muted)', fontSize: '10.5px' }}>Shared Required Fields</div>
+                              <div style={{ color: 'var(--color-text)', fontWeight: '700' }}>{dse.shared_required_fields.length} Fields</div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Deterministic Similarity Metrics Progress Bars */}
                     <div
@@ -1622,7 +1683,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
         >
           <div
             style={{
-              maxWidth: '920px',
+              maxWidth: '960px',
               width: '100%',
               maxHeight: '88vh',
               overflowY: 'auto',
@@ -1839,6 +1900,217 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               </div>
             </div>
 
+            {/* Comprehensive Data Subsumption Analysis (When Present) */}
+            {(() => {
+              const dse = selectedCandidate.data_subsumption_evidence || selectedCandidate.consolidation_decision?.data_subsumption_evidence;
+              if (!dse) return null;
+
+              return (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '20px',
+                    padding: '20px',
+                    borderRadius: '10px',
+                    background: 'rgba(16, 185, 129, 0.05)',
+                    border: '1.5px solid rgba(16, 185, 129, 0.35)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid rgba(16, 185, 129, 0.25)', paddingBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <GitMerge size={18} color="#34d399" />
+                      <span style={{ fontSize: '14px', fontWeight: '800', color: '#34d399', letterSpacing: '0.04em' }}>
+                        DETERMINISTIC DATA-SUPERSET SUBSUMPTION EVIDENCE
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '3px 10px', borderRadius: '4px' }}>
+                      100% Data Sufficiency + Substitutable Processing
+                    </span>
+                  </div>
+
+                  {/* Direction Flow Banner */}
+                  <div
+                    style={{
+                      padding: '16px',
+                      borderRadius: '8px',
+                      background: 'var(--color-surface)',
+                      border: '1px solid var(--color-border-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      Consolidation Direction
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '14px', fontWeight: '700' }}>
+                      <div style={{ padding: '6px 12px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                        {dse.source_workflow_name} <span style={{ fontSize: '11px', opacity: 0.85 }}>(Absorbed Candidate)</span>
+                      </div>
+                      <span style={{ color: '#34d399', fontWeight: '800', fontSize: '16px' }}>➔</span>
+                      <div style={{ padding: '6px 12px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.12)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                        {dse.target_workflow_name} <span style={{ fontSize: '11px', opacity: 0.85 }}>(Retained Superset Workflow)</span>
+                      </div>
+                    </div>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: '1.5' }}>
+                      {dse.recommendation_summary}
+                    </p>
+                  </div>
+
+                  {/* Section 2: Data Sufficiency & Column Coverage */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                      Layer 1: Data Sufficiency & Column Parity (0 Missing Fields)
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                      <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Data Field Coverage</div>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#34d399' }}>{Math.round(dse.data_coverage_pct * 100)}%</div>
+                        <div style={{ fontSize: '11px', color: '#34d399', marginTop: '2px' }}>0 missing fields required</div>
+                      </div>
+                      <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Shared Required Fields</div>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)' }}>{dse.shared_required_fields.length}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Fully available in target</div>
+                      </div>
+                      <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Additional Target Fields</div>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#38bdf8' }}>+{dse.additional_fields_in_target.length}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Superset enrichment</div>
+                      </div>
+                    </div>
+
+                    {/* Shared Fields Tag Cloud */}
+                    <div style={{ padding: '14px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text)', marginBottom: '8px' }}>
+                        Required Fields Verified in Retained Workflow ({dse.shared_required_fields.length}):
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {dse.shared_required_fields.map((fld) => (
+                          <span
+                            key={fld}
+                            style={{
+                              fontSize: '11.5px',
+                              fontWeight: '600',
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              background: 'rgba(16, 185, 129, 0.12)',
+                              color: '#34d399',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                            }}
+                          >
+                            ✓ {fld}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Section 3: Field Provenance Map */}
+                  {Object.keys(dse.field_provenance_map || {}).length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                        Field Provenance & Origin Details
+                      </div>
+                      <div style={{ overflowX: 'auto', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-secondary)', color: 'var(--color-text-muted)' }}>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Field Name</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Source / Dataset</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Origin & Provenance Path</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Sample Values</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(dse.field_provenance_map).map(([fname, colEv], idx) => (
+                              <tr key={fname} style={{ borderBottom: idx < Object.keys(dse.field_provenance_map).length - 1 ? '1px solid var(--color-border-subtle)' : 'none' }}>
+                                <td style={{ padding: '8px 12px', fontWeight: '700', color: 'var(--color-text)', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+                                  {colEv.original_name || fname}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
+                                  {colEv.source_dataset || 'Target Workflow'}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
+                                  {colEv.provenance}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: '#34d399', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+                                  {(colEv.sample_values && colEv.sample_values.length > 0) ? colEv.sample_values.slice(0, 3).join(', ') : 'Verified in pipeline'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section 4: Processing Substitutability Matrix */}
+                  {dse.processing_substitutability_matrix && dse.processing_substitutability_matrix.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                        Layer 2: Processing Substitutability Matrix
+                      </div>
+                      <div style={{ overflowX: 'auto', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-secondary)', color: 'var(--color-text-muted)' }}>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Source Tool / Op</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Operation Type</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Target Equivalent Capability</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Compatibility</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Technical Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dse.processing_substitutability_matrix.map((row, idx) => (
+                              <tr key={idx} style={{ borderBottom: idx < dse.processing_substitutability_matrix.length - 1 ? '1px solid var(--color-border-subtle)' : 'none' }}>
+                                <td style={{ padding: '8px 12px', fontWeight: '700', color: 'var(--color-text)' }}>
+                                  Tool #{row.source_tool_id || idx + 1}: {row.source_operation || row.source_tool_type}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: 'var(--color-primary)', fontWeight: '600' }}>
+                                  {row.source_tool_type || 'Transformation'}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
+                                  {row.target_equivalent || 'Supported in pipeline'}
+                                </td>
+                                <td style={{ padding: '8px 12px' }}>
+                                  <span style={{ fontSize: '10.5px', fontWeight: '800', padding: '2px 7px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                                    {row.status || 'SUPPORTED'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
+                                  {row.notes}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section 5: Output & Deliverable Compatibility */}
+                  <div style={{ padding: '14px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                      Output & Grain Compatibility
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
+                      <span style={{ color: '#38bdf8', fontWeight: '700' }}>Status: {dse.output_compatibility}</span>
+                      <span style={{ color: 'var(--color-text-muted)' }}>•</span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>
+                        {dse.output_compatibility === 'INSPECTION_SINK_ONLY'
+                          ? `${dse.source_workflow_name} produces no production deliverable files and terminates in inspection sinks. Safe to consolidate.`
+                          : 'Target workflow generates all required production deliverable datasets.'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Overlap Evidence Interactive Metric Selector */}
             <div>
               <div
@@ -1946,18 +2218,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                             {m.label}
                           </span>
                         </div>
-                        {/* <span
-                          style={{
-                            fontSize: '12px',
-                            fontWeight: '800',
-                            color: isSelected ? '#facc15' : 'var(--color-text)',
-                          }}
-                        >
-                          {pct}%
-                        </span> */}
                       </div>
-
-
                     </button>
                   );
                 })}

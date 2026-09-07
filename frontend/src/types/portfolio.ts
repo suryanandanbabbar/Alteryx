@@ -137,6 +137,52 @@ export interface DependencyEvidenceDTO {
   dependency_notes: string;
 }
 
+export interface ColumnEvidenceDTO {
+  original_name: string;
+  normalized_name: string;
+  source_dataset: string;
+  source_tool_id?: string;
+  source_tool_type?: string;
+  provenance: string;
+  sample_values?: string[];
+  is_required: boolean;
+}
+
+export interface DataSubsumptionEvidenceDTO {
+  source_workflow_id: string;
+  source_workflow_name: string;
+  target_workflow_id: string;
+  target_workflow_name: string;
+  data_coverage_pct: number;
+  missing_fields_count: number;
+  missing_fields: string[];
+  shared_required_fields: string[];
+  additional_fields_in_target: string[];
+  field_provenance_map: Record<string, ColumnEvidenceDTO>;
+  sample_data_matches: Array<{
+    field?: string;
+    source_workflow?: string;
+    source_samples?: string[];
+    row_count?: number;
+    status?: string;
+  }>;
+  processing_substitutability_matrix: Array<{
+    source_tool_id?: string;
+    source_tool_type?: string;
+    source_operation?: string;
+    target_equivalent?: string;
+    target_tool_id?: string;
+    status?: string;
+    notes?: string;
+  }>;
+  processing_compatibility: 'SUPPORTED' | 'PARTIALLY_SUPPORTED' | 'UNSUPPORTED';
+  output_compatibility: 'COMPATIBLE' | 'INSPECTION_SINK_ONLY' | 'IDENTICAL' | 'INCOMPATIBLE';
+  has_unresolved_unique_functionality: boolean;
+  unresolved_unique_details: string[];
+  direction_statement: string;
+  recommendation_summary: string;
+}
+
 export interface ConsolidationDecisionDTO {
   recommendation: 'MERGE' | 'DO NOT MERGE';
   matched_rule: string;
@@ -152,6 +198,7 @@ export interface ConsolidationDecisionDTO {
   is_same_frequency: boolean;
   logic_preservable: boolean;
   merge_direction?: string | null;
+  data_subsumption_evidence?: DataSubsumptionEvidenceDTO | null;
 }
 
 export interface RationalisationCandidateDTO {
@@ -174,6 +221,7 @@ export interface RationalisationCandidateDTO {
   admissible_recommendations: string[];
   llm_enrichment_status: string;
   consolidation_decision?: ConsolidationDecisionDTO | null;
+  data_subsumption_evidence?: DataSubsumptionEvidenceDTO | null;
   sources_by_workflow?: Record<string, string[]>;
   source_fields_by_workflow?: Record<string, Record<string, string[]>>;
   transformations_by_workflow?: Record<string, string[]>;

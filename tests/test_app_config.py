@@ -88,21 +88,26 @@ def test_dotenv_loading_and_precedence(tmp_path, monkeypatch):
 
 def test_api_config_endpoint_configured(monkeypatch):
     monkeypatch.setenv("CODE_BASED_WORKFLOWS_URL", "https://api-test.example.com")
+    monkeypatch.setenv("KPI_ONTOLOGY_BANK_URL", "https://kpi-test.example.com")
     client = TestClient(app)
     response = client.get("/api/config")
     assert response.status_code == 200
     data = response.json()
     assert data["code_based_workflows_url"] == "https://api-test.example.com"
+    assert data["kpi_ontology_bank_url"] == "https://kpi-test.example.com"
     # Ensure ONLY non-sensitive fields are returned in public config
-    assert set(data.keys()) == {"code_based_workflows_url"}
+    assert set(data.keys()) == {"code_based_workflows_url", "kpi_ontology_bank_url"}
 
 
 def test_api_config_endpoint_unconfigured(monkeypatch):
     monkeypatch.delenv("CODE_BASED_WORKFLOWS_URL", raising=False)
     monkeypatch.delenv("AWA_CODE_BASED_WORKFLOWS_URL", raising=False)
+    monkeypatch.delenv("KPI_ONTOLOGY_BANK_URL", raising=False)
+    monkeypatch.delenv("AWA_KPI_ONTOLOGY_BANK_URL", raising=False)
     client = TestClient(app)
     response = client.get("/api/config")
     assert response.status_code == 200
     data = response.json()
     assert "code_based_workflows_url" in data
-    assert set(data.keys()) == {"code_based_workflows_url"}
+    assert "kpi_ontology_bank_url" in data
+    assert set(data.keys()) == {"code_based_workflows_url", "kpi_ontology_bank_url"}
