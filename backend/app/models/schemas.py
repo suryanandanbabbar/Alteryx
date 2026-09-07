@@ -422,6 +422,7 @@ class DependencyEvidenceDTO(BaseModel):
     downstream_consumers: dict[str, list[str]] = Field(default_factory=dict)
     upstream_producers: dict[str, list[str]] = Field(default_factory=dict)
     shared_sources: list[str] = Field(default_factory=list)
+    shared_source_fields: list[str] = Field(default_factory=list)
     shared_targets: list[str] = Field(default_factory=list)
     dependency_status: str = "NOT_FOUND_IN_PORTFOLIO"
     dependency_notes: str = ""

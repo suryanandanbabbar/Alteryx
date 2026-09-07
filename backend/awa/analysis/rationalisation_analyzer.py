@@ -874,6 +874,14 @@ def build_workflow_fingerprint(
         extract_workflow_column_and_data_evidence(summary, canonical_res)
     )
 
+    # Enrich source_fields map from canonical column provenance and datasets
+    for col_ev in canonical_columns.values():
+        ds = col_ev.source_dataset or "sources"
+        norm_ds = normalize_name(ds) or ds
+        source_fields.setdefault(norm_ds, []).append(col_ev.original_name)
+    for k in list(source_fields.keys()):
+        source_fields[k] = sorted(list(set(source_fields[k])))
+
     return WorkflowFingerprint(
         workflow_id=summary.workflow_id,
         workflow_name=summary.filename,
@@ -937,11 +945,52 @@ def compare_workflows(
     target_to_consumers: Optional[dict[str, list[str]]] = None,
 ) -> WorkflowComparisonEvidence:
     """Deterministically compare two workflow fingerprints across all evidence dimensions."""
-    # 1. Source overlap
+    # 1. Exact Source Identity match
     src_a = {normalize_name(s) for s in fp_a.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
     src_b = {normalize_name(s) for s in fp_b.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
-    source_overlap = _jaccard_similarity(src_a, src_b)
     shared_sources = sorted(list(src_a & src_b))
+
+    # Field-level Source Metadata match (from canonical columns, available columns, required columns, and source fields)
+    flds_a = set()
+    for k in fp_a.canonical_columns.keys():
+        if k:
+            flds_a.add(normalize_field_name(k))
+    for f in fp_a.available_columns:
+        if f:
+            flds_a.add(normalize_field_name(f))
+    for f in fp_a.required_columns:
+        if f:
+            flds_a.add(normalize_field_name(f))
+    for flist in fp_a.source_fields.values():
+        for f in flist:
+            if f:
+                flds_a.add(normalize_field_name(f))
+    flds_a.discard("")
+
+    flds_b = set()
+    for k in fp_b.canonical_columns.keys():
+        if k:
+            flds_b.add(normalize_field_name(k))
+    for f in fp_b.available_columns:
+        if f:
+            flds_b.add(normalize_field_name(f))
+    for f in fp_b.required_columns:
+        if f:
+            flds_b.add(normalize_field_name(f))
+    for flist in fp_b.source_fields.values():
+        for f in flist:
+            if f:
+                flds_b.add(normalize_field_name(f))
+    flds_b.discard("")
+
+    shared_source_fields = sorted(list(flds_a & flds_b))
+
+    # Source Metadata Overlap: Jaccard similarity of normalized field metadata
+    if flds_a or flds_b:
+        source_overlap = _jaccard_similarity(flds_a, flds_b)
+    else:
+        # Fallback to physical source identity similarity if no field metadata exists
+        source_overlap = _jaccard_similarity(src_a, src_b)
 
     # 2. Production Target overlap
     tgt_a = {normalize_name(t) for t in fp_a.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
@@ -1060,6 +1109,7 @@ def compare_workflows(
         },
         upstream_producers={},
         shared_sources=shared_sources,
+        shared_source_fields=shared_source_fields,
         shared_targets=shared_targets,
         dependency_status=dep_status,
         dependency_notes=dep_notes,
@@ -1087,14 +1137,14 @@ def compare_workflows(
         + (source_overlap * 25.0)
         + (target_schema_score * 20.0)
         + (dag_similarity * 10.0)
-        + ((1.0 if shared_sources or shared_targets else 0.0) * 10.0)
+        + ((1.0 if shared_sources or shared_source_fields or shared_targets else 0.0) * 10.0)
     )
     opp_score = max(0.0, min(100.0, opp_score))
 
     # 10. Evidence Confidence (based on evidence quality/completeness)
-    if all_cols_a and all_cols_b and (fp_a.sources or fp_b.sources):
+    if all_cols_a and all_cols_b and (fp_a.sources or fp_b.sources or flds_a or flds_b):
         confidence = "HIGH"
-    elif fp_a.sources or fp_b.sources:
+    elif fp_a.sources or fp_b.sources or flds_a or flds_b:
         confidence = "MEDIUM"
     else:
         confidence = "LOW"
@@ -1109,6 +1159,7 @@ def compare_workflows(
         unique_a=unique_a,
         unique_b=unique_b,
         shared_sources=shared_sources,
+        shared_source_fields=shared_source_fields,
         shared_targets=shared_targets,
         distinct_targets_a=distinct_targets_a,
         distinct_targets_b=distinct_targets_b,
@@ -1596,11 +1647,20 @@ def evaluate_consolidation_rules(
             merge_direction = f"{fp_b.workflow_name} absorbs {fp_a.workflow_name}"
 
     # Build concise auditable evidence
-    source_desc = (
-        f"100% identical source files ({len(src_a)} datasets: {', '.join(sorted(src_a))})"
-        if is_source_100_pct
-        else (f"{round(source_overlap_pct * 100)}% overlap (shared: {', '.join(comp.shared_sources)})" if comp.shared_sources else f"{round(source_overlap_pct * 100)}% overlap (distinct sources)")
-    )
+    if is_source_100_pct:
+        if comp.shared_sources:
+            source_desc = f"100% identical source files ({len(comp.shared_sources)} datasets: {', '.join(sorted(comp.shared_sources))})"
+        elif comp.shared_source_fields:
+            source_desc = f"100% source metadata overlap ({len(comp.shared_source_fields)} matching fields)"
+        else:
+            source_desc = "100% source metadata overlap"
+    elif comp.shared_source_fields:
+        source_desc = f"{round(source_overlap_pct * 100)}% source metadata overlap ({len(comp.shared_source_fields)} matching fields)"
+    elif comp.shared_sources:
+        source_desc = f"{round(source_overlap_pct * 100)}% source overlap (shared: {', '.join(comp.shared_sources)})"
+    else:
+        source_desc = f"{round(source_overlap_pct * 100)}% source overlap"
+
     target_desc = (
         f"Different output destinations ({fp_a.workflow_name}: {', '.join(sorted(tgt_a)) or 'None'} vs {fp_b.workflow_name}: {', '.join(sorted(tgt_b)) or 'None'})"
         if different_outputs
@@ -1619,6 +1679,7 @@ def evaluate_consolidation_rules(
         source_overlap_pct > 0.0
         or comp.metrics.transformation_similarity > 0.0
         or comp.shared_sources
+        or comp.shared_source_fields
         or [s for s in comp.shared_logic if is_meaningful_evidence(s)]
     )
 
@@ -1912,8 +1973,15 @@ def detect_candidate_from_comparison(
             "Centralize the common ingestion, filtering, and cleansing pipeline into a unified shared processing layer, "
             "retaining distinct downstream branches for unique analytical outputs."
         )
+        if comp.shared_source_fields:
+            src_str = f"{round(m.source_overlap * 100)}% source metadata overlap ({len(comp.shared_source_fields)} matching fields)"
+        elif comp.shared_sources:
+            src_str = f"{round(m.source_overlap * 100)}% source overlap ({len(comp.shared_sources)} shared inputs)"
+        else:
+            src_str = f"{round(m.source_overlap * 100)}% source overlap"
+
         evidence_list = [
-            f"{round(m.source_overlap * 100)}% source overlap ({len(comp.shared_sources)} shared inputs)",
+            src_str,
             f"{round(m.transformation_similarity * 100)}% shared transformation operations",
             f"Distinct production branches: {len(comp.distinct_targets_a)} for {fp_a.workflow_name}, {len(comp.distinct_targets_b)} for {fp_b.workflow_name}",
             f"DAG structural alignment score: {round(m.dag_similarity * 100)}%",
@@ -1952,9 +2020,16 @@ def detect_candidate_from_comparison(
             "Conduct peer architectural review to evaluate whether shared assets represent an intentional design pattern "
             "or an uncoordinated duplication of ETL processing."
         )
+        if comp.shared_source_fields:
+            src_rev_str = f"{round(m.source_overlap * 100)}% source metadata overlap"
+        elif comp.shared_sources:
+            src_rev_str = f"{round(m.source_overlap * 100)}% source overlap"
+        else:
+            src_rev_str = f"{round(m.source_overlap * 100)}% source overlap"
+
         evidence_list = [
             f"Opportunity score: {round(comp.opportunity_score, 1)}/100",
-            f"{round(m.source_overlap * 100)}% source overlap, {round(m.transformation_similarity * 100)}% logic similarity",
+            f"{src_rev_str}, {round(m.transformation_similarity * 100)}% logic similarity",
             f"Risk profile: {risk_level} ({fp_a.workflow_name}: {fp_a.criticality_level}, {fp_b.workflow_name}: {fp_b.criticality_level})",
         ]
         validation_reqs = [

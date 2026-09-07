@@ -2257,19 +2257,46 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                 const setFieldsA = new Set(allFieldsA.map((f) => f.toLowerCase()));
                 const setFieldsB = new Set(allFieldsB.map((f) => f.toLowerCase()));
 
+                const sharedSourcesCount = selectedCandidate.dependency_evidence?.shared_sources?.length || Array.from(normA).filter(s => normB.has(s)).length;
+                const sharedFieldsCount = selectedCandidate.dependency_evidence?.shared_source_fields?.length || Array.from(setFieldsA).filter(f => setFieldsB.has(f)).length;
+
+                const getFieldsForSource = (src: string, fmap: Record<string, string[]>) => {
+                  if (fmap[src] && fmap[src].length > 0) return fmap[src];
+                  const normSrc = normalizeItem(src);
+                  if (fmap[normSrc] && fmap[normSrc].length > 0) return fmap[normSrc];
+                  const matchingKey = Object.keys(fmap).find(k => normalizeItem(k) === normSrc);
+                  if (matchingKey && fmap[matchingKey] && fmap[matchingKey].length > 0) return fmap[matchingKey];
+                  if (fmap['sources'] && fmap['sources'].length > 0) return fmap['sources'];
+                  return [];
+                };
+
                 return (
                   <div>
                     <div
                       style={{
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.08em',
-                        color: 'var(--color-text-muted)',
-                        marginBottom: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                        marginBottom: '10px',
                       }}
                     >
-                      SOURCE DATASETS & COLUMN HEADERS (YELLOW = MATCHING)
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          color: 'var(--color-text-muted)',
+                        }}
+                      >
+                        SOURCE DATASETS & COLUMN HEADERS (YELLOW = MATCHING)
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--color-text-secondary)', display: 'flex', gap: '14px' }}>
+                        <span>Source Identity: <strong style={{ color: sharedSourcesCount > 0 ? '#facc15' : 'var(--color-text-muted)' }}>{sharedSourcesCount} matching</strong></span>
+                        <span>Field Metadata: <strong style={{ color: sharedFieldsCount > 0 ? '#facc15' : 'var(--color-text-muted)' }}>{sharedFieldsCount} matching fields</strong></span>
+                      </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px' }}>
                       {/* Left side: Workflow A */}
@@ -2295,7 +2322,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         ) : (
                           sourcesA.map((src, idx) => {
                             const isMatch = normB.has(normalizeItem(src));
-                            const fields = fieldsMapA[src] || fieldsMapA['sources'] || [];
+                            const fields = getFieldsForSource(src, fieldsMapA);
 
                             return (
                               <div
@@ -2320,11 +2347,11 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                                   </div>
                                   {isMatch ? (
                                     <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
-                                      Matching Source
+                                      Matching Identity
                                     </span>
                                   ) : (
                                     <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
-                                      Distinct
+                                      Distinct Identity
                                     </span>
                                   )}
                                 </div>
@@ -2383,7 +2410,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         ) : (
                           sourcesB.map((src, idx) => {
                             const isMatch = normA.has(normalizeItem(src));
-                            const fields = fieldsMapB[src] || fieldsMapB['sources'] || [];
+                            const fields = getFieldsForSource(src, fieldsMapB);
 
                             return (
                               <div
@@ -2408,11 +2435,11 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                                   </div>
                                   {isMatch ? (
                                     <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
-                                      Matching Source
+                                      Matching Identity
                                     </span>
                                   ) : (
                                     <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
-                                      Distinct
+                                      Distinct Identity
                                     </span>
                                   )}
                                 </div>

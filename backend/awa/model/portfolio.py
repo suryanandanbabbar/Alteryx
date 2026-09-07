@@ -262,6 +262,7 @@ class DependencyEvidence:
     downstream_consumers: dict[str, list[str]] = field(default_factory=dict)
     upstream_producers: dict[str, list[str]] = field(default_factory=dict)
     shared_sources: list[str] = field(default_factory=list)
+    shared_source_fields: list[str] = field(default_factory=list)
     shared_targets: list[str] = field(default_factory=list)
     dependency_status: str = "NOT_FOUND_IN_PORTFOLIO"  # KNOWN | NOT_FOUND_IN_PORTFOLIO | NOT_DETERMINABLE
     dependency_notes: str = ""
@@ -271,6 +272,7 @@ class DependencyEvidence:
             "downstream_consumers": self.downstream_consumers,
             "upstream_producers": self.upstream_producers,
             "shared_sources": self.shared_sources,
+            "shared_source_fields": self.shared_source_fields,
             "shared_targets": self.shared_targets,
             "dependency_status": self.dependency_status,
             "dependency_notes": self.dependency_notes,
@@ -370,6 +372,7 @@ class WorkflowComparisonEvidence:
     unique_a: list[str] = field(default_factory=list)
     unique_b: list[str] = field(default_factory=list)
     shared_sources: list[str] = field(default_factory=list)
+    shared_source_fields: list[str] = field(default_factory=list)
     shared_targets: list[str] = field(default_factory=list)
     distinct_targets_a: list[str] = field(default_factory=list)
     distinct_targets_b: list[str] = field(default_factory=list)
@@ -390,6 +393,7 @@ class WorkflowComparisonEvidence:
             "unique_a": self.unique_a,
             "unique_b": self.unique_b,
             "shared_sources": self.shared_sources,
+            "shared_source_fields": self.shared_source_fields,
             "shared_targets": self.shared_targets,
             "distinct_targets_a": self.distinct_targets_a,
             "distinct_targets_b": self.distinct_targets_b,

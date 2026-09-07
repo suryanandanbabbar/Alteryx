@@ -132,6 +132,7 @@ export interface DependencyEvidenceDTO {
   downstream_consumers: Record<string, string[]>;
   upstream_producers: Record<string, string[]>;
   shared_sources: string[];
+  shared_source_fields?: string[];
   shared_targets: string[];
   dependency_status: string;
   dependency_notes: string;

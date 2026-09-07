@@ -352,8 +352,10 @@ def test_embedded_csv_headers_and_subsumption_workflow_01_and_wf02():
 
     comp = compare_workflows(fp_a, fp_b)
 
-    # 1. Source overlap is low (1 shared out of 8 unique sources = 1/8 = 12.5% ~ 13%)
-    assert comp.metrics.source_overlap < 0.20, "Source Metadata Overlap must remain ~13% (source identity)"
+    # 1. Source Metadata Overlap recognises the 3 shared fields (3 / 9 = 33.3%)
+    assert comp.metrics.source_overlap == pytest.approx(3 / 9, 0.001), "Source Metadata Overlap must recognize shared fields"
+    assert comp.shared_source_fields == ["claim_id", "diagnosis_type", "icd_code"]
+    assert comp.shared_sources == ["textinput_8_field1"]
 
     # 2. Forward Direction A -> B: 100% Data Subsumption
     subsumed_fwd, ev_fwd = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
@@ -682,6 +684,257 @@ def test_merge_candidate_admissible_bounds_and_llm_immutability():
 
     enriched = enrich_candidate_with_llm(cand, mock_generator, {"wf_01", "wf_03"}, {"source_a.csv", "source_b.csv"})
     assert enriched.recommendation_type == "CONSOLIDATE"
+
+
+# ===========================================================================
+# REGRESSION TEST SUITE: Source Metadata Overlap via Field-Level Metadata
+# ===========================================================================
+
+def test_source_metadata_overlap_test1_same_file_same_fields():
+    """TEST 1 — SAME FILE, SAME FIELDS: Exact source identity matches & source metadata overlap = 100%."""
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_a",
+        workflow_name="Workflow_A.yxmd",
+        sources=["source.csv"],
+        available_columns=["claim_id", "diagnosis_type", "icd_code"],
+        canonical_columns={
+            "claim_id": ColumnEvidence(original_name="claim_id", normalized_name="claim_id", source_dataset="source.csv"),
+            "diagnosis_type": ColumnEvidence(original_name="diagnosis_type", normalized_name="diagnosis_type", source_dataset="source.csv"),
+            "icd_code": ColumnEvidence(original_name="icd_code", normalized_name="icd_code", source_dataset="source.csv"),
+        },
+    )
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_b",
+        workflow_name="Workflow_B.yxmd",
+        sources=["source.csv"],
+        available_columns=["claim_id", "diagnosis_type", "icd_code"],
+        canonical_columns={
+            "claim_id": ColumnEvidence(original_name="claim_id", normalized_name="claim_id", source_dataset="source.csv"),
+            "diagnosis_type": ColumnEvidence(original_name="diagnosis_type", normalized_name="diagnosis_type", source_dataset="source.csv"),
+            "icd_code": ColumnEvidence(original_name="icd_code", normalized_name="icd_code", source_dataset="source.csv"),
+        },
+    )
+
+    comp = compare_workflows(fp_a, fp_b)
+
+    assert comp.shared_sources == ["source"]
+    assert comp.shared_source_fields == ["claim_id", "diagnosis_type", "icd_code"]
+    assert comp.metrics.source_overlap == 1.0
+
+
+def test_source_metadata_overlap_test2_different_files_same_fields():
+    """TEST 2 — DIFFERENT FILE IDENTIFIERS, SAME FIELDS:
+    Source object names differ (TextInput #8 != TextInput #13), but field metadata overlap = 100%.
+    """
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_a",
+        workflow_name="Workflow_A.yxmd",
+        sources=["textinput_8_field1"],
+        available_columns=["claim_id", "diagnosis_type", "icd_code"],
+        canonical_columns={
+            "claim_id": ColumnEvidence(original_name="claim_id", normalized_name="claim_id", source_dataset="TextInput (Tool #8)"),
+            "diagnosis_type": ColumnEvidence(original_name="diagnosis_type", normalized_name="diagnosis_type", source_dataset="TextInput (Tool #8)"),
+            "icd_code": ColumnEvidence(original_name="icd_code", normalized_name="icd_code", source_dataset="TextInput (Tool #8)"),
+        },
+    )
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_b",
+        workflow_name="Workflow_B.yxmd",
+        sources=["textinput_13_field1"],
+        available_columns=["claim_id", "diagnosis_type", "icd_code"],
+        canonical_columns={
+            "claim_id": ColumnEvidence(original_name="claim_id", normalized_name="claim_id", source_dataset="TextInput (Tool #13)"),
+            "diagnosis_type": ColumnEvidence(original_name="diagnosis_type", normalized_name="diagnosis_type", source_dataset="TextInput (Tool #13)"),
+            "icd_code": ColumnEvidence(original_name="icd_code", normalized_name="icd_code", source_dataset="TextInput (Tool #13)"),
+        },
+    )
+
+    comp = compare_workflows(fp_a, fp_b)
+
+    # Exact source identity differs
+    assert comp.shared_sources == []
+    # But field metadata overlap is 100%!
+    assert comp.shared_source_fields == ["claim_id", "diagnosis_type", "icd_code"]
+    assert comp.metrics.source_overlap == 1.0
+
+
+def test_source_metadata_overlap_test3_different_files_partial_fields():
+    """TEST 3 — DIFFERENT SOURCE OBJECTS, PARTIAL FIELD OVERLAP:
+    Workflow A = {A, B, C, D}, Workflow B = {A, B, C, E, F} -> 3 shared / 6 union = 50% overlap.
+    """
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_a",
+        workflow_name="Workflow_A.yxmd",
+        sources=["source_a.csv"],
+        available_columns=["a", "b", "c", "d"],
+    )
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_b",
+        workflow_name="Workflow_B.yxmd",
+        sources=["source_b.csv"],
+        available_columns=["a", "b", "c", "e", "f"],
+    )
+
+    comp = compare_workflows(fp_a, fp_b)
+
+    assert comp.shared_sources == []
+    assert comp.shared_source_fields == ["a", "b", "c"]
+    assert comp.metrics.source_overlap == 0.50  # 3 / 6
+
+
+def test_source_metadata_overlap_test4_no_field_overlap():
+    """TEST 4 — NO FIELD OVERLAP:
+    Workflow A = {A, B}, Workflow B = {X, Y} -> 0 shared / 4 union = 0% overlap.
+    """
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_a",
+        workflow_name="Workflow_A.yxmd",
+        sources=["source_a.csv"],
+        available_columns=["a", "b"],
+    )
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_b",
+        workflow_name="Workflow_B.yxmd",
+        sources=["source_b.csv"],
+        available_columns=["x", "y"],
+    )
+
+    comp = compare_workflows(fp_a, fp_b)
+
+    assert comp.shared_sources == []
+    assert comp.shared_source_fields == []
+    assert comp.metrics.source_overlap == 0.0
+
+
+def test_source_metadata_overlap_test5_data_superset_symmetry_and_directional_coverage():
+    """TEST 5 — DATA-SUPERSET CASE:
+    Workflow A = {A, B, C}
+    Workflow B = {A, B, C, D, E}
+    Source Metadata Overlap: 3 / 5 = 60% (Symmetric: Overlap(A, B) == Overlap(B, A)).
+    Data Coverage A -> B: 100%.
+    Data Coverage B -> A: 60%.
+    """
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_a",
+        workflow_name="Workflow_A.yxmd",
+        sources=["feed_a.csv"],
+        available_columns=["a", "b", "c"],
+        required_columns=["a", "b", "c"],
+        inspection_sinks=["Browse (Tool #5)"],
+        production_targets=[],
+    )
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_b",
+        workflow_name="Workflow_B.yxmd",
+        sources=["feed_b.csv"],
+        available_columns=["a", "b", "c", "d", "e"],
+        required_columns=["a", "b", "c", "d", "e"],
+        production_targets=["output_mart.yxdb"],
+        inspection_sinks=[],
+    )
+
+    comp_ab = compare_workflows(fp_a, fp_b)
+    comp_ba = compare_workflows(fp_b, fp_a)
+
+    # 1. Source Metadata Overlap is strictly symmetric (3 / 5 = 60%)
+    assert comp_ab.metrics.source_overlap == 0.60
+    assert comp_ba.metrics.source_overlap == 0.60
+    assert comp_ab.metrics.source_overlap == comp_ba.metrics.source_overlap
+    assert comp_ab.shared_source_fields == ["a", "b", "c"]
+    assert comp_ba.shared_source_fields == ["a", "b", "c"]
+
+    # 2. Data Subsumption Coverage is strictly directional
+    subsumed_fwd, ev_fwd = evaluate_directional_data_subsumption(fp_a, fp_b, comp_ab)
+    assert subsumed_fwd is True
+    assert ev_fwd.data_coverage_pct == 1.0
+    assert ev_fwd.missing_fields_count == 0
+
+    subsumed_rev, ev_rev = evaluate_directional_data_subsumption(fp_b, fp_a, comp_ba)
+    assert subsumed_rev is False
+    assert ev_rev.data_coverage_pct == 0.60
+    assert ev_rev.missing_fields_count == 2
+    assert set(ev_rev.missing_fields) == {"d", "e"}
+
+
+def test_source_metadata_overlap_test6_workflow_01_and_wf03_real_world_regression():
+    """TEST 6 — REAL-WORLD REGRESSION: Workflow_01.yxmd and WF03.yxmd
+    Recognises 7 matching source fields, non-zero Source Metadata Overlap, 100% Data Coverage,
+    and final recommendation = CONSOLIDATE / MERGE.
+    """
+    fields_01 = [
+        "claim_id", "diagnosis_type", "icd_code", "month_end_date",
+        "payment_amount", "payment_date", "payment_id"
+    ]
+    fields_03 = [
+        "claim_id", "diagnosis_type", "icd_code", "month_end_date",
+        "payment_amount", "payment_date", "payment_id",
+        "member_id", "policy_number", "provider_id", "claim_status"
+    ]
+
+    fp_01 = WorkflowFingerprint(
+        workflow_id="wf_01",
+        workflow_name="Workflow_01.yxmd",
+        sources=["textinput_8_field1", "textinput_1_claim_id"],
+        source_types={"textinput_8_field1": "FILE", "textinput_1_claim_id": "FILE"},
+        source_fields={"textinput_8_field1": fields_01},
+        available_columns=fields_01,
+        required_columns=fields_01,
+        canonical_columns={f: ColumnEvidence(original_name=f, normalized_name=f, source_dataset="TextInput #8", is_required=True) for f in fields_01},
+        production_targets=[],
+        inspection_sinks=["Browse (Tool #5)"],
+        tool_types=["TextInput", "Join", "Unique", "Browse"],
+        transformation_signatures=["Join on: claim_id=claim_id", "Unique deduplication on claim_id"],
+        complexity_level="LOW",
+        criticality_level="LOW",
+        frequency="Daily",
+    )
+    fp_03 = WorkflowFingerprint(
+        workflow_id="wf_03",
+        workflow_name="WF03.yxmd",
+        sources=["claims_lake_source.csv", "payments_feed.yxdb"],
+        source_types={"claims_lake_source.csv": "FILE", "payments_feed.yxdb": "FILE"},
+        source_fields={"claims_lake_source.csv": fields_03},
+        available_columns=fields_03,
+        required_columns=["claim_id", "diagnosis_type", "payment_id"],
+        canonical_columns={f: ColumnEvidence(original_name=f, normalized_name=f, source_dataset="claims_lake_source.csv", is_required=True) for f in fields_03},
+        production_targets=["Consolidated_Payments_Mart.yxdb"],
+        inspection_sinks=[],
+        output_schemas={"Consolidated_Payments_Mart.yxdb": fields_03},
+        tool_types=["InputData", "Join", "Unique", "Formula", "OutputData"],
+        transformation_signatures=["Join on: claim_id=claim_id", "Unique deduplication on claim_id", "Formula: calculate_risk"],
+        complexity_level="MEDIUM",
+        criticality_level="HIGH",
+        frequency="Daily",
+    )
+
+    comp = compare_workflows(fp_01, fp_03)
+
+    # 1. 7 shared source fields recognised
+    assert comp.shared_source_fields == sorted(fields_01)
+    assert len(comp.shared_source_fields) == 7
+
+    # 2. Source Metadata Overlap is non-zero (7 / 11 = ~63.6%)
+    expected_overlap = len(set(fields_01) & set(fields_03)) / len(set(fields_01) | set(fields_03))
+    assert comp.metrics.source_overlap == pytest.approx(expected_overlap, 0.001)
+    assert comp.metrics.source_overlap > 0.0
+
+    # 3. Data Coverage A -> B is 100%
+    subsumed, ev = evaluate_directional_data_subsumption(fp_01, fp_03, comp)
+    assert subsumed is True
+    assert ev.data_coverage_pct == 1.0
+    assert ev.missing_fields_count == 0
+    assert len(ev.shared_required_fields) == 7
+
+    # 4. Final recommendation is CONSOLIDATE / MERGE
+    decision = evaluate_consolidation_rules(fp_01, fp_03, comp)
+    assert decision.recommendation == "MERGE"
+    assert decision.matched_rule == ConsolidationRules.RULE_DATA_SUBSUMPTION
+
+    cand = detect_candidate_from_comparison(comp, fp_01, fp_03)
+    assert cand is not None
+    assert cand.recommendation_type == "CONSOLIDATE"
+    assert cand.admissible_recommendations == ["CONSOLIDATE"]
+
 
 
 
