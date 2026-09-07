@@ -44,17 +44,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isPortfolioMode = Boolean(portfolio && !overview);
 
   const workflowNavItems = [
-    { id: 'overview', label: 'Overview', icon: BarChart2 },
+    { id: 'overview', label: 'Workflow Overview', icon: BarChart2 },
     { id: 'diagram', label: 'Workflow Diagram', icon: GitFork },
     { id: 'tools', label: 'Tools & Configuration', icon: Sliders },
-    { id: 'json', label: 'JSON', icon: Code },
-    { id: 'python', label: 'Python', icon: Terminal },
+    { id: 'json', label: 'Migrate to JSON', icon: Code },
+    { id: 'python', label: 'Migrate to Python', icon: Terminal },
     { id: 'downloads', label: 'Download', icon: Download },
   ];
 
   return (
     <aside style={{
-      width: collapsed ? '64px' : '260px',
+      width: collapsed ? '64px' : '280px',
       minWidth: collapsed ? '64px' : '260px',
       height: '100vh',
       position: 'sticky',
@@ -87,7 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               letterSpacing: '-0.3px',
               lineHeight: 1.25,
             }}>
-              ETL Intelligence & Migration
+              ETL Discovery, Intelligence, Rationalisation &amp; Migration
             </div>
             <div style={{
               fontSize: '11.5px',
@@ -95,7 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               fontWeight: '500',
               marginTop: '3px',
             }}>
-              {isPortfolioMode ? 'Portfolio estate' : 'Alteryx workflow'}
+              {isPortfolioMode ? 'Portfolio Estate' : 'Alteryx workflow'}
             </div>
           </div>
         )}
@@ -192,10 +192,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {!collapsed && (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '12.5px', fontWeight: '700', whiteSpace: 'nowrap', color: '#ecfdf5' }}>
-                    Rationalisation
+                    Rationalisation Recommendation
                   </span>
                   <span style={{ fontSize: '10.5px', color: '#6ee7b7', fontWeight: '500' }}>
-                    Recommendation View
+                    ETL Rationalisation
                   </span>
                 </div>
               )}
@@ -203,7 +203,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {!collapsed && (
               <span style={{ color: '#34d399', fontWeight: '700', fontSize: '11.5px', flexShrink: 0 }}>
-                View →
+                
               </span>
             )}
           </button>
@@ -257,10 +257,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {!collapsed && (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '12.5px', fontWeight: '600', whiteSpace: 'nowrap', color: '#f0f9ff' }}>
-                    Portfolio XLSX
+                    Download Portfolio Document
                   </span>
                   <span style={{ fontSize: '10.5px', color: '#7dd3fc', fontWeight: '500' }}>
-                    {isDownloadingXlsx ? 'Generating...' : 'Download Report'}
+                    {isDownloadingXlsx ? 'Generating...' : ''}
                   </span>
                 </div>
               )}
@@ -308,10 +308,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {!collapsed && (
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '12.5px', fontWeight: '600', whiteSpace: 'nowrap', color: 'var(--color-text)' }}>
-                    Upload Portfolio
-                  </span>
-                  <span style={{ fontSize: '10.5px', color: 'var(--color-text-muted)', fontWeight: '500' }}>
-                    Analyze Different Estate
+                    Upload Different Portfolio
                   </span>
                 </div>
               )}

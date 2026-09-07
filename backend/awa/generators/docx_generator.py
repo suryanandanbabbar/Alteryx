@@ -231,7 +231,7 @@ def generate_docx(
     p_brand = doc.add_paragraph()
     p_brand.paragraph_format.space_before = Pt(0)
     p_brand.paragraph_format.space_after = Pt(2)
-    run_brand = p_brand.add_run("ETL Intelligence & Migration - Alteryx Workflows")
+    run_brand = p_brand.add_run("ETL Discovery, Intelligence, Rationalisation &amp; Migration - Alteryx Workflows")
     run_brand.font.size = Pt(9)
     run_brand.font.bold = True
     run_brand.font.color.rgb = RGB_PRIMARY

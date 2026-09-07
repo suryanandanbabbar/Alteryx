@@ -292,7 +292,7 @@ export const AnalysisLoadingScreen: React.FC<AnalysisLoadingScreenProps> = ({
                 marginBottom: '6px',
               }}
             >
-              ETL Intelligence & Migration
+              ETL Discovery, Intelligence, Rationalisation &amp; Migration
             </div>
 
             {/* Main Title */}

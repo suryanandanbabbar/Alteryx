@@ -1034,7 +1034,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
             letterSpacing: '0.14em',
             color: 'var(--color-primary)',
           }}>
-            ETL PORTFOLIO
+            ETL WORKFLOW INVENTORY
           </div>
 
           <h1 style={{
@@ -1908,7 +1908,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
             letterSpacing: '0.14em',
             color: 'var(--color-primary)',
           }}>
-            ETL PORTFOLIO
+            ETL DISCOVERY &amp; INTELLIGENCE AGENTS
           </div>
 
           <h1 style={{
@@ -1919,7 +1919,7 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
             lineHeight: '1.2',
             margin: 0,
           }}>
-            {portfolio.portfolio_name || 'ETL Portfolio'}
+            ETL Workflow Inventory
           </h1>
 
           <p style={{
@@ -1960,9 +1960,6 @@ export const PortfolioPage: React.FC<PortfolioPageProps> = ({
                   color: 'var(--color-text-muted)',
                 }}>
                   WORKFLOWS ANALYSED
-                </span>
-                <span style={{ fontSize: '12px', color: 'var(--color-text-subtle)' }}>
-                  Authoritative portfolio baseline
                 </span>
               </div>
             </div>

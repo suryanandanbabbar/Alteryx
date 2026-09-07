@@ -57,7 +57,7 @@ export const Header: React.FC<HeaderProps> = ({ sectionTitle, workflowName, onBa
             color: 'var(--color-text-muted)',
             letterSpacing: '0.3px',
           }}>
-            ETL Intelligence & Migration
+            ETL Discovery, Intelligence, Rationalisation &amp; Migration
           </span>
         )}
         <span style={{ color: 'var(--color-text-subtle)', fontSize: '12px' }}>/</span>

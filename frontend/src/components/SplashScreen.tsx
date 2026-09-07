@@ -9,7 +9,7 @@ let hasShownInitialSplash = false;
 
 export const SplashScreen: React.FC<SplashScreenProps> = ({
   onComplete,
-  minDisplayTime = 1350,
+  minDisplayTime = 2850,
 }) => {
   const [stage, setStage] = useState<'entering' | 'ready' | 'fading' | 'gone'>(() => {
     return hasShownInitialSplash ? 'gone' : 'entering';
@@ -119,7 +119,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
             lineHeight: 1.25,
           }}
         >
-          ETL Intelligence &amp; Migration
+          ETL Discovery, Intelligence, Rationalisation &amp; Migration
         </h1>
 
         {/* Secondary Text */}
@@ -135,7 +135,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
             marginBottom: '28px',
           }}
         >
-          Alteryx workflow
+          Powered By EXL
         </div>
 
         {/* Subtle Minimal Loading Indicator */}

@@ -316,7 +316,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             color: 'var(--color-text-muted)',
             letterSpacing: '0.3px',
           }}>
-            ETL Intelligence & Migration
+            ETL Discovery, Intelligence, Rationalisation &amp; Migration
           </span>
         </div>
 
@@ -367,7 +367,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             fontWeight: '600',
             marginBottom: '16px',
           }}>
-            ETL Rationalisation
+            Powered By EXL
           </div>
           <h1 style={{
             fontSize: '32px',
@@ -376,7 +376,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadSuccess }) => {
             letterSpacing: '-0.5px',
             marginBottom: '8px',
           }}>
-            ETL Intelligence & Migration
+            ETL Discovery, Intelligence, Rationalisation &amp; Migration
           </h1>
           <h2 style={{
             fontSize: '16px',
