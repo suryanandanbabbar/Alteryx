@@ -771,7 +771,7 @@ CRITICAL MAPPING & RATIONALISATION INVARIANTS:
    - SHARED_LOGIC: Workflows using different inputs/outputs but identical transformation patterns.
    - RETIRE_CANDIDATE: Workflows that produce no production deliverables and terminate only in inspection sinks (Browse).
    - REVIEW: Workflows requiring architectural inspection before migration.
-5. Provide actionable, professional, concise rationale.
+5. Provide actionable, professional, concise rationale. Explain data similarity, process overlap, data sufficiency, and business deliverable preservation in clear executive language without raw similarity metric decimals.
 6. Return ONLY valid JSON matching this schema:
 {
   "qualified_relationships": [

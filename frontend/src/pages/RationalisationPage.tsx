@@ -505,32 +505,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
     }
   };
 
-  const getConfidenceBadge = (confidence: string) => {
-    switch (confidence) {
-      case 'HIGH':
-        return {
-          label: 'HIGH CONFIDENCE',
-          color: '#34d399',
-          bg: 'rgba(16, 185, 129, 0.1)',
-          border: '1px solid rgba(16, 185, 129, 0.25)',
-        };
-      case 'MEDIUM':
-        return {
-          label: 'MEDIUM CONFIDENCE',
-          color: '#fbbf24',
-          bg: 'rgba(245, 158, 11, 0.1)',
-          border: '1px solid rgba(245, 158, 11, 0.25)',
-        };
-      case 'LOW':
-      default:
-        return {
-          label: 'LOW CONFIDENCE',
-          color: '#94a3b8',
-          bg: 'rgba(148, 163, 184, 0.1)',
-          border: '1px solid rgba(148, 163, 184, 0.25)',
-        };
-    }
-  };
 
   const handleInspectClick = (wid: string) => {
     const summary = workflowMap.get(wid);
@@ -1081,7 +1055,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               {(activeTab === 'ALL' || activeTab === 'CONSOLIDATE' || activeTab === 'RETIRE') &&
                 filteredCandidates.map((cand) => {
                 const badge = getRecommendationBadge(cand.recommendation_type);
-                const confBadge = getConfidenceBadge(cand.confidence);
                 const BadgeIcon = badge.icon;
 
                 return (
@@ -1164,113 +1137,188 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                             : 'Deterministic Baseline'}
                         </span>
                       </div>
-
-                      {/* Confidence Badge */}
-                      <span
-                        style={{
-                          fontSize: '11px',
-                          fontWeight: '800',
-                          letterSpacing: '0.06em',
-                          padding: '3px 10px',
-                          borderRadius: '4px',
-                          background: confBadge.bg,
-                          color: confBadge.color,
-                          border: confBadge.border,
-                        }}
-                      >
-                        {confBadge.label}
-                      </span>
                     </div>
 
-                      {/* In-Scope Workflows Strip */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '16px',
-                        padding: '14px 18px',
-                        borderRadius: '8px',
-                        background: 'var(--color-surface-secondary)',
-                        border: '1px solid var(--color-border-subtle)',
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      {cand.workflow_names.map((name, idx) => {
-                        const wid = cand.workflow_ids[idx];
-                        const summary = wid ? workflowMap.get(wid) : null;
+                    {/* In-Scope Workflows / Workflow to be Consolidated */}
+                    {(() => {
+                      const dse = cand.data_subsumption_evidence || cand.consolidation_decision?.data_subsumption_evidence;
+                      const isConsolidate = cand.recommendation_type === 'CONSOLIDATE' || !!dse;
+
+                      if (isConsolidate) {
+                        const absorbedName = dse ? dse.source_workflow_name : cand.workflow_names[0];
+                        const absorbedId = dse ? dse.source_workflow_id : cand.workflow_ids[0];
+                        const summary = absorbedId ? workflowMap.get(absorbedId) : null;
                         const complexityStyle = getLevelBadgeStyle(summary?.complexity_level || 'LOW');
                         const criticalityStyle = getLevelBadgeStyle(summary?.criticality_level || 'LOW');
 
                         return (
-                          <React.Fragment key={wid || idx}>
-                            {idx > 0 && (
-                              <div
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  color: 'var(--color-text-muted)',
-                                  fontSize: '13px',
-                                  fontWeight: '700',
-                                }}
-                              >
-                                ↔
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '14px 18px',
+                              borderRadius: '8px',
+                              background: 'var(--color-surface-secondary)',
+                              border: '1px solid var(--color-border-subtle)',
+                              flexWrap: 'wrap',
+                              gap: '12px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                                Workflow to be Consolidated
                               </div>
-                            )}
-
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '10px',
-                                flexWrap: 'wrap',
-                              }}
-                            >
-                              <span
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-text)', wordBreak: 'break-word' }}>
+                                  {absorbedName}
+                                </span>
+                                {summary && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span
+                                      style={{
+                                        fontSize: '10.5px',
+                                        fontWeight: '700',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        ...complexityStyle,
+                                      }}
+                                    >
+                                      Complexity: {summary.complexity_level || 'LOW'}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: '10.5px',
+                                        fontWeight: '700',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        ...criticalityStyle,
+                                      }}
+                                    >
+                                      Criticality: {summary.criticality_level || 'LOW'}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {absorbedId && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleInspectClick(absorbedId);
+                                }}
                                 style={{
-                                  fontSize: '14px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '6px 12px',
+                                  borderRadius: 'var(--radius-sm)',
+                                  background: 'var(--color-surface)',
+                                  border: '1px solid var(--color-border)',
+                                  color: 'var(--color-primary)',
+                                  fontSize: '12px',
                                   fontWeight: '700',
-                                  color: 'var(--color-text)',
-                                  wordBreak: 'break-word',
+                                  cursor: 'pointer',
                                 }}
                               >
-                                {name}
-                              </span>
-
-                              {/* Complexity & Criticality Pills */}
-                              {summary && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span
-                                    style={{
-                                      fontSize: '10.5px',
-                                      fontWeight: '700',
-                                      padding: '2px 7px',
-                                      borderRadius: '4px',
-                                      ...complexityStyle,
-                                    }}
-                                    title={`Complexity: ${summary.complexity_level || 'LOW'}`}
-                                  >
-                                    Complexity: {summary.complexity_level || 'LOW'}
-                                  </span>
-
-                                  <span
-                                    style={{
-                                      fontSize: '10.5px',
-                                      fontWeight: '700',
-                                      padding: '2px 7px',
-                                      borderRadius: '4px',
-                                      ...criticalityStyle,
-                                    }}
-                                    title={`Criticality: ${summary.criticality_level || 'LOW'}`}
-                                  >
-                                    Criticality: {summary.criticality_level || 'LOW'}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </React.Fragment>
+                                <span>Inspect</span>
+                                <ExternalLink size={12} />
+                              </button>
+                            )}
+                          </div>
                         );
-                      })}
-                    </div>
+                      }
+
+                      return (
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '16px',
+                            padding: '14px 18px',
+                            borderRadius: '8px',
+                            background: 'var(--color-surface-secondary)',
+                            border: '1px solid var(--color-border-subtle)',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          {cand.workflow_names.map((name, idx) => {
+                            const wid = cand.workflow_ids[idx];
+                            const summary = wid ? workflowMap.get(wid) : null;
+                            const complexityStyle = getLevelBadgeStyle(summary?.complexity_level || 'LOW');
+                            const criticalityStyle = getLevelBadgeStyle(summary?.criticality_level || 'LOW');
+
+                            return (
+                              <React.Fragment key={wid || idx}>
+                                {idx > 0 && (
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      color: 'var(--color-text-muted)',
+                                      fontSize: '13px',
+                                      fontWeight: '700',
+                                    }}
+                                  >
+                                    ↔
+                                  </div>
+                                )}
+
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    flexWrap: 'wrap',
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontSize: '14px',
+                                      fontWeight: '700',
+                                      color: 'var(--color-text)',
+                                      wordBreak: 'break-word',
+                                    }}
+                                  >
+                                    {name}
+                                  </span>
+
+                                  {summary && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span
+                                        style={{
+                                          fontSize: '10.5px',
+                                          fontWeight: '700',
+                                          padding: '2px 7px',
+                                          borderRadius: '4px',
+                                          ...complexityStyle,
+                                        }}
+                                        title={`Complexity: ${summary.complexity_level || 'LOW'}`}
+                                      >
+                                        Complexity: {summary.complexity_level || 'LOW'}
+                                      </span>
+
+                                      <span
+                                        style={{
+                                          fontSize: '10.5px',
+                                          fontWeight: '700',
+                                          padding: '2px 7px',
+                                          borderRadius: '4px',
+                                          ...criticalityStyle,
+                                        }}
+                                        title={`Criticality: ${summary.criticality_level || 'LOW'}`}
+                                      >
+                                        Criticality: {summary.criticality_level || 'LOW'}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
 
                     {/* Directional Data-Superset Merge Callout Banner */}
                     {(() => {
@@ -1333,68 +1381,70 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                       );
                     })()}
 
-                    {/* Deterministic Similarity Metrics Progress Bars */}
-                    <div
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                        gap: '14px',
-                      }}
-                    >
-                      {[
-                        { label: 'Source Metadata Overlap', value: cand.deterministic_metrics.source_overlap },
-                        { label: 'Target Metadata Overlap', value: cand.deterministic_metrics.target_overlap },
-                        { label: 'Frequency Overlap', value: cand.deterministic_metrics.frequency_overlap ?? 0 },
-                        { label: 'Logic Overlap', value: cand.deterministic_metrics.transformation_similarity },
-                        { label: 'DAG Overlap', value: cand.deterministic_metrics.dag_similarity },
-                      ].map((m) => {
-                        const pct = Math.round(m.value * 100);
-                        const fillColor = pct >= 70 ? '#34d399' : pct >= 40 ? '#fbbf24' : '#38bdf8';
+                    {/* Deterministic Similarity Metrics Progress Bars (Only for non-consolidate cards) */}
+                    {cand.recommendation_type !== 'CONSOLIDATE' && !cand.data_subsumption_evidence && (
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                          gap: '14px',
+                        }}
+                      >
+                        {[
+                          { label: 'Source Metadata Overlap', value: cand.deterministic_metrics.source_overlap },
+                          { label: 'Target Metadata Overlap', value: cand.deterministic_metrics.target_overlap },
+                          { label: 'Frequency Overlap', value: cand.deterministic_metrics.frequency_overlap ?? 0 },
+                          { label: 'Logic Overlap', value: cand.deterministic_metrics.transformation_similarity },
+                          { label: 'DAG Overlap', value: cand.deterministic_metrics.dag_similarity },
+                        ].map((m) => {
+                          const pct = Math.round(m.value * 100);
+                          const fillColor = pct >= 70 ? '#34d399' : pct >= 40 ? '#fbbf24' : '#38bdf8';
 
-                        return (
-                          <div
-                            key={m.label}
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '4px',
-                            }}
-                          >
+                          return (
                             <div
+                              key={m.label}
                               style={{
                                 display: 'flex',
-                                justifyContent: 'space-between',
-                                fontSize: '11px',
-                                fontWeight: '600',
-                                color: 'var(--color-text-secondary)',
-                              }}
-                            >
-                              <span>{m.label}</span>
-                              <span style={{ fontWeight: '700', color: 'var(--color-text)' }}>{pct}%</span>
-                            </div>
-                            <div
-                              style={{
-                                width: '100%',
-                                height: '5px',
-                                borderRadius: '3px',
-                                background: 'var(--color-surface-secondary)',
-                                overflow: 'hidden',
+                                flexDirection: 'column',
+                                gap: '4px',
                               }}
                             >
                               <div
                                 style={{
-                                  width: `${pct}%`,
-                                  height: '100%',
-                                  background: fillColor,
-                                  borderRadius: '3px',
-                                  transition: 'width 0.4s ease',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  color: 'var(--color-text-secondary)',
                                 }}
-                              />
+                              >
+                                <span>{m.label}</span>
+                                <span style={{ fontWeight: '700', color: 'var(--color-text)' }}>{pct}%</span>
+                              </div>
+                              <div
+                                style={{
+                                  width: '100%',
+                                  height: '5px',
+                                  borderRadius: '3px',
+                                  background: 'var(--color-surface-secondary)',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: `${pct}%`,
+                                    height: '100%',
+                                    background: fillColor,
+                                    borderRadius: '3px',
+                                    transition: 'width 0.4s ease',
+                                  }}
+                                />
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {/* Why It Matters (Reasoning) */}
                     <div>
@@ -2026,18 +2076,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                       </span>
                     );
                   })()}
-
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: '800',
-                      padding: '3px 8px',
-                      borderRadius: '4px',
-                      ...getConfidenceBadge(selectedCandidate.confidence),
-                    }}
-                  >
-                    {selectedCandidate.confidence} CONFIDENCE
-                  </span>
                 </div>
               </div>
 
@@ -2168,7 +2206,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               </div>
             </div>
 
-            {/* Comprehensive Data Subsumption Analysis (When Present) */}
+            {/* Consolidation Direction Banner */}
             {(() => {
               const dse = selectedCandidate.data_subsumption_evidence || selectedCandidate.consolidation_decision?.data_subsumption_evidence;
               if (!dse) return null;
@@ -2176,205 +2214,38 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               return (
                 <div
                   style={{
+                    padding: '16px',
+                    borderRadius: '8px',
+                    background: 'var(--color-surface-secondary)',
+                    border: '1.5px solid rgba(16, 185, 129, 0.35)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '20px',
-                    padding: '20px',
-                    borderRadius: '10px',
-                    background: 'rgba(16, 185, 129, 0.05)',
-                    border: '1.5px solid rgba(16, 185, 129, 0.35)',
+                    gap: '10px',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid rgba(16, 185, 129, 0.25)', paddingBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <GitMerge size={18} color="#34d399" />
-                      <span style={{ fontSize: '14px', fontWeight: '800', color: '#34d399', letterSpacing: '0.04em' }}>
-                        DETERMINISTIC DATA-SUPERSET SUBSUMPTION EVIDENCE
+                      <GitMerge size={16} color="#34d399" />
+                      <span style={{ fontSize: '11.5px', fontWeight: '800', color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Consolidation Direction
                       </span>
                     </div>
-                    <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '3px 10px', borderRadius: '4px' }}>
-                      100% Data Sufficiency + Substitutable Processing
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#34d399', background: 'rgba(16, 185, 129, 0.12)', padding: '2px 8px', borderRadius: '4px' }}>
+                      Deterministic Merge
                     </span>
                   </div>
-
-                  {/* Direction Flow Banner */}
-                  <div
-                    style={{
-                      padding: '16px',
-                      borderRadius: '8px',
-                      background: 'var(--color-surface)',
-                      border: '1px solid var(--color-border-subtle)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
-                    }}
-                  >
-                    <div style={{ fontSize: '11px', fontWeight: '700', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      Consolidation Direction
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '14px', fontWeight: '700' }}>
+                    <div style={{ padding: '6px 12px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                      {dse.source_workflow_name} <span style={{ fontSize: '11px', opacity: 0.85 }}>(Absorbed Candidate)</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', fontSize: '14px', fontWeight: '700' }}>
-                      <div style={{ padding: '6px 12px', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-                        {dse.source_workflow_name} <span style={{ fontSize: '11px', opacity: 0.85 }}>(Absorbed Candidate)</span>
-                      </div>
-                      <span style={{ color: '#34d399', fontWeight: '800', fontSize: '16px' }}>➔</span>
-                      <div style={{ padding: '6px 12px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.12)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                        {dse.target_workflow_name} <span style={{ fontSize: '11px', opacity: 0.85 }}>(Retained Superset Workflow)</span>
-                      </div>
-                    </div>
-                    <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: '1.5' }}>
-                      {dse.recommendation_summary}
-                    </p>
-                  </div>
-
-                  {/* Section 2: Data Sufficiency & Column Coverage */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
-                      Layer 1: Data Sufficiency & Column Parity (0 Missing Fields)
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
-                      <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Data Field Coverage</div>
-                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#34d399' }}>{Math.round(dse.data_coverage_pct * 100)}%</div>
-                        <div style={{ fontSize: '11px', color: '#34d399', marginTop: '2px' }}>0 missing fields required</div>
-                      </div>
-                      <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Shared Required Fields</div>
-                        <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)' }}>{dse.shared_required_fields.length}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Fully available in target</div>
-                      </div>
-                      <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Additional Target Fields</div>
-                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#38bdf8' }}>+{dse.additional_fields_in_target.length}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Superset enrichment</div>
-                      </div>
-                    </div>
-
-                    {/* Shared Fields Tag Cloud */}
-                    <div style={{ padding: '14px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
-                      <div style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text)', marginBottom: '8px' }}>
-                        Required Fields Verified in Retained Workflow ({dse.shared_required_fields.length}):
-                      </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                        {dse.shared_required_fields.map((fld) => (
-                          <span
-                            key={fld}
-                            style={{
-                              fontSize: '11.5px',
-                              fontWeight: '600',
-                              padding: '3px 8px',
-                              borderRadius: '4px',
-                              background: 'rgba(16, 185, 129, 0.12)',
-                              color: '#34d399',
-                              border: '1px solid rgba(16, 185, 129, 0.3)',
-                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                            }}
-                          >
-                            ✓ {fld}
-                          </span>
-                        ))}
-                      </div>
+                    <span style={{ color: '#34d399', fontWeight: '800', fontSize: '16px' }}>➔</span>
+                    <div style={{ padding: '6px 12px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.12)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                      {dse.target_workflow_name} <span style={{ fontSize: '11px', opacity: 0.85 }}>(Retained Superset Workflow)</span>
                     </div>
                   </div>
-
-                  {/* Section 3: Field Provenance Map */}
-                  {Object.keys(dse.field_provenance_map || {}).length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
-                        Field Provenance & Origin Details
-                      </div>
-                      <div style={{ overflowX: 'auto', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
-                          <thead>
-                            <tr style={{ borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-secondary)', color: 'var(--color-text-muted)' }}>
-                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Field Name</th>
-                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Source / Dataset</th>
-                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Origin & Provenance Path</th>
-                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Sample Values</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {Object.entries(dse.field_provenance_map).map(([fname, colEv], idx) => (
-                              <tr key={fname} style={{ borderBottom: idx < Object.keys(dse.field_provenance_map).length - 1 ? '1px solid var(--color-border-subtle)' : 'none' }}>
-                                <td style={{ padding: '8px 12px', fontWeight: '700', color: 'var(--color-text)', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
-                                  {colEv.original_name || fname}
-                                </td>
-                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
-                                  {colEv.source_dataset || 'Target Workflow'}
-                                </td>
-                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
-                                  {colEv.provenance}
-                                </td>
-                                <td style={{ padding: '8px 12px', color: '#34d399', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
-                                  {(colEv.sample_values && colEv.sample_values.length > 0) ? colEv.sample_values.slice(0, 3).join(', ') : 'Verified in pipeline'}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Section 4: Processing Substitutability Matrix */}
-                  {dse.processing_substitutability_matrix && dse.processing_substitutability_matrix.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
-                        Layer 2: Processing Substitutability Matrix
-                      </div>
-                      <div style={{ overflowX: 'auto', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
-                          <thead>
-                            <tr style={{ borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-secondary)', color: 'var(--color-text-muted)' }}>
-                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Source Tool / Op</th>
-                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Operation Type</th>
-                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Target Equivalent Capability</th>
-                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Compatibility</th>
-                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Technical Notes</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {dse.processing_substitutability_matrix.map((row, idx) => (
-                              <tr key={idx} style={{ borderBottom: idx < dse.processing_substitutability_matrix.length - 1 ? '1px solid var(--color-border-subtle)' : 'none' }}>
-                                <td style={{ padding: '8px 12px', fontWeight: '700', color: 'var(--color-text)' }}>
-                                  Tool #{row.source_tool_id || idx + 1}: {row.source_operation || row.source_tool_type}
-                                </td>
-                                <td style={{ padding: '8px 12px', color: 'var(--color-primary)', fontWeight: '600' }}>
-                                  {row.source_tool_type || 'Transformation'}
-                                </td>
-                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
-                                  {row.target_equivalent || 'Supported in pipeline'}
-                                </td>
-                                <td style={{ padding: '8px 12px' }}>
-                                  <span style={{ fontSize: '10.5px', fontWeight: '800', padding: '2px 7px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                                    {row.status || 'SUPPORTED'}
-                                  </span>
-                                </td>
-                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
-                                  {row.notes}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Section 5: Output & Deliverable Compatibility */}
-                  <div style={{ padding: '14px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
-                      Output & Grain Compatibility
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
-                      <span style={{ color: '#38bdf8', fontWeight: '700' }}>Status: {dse.output_compatibility}</span>
-                      <span style={{ color: 'var(--color-text-muted)' }}>•</span>
-                      <span style={{ color: 'var(--color-text-secondary)' }}>
-                        {dse.output_compatibility === 'INSPECTION_SINK_ONLY'
-                          ? `${dse.source_workflow_name} produces no production deliverable files and terminates in inspection sinks. Safe to consolidate.`
-                          : 'Target workflow generates all required production deliverable datasets.'}
-                      </span>
-                    </div>
-                  </div>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: '1.5' }}>
+                    {dse.recommendation_summary}
+                  </p>
                 </div>
               );
             })()}
@@ -2562,7 +2433,9 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         SOURCE DATASETS & COLUMN HEADERS (YELLOW = MATCHING)
                       </div>
                       <div style={{ fontSize: '11.5px', color: 'var(--color-text-secondary)', display: 'flex', gap: '14px' }}>
-                        <span>Source Identity: <strong style={{ color: sharedSourcesCount > 0 ? '#facc15' : 'var(--color-text-muted)' }}>{sharedSourcesCount} matching</strong></span>
+                        {sharedSourcesCount > 0 && (
+                          <span>Source Identity: <strong style={{ color: '#facc15' }}>{sharedSourcesCount} matching</strong></span>
+                        )}
                         <span>Field Metadata: <strong style={{ color: sharedFieldsCount > 0 ? '#facc15' : 'var(--color-text-muted)' }}>{sharedFieldsCount} matching fields</strong></span>
                       </div>
                     </div>
@@ -3295,6 +3168,188 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               }
 
               return null;
+            })()}
+
+            {/* Comprehensive Data Subsumption Layers (Layer 1 & Layer 2) */}
+            {(() => {
+              const dse = selectedCandidate.data_subsumption_evidence || selectedCandidate.consolidation_decision?.data_subsumption_evidence;
+              if (!dse) return null;
+
+              return (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '20px',
+                    padding: '20px',
+                    borderRadius: '10px',
+                    background: 'rgba(16, 185, 129, 0.05)',
+                    border: '1.5px solid rgba(16, 185, 129, 0.35)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid rgba(16, 185, 129, 0.25)', paddingBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <GitMerge size={18} color="#34d399" />
+                      <span style={{ fontSize: '14px', fontWeight: '800', color: '#34d399', letterSpacing: '0.04em' }}>
+                        DETERMINISTIC DATA-SUPERSET SUBSUMPTION EVIDENCE
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '11.5px', fontWeight: '700', color: '#34d399', background: 'rgba(16, 185, 129, 0.15)', padding: '3px 10px', borderRadius: '4px' }}>
+                      100% Data Sufficiency + Substitutable Processing
+                    </span>
+                  </div>
+
+                  {/* Layer 1: Data Sufficiency & Column Coverage */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                      Layer 1: Data Sufficiency & Column Parity (0 Missing Fields)
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+                      <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Data Field Coverage</div>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#34d399' }}>{Math.round(dse.data_coverage_pct * 100)}%</div>
+                        <div style={{ fontSize: '11px', color: '#34d399', marginTop: '2px' }}>0 missing fields required</div>
+                      </div>
+                      <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Shared Required Fields</div>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)' }}>{dse.shared_required_fields.length}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Fully available in target</div>
+                      </div>
+                      <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Additional Target Fields</div>
+                        <div style={{ fontSize: '20px', fontWeight: '800', color: '#38bdf8' }}>+{dse.additional_fields_in_target.length}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Superset enrichment</div>
+                      </div>
+                    </div>
+
+                    {/* Shared Fields Tag Cloud */}
+                    <div style={{ padding: '14px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: '700', color: 'var(--color-text)', marginBottom: '8px' }}>
+                        Required Fields Verified in Retained Workflow ({dse.shared_required_fields.length}):
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {dse.shared_required_fields.map((fld) => (
+                          <span
+                            key={fld}
+                            style={{
+                              fontSize: '11.5px',
+                              fontWeight: '600',
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              background: 'rgba(16, 185, 129, 0.12)',
+                              color: '#34d399',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                            }}
+                          >
+                            ✓ {fld}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Field Provenance Map */}
+                  {Object.keys(dse.field_provenance_map || {}).length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                        Field Provenance & Origin Details
+                      </div>
+                      <div style={{ overflowX: 'auto', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-secondary)', color: 'var(--color-text-muted)' }}>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Field Name</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Source / Dataset</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Origin & Provenance Path</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Sample Values</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {Object.entries(dse.field_provenance_map).map(([fname, colEv], idx) => (
+                              <tr key={fname} style={{ borderBottom: idx < Object.keys(dse.field_provenance_map).length - 1 ? '1px solid var(--color-border-subtle)' : 'none' }}>
+                                <td style={{ padding: '8px 12px', fontWeight: '700', color: 'var(--color-text)', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+                                  {colEv.original_name || fname}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
+                                  {colEv.source_dataset || 'Target Workflow'}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
+                                  {colEv.provenance}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: '#34d399', fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}>
+                                  {(colEv.sample_values && colEv.sample_values.length > 0) ? colEv.sample_values.slice(0, 3).join(', ') : 'Verified in pipeline'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Layer 2: Processing Substitutability Matrix */}
+                  {dse.processing_substitutability_matrix && dse.processing_substitutability_matrix.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                        Layer 2: Processing Substitutability Matrix
+                      </div>
+                      <div style={{ overflowX: 'auto', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--color-border-subtle)', background: 'var(--color-surface-secondary)', color: 'var(--color-text-muted)' }}>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Source Tool / Op</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Operation Type</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Target Equivalent Capability</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Compatibility</th>
+                              <th style={{ padding: '8px 12px', fontWeight: '700' }}>Technical Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dse.processing_substitutability_matrix.map((row, idx) => (
+                              <tr key={idx} style={{ borderBottom: idx < dse.processing_substitutability_matrix.length - 1 ? '1px solid var(--color-border-subtle)' : 'none' }}>
+                                <td style={{ padding: '8px 12px', fontWeight: '700', color: 'var(--color-text)' }}>
+                                  Tool #{row.source_tool_id || idx + 1}: {row.source_operation || row.source_tool_type}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: 'var(--color-primary)', fontWeight: '600' }}>
+                                  {row.source_tool_type || 'Transformation'}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
+                                  {row.target_equivalent || 'Supported in pipeline'}
+                                </td>
+                                <td style={{ padding: '8px 12px' }}>
+                                  <span style={{ fontSize: '10.5px', fontWeight: '800', padding: '2px 7px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                                    {row.status || 'SUPPORTED'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '8px 12px', color: 'var(--color-text-secondary)' }}>
+                                  {row.notes}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Output & Deliverable Compatibility */}
+                  <div style={{ padding: '14px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                      Output & Grain Compatibility
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px' }}>
+                      <span style={{ color: '#38bdf8', fontWeight: '700' }}>Status: {dse.output_compatibility}</span>
+                      <span style={{ color: 'var(--color-text-muted)' }}>•</span>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>
+                        {dse.output_compatibility === 'INSPECTION_SINK_ONLY'
+                          ? `${dse.source_workflow_name} produces no production deliverable files and terminates in inspection sinks. Safe to consolidate.`
+                          : 'Target workflow generates all required production deliverable datasets.'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
             })()}
 
             {/* Why This Recommendation */}

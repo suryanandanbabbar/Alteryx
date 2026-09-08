@@ -665,12 +665,14 @@ def build_workflow_fingerprint(
 
     clean_sinks = [normalize_name(s) for s in summary.inspection_sinks if s]
 
+    target_keys = clean_targets if clean_targets else (clean_sinks if clean_sinks else ["outputs"])
+
     # Output schemas & fields from STTM, lineage_paths, or output_schema
     output_schemas: dict[str, list[str]] = {}
     schema_attr = getattr(canonical_res, "output_schema", None)
     if schema_attr and hasattr(schema_attr, "fields"):
         fnames = [getattr(f, "name", str(f)) for f in schema_attr.fields if getattr(f, "name", str(f)) and getattr(f, "name", str(f)) != "*Unknown"]
-        for t in clean_targets:
+        for t in target_keys:
             output_schemas[t] = sorted(list(set(fnames)))
 
     sttm_doc = getattr(canonical_res, "sttm", None)
@@ -681,7 +683,7 @@ def build_workflow_fingerprint(
             if src_fld and src_fld != "*Unknown":
                 source_fields.setdefault("sources", []).append(src_fld)
             if tgt_fld and tgt_fld != "*Unknown":
-                for t in clean_targets:
+                for t in target_keys:
                     output_schemas.setdefault(t, []).append(tgt_fld)
 
     lineage_paths = getattr(canonical_res, "lineage_paths", None)
@@ -692,8 +694,18 @@ def build_workflow_fingerprint(
             if src_fld and src_fld != "*Unknown":
                 source_fields.setdefault("sources", []).append(src_fld)
             if tgt_fld and tgt_fld != "*Unknown":
-                for t in clean_targets:
+                for t in target_keys:
                     output_schemas.setdefault(t, []).append(tgt_fld)
+
+    if wf and hasattr(wf, "tools") and isinstance(wf.tools, dict):
+        for tool in wf.tools.values():
+            if getattr(tool, "tool_type", "") in ("DbFileOutput", "Output", "PublishToTableauServer") or "output" in getattr(tool, "plugin", "").lower():
+                if getattr(tool, "output_fields", None):
+                    for f in tool.output_fields:
+                        fname = getattr(f, "name", str(f))
+                        if fname and fname != "*Unknown":
+                            for t in target_keys:
+                                output_schemas.setdefault(t, []).append(fname)
 
     for k, v in output_schemas.items():
         output_schemas[k] = sorted(list(set(v)))
@@ -995,7 +1007,7 @@ def compare_workflows(
     # 2. Production Target overlap
     tgt_a = {normalize_name(t) for t in fp_a.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
     tgt_b = {normalize_name(t) for t in fp_b.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
-    target_overlap = _jaccard_similarity(tgt_a, tgt_b)
+    target_id_overlap = _jaccard_similarity(tgt_a, tgt_b)
     shared_targets = sorted(list(tgt_a & tgt_b))
     distinct_targets_a = sorted(list(tgt_a - tgt_b))
     distinct_targets_b = sorted(list(tgt_b - tgt_a))
@@ -1003,20 +1015,29 @@ def compare_workflows(
     # 3. Output Schema similarity
     all_cols_a = set()
     for cols in fp_a.output_schemas.values():
-        all_cols_a.update(cols)
+        for c in cols:
+            if c and c != "*Unknown":
+                all_cols_a.add(normalize_field_name(c))
     all_cols_b = set()
     for cols in fp_b.output_schemas.values():
-        all_cols_b.update(cols)
+        for c in cols:
+            if c and c != "*Unknown":
+                all_cols_b.add(normalize_field_name(c))
+    all_cols_a.discard("")
+    all_cols_b.discard("")
 
     if all_cols_a and all_cols_b:
         schema_similarity = _jaccard_similarity(all_cols_a, all_cols_b)
         schema_diffs = sorted(list((all_cols_a - all_cols_b) | (all_cols_b - all_cols_a)))
     elif not all_cols_a and not all_cols_b:
-        schema_similarity = 1.0 if target_overlap > 0.8 else 0.5
+        schema_similarity = 1.0 if target_id_overlap > 0.8 else 0.5
         schema_diffs = []
     else:
         schema_similarity = 0.2
         schema_diffs = ["One workflow lacks schema definition"]
+
+    # Target overlap reflects combined target identity and output schema overlap
+    target_overlap = max(target_id_overlap, schema_similarity) if (tgt_a or tgt_b or all_cols_a or all_cols_b) else target_id_overlap
 
     # 4. Output Grain similarity
     grain_a = set(fp_a.output_grain)
@@ -1902,14 +1923,24 @@ def detect_candidate_from_comparison(
     # Deterministic Reasoning & Proposed Strategy
     if consolidation_decision.data_subsumption_evidence is not None:
         dse = consolidation_decision.data_subsumption_evidence
+        if dse.data_coverage_pct == 1.0 and consolidation_decision.recommendation == "MERGE":
+            m = DeterministicMetrics(
+                source_overlap=1.0,
+                target_overlap=m.target_overlap,
+                transformation_similarity=m.transformation_similarity,
+                schema_similarity=m.schema_similarity,
+                grain_similarity=m.grain_similarity,
+                dag_similarity=m.dag_similarity,
+                frequency_overlap=m.frequency_overlap,
+            )
         reasoning = (
-            f"Directional Data Subsumption Confirmed: {dse.target_workflow_name} contains 100% of the data and fields "
-            f"required by {dse.source_workflow_name} ({len(dse.shared_required_fields)} shared required fields, 0 missing), "
-            f"and possesses compatible processing substitutability to perform its operations with zero lost unique functionality."
+            f"{dse.target_workflow_name} processes the complete dataset required by {dse.source_workflow_name} "
+            f"({len(dse.shared_required_fields)} input fields with 100% data sufficiency) and shares core operational processing. "
+            f"Merging the workflows eliminates redundant ingestion and staging while fully preserving downstream business outputs."
         )
         proposed_strategy = (
-            f"Consolidate {dse.source_workflow_name} into {dse.target_workflow_name}. Direct downstream operational "
-            f"consumers to {dse.target_workflow_name} and retire {dse.source_workflow_name}."
+            f"Consolidate {dse.source_workflow_name} into {dse.target_workflow_name}. Redirect downstream operational "
+            f"consumers to {dse.target_workflow_name} and decommission {dse.source_workflow_name} following validation."
         )
         evidence_list = [
             f"Data Sufficiency: 100% field coverage ({len(dse.shared_required_fields)} fields, 0 missing in {dse.target_workflow_name})",
@@ -2195,7 +2226,8 @@ def enrich_candidate_with_llm(
         "STRICT INVARIANTS:\n"
         "1. Ground every statement strictly in the provided evidence. NEVER invent workflows, tables, or operational facts.\n"
         f"2. Your recommendation MUST be one of these admissible options: {', '.join(candidate.admissible_recommendations)}.\n"
-        "3. Provide business-friendly, professional explanations of why the logic overlaps and what strategy to follow.\n"
+        "3. Provide business-friendly, professional explanations of why the logic overlaps and what strategy to follow. "
+        "Explain data similarity, process overlap, data sufficiency, and business deliverable preservation in clear executive language without raw similarity metric decimals.\n"
         "4. Return ONLY valid JSON matching this schema:\n"
         "{\n"
         '  "recommendation": "CONSOLIDATE | RETIRE_CANDIDATE | SHARED_LOGIC | REVIEW",\n'
@@ -2427,28 +2459,14 @@ def build_rationalisation_analysis(
         wid = summary.workflow_id
 
         # 1. Consolidate priority
-        is_consolidated = False
-        for cand in consolidate_candidates:
-            if cand.data_subsumption_evidence:
-                if wid == cand.data_subsumption_evidence.source_workflow_id:
-                    is_consolidated = True
-                    break
-            elif wid in cand.workflow_ids:
-                is_consolidated = True
-                break
-
+        is_consolidated = any(wid in cand.workflow_ids for cand in consolidate_candidates)
         if is_consolidated:
             workflow_classifications[wid] = "CONSOLIDATE"
             summary.rationalisation_status = "CONSOLIDATE"
             continue
 
         # 2. Retire priority
-        is_retired = False
-        for cand in retire_candidates:
-            if wid in cand.workflow_ids:
-                is_retired = True
-                break
-
+        is_retired = any(wid in cand.workflow_ids for cand in retire_candidates)
         if is_retired:
             workflow_classifications[wid] = "RETIRE"
             summary.rationalisation_status = "RETIRE"
