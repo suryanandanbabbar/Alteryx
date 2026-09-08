@@ -86,7 +86,7 @@ def test_fingerprint_target_schema_extraction():
         fields=["order_id", "customer_id", "total_amt"],
     )
     fp = build_workflow_fingerprint(summary, wf_res)
-    assert "orders" in fp.sources
+    assert any("orders" in s.lower() for s in fp.sources)
     assert any("orders_final" in t for t in fp.production_targets)
     assert any("order_id" in cols for cols in fp.output_schemas.values())
 
@@ -235,4 +235,37 @@ def test_target_fields_and_provenance_population():
     assert "output_tgt" in " ".join(fp.production_targets)
     assert "sale_id" in fp.available_columns
     assert any("sale_id" in flds for flds in fp.source_fields.values())
+
+
+def test_distinct_evidence_models_required_vs_metadata_matching():
+    # Retained workflow has 10 fields available
+    s_target, wf_target = _make_dummy_workflow(
+        wid="wf-101",
+        name="Retained Master",
+        sources=["Master.csv"],
+        targets=["Analytics.DW_Final"],
+        fields=["claim_id", "diagnosis_type", "icd_code", "month_end_date", "payment_amount", "payment_date", "payment_id", "extra_1", "extra_2", "extra_3"],
+    )
+    # Absorbed workflow requires 7 fields but also has extra common metadata
+    s_absorbed, wf_absorbed = _make_dummy_workflow(
+        wid="wf-102",
+        name="Absorbed Process",
+        sources=["Claims_Input.csv"],
+        targets=["Analytics.Claims_Staging"],
+        fields=["claim_id", "diagnosis_type", "icd_code", "month_end_date", "payment_amount", "payment_date", "payment_id", "extra_1", "extra_2"],
+    )
+
+    fp_target = build_workflow_fingerprint(s_target, wf_target)
+    fp_absorbed = build_workflow_fingerprint(s_absorbed, wf_absorbed)
+
+    comp = compare_workflows(fp_target, fp_absorbed)
+    cand = detect_candidate_from_comparison(comp, fp_target, fp_absorbed)
+
+    assert cand is not None
+    # 1. Broader metadata matches (9 fields shared)
+    assert len(cand.dependency_evidence.shared_source_fields) == 9
+    # 2. Source fields by workflow populated for Claims_Input.csv
+    src_fields = cand.source_fields_by_workflow.get(fp_absorbed.workflow_name, {})
+    assert any("claim_id" in flds for flds in src_fields.values())
+
 

@@ -2520,16 +2520,47 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                 const setFieldsA = new Set(allFieldsA.map((f) => f.toLowerCase()));
                 const setFieldsB = new Set(allFieldsB.map((f) => f.toLowerCase()));
 
+                const sharedSourceFieldsList = selectedCandidate.dependency_evidence?.shared_source_fields || [];
+                const sharedSourceFieldsSet = new Set(sharedSourceFieldsList.map((f) => f.toLowerCase()));
+
                 const sharedSourcesCount = selectedCandidate.dependency_evidence?.shared_sources?.length || Array.from(normA).filter(s => normB.has(s)).length;
-                const sharedFieldsCount = selectedCandidate.dependency_evidence?.shared_source_fields?.length || Array.from(setFieldsA).filter(f => setFieldsB.has(f)).length;
+                const sharedFieldsCount = sharedSourceFieldsList.length || Array.from(setFieldsA).filter(f => setFieldsB.has(f)).length;
 
                 const getFieldsForSource = (src: string, fmap: Record<string, string[]>) => {
+                  if (!fmap) return [];
                   if (fmap[src] && fmap[src].length > 0) return fmap[src];
                   const normSrc = normalizeItem(src);
                   if (fmap[normSrc] && fmap[normSrc].length > 0) return fmap[normSrc];
-                  const matchingKey = Object.keys(fmap).find(k => normalizeItem(k) === normSrc);
+
+                  const lowerSrc = src.toLowerCase();
+                  const lowerKey = Object.keys(fmap).find((k) => k.toLowerCase() === lowerSrc);
+                  if (lowerKey && fmap[lowerKey] && fmap[lowerKey].length > 0) return fmap[lowerKey];
+
+                  const matchingKey = Object.keys(fmap).find((k) => normalizeItem(k) === normSrc);
                   if (matchingKey && fmap[matchingKey] && fmap[matchingKey].length > 0) return fmap[matchingKey];
+
+                  // Tool ID matching: e.g. "TextInput #11 (Field_1)" -> match key with "11" or "tool_11" or "textinput_11"
+                  const toolIdMatch = src.match(/#(\d+)/) || src.match(/tool_?(\d+)/i);
+                  if (toolIdMatch) {
+                    const tid = toolIdMatch[1];
+                    const tidKey = Object.keys(fmap).find((k) => {
+                      const kNorm = normalizeItem(k);
+                      return kNorm.includes(`tool_${tid}`) || kNorm.includes(`textinput_${tid}`) || kNorm === tid || k.includes(`#${tid}`);
+                    });
+                    if (tidKey && fmap[tidKey] && fmap[tidKey].length > 0) return fmap[tidKey];
+                  }
+
+                  // Partial substring match
+                  const partialKey = Object.keys(fmap).find((k) => {
+                    const kNorm = normalizeItem(k);
+                    return kNorm && normSrc && (kNorm.includes(normSrc) || normSrc.includes(kNorm));
+                  });
+                  if (partialKey && fmap[partialKey] && fmap[partialKey].length > 0) return fmap[partialKey];
+
                   if (fmap['sources'] && fmap['sources'].length > 0) return fmap['sources'];
+                  if (fmap['all'] && fmap['all'].length > 0) return fmap['all'];
+                  if (fmap['__all__'] && fmap['__all__'].length > 0) return fmap['__all__'];
+
                   return [];
                 };
 
@@ -2590,7 +2621,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                             const fields = getFieldsForSource(src, fieldsMapA);
                             const sourceKey = `src-A-${idx}-${src}`;
                             const isExpanded = expandedSources[sourceKey] !== undefined ? expandedSources[sourceKey] : false;
-                            const matchingFields = fields.filter((fld) => setFieldsB.has(fld.toLowerCase()));
+                            const matchingFields = fields.filter((fld) => setFieldsB.has(fld.toLowerCase()) || sharedSourceFieldsSet.has(fld.toLowerCase()) || sharedSourceFieldsSet.has(normalizeItem(fld)));
 
                             return (
                               <div
@@ -2659,7 +2690,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                                     ) : (
                                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', minWidth: 0 }}>
                                         {fields.map((fld) => {
-                                          const isColMatch = setFieldsB.has(fld.toLowerCase());
+                                          const isColMatch = setFieldsB.has(fld.toLowerCase()) || sharedSourceFieldsSet.has(fld.toLowerCase()) || sharedSourceFieldsSet.has(normalizeItem(fld));
                                           return (
                                             <span
                                               key={fld}
@@ -2716,7 +2747,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                             const fields = getFieldsForSource(src, fieldsMapB);
                             const sourceKey = `src-B-${idx}-${src}`;
                             const isExpanded = expandedSources[sourceKey] !== undefined ? expandedSources[sourceKey] : false;
-                            const matchingFields = fields.filter((fld) => setFieldsA.has(fld.toLowerCase()));
+                            const matchingFields = fields.filter((fld) => setFieldsA.has(fld.toLowerCase()) || sharedSourceFieldsSet.has(fld.toLowerCase()) || sharedSourceFieldsSet.has(normalizeItem(fld)));
 
                             return (
                               <div
@@ -2785,7 +2816,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                                     ) : (
                                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', minWidth: 0 }}>
                                         {fields.map((fld) => {
-                                          const isColMatch = setFieldsA.has(fld.toLowerCase());
+                                          const isColMatch = setFieldsA.has(fld.toLowerCase()) || sharedSourceFieldsSet.has(fld.toLowerCase()) || sharedSourceFieldsSet.has(normalizeItem(fld));
                                           return (
                                             <span
                                               key={fld}
@@ -2830,15 +2861,48 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                 const targetFieldsMapB = selectedCandidate.target_fields_by_workflow?.[wfB_name] || {};
 
                 const getFieldsForTarget = (tgt: string, fmap: Record<string, string[]>, outputSchemas: Record<string, string[]>) => {
-                  if (fmap[tgt] && fmap[tgt].length > 0) return fmap[tgt];
+                  if (fmap && fmap[tgt] && fmap[tgt].length > 0) return fmap[tgt];
                   const normTgt = normalizeItem(tgt);
-                  if (fmap[normTgt] && fmap[normTgt].length > 0) return fmap[normTgt];
-                  const matchingKey = Object.keys(fmap).find(k => normalizeItem(k) === normTgt);
+                  if (fmap && fmap[normTgt] && fmap[normTgt].length > 0) return fmap[normTgt];
+
+                  const matchingKey = fmap ? Object.keys(fmap).find((k) => normalizeItem(k) === normTgt || k.toLowerCase() === tgt.toLowerCase()) : undefined;
                   if (matchingKey && fmap[matchingKey] && fmap[matchingKey].length > 0) return fmap[matchingKey];
-                  if (outputSchemas[tgt] && outputSchemas[tgt].length > 0) return outputSchemas[tgt];
-                  const matchingSchemaKey = Object.keys(outputSchemas).find(k => normalizeItem(k) === normTgt);
+
+                  if (outputSchemas && outputSchemas[tgt] && outputSchemas[tgt].length > 0) return outputSchemas[tgt];
+                  if (outputSchemas && outputSchemas[normTgt] && outputSchemas[normTgt].length > 0) return outputSchemas[normTgt];
+
+                  const matchingSchemaKey = outputSchemas ? Object.keys(outputSchemas).find((k) => normalizeItem(k) === normTgt || k.toLowerCase() === tgt.toLowerCase()) : undefined;
                   if (matchingSchemaKey && outputSchemas[matchingSchemaKey] && outputSchemas[matchingSchemaKey].length > 0) return outputSchemas[matchingSchemaKey];
-                  if (fmap['targets'] && fmap['targets'].length > 0) return fmap['targets'];
+
+                  // Tool ID or partial match
+                  const toolIdMatch = tgt.match(/#(\d+)/) || tgt.match(/tool_?(\d+)/i);
+                  if (toolIdMatch) {
+                    const tid = toolIdMatch[1];
+                    const tidKey = (fmap ? Object.keys(fmap) : []).concat(outputSchemas ? Object.keys(outputSchemas) : []).find((k) => {
+                      const kNorm = normalizeItem(k);
+                      return kNorm.includes(`tool_${tid}`) || kNorm.includes(`output_${tid}`) || kNorm === tid || k.includes(`#${tid}`);
+                    });
+                    if (tidKey) {
+                      if (fmap && fmap[tidKey] && fmap[tidKey].length > 0) return fmap[tidKey];
+                      if (outputSchemas && outputSchemas[tidKey] && outputSchemas[tidKey].length > 0) return outputSchemas[tidKey];
+                    }
+                  }
+
+                  // Partial substring match
+                  const partialKey = (fmap ? Object.keys(fmap) : []).concat(outputSchemas ? Object.keys(outputSchemas) : []).find((k) => {
+                    const kNorm = normalizeItem(k);
+                    return kNorm && normTgt && (kNorm.includes(normTgt) || normTgt.includes(kNorm));
+                  });
+                  if (partialKey) {
+                    if (fmap && fmap[partialKey] && fmap[partialKey].length > 0) return fmap[partialKey];
+                    if (outputSchemas && outputSchemas[partialKey] && outputSchemas[partialKey].length > 0) return outputSchemas[partialKey];
+                  }
+
+                  if (fmap && fmap['targets'] && fmap['targets'].length > 0) return fmap['targets'];
+                  if (fmap && fmap['outputs'] && fmap['outputs'].length > 0) return fmap['outputs'];
+                  if (outputSchemas && outputSchemas['outputs'] && outputSchemas['outputs'].length > 0) return outputSchemas['outputs'];
+                  if (outputSchemas && outputSchemas['targets'] && outputSchemas['targets'].length > 0) return outputSchemas['targets'];
+
                   return [];
                 };
 
@@ -3528,7 +3592,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   {/* Layer 1: Data Sufficiency & Column Coverage */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
-                      Layer 1: Data Sufficiency & Column Parity (0 Missing Fields)
+                      Layer 1: Data Sufficiency & Column Parity
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
                       <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
@@ -3618,7 +3682,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   {dse.processing_substitutability_matrix && dse.processing_substitutability_matrix.length > 0 && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
-                        Layer 2: Processing Substitutability Matrix
+                        Layer 2: Logic & Dag Overlap
                       </div>
                       <div style={{ overflowX: 'auto', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>

@@ -886,18 +886,98 @@ def build_workflow_fingerprint(
         extract_workflow_column_and_data_evidence(summary, canonical_res)
     )
 
-    # Enrich source_fields map from canonical column provenance and datasets
+    # Tool ID to fields mapping from canonical column evidence and tools
+    tool_id_to_fields: dict[str, list[str]] = {}
     for col_ev in canonical_columns.values():
+        if col_ev.source_tool_id:
+            tool_id_to_fields.setdefault(str(col_ev.source_tool_id), []).append(col_ev.original_name)
         ds = col_ev.source_dataset or "sources"
         norm_ds = normalize_name(ds) or ds
         source_fields.setdefault(norm_ds, []).append(col_ev.original_name)
+        if ds not in source_fields:
+            source_fields[ds] = [col_ev.original_name]
+        else:
+            source_fields[ds].append(col_ev.original_name)
+
+    # Also collect fields directly from input tools in the workflow
+    if wf and hasattr(wf, "tools") and isinstance(wf.tools, dict):
+        for tool in wf.tools.values():
+            tid = str(getattr(tool, "tool_id", ""))
+            ttype = getattr(tool, "tool_type", "")
+            is_input = (
+                ttype in ("DbFileInput", "FileInput", "TextInput", "Directory", "DynamicInput")
+                or "input" in getattr(tool, "plugin", "").lower()
+            )
+            if is_input:
+                flds_for_tool: list[str] = list(tool_id_to_fields.get(tid, []))
+                if getattr(tool, "output_fields", None):
+                    for f in tool.output_fields:
+                        fname = getattr(f, "name", str(f))
+                        if fname and fname != "*Unknown" and fname not in flds_for_tool:
+                            flds_for_tool.append(fname)
+                cfg = getattr(tool, "configuration", None)
+                parsed_dict = cfg.parsed if (cfg and hasattr(cfg, "parsed") and isinstance(cfg.parsed, dict)) else {}
+                for f in (parsed_dict.get("fields", []) + parsed_dict.get("clean_fields", [])):
+                    if f and f != "*Unknown" and f not in flds_for_tool:
+                        flds_for_tool.append(f)
+                tool_id_to_fields[tid] = flds_for_tool
+
+    # Map tool fields to summary sources
+    raw_sources_list = [s for s in summary.sources if s and s != "*Unknown" and "unknown" not in s.lower()]
+    for src_raw in raw_sources_list:
+        norm_s = normalize_name(src_raw)
+        src_fields_found: list[str] = []
+
+        m_tid = re.search(r'#(\d+)', src_raw)
+        if m_tid:
+            tid_str = m_tid.group(1)
+            if tid_str in tool_id_to_fields and tool_id_to_fields[tid_str]:
+                src_fields_found.extend(tool_id_to_fields[tid_str])
+
+        if not src_fields_found:
+            if norm_s in source_fields:
+                src_fields_found.extend(source_fields[norm_s])
+            elif src_raw in source_fields:
+                src_fields_found.extend(source_fields[src_raw])
+
+        if not src_fields_found:
+            for col_ev in canonical_columns.values():
+                if col_ev.source_dataset and (
+                    normalize_name(col_ev.source_dataset) == norm_s
+                    or norm_s in normalize_name(col_ev.source_dataset)
+                    or normalize_name(col_ev.source_dataset) in norm_s
+                ):
+                    src_fields_found.append(col_ev.original_name)
+
+        if src_fields_found:
+            source_fields[src_raw] = sorted(list(set(src_fields_found)))
+            source_fields[norm_s] = sorted(list(set(src_fields_found)))
+
+    # If only 1 source exists and has no fields, give it all canonical columns
+    if len(raw_sources_list) == 1:
+        s0 = raw_sources_list[0]
+        norm_s0 = normalize_name(s0)
+        if not source_fields.get(s0) and not source_fields.get(norm_s0):
+            all_canonical = [c.original_name for c in canonical_columns.values()]
+            if all_canonical:
+                source_fields[s0] = sorted(list(set(all_canonical)))
+                source_fields[norm_s0] = sorted(list(set(all_canonical)))
+
+    # Always ensure "sources" contains all canonical columns across the workflow
+    all_fnames = [c.original_name for c in canonical_columns.values()]
+    if all_fnames:
+        source_fields.setdefault("sources", []).extend(all_fnames)
+        source_fields["sources"] = sorted(list(set(source_fields["sources"])))
+
     for k in list(source_fields.keys()):
         source_fields[k] = sorted(list(set(source_fields[k])))
+
+    final_sources = raw_sources_list if raw_sources_list else sorted(clean_sources)
 
     return WorkflowFingerprint(
         workflow_id=summary.workflow_id,
         workflow_name=summary.filename,
-        sources=sorted(clean_sources),
+        sources=final_sources,
         source_types=source_types,
         source_fields=source_fields,
         production_targets=sorted(clean_targets),
