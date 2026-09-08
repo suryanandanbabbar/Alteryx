@@ -18,6 +18,15 @@ from awa.model.portfolio import (
     RationalisationAnalysis,
     RationalisationCandidate,
 )
+from awa.analysis.portfolio_analyzer import (
+    _extract_workflow_sources,
+    _extract_workflow_targets_and_sinks,
+)
+from awa.model.business_summary import (
+    WorkflowBusinessSummary,
+    BusinessInput,
+    BusinessOutput,
+)
 
 
 def _make_dummy_workflow(wid: str, name: str, sources: list[str], targets: list[str], fields: list[str]) -> tuple[PortfolioWorkflowSummary, CanonicalAnalysisResult]:
@@ -360,6 +369,168 @@ def test_target_metadata_overlap_acceptance_suite():
     comp5 = compare_workflows(fp_t5a, fp_t5b)
     assert comp5.metrics.target_overlap == 0.0
     assert comp5.metrics.schema_similarity == 0.0
+
+
+def test_canonical_source_target_alignment_with_high_level_lineage():
+    """Verify that rationalisation source/target extraction aligns 1-to-1 with High Level Lineage
+    (bs.source_inputs and bs.business_outputs) for in-memory TextInput tools without phantom sources.
+    """
+    tools = {
+        1: Tool(
+            tool_id=1,
+            plugin="AlteryxBasePluginsGui.TextInput.TextInput",
+            tool_type="TextInput",
+            name="Source Input #1",
+            position=Position(x=10, y=10),
+            configuration=ToolConfiguration(raw_xml="", parsed={"fields": ["Claim_ID", "Diagnosis_Type", "ICD_Code"]}),
+            output_fields=[Field(name="Claim_ID", type="V_WString"), Field(name="Diagnosis_Type", type="V_WString"), Field(name="ICD_Code", type="V_WString")],
+        ),
+        6: Tool(
+            tool_id=6,
+            plugin="AlteryxBasePluginsGui.TextInput.TextInput",
+            tool_type="TextInput",
+            name="Source Input #6",
+            position=Position(x=10, y=50),
+            configuration=ToolConfiguration(raw_xml="", parsed={"fields": ["Payment_ID", "Payment_Amount", "Payment_Date"]}),
+            output_fields=[Field(name="Payment_ID", type="V_WString"), Field(name="Payment_Amount", type="V_WString"), Field(name="Payment_Date", type="V_WString")],
+        ),
+        28: Tool(
+            tool_id=28,
+            plugin="AlteryxBasePluginsGui.TextInput.TextInput",
+            tool_type="TextInput",
+            name="Source Input #28",
+            position=Position(x=10, y=90),
+            configuration=ToolConfiguration(raw_xml="", parsed={"fields": ["Month_End_Date"]}),
+            output_fields=[Field(name="Month_End_Date", type="V_WString")],
+        ),
+        31: Tool(
+            tool_id=31,
+            plugin="AlteryxBasePluginsGui.TextInput.TextInput",
+            tool_type="TextInput",
+            name="Source Input #31",
+            position=Position(x=10, y=130),
+            configuration=ToolConfiguration(raw_xml="", parsed={"fields": ["Ref_Code"]}),
+            output_fields=[Field(name="Ref_Code", type="V_WString")],
+        ),
+        39: Tool(
+            tool_id=39,
+            plugin="AlteryxBasePluginsGui.TextInput.TextInput",
+            tool_type="TextInput",
+            name="Source Input #39",
+            position=Position(x=10, y=170),
+            configuration=ToolConfiguration(raw_xml="", parsed={"fields": ["Audit_Flag"]}),
+            output_fields=[Field(name="Audit_Flag", type="V_WString")],
+        ),
+        43: Tool(
+            tool_id=43,
+            plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+            tool_type="DbFileOutput",
+            name="Deliverable #43",
+            position=Position(x=300, y=10),
+            configuration=ToolConfiguration(raw_xml="", parsed={"File": "deliverable_43.xlsx"}),
+            output_fields=[Field(name="Claim_ID", type="V_WString")],
+        ),
+        45: Tool(
+            tool_id=45,
+            plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+            tool_type="DbFileOutput",
+            name="Deliverable #45",
+            position=Position(x=300, y=50),
+            configuration=ToolConfiguration(raw_xml="", parsed={"File": "deliverable_45.xlsx"}),
+            output_fields=[Field(name="Payment_ID", type="V_WString")],
+        ),
+        46: Tool(
+            tool_id=46,
+            plugin="AlteryxBasePluginsGui.DbFileOutput.DbFileOutput",
+            tool_type="DbFileOutput",
+            name="Deliverable #46",
+            position=Position(x=300, y=90),
+            configuration=ToolConfiguration(raw_xml="", parsed={"File": "deliverable_46.xlsx"}),
+            output_fields=[Field(name="Payment_Amount", type="V_WString")],
+        ),
+    }
+
+    biz_summary = WorkflowBusinessSummary(
+        business_purpose="Processes claims and payments.",
+        one_line_purpose="Claims processing workflow",
+        why_it_matters="Critical for claims reconciliation",
+        source_inputs=[
+            BusinessInput(tool_id=1, name="Source Input #1", raw_source="In-memory configuration", source_type="TextInput"),
+            BusinessInput(tool_id=6, name="Source Input #6", raw_source="In-memory configuration", source_type="TextInput"),
+            BusinessInput(tool_id=28, name="Source Input #28", raw_source="In-memory configuration", source_type="TextInput"),
+            BusinessInput(tool_id=31, name="Source Input #31", raw_source="In-memory configuration", source_type="TextInput"),
+            BusinessInput(tool_id=39, name="Source Input #39", raw_source="In-memory configuration", source_type="TextInput"),
+        ],
+        business_outputs=[
+            BusinessOutput(tool_id=43, name="deliverable_43", raw_destination="deliverable_43.xlsx", destination_type="Excel Workbook"),
+            BusinessOutput(tool_id=45, name="deliverable_45", raw_destination="deliverable_45.xlsx", destination_type="Excel Workbook"),
+            BusinessOutput(tool_id=46, name="deliverable_46", raw_destination="deliverable_46.xlsx", destination_type="Excel Workbook"),
+        ],
+    )
+
+    wf = Workflow(
+        metadata=WorkflowMetadata(name="WF03", version="2023.1"),
+        tools=tools,
+        connections=[],
+    )
+    res = CanonicalAnalysisResult(
+        analysis_id="res_wf03",
+        source=SourceInfo(source_format="yxmd", original_filename="WF03.yxmd"),
+        workflow=wf,
+        graph=None,
+        execution_order=[1, 6, 28, 31, 39, 43, 45, 46],
+        translations={},
+        consumed_anchors={},
+        lineage_paths=[],
+        metrics=None,
+        dag_layout=None,
+        python_trace=None,
+        tool_explanations={},
+        required_libraries=[],
+        diagnostics=[],
+        business_summary=biz_summary,
+    )
+
+    sources = _extract_workflow_sources(res)
+    targets, sinks, classifications = _extract_workflow_targets_and_sinks(res)
+
+    # Must match High Level Lineage: exactly 5 sources, 3 targets
+    assert len(sources) == 5
+    assert sources == [
+        "Source Input #1",
+        "Source Input #6",
+        "Source Input #28",
+        "Source Input #31",
+        "Source Input #39",
+    ]
+    assert len(targets) == 3
+    assert targets == [
+        "deliverable_43",
+        "deliverable_45",
+        "deliverable_46",
+    ]
+
+    # Fingerprint verification
+    summary = PortfolioWorkflowSummary(
+        workflow_id="wf03",
+        filename="WF03.yxmd",
+        relative_path="WF03.yxmd",
+        complexity_level="MEDIUM",
+        criticality_level="HIGH",
+        complexity_score=50.0,
+        criticality_score=50.0,
+        sources=sources,
+        targets=targets,
+        status="SUCCESS",
+    )
+    fp = build_workflow_fingerprint(summary, res)
+    assert fp.sources == sources
+    assert fp.production_targets == targets
+    # Check that tool fields are mapped under the canonical source names
+    assert "Claim_ID" in fp.source_fields.get("Source Input #1", [])
+    assert "Payment_ID" in fp.source_fields.get("Source Input #6", [])
+    assert "Month_End_Date" in fp.source_fields.get("Source Input #28", [])
+
 
 
 

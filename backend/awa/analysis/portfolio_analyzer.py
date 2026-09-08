@@ -77,15 +77,28 @@ def _get_cfg_dict(tool) -> dict:
 
 
 def _extract_workflow_sources(result: CanonicalAnalysisResult) -> list[str]:
-    """Extract authoritative physical source dataset identities, preserving filename precedence."""
+    """Extract authoritative physical source dataset identities, preserving canonical High Level Lineage representation."""
+    if result.business_summary and result.business_summary.source_inputs:
+        sources: list[str] = []
+        seen: set[str] = set()
+        for inp in result.business_summary.source_inputs:
+            name = (inp.source_filename or inp.name or "").strip()
+            if not name or "*" in name or name.lower() == "*unknown":
+                continue
+            if name not in seen:
+                seen.add(name)
+                sources.append(name)
+        if sources:
+            return sources
+
     sources: list[str] = []
     seen: set[str] = set()
     biz_inputs = {inp.tool_id: inp for inp in (result.business_summary.source_inputs if result.business_summary else [])}
 
     for tid, tool in sorted(result.workflow.tools.items()):
         is_input = (
-            tool.tool_type in ("DbFileInput", "FileInput", "TextInput", "Directory", "DynamicInput")
-            or (result.graph.has_node(tid) and result.graph.in_degree(tid) == 0)
+            tool.tool_type in ("DbFileInput", "FileInput", "TextInput", "Directory", "DynamicInput", "InputData", "DateTimeNow")
+            or (result.graph and result.graph.has_node(tid) and result.graph.in_degree(tid) == 0)
         )
         if not is_input:
             continue
@@ -101,22 +114,18 @@ def _extract_workflow_sources(result: CanonicalAnalysisResult) -> list[str]:
         name = ""
         if file_path:
             name = _clean_table_name(str(file_path))
-        elif tid in biz_inputs and (biz_inputs[tid].source_filename or biz_inputs[tid].raw_source):
-            raw = biz_inputs[tid].source_filename or biz_inputs[tid].raw_source
+        elif tid in biz_inputs and (biz_inputs[tid].source_filename or biz_inputs[tid].name):
+            raw = biz_inputs[tid].source_filename or biz_inputs[tid].name
             if raw and raw.lower() not in ("in-memory configuration", "standard input stream"):
                 name = _clean_table_name(raw)
-            elif tool.tool_type == "TextInput":
-                flds = cfg.get("fields", [])
-                field_hint = f" ({', '.join(flds[:2])})" if flds else ""
-                name = f"TextInput #{tid}{field_hint}"
+            elif tool.name:
+                name = tool.name
             else:
-                name = f"Source #{tid}"
-        elif tool.tool_type == "TextInput":
-            flds = cfg.get("fields", [])
-            field_hint = f" ({', '.join(flds[:2])})" if flds else ""
-            name = f"TextInput #{tid}{field_hint}"
+                name = f"Source Input #{tid}"
+        elif tool.name:
+            name = tool.name
         else:
-            name = f"Source #{tid}"
+            name = f"Source Input #{tid}"
 
         # Strictly purge *Unknown and wildcard tokens
         if not name or "*" in name or name.lower() == "*unknown":
@@ -142,22 +151,40 @@ def _extract_workflow_targets_and_sinks(
     sink_classifications: dict[str, str] = {}
     seen_targets: set[str] = set()
     seen_sinks: set[str] = set()
-    biz_outputs = {out.tool_id: out for out in (result.business_summary.business_outputs if result.business_summary else [])}
 
+    # 1. Inspection Sinks (Browse / BrowseV2)
     for tid, tool in sorted(result.workflow.tools.items()):
-        # 1. Inspection Sinks (Browse / BrowseV2)
         if tool.tool_type in ("BrowseV2", "Browse"):
             sink_name = f"Browse #{tid}"
             if sink_name not in seen_sinks:
                 seen_sinks.add(sink_name)
                 inspection_sinks.append(sink_name)
                 sink_classifications[sink_name] = "INSPECTION_SINK"
+
+    # 2. Production targets from canonical business_outputs if present
+    if result.business_summary and result.business_summary.business_outputs:
+        for out in result.business_summary.business_outputs:
+            target_name = (getattr(out, "destination_name", None) or out.name or "").strip()
+            if not target_name or "*" in target_name or target_name.lower() == "*unknown":
+                continue
+            if target_name not in seen_targets:
+                seen_targets.add(target_name)
+                production_targets.append(target_name)
+                sink_classifications[target_name] = "PRODUCTION_OUTPUT"
+        return production_targets, inspection_sinks, sink_classifications
+
+    # Fallback when business_summary is absent
+    biz_outputs = {out.tool_id: out for out in (result.business_summary.business_outputs if result.business_summary else [])}
+
+    for tid, tool in sorted(result.workflow.tools.items()):
+        if tool.tool_type in ("BrowseV2", "Browse"):
             continue
 
-        # 2. Production Sinks (DbFileOutput, OutputData, Render, or non-browse leaf)
+        # Production Sinks (DbFileOutput, OutputData, Render, or non-browse leaf)
         is_explicit_output = tool.tool_type in ("DbFileOutput", "OutputData", "Render")
         is_leaf = (
-            result.graph.has_node(tid)
+            result.graph
+            and result.graph.has_node(tid)
             and result.graph.out_degree(tid) == 0
             and tool.tool_type not in ("BrowseV2", "Browse")
         )
@@ -177,8 +204,12 @@ def _extract_workflow_targets_and_sinks(
                 raw = biz_outputs[tid].raw_destination or biz_outputs[tid].name
                 if raw and raw.lower() not in ("standard output stream", "in-memory destination"):
                     target_name = _clean_table_name(raw)
+                elif tool.name:
+                    target_name = tool.name
                 else:
                     target_name = f"Deliverable #{tid}"
+            elif tool.name:
+                target_name = tool.name
             elif is_explicit_output:
                 target_name = f"Output #{tid}"
             else:

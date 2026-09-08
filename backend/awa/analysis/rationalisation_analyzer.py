@@ -230,6 +230,14 @@ def extract_workflow_column_and_data_evidence(
     sample_data_evidence: list[dict[str, Any]] = []
     operations_summary: list[dict[str, Any]] = []
 
+    # Pre-map canonical source input names if business summary is present
+    biz_inp_map: dict[str, str] = {}
+    if getattr(canonical_res, "business_summary", None) and canonical_res.business_summary.source_inputs:
+        for inp in canonical_res.business_summary.source_inputs:
+            cname = (inp.source_filename or inp.name or "").strip()
+            if cname:
+                biz_inp_map[str(inp.tool_id)] = cname
+
     # 1. Inspect all tools in canonical AST
     for tid, tool in sorted(wf.tools.items(), key=lambda x: str(x[0])):
         ttype = tool.tool_type
@@ -255,7 +263,7 @@ def extract_workflow_column_and_data_evidence(
                         canonical_columns[norm] = ColumnEvidence(
                             original_name=fname,
                             normalized_name=norm,
-                            source_dataset=tool.name or f"{ttype} (Tool #{tid})",
+                            source_dataset=biz_inp_map.get(str(tid), tool.name or f"{ttype} (Tool #{tid})"),
                             source_tool_id=str(tid),
                             source_tool_type=ttype,
                             provenance=f"RecordInfo: {ttype} (Tool #{tid})",
@@ -336,7 +344,7 @@ def extract_workflow_column_and_data_evidence(
                 col_ev = ColumnEvidence(
                     original_name=f_name,
                     normalized_name=norm,
-                    source_dataset=f"TextInput (Tool #{tid})",
+                    source_dataset=biz_inp_map.get(str(tid), tool.name or f"Source Input #{tid}"),
                     source_tool_id=str(tid),
                     source_tool_type=ttype,
                     provenance=f"TextInput #{tid} embedded data",
@@ -356,7 +364,7 @@ def extract_workflow_column_and_data_evidence(
                     col_ev = ColumnEvidence(
                         original_name=f_name,
                         normalized_name=norm,
-                        source_dataset=tool.name or f"Input (Tool #{tid})",
+                        source_dataset=biz_inp_map.get(str(tid), tool.name or f"Source Input #{tid}"),
                         source_tool_id=str(tid),
                         source_tool_type=ttype,
                         provenance=f"RecordInfo: {f_source or tool.name or 'Configured Stream'} (Tool #{tid})",
@@ -656,16 +664,18 @@ def build_workflow_fingerprint(
 
     # 2. Production Targets vs Inspection Sinks
     clean_targets: list[str] = []
+    raw_targets_list: list[str] = []
     for t in summary.targets:
         if not t or t == "*Unknown" or "unknown" in t.lower():
             continue
+        raw_targets_list.append(t)
         norm_t = normalize_name(t)
         if norm_t and norm_t not in clean_targets:
             clean_targets.append(norm_t)
 
     clean_sinks = [normalize_name(s) for s in summary.inspection_sinks if s]
 
-    target_keys = clean_targets if clean_targets else (clean_sinks if clean_sinks else ["outputs"])
+    target_keys = list(set(clean_targets + raw_targets_list)) if (clean_targets or raw_targets_list) else (clean_sinks if clean_sinks else ["outputs"])
 
     # Output schemas & fields from STTM, lineage_paths, or output_schema
     output_schemas: dict[str, list[str]] = {}

@@ -651,6 +651,29 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
         </p>
       </div>
 
+      {/* 6. Dynamic Executive Narrative */}
+      <div
+        style={{
+          background: 'var(--color-surface-secondary)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-md, 8px)',
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px',
+        }}
+      >
+        <BrainCircuit size={22} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+        <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+          From <strong style={{ color: 'var(--color-text)' }}>{totalTools}</strong> extracted processing tools across{' '}
+          <strong style={{ color: 'var(--color-text)' }}>{inputCount}</strong> data inputs, the platform automatically derived{' '}
+          <strong style={{ color: 'var(--color-text)' }}>{totalConnections}</strong> data-flow dependencies,{' '}
+          <strong style={{ color: 'var(--color-text)' }}>{stageCount}</strong> logical process stages,{' '}
+          <strong style={{ color: 'var(--color-text)' }}>{lineageCount}</strong> column-level lineage mappings, and{' '}
+          <strong style={{ color: 'var(--color-text)' }}>{outputCount}</strong> final business deliverables with full AI-assisted semantic documentation.
+        </div>
+      </div>
+
       {/* 2. Top Quantity KPI Cards (Open Evidence Modals, No Navigation) */}
       <div
         style={{
@@ -954,29 +977,6 @@ const WorkflowImpactView: React.FC<WorkflowImpactViewProps> = ({
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* 6. Dynamic Executive Narrative */}
-      <div
-        style={{
-          background: 'var(--color-surface-secondary)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-md, 8px)',
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '14px',
-        }}
-      >
-        <BrainCircuit size={22} color="var(--color-primary)" style={{ flexShrink: 0 }} />
-        <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
-          From <strong style={{ color: 'var(--color-text)' }}>{totalTools}</strong> extracted processing tools across{' '}
-          <strong style={{ color: 'var(--color-text)' }}>{inputCount}</strong> data inputs, the platform automatically derived{' '}
-          <strong style={{ color: 'var(--color-text)' }}>{totalConnections}</strong> data-flow dependencies,{' '}
-          <strong style={{ color: 'var(--color-text)' }}>{stageCount}</strong> logical process stages,{' '}
-          <strong style={{ color: 'var(--color-text)' }}>{lineageCount}</strong> column-level lineage mappings, and{' '}
-          <strong style={{ color: 'var(--color-text)' }}>{outputCount}</strong> final business deliverables with full AI-assisted semantic documentation.
         </div>
       </div>
 
