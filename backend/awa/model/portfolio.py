@@ -96,6 +96,7 @@ class PortfolioWorkflowSummary:
     last_run: str = "Not documented"
     frequency: str = "Not documented"
     processing_stages: list[dict[str, Any]] = field(default_factory=list)
+    rationalisation_status: str = "KEEP"  # "RETIRE" | "CONSOLIDATE" | "KEEP"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -142,6 +143,7 @@ class PortfolioWorkflowSummary:
             "last_run": self.last_run or (self.factor_assessments.get("last_run", {}).get("display_value") or "Not documented"),
             "frequency": self.frequency or (self.factor_assessments.get("frequency", {}).get("display_value") or "Not documented"),
             "processing_stages": self.processing_stages,
+            "rationalisation_status": self.rationalisation_status,
         }
 
 
@@ -544,6 +546,7 @@ class RationalisationCandidate:
     source_fields_by_workflow: dict[str, dict[str, list[str]]] = field(default_factory=dict)
     transformations_by_workflow: dict[str, list[str]] = field(default_factory=dict)
     frequencies_by_workflow: dict[str, str] = field(default_factory=dict)
+    original_recommendation_type: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -571,6 +574,7 @@ class RationalisationCandidate:
             "source_fields_by_workflow": self.source_fields_by_workflow,
             "transformations_by_workflow": self.transformations_by_workflow,
             "frequencies_by_workflow": self.frequencies_by_workflow,
+            "original_recommendation_type": self.original_recommendation_type or self.recommendation_type,
         }
 
 
@@ -581,6 +585,8 @@ class RationalisationAnalysis:
     candidates: list[RationalisationCandidate] = field(default_factory=list)
     total_opportunities: int = 0
     recommendation_counts: dict[str, int] = field(default_factory=dict)
+    workflow_classifications: dict[str, str] = field(default_factory=dict)
+    workflow_counts: dict[str, int] = field(default_factory=dict)
     analysed_workflow_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
@@ -589,6 +595,8 @@ class RationalisationAnalysis:
             "candidates": [c.to_dict() for c in self.candidates],
             "total_opportunities": self.total_opportunities,
             "recommendation_counts": self.recommendation_counts,
+            "workflow_classifications": self.workflow_classifications,
+            "workflow_counts": self.workflow_counts,
             "analysed_workflow_count": self.analysed_workflow_count,
         }
 

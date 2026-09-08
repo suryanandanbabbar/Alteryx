@@ -366,6 +366,7 @@ class PortfolioWorkflowSummaryDTO(BaseModel):
     last_run: str = "Not documented"
     frequency: str = "Not documented"
     processing_stages: list[BusinessStageDTO] = Field(default_factory=list)
+    rationalisation_status: str = "KEEP"
 
 
 class DeterministicSignalsDTO(BaseModel):
@@ -482,7 +483,7 @@ class RationalisationCandidateDTO(BaseModel):
     candidate_id: str = ""
     workflow_ids: list[str]
     workflow_names: list[str]
-    recommendation_type: Literal["CONSOLIDATE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW", "NO_ACTION"]
+    recommendation_type: Literal["CONSOLIDATE", "RETIRE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW", "KEEP", "NO_ACTION"]
     confidence: Literal["HIGH", "MEDIUM", "LOW"] = "HIGH"
     opportunity_score: float = 0.0
     reasoning: str = ""
@@ -503,6 +504,7 @@ class RationalisationCandidateDTO(BaseModel):
     source_fields_by_workflow: dict[str, dict[str, list[str]]] = Field(default_factory=dict)
     transformations_by_workflow: dict[str, list[str]] = Field(default_factory=dict)
     frequencies_by_workflow: dict[str, str] = Field(default_factory=dict)
+    original_recommendation_type: Optional[str] = None
 
     @field_validator("shared_logic", mode="before")
     @classmethod
@@ -532,6 +534,8 @@ class RationalisationAnalysisDTO(BaseModel):
     candidates: list[RationalisationCandidateDTO] = Field(default_factory=list)
     total_opportunities: int = 0
     recommendation_counts: dict[str, int] = Field(default_factory=dict)
+    workflow_classifications: dict[str, str] = Field(default_factory=dict)
+    workflow_counts: dict[str, int] = Field(default_factory=dict)
     analysed_workflow_count: int = 0
 
 

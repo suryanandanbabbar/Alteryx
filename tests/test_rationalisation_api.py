@@ -75,7 +75,7 @@ class TestRationalisationAPI:
                 assert "candidate_id" in cand
                 assert "workflow_ids" in cand
                 assert "workflow_names" in cand
-                assert cand["recommendation_type"] in ["CONSOLIDATE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW"]
+                assert cand["recommendation_type"] in ["CONSOLIDATE", "RETIRE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW", "KEEP"]
                 assert cand["confidence"] in ["HIGH", "MEDIUM", "LOW"]
                 assert 0.0 <= cand["opportunity_score"] <= 100.0
                 assert cand["llm_enrichment_status"] == "DETERMINISTIC_BASELINE"
@@ -161,5 +161,5 @@ class TestRationalisationAPI:
         for cand in data["candidates"]:
             assert cand["llm_enrichment_status"] == "DETERMINISTIC_BASELINE"
             assert cand["opportunity_score"] > 0
-            assert cand["recommendation_type"] in ["CONSOLIDATE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW"]
+            assert cand["recommendation_type"] in ["CONSOLIDATE", "RETIRE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW", "KEEP"]
 

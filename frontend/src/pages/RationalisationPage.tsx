@@ -33,7 +33,11 @@ export const HIDDEN_DEMO_CATEGORIES = new Set<string>([
 ]);
 
 export function getRecommendationCategory(cand: RationalisationCandidateDTO): string {
-  return cand.recommendation_type || (cand as any).recommendation_category || (cand as any).action || 'REVIEW';
+  const rec = cand.recommendation_type || (cand as any).recommendation_category || (cand as any).action || 'RETIRE';
+  if (rec === 'REVIEW' || rec === 'RETIRE_CANDIDATE') {
+    return 'RETIRE';
+  }
+  return rec;
 }
 
 export function isMeaningfulEvidence(item: string | null | undefined): boolean {
@@ -369,6 +373,12 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
         if (category !== 'CONSOLIDATE' || c.consolidation_decision?.recommendation !== 'MERGE') {
           return false;
         }
+      } else if (activeTab === 'RETIRE') {
+        if (category !== 'RETIRE') {
+          return false;
+        }
+      } else if (activeTab === 'KEEP') {
+        return false;
       } else if (activeTab !== 'ALL' && category !== activeTab) {
         return false;
       }
@@ -402,21 +412,50 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
     });
   }, [visibleCandidates, activeTab, searchQuery]);
 
-  const counts = useMemo(() => {
-    return {
-      CONSOLIDATE: visibleCandidates.filter(
-        (c) => getRecommendationCategory(c) === 'CONSOLIDATE' && c.consolidation_decision?.recommendation === 'MERGE'
-      ).length,
-      RETIRE_CANDIDATE: visibleCandidates.filter(
-        (c) => getRecommendationCategory(c) === 'RETIRE_CANDIDATE'
-      ).length,
-      REVIEW: visibleCandidates.filter(
-        (c) => getRecommendationCategory(c) === 'REVIEW'
-      ).length,
-    };
-  }, [visibleCandidates]);
+  const keepWorkflows = useMemo(() => {
+    return workflows.filter((w) => {
+      const classification =
+        analysis?.workflow_classifications?.[w.workflow_id] ||
+        w.rationalisation_status ||
+        'KEEP';
+      if (classification !== 'KEEP') return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesName = (w.filename || w.workflow_id).toLowerCase().includes(q);
+        const matchesArea = w.business_area?.business_area?.toLowerCase().includes(q);
+        const matchesPurpose = w.business_purpose?.toLowerCase().includes(q);
+        return Boolean(matchesName || matchesArea || matchesPurpose);
+      }
+      return true;
+    });
+  }, [workflows, analysis, searchQuery]);
 
-  const totalOpportunities = visibleCandidates.length;
+  const workflowCounts = useMemo(() => {
+    if (analysis?.workflow_counts) {
+      return {
+        CONSOLIDATE: analysis.workflow_counts.CONSOLIDATE ?? 0,
+        RETIRE: analysis.workflow_counts.RETIRE ?? 0,
+        KEEP: analysis.workflow_counts.KEEP ?? 0,
+      };
+    }
+    let cons = 0;
+    let ret = 0;
+    let keep = 0;
+    workflows.forEach((w) => {
+      const cls =
+        analysis?.workflow_classifications?.[w.workflow_id] ||
+        w.rationalisation_status ||
+        'KEEP';
+      if (cls === 'CONSOLIDATE') cons++;
+      else if (cls === 'RETIRE' || cls === 'REVIEW' || cls === 'RETIRE_CANDIDATE') ret++;
+      else keep++;
+    });
+    return {
+      CONSOLIDATE: cons,
+      RETIRE: ret,
+      KEEP: keep,
+    };
+  }, [analysis, workflows]);
 
   // Recommendation Badge Config
   const getRecommendationBadge = (type: string) => {
@@ -429,13 +468,23 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
           bg: 'rgba(16, 185, 129, 0.12)',
           border: '1px solid rgba(16, 185, 129, 0.35)',
         };
+      case 'RETIRE':
       case 'RETIRE_CANDIDATE':
+      case 'REVIEW':
         return {
-          label: 'Retire Candidate',
+          label: 'Retire',
           icon: Trash2,
           color: '#fbbf24',
           bg: 'rgba(245, 158, 11, 0.12)',
           border: '1px solid rgba(245, 158, 11, 0.35)',
+        };
+      case 'KEEP':
+        return {
+          label: 'Keep',
+          icon: ShieldCheck,
+          color: '#94a3b8',
+          bg: 'rgba(148, 163, 184, 0.12)',
+          border: '1px solid rgba(148, 163, 184, 0.35)',
         };
       case 'SHARED_LOGIC':
         return {
@@ -445,14 +494,13 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
           bg: 'rgba(56, 189, 248, 0.12)',
           border: '1px solid rgba(56, 189, 248, 0.35)',
         };
-      case 'REVIEW':
       default:
         return {
-          label: 'Review Needed',
-          icon: AlertTriangle,
-          color: '#c084fc',
-          bg: 'rgba(192, 132, 252, 0.12)',
-          border: '1px solid rgba(192, 132, 252, 0.35)',
+          label: 'Retire',
+          icon: Trash2,
+          color: '#fbbf24',
+          bg: 'rgba(245, 158, 11, 0.12)',
+          border: '1px solid rgba(245, 158, 11, 0.35)',
         };
     }
   };
@@ -765,34 +813,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {String(analysis.analysed_workflow_count).padStart(2, '0')}
-              </span>
-            </div>
-
-            <div style={{ width: '1px', height: '36px', background: 'var(--color-border)' }} />
-
-            {/* Total Opportunities */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '140px' }}>
-              <span
-                style={{
-                  fontSize: '10.5px',
-                  fontWeight: '700',
-                  color: 'var(--color-text-muted)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.08em',
-                }}
-              >
-                TOTAL OPPORTUNITIES
-              </span>
-              <span
-                style={{
-                  fontSize: '22px',
-                  fontWeight: '800',
-                  color: totalOpportunities > 0 ? 'var(--color-primary)' : 'var(--color-text)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {String(totalOpportunities).padStart(2, '0')}
+                {String(analysis.analysed_workflow_count ?? workflows.length).padStart(2, '0')}
               </span>
             </div>
 
@@ -829,13 +850,13 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {String(counts.CONSOLIDATE || 0).padStart(2, '0')}
+                {String(workflowCounts.CONSOLIDATE || 0).padStart(2, '0')}
               </span>
             </div>
 
             <div style={{ width: '1px', height: '36px', background: 'var(--color-border)' }} />
 
-            {/* Retire Candidates */}
+            {/* Retire */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '130px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span
@@ -855,7 +876,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                     letterSpacing: '0.08em',
                   }}
                 >
-                  RETIRE CANDIDATES
+                  RETIRE
                 </span>
               </div>
               <span
@@ -866,13 +887,13 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {String(counts.RETIRE_CANDIDATE || 0).padStart(2, '0')}
+                {String(workflowCounts.RETIRE || 0).padStart(2, '0')}
               </span>
             </div>
 
             <div style={{ width: '1px', height: '36px', background: 'var(--color-border)' }} />
 
-            {/* Review Needed */}
+            {/* Keep */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '120px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <span
@@ -880,7 +901,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                     width: '7px',
                     height: '7px',
                     borderRadius: '50%',
-                    background: '#c084fc',
+                    background: '#94a3b8',
                   }}
                 />
                 <span
@@ -892,18 +913,18 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                     letterSpacing: '0.08em',
                   }}
                 >
-                  REVIEW NEEDED
+                  KEEP
                 </span>
               </div>
               <span
                 style={{
                   fontSize: '22px',
                   fontWeight: '800',
-                  color: '#c084fc',
+                  color: '#94a3b8',
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {String(counts.REVIEW || 0).padStart(2, '0')}
+                {String(workflowCounts.KEEP || 0).padStart(2, '0')}
               </span>
             </div>
           </div>
@@ -928,10 +949,10 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               }}
             >
               {[
-                { key: 'ALL', label: 'All Opportunities', count: totalOpportunities },
-                { key: 'CONSOLIDATE', label: 'Consolidate', count: counts.CONSOLIDATE || 0 },
-                { key: 'RETIRE_CANDIDATE', label: 'Retire Candidates', count: counts.RETIRE_CANDIDATE || 0 },
-                { key: 'REVIEW', label: 'Review', count: counts.REVIEW || 0 },
+                { key: 'ALL', label: 'All Workflows', count: analysis.analysed_workflow_count ?? workflows.length },
+                { key: 'RETIRE', label: 'Retire', count: workflowCounts.RETIRE || 0 },
+                { key: 'CONSOLIDATE', label: 'Consolidate', count: workflowCounts.CONSOLIDATE || 0 },
+                { key: 'KEEP', label: 'Keep', count: workflowCounts.KEEP || 0 },
               ].map((tab) => {
                 const isSelected = activeTab === tab.key;
                 return (
@@ -1054,10 +1075,11 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
             </div>
           </div>
 
-          {/* 6. Opportunity Cards List */}
-          {filteredCandidates.length > 0 ? (
+          {/* 6. Opportunity / Workflow Cards List */}
+          {(filteredCandidates.length > 0 || ((activeTab === 'ALL' || activeTab === 'KEEP') && keepWorkflows.length > 0)) ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {filteredCandidates.map((cand) => {
+              {(activeTab === 'ALL' || activeTab === 'CONSOLIDATE' || activeTab === 'RETIRE') &&
+                filteredCandidates.map((cand) => {
                 const badge = getRecommendationBadge(cand.recommendation_type);
                 const confBadge = getConfidenceBadge(cand.confidence);
                 const BadgeIcon = badge.icon;
@@ -1513,6 +1535,271 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   </div>
                 );
               })}
+
+              {/* Keep Workflow Cards */}
+              {(activeTab === 'ALL' || activeTab === 'KEEP') &&
+                keepWorkflows.map((w) => {
+                  const complexityStyle = getLevelBadgeStyle(w.complexity_level || 'LOW');
+                  const criticalityStyle = getLevelBadgeStyle(w.criticality_level || 'LOW');
+                  return (
+                    <div
+                      key={w.workflow_id}
+                      style={{
+                        background: 'var(--color-surface)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '10px',
+                        padding: '24px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '18px',
+                        boxShadow: '0 2px 10px rgba(0, 0, 0, 0.15)',
+                        transition: 'border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--color-primary-border)';
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.25)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--color-border)';
+                        e.currentTarget.style.transform = 'none';
+                        e.currentTarget.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.15)';
+                      }}
+                    >
+                      {/* Top Row: Keep Badge */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: '12px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '4px 12px',
+                              borderRadius: '20px',
+                              fontSize: '11px',
+                              fontWeight: '800',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.06em',
+                              background: 'rgba(148, 163, 184, 0.12)',
+                              color: '#94a3b8',
+                              border: '1px solid rgba(148, 163, 184, 0.35)',
+                            }}
+                          >
+                            <ShieldCheck size={13} />
+                            Keep
+                          </span>
+
+                          <span
+                            style={{
+                              fontSize: '10.5px',
+                              fontWeight: '700',
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              background: 'var(--color-surface-secondary)',
+                              color: 'var(--color-text-muted)',
+                              border: '1px solid var(--color-border-subtle)',
+                            }}
+                          >
+                            Retain As-Is
+                          </span>
+                        </div>
+
+                        {w.business_area?.business_area && (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              padding: '3px 10px',
+                              borderRadius: '4px',
+                              background: 'rgba(56, 189, 248, 0.1)',
+                              color: '#38bdf8',
+                              border: '1px solid rgba(56, 189, 248, 0.25)',
+                            }}
+                          >
+                            {w.business_area.business_area}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Workflow Identification Strip */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '16px',
+                          padding: '14px 18px',
+                          borderRadius: '8px',
+                          background: 'var(--color-surface-secondary)',
+                          border: '1px solid var(--color-border-subtle)',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <span
+                            style={{
+                              fontSize: '15px',
+                              fontWeight: '700',
+                              color: 'var(--color-text)',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {w.filename || w.workflow_id}
+                          </span>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span
+                              style={{
+                                fontSize: '10.5px',
+                                fontWeight: '700',
+                                padding: '2px 7px',
+                                borderRadius: '4px',
+                                ...complexityStyle,
+                              }}
+                              title={`Complexity: ${w.complexity_level || 'LOW'}`}
+                            >
+                              Complexity: {w.complexity_level || 'LOW'}
+                            </span>
+
+                            <span
+                              style={{
+                                fontSize: '10.5px',
+                                fontWeight: '700',
+                                padding: '2px 7px',
+                                borderRadius: '4px',
+                                ...criticalityStyle,
+                              }}
+                              title={`Criticality: ${w.criticality_level || 'LOW'}`}
+                            >
+                              Criticality: {w.criticality_level || 'LOW'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Rationale Callout Banner */}
+                      <div
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: '8px',
+                          background: 'var(--color-surface-secondary)',
+                          border: '1px solid var(--color-border-subtle)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.08em',
+                            color: 'var(--color-text-muted)',
+                          }}
+                        >
+                          DECISION RATIONALE
+                        </div>
+                        <p
+                          style={{
+                            fontSize: '13.5px',
+                            lineHeight: '1.55',
+                            color: 'var(--color-text-secondary)',
+                            margin: 0,
+                          }}
+                        >
+                          The workflow is not currently identified as a Rationalisation candidate by the project's deterministic decision model.
+                        </p>
+                      </div>
+
+                      {/* Business Purpose / Description if available */}
+                      {w.business_purpose && (
+                        <div>
+                          <div
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: '700',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.08em',
+                              color: 'var(--color-text-muted)',
+                              marginBottom: '4px',
+                            }}
+                          >
+                            BUSINESS PURPOSE
+                          </div>
+                          <p
+                            style={{
+                              fontSize: '13px',
+                              lineHeight: '1.5',
+                              color: 'var(--color-text-secondary)',
+                              margin: 0,
+                            }}
+                          >
+                            {w.business_purpose}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Footer / Navigation Action */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: '12px',
+                          borderTop: '1px solid var(--color-border-subtle)',
+                          paddingTop: '14px',
+                          marginTop: 'auto',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                          <span>Tools: <strong style={{ color: 'var(--color-text)' }}>{w.node_count ?? 0}</strong></span>
+                          <span>Inputs: <strong style={{ color: 'var(--color-text)' }}>{w.source_count ?? 0}</strong></span>
+                          <span>Outputs: <strong style={{ color: 'var(--color-text)' }}>{w.target_count ?? 0}</strong></span>
+                        </div>
+
+                        <button
+                          onClick={() => handleInspectClick(w.workflow_id)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '7px 14px',
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'var(--color-surface-secondary)',
+                            border: '1px solid var(--color-border)',
+                            color: 'var(--color-text)',
+                            fontSize: '12.5px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'var(--color-primary-surface)';
+                            e.currentTarget.style.borderColor = 'var(--color-primary-border)';
+                            e.currentTarget.style.color = 'var(--color-primary)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'var(--color-surface-secondary)';
+                            e.currentTarget.style.borderColor = 'var(--color-border)';
+                            e.currentTarget.style.color = 'var(--color-text)';
+                          }}
+                        >
+                          <span>Inspect Workflow</span>
+                          <ArrowRight size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           ) : (
             /* Empty State */
@@ -1530,8 +1817,8 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                 gap: '16px',
               }}
             >
-              {totalOpportunities === 0 ? (
-                // Estate-level zero opportunities
+              {workflows.length === 0 ? (
+                // Estate-level zero workflows
                 <>
                   <div
                     style={{
@@ -1557,7 +1844,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         margin: '0 0 6px 0',
                       }}
                     >
-                      No rationalisation opportunities identified
+                      No workflows identified
                     </h3>
                     <p
                       style={{
@@ -1568,9 +1855,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         lineHeight: '1.55',
                       }}
                     >
-                      The current workflow estate does not contain sufficient deterministic evidence for a
-                      rationalisation recommendation. All workflows have distinct datasets, unique schemas,
-                      and independent operational deliverables.
+                      The current portfolio does not contain any analysed workflows.
                     </p>
                   </div>
                 </>
@@ -1601,7 +1886,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         margin: '0 0 6px 0',
                       }}
                     >
-                      No rationalisation opportunities match your criteria
+                      No workflows match your criteria
                     </h3>
                     <p
                       style={{
@@ -1612,8 +1897,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         lineHeight: '1.5',
                       }}
                     >
-                      Try switching filter tabs or clearing your search query to inspect other rationalisation
-                      opportunities.
+                      Try switching filter tabs or clearing your search query to inspect other workflows.
                     </p>
                   </div>
                   {(activeTab !== 'ALL' || searchQuery) && (

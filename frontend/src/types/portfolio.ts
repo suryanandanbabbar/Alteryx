@@ -54,6 +54,7 @@ export interface PortfolioWorkflowSummaryDTO {
   last_run?: string;
   frequency?: string;
   processing_stages?: BusinessStageDTO[];
+  rationalisation_status?: string;
 }
 
 export interface FactorAssessmentDTO {
@@ -206,7 +207,7 @@ export interface RationalisationCandidateDTO {
   candidate_id: string;
   workflow_ids: string[];
   workflow_names: string[];
-  recommendation_type: 'CONSOLIDATE' | 'RETIRE_CANDIDATE' | 'SHARED_LOGIC' | 'REVIEW' | 'NO_ACTION';
+  recommendation_type: 'CONSOLIDATE' | 'RETIRE' | 'RETIRE_CANDIDATE' | 'SHARED_LOGIC' | 'REVIEW' | 'KEEP' | 'NO_ACTION';
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   opportunity_score: number;
   reasoning: string;
@@ -227,6 +228,7 @@ export interface RationalisationCandidateDTO {
   source_fields_by_workflow?: Record<string, Record<string, string[]>>;
   transformations_by_workflow?: Record<string, string[]>;
   frequencies_by_workflow?: Record<string, string>;
+  original_recommendation_type?: string;
 }
 
 export interface RationalisationAnalysisDTO {
@@ -234,6 +236,8 @@ export interface RationalisationAnalysisDTO {
   candidates: RationalisationCandidateDTO[];
   total_opportunities: number;
   recommendation_counts: Record<string, number>;
+  workflow_classifications?: Record<string, string>;
+  workflow_counts?: Record<string, number>;
   analysed_workflow_count: number;
 }
 

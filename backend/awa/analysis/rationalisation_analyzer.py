@@ -1881,18 +1881,20 @@ def detect_candidate_from_comparison(
     )
 
     # Determine recommendation and admissible bounds
+    original_type = ""
     if can_retire:
-        recommendation_type = "RETIRE_CANDIDATE"
-        admissible = ["RETIRE_CANDIDATE", "REVIEW"]
+        recommendation_type = "RETIRE"
+        admissible = ["RETIRE", "RETIRE_CANDIDATE", "REVIEW"]
     elif can_consolidate:
         recommendation_type = "CONSOLIDATE"
         admissible = ["CONSOLIDATE"]
     elif can_shared_logic:
         recommendation_type = "SHARED_LOGIC"
-        admissible = ["SHARED_LOGIC", "REVIEW"]
+        admissible = ["SHARED_LOGIC"]
     elif can_review:
-        recommendation_type = "REVIEW"
-        admissible = ["REVIEW"]
+        recommendation_type = "RETIRE"
+        admissible = ["RETIRE", "RETIRE_CANDIDATE", "REVIEW"]
+        original_type = "REVIEW"
     else:
         # NO_ACTION: Return None so unrelated workflows are never surfaced in the UI!
         return None
@@ -1920,7 +1922,7 @@ def detect_candidate_from_comparison(
             f"Confirm {dse.target_workflow_name} scheduled execution covers the operational window of {dse.source_workflow_name}",
             f"Inspect sample outputs from {dse.target_workflow_name} to confirm field schema parity",
         ]
-    elif recommendation_type == "RETIRE_CANDIDATE":
+    elif recommendation_type in ("RETIRE", "RETIRE_CANDIDATE") and not original_type:
         reasoning = (
             f"{fp_a.workflow_name} and {fp_b.workflow_name} exhibit strong functional equivalence: "
             f"identical production targets ({', '.join(comp.shared_targets) or 'equivalent targets'}), "
@@ -2090,6 +2092,7 @@ def detect_candidate_from_comparison(
             fp_a.workflow_name: fp_a.frequency,
             fp_b.workflow_name: fp_b.frequency,
         },
+        original_recommendation_type=original_type or recommendation_type,
     )
 
     logger.info(
@@ -2376,7 +2379,7 @@ def build_rationalisation_analysis(
                         candidate_id=cand_id,
                         workflow_ids=[fp.workflow_id],
                         workflow_names=[fp.workflow_name],
-                        recommendation_type="REVIEW",
+                        recommendation_type="RETIRE",
                         confidence="HIGH",
                         opportunity_score=35.0,
                         reasoning=(
@@ -2396,20 +2399,82 @@ def build_rationalisation_analysis(
                             "Confirm with data team if this workflow is actively used for manual diagnostics",
                             "Verify no external schedule triggers this workflow in production",
                         ],
-                        admissible_recommendations=["REVIEW", "RETIRE_CANDIDATE"],
+                        admissible_recommendations=["RETIRE", "RETIRE_CANDIDATE", "REVIEW"],
                         llm_enrichment_status="DETERMINISTIC_BASELINE",
+                        original_recommendation_type="REVIEW",
                     )
                 )
 
     # Sort candidates by opportunity score descending
     candidates.sort(key=lambda c: c.opportunity_score, reverse=True)
 
-    # 5. Aggregate recommendation counts
+    # 5. Compute canonical workflow-level partition: Retire ∪ Consolidate ∪ Keep
+    # Every analysed workflow belongs to exactly one final bucket.
+    workflow_classifications: dict[str, str] = {}
+
+    consolidate_candidates = [
+        c for c in candidates
+        if c.recommendation_type == "CONSOLIDATE"
+        and (c.consolidation_decision is not None and c.consolidation_decision.recommendation == "MERGE")
+        and (c.deterministic_metrics.source_overlap > 0.60)
+    ]
+    retire_candidates = [
+        c for c in candidates
+        if c.recommendation_type in ("RETIRE", "RETIRE_CANDIDATE", "REVIEW")
+    ]
+
+    for summary in portfolio.workflows:
+        wid = summary.workflow_id
+
+        # 1. Consolidate priority
+        is_consolidated = False
+        for cand in consolidate_candidates:
+            if cand.data_subsumption_evidence:
+                if wid == cand.data_subsumption_evidence.source_workflow_id:
+                    is_consolidated = True
+                    break
+            elif wid in cand.workflow_ids:
+                is_consolidated = True
+                break
+
+        if is_consolidated:
+            workflow_classifications[wid] = "CONSOLIDATE"
+            summary.rationalisation_status = "CONSOLIDATE"
+            continue
+
+        # 2. Retire priority
+        is_retired = False
+        for cand in retire_candidates:
+            if wid in cand.workflow_ids:
+                is_retired = True
+                break
+
+        if is_retired:
+            workflow_classifications[wid] = "RETIRE"
+            summary.rationalisation_status = "RETIRE"
+            continue
+
+        # 3. Residual non-candidate bucket is KEEP
+        workflow_classifications[wid] = "KEEP"
+        summary.rationalisation_status = "KEEP"
+
+    retire_count = sum(1 for s in workflow_classifications.values() if s == "RETIRE")
+    consolidate_count = sum(1 for s in workflow_classifications.values() if s == "CONSOLIDATE")
+    keep_count = sum(1 for s in workflow_classifications.values() if s == "KEEP")
+
+    workflow_counts = {
+        "RETIRE": retire_count,
+        "CONSOLIDATE": consolidate_count,
+        "KEEP": keep_count,
+    }
+
     rec_counts = {
-        "CONSOLIDATE": sum(1 for c in candidates if c.recommendation_type == "CONSOLIDATE"),
-        "RETIRE_CANDIDATE": sum(1 for c in candidates if c.recommendation_type == "RETIRE_CANDIDATE"),
+        "CONSOLIDATE": consolidate_count,
+        "RETIRE": retire_count,
+        "KEEP": keep_count,
+        "RETIRE_CANDIDATE": retire_count,
         "SHARED_LOGIC": sum(1 for c in candidates if c.recommendation_type == "SHARED_LOGIC"),
-        "REVIEW": sum(1 for c in candidates if c.recommendation_type == "REVIEW"),
+        "REVIEW": 0,
     }
 
     return RationalisationAnalysis(
@@ -2417,5 +2482,7 @@ def build_rationalisation_analysis(
         candidates=candidates,
         total_opportunities=len(candidates),
         recommendation_counts=rec_counts,
+        workflow_classifications=workflow_classifications,
+        workflow_counts=workflow_counts,
         analysed_workflow_count=len(portfolio.workflows),
     )

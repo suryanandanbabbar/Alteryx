@@ -73,8 +73,8 @@ class TestRationalisationCandidates:
         cand = detect_candidate_from_comparison(comp, fp_a, fp_b)
 
         assert cand is not None
-        assert cand.recommendation_type == "RETIRE_CANDIDATE"
-        assert "RETIRE_CANDIDATE" in cand.admissible_recommendations
+        assert cand.recommendation_type in ("RETIRE", "RETIRE_CANDIDATE")
+        assert any(r in cand.admissible_recommendations for r in ("RETIRE", "RETIRE_CANDIDATE"))
         assert cand.opportunity_score >= 80.0
         assert "operational scheduling" in cand.proposed_strategy.lower()
         # Verify validation requirements exist
