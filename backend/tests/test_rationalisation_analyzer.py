@@ -189,3 +189,50 @@ def test_rationalisation_unique_workflow_partitioning():
     assert analysis.workflow_counts["KEEP"] == keep_count
     assert analysis.workflow_counts["RETIRE"] == retire_count
     assert analysis.analysed_workflow_count == consolidate_count + keep_count + retire_count
+
+
+def test_frequency_overlap_alone_does_not_retire():
+    # Two workflows with identical frequency (Daily) but completely different logic and targets
+    s_a, wf_a = _make_dummy_workflow(
+        wid="wf-1",
+        name="Sales Ingest",
+        sources=["Sales.csv"],
+        targets=["Analytics.Daily_Sales"],
+        fields=["sale_id", "amount"],
+    )
+    s_b, wf_b = _make_dummy_workflow(
+        wid="wf-2",
+        name="Inventory Audit",
+        sources=["Inventory.csv"],
+        targets=["Reports.Inventory_Audit"],
+        fields=["item_id", "qty"],
+    )
+    s_a.frequency = "Daily"
+    s_b.frequency = "Daily"
+
+    fp_a = build_workflow_fingerprint(s_a, wf_a)
+    fp_b = build_workflow_fingerprint(s_b, wf_b)
+
+    comp = compare_workflows(fp_a, fp_b)
+    assert comp.metrics.frequency_overlap == 1.0  # Same frequency
+
+    cand = detect_candidate_from_comparison(comp, fp_a, fp_b)
+    # Because targets are distinct and source overlap is 0, this must NOT be RETIRE
+    if cand is not None:
+        assert cand.recommendation_type != "RETIRE"
+        assert cand.recommendation_type != "RETIRE_CANDIDATE"
+
+
+def test_target_fields_and_provenance_population():
+    s_a, wf_a = _make_dummy_workflow(
+        wid="wf-1",
+        name="Source Target Workflow",
+        sources=["Sales.csv"],
+        targets=["Analytics.Output_Tgt"],
+        fields=["sale_id", "customer_name", "price"],
+    )
+    fp = build_workflow_fingerprint(s_a, wf_a)
+    assert "output_tgt" in " ".join(fp.production_targets)
+    assert "sale_id" in fp.available_columns
+    assert any("sale_id" in flds for flds in fp.source_fields.values())
+

@@ -1857,10 +1857,19 @@ def detect_candidate_from_comparison(
     )
 
     # Safety Gate 1: Check RETIRE_CANDIDATE
+    # Strict Retirement Requirements:
+    # 1. Target/output equivalence (m.target_overlap >= 0.85 or equivalent targets)
+    # 2. Source/data sufficiency (m.source_overlap >= 0.60 or directional data subsumption 100%)
+    # 3. Processing/logic equivalence (m.transformation_similarity >= 0.75)
+    # 4. Schema and grain compatibility
+    # 5. Minimal unique logic (<= 1 unique tool/logic)
+    # 6. Dependency safety (no known consumers)
+    # NOTE: Frequency overlap alone must NEVER qualify a workflow for retirement.
     has_known_consumers = bool(fp_a.downstream_consumers or fp_b.downstream_consumers)
     can_retire = (
-        m.target_overlap >= t.RETIRE_TARGET_OVERLAP_MIN
+        (m.target_overlap >= t.RETIRE_TARGET_OVERLAP_MIN or (output_evidence.is_equivalent_target and m.target_overlap >= 0.70))
         and m.transformation_similarity >= t.RETIRE_LOGIC_SIMILARITY_MIN
+        and (m.source_overlap >= 0.60 or (consolidation_decision.data_subsumption_evidence is not None and consolidation_decision.data_subsumption_evidence.data_coverage_pct == 1.0))
         and output_evidence.is_equivalent_schema
         and output_evidence.is_equivalent_grain
         and len(comp.unique_a) <= t.RETIRE_MAX_UNIQUE_LOGIC_COUNT
@@ -1881,41 +1890,17 @@ def detect_candidate_from_comparison(
         or (len(comp.shared_logic) >= 2 and comp.opportunity_score >= 30.0)
     )
 
-    # Safety Gate 4: Check REVIEW
-    has_any_overlap = bool(
-        m.source_overlap > 0.0
-        or m.transformation_similarity > 0.0
-        or m.target_overlap > 0.0
-        or comp.shared_sources
-        or comp.shared_targets
-        or comp.shared_logic
-        or consolidation_decision.data_subsumption_evidence is not None
-    )
-    can_review = (
-        has_any_overlap
-        and (
-            comp.opportunity_score >= t.MIN_SURFACE_SCORE
-            or m.source_overlap >= t.REVIEW_OVERLAP_MIN
-            or (len(comp.shared_sources) > 0 and m.transformation_similarity >= 0.20)
-            or consolidation_decision.data_subsumption_evidence is not None
-        )
-    )
-
     # Determine recommendation and admissible bounds
     original_type = ""
     if can_retire:
         recommendation_type = "RETIRE"
-        admissible = ["RETIRE", "RETIRE_CANDIDATE", "REVIEW"]
+        admissible = ["RETIRE", "RETIRE_CANDIDATE"]
     elif can_consolidate:
         recommendation_type = "CONSOLIDATE"
         admissible = ["CONSOLIDATE"]
     elif can_shared_logic:
         recommendation_type = "SHARED_LOGIC"
         admissible = ["SHARED_LOGIC"]
-    elif can_review:
-        recommendation_type = "RETIRE"
-        admissible = ["RETIRE", "RETIRE_CANDIDATE", "REVIEW"]
-        original_type = "REVIEW"
     else:
         # NO_ACTION: Return None so unrelated workflows are never surfaced in the UI!
         return None
@@ -2114,6 +2099,14 @@ def detect_candidate_from_comparison(
         source_fields_by_workflow={
             fp_a.workflow_name: fp_a.source_fields,
             fp_b.workflow_name: fp_b.source_fields,
+        },
+        targets_by_workflow={
+            fp_a.workflow_name: fp_a.production_targets,
+            fp_b.workflow_name: fp_b.production_targets,
+        },
+        target_fields_by_workflow={
+            fp_a.workflow_name: fp_a.output_schemas,
+            fp_b.workflow_name: fp_b.output_schemas,
         },
         transformations_by_workflow={
             fp_a.workflow_name: [s for s in fp_a.transformation_signatures if is_meaningful_evidence(s)],
@@ -2431,9 +2424,15 @@ def build_rationalisation_analysis(
                             "Confirm with data team if this workflow is actively used for manual diagnostics",
                             "Verify no external schedule triggers this workflow in production",
                         ],
-                        admissible_recommendations=["RETIRE", "RETIRE_CANDIDATE", "REVIEW"],
+                        admissible_recommendations=["RETIRE", "RETIRE_CANDIDATE"],
                         llm_enrichment_status="DETERMINISTIC_BASELINE",
-                        original_recommendation_type="REVIEW",
+                        sources_by_workflow={fp.workflow_name: fp.sources},
+                        source_fields_by_workflow={fp.workflow_name: fp.source_fields},
+                        targets_by_workflow={fp.workflow_name: fp.production_targets},
+                        target_fields_by_workflow={fp.workflow_name: fp.output_schemas},
+                        transformations_by_workflow={fp.workflow_name: [s for s in fp.transformation_signatures if is_meaningful_evidence(s)]},
+                        frequencies_by_workflow={fp.workflow_name: fp.frequency},
+                        original_recommendation_type="RETIRE",
                     )
                 )
 
@@ -2452,7 +2451,7 @@ def build_rationalisation_analysis(
     ]
     retire_candidates = [
         c for c in candidates
-        if c.recommendation_type in ("RETIRE", "RETIRE_CANDIDATE", "REVIEW")
+        if c.recommendation_type in ("RETIRE", "RETIRE_CANDIDATE")
     ]
 
     for summary in portfolio.workflows:

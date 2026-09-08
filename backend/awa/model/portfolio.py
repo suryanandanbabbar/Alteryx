@@ -544,6 +544,8 @@ class RationalisationCandidate:
     data_subsumption_evidence: Optional[DataSubsumptionEvidence] = None
     sources_by_workflow: dict[str, list[str]] = field(default_factory=dict)
     source_fields_by_workflow: dict[str, dict[str, list[str]]] = field(default_factory=dict)
+    targets_by_workflow: dict[str, list[str]] = field(default_factory=dict)
+    target_fields_by_workflow: dict[str, dict[str, list[str]]] = field(default_factory=dict)
     transformations_by_workflow: dict[str, list[str]] = field(default_factory=dict)
     frequencies_by_workflow: dict[str, str] = field(default_factory=dict)
     original_recommendation_type: str = ""
@@ -572,6 +574,8 @@ class RationalisationCandidate:
             "data_subsumption_evidence": self.data_subsumption_evidence.to_dict() if self.data_subsumption_evidence else None,
             "sources_by_workflow": self.sources_by_workflow,
             "source_fields_by_workflow": self.source_fields_by_workflow,
+            "targets_by_workflow": self.targets_by_workflow,
+            "target_fields_by_workflow": self.target_fields_by_workflow,
             "transformations_by_workflow": self.transformations_by_workflow,
             "frequencies_by_workflow": self.frequencies_by_workflow,
             "original_recommendation_type": self.original_recommendation_type or self.recommendation_type,

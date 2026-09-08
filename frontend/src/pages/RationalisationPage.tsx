@@ -14,6 +14,8 @@ import {
   Database,
   Target,
   Check,
+  ChevronDown,
+  ChevronRight,
   Sparkles,
   Copy,
   Clock,
@@ -307,6 +309,16 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
   const [selectedCandidate, setSelectedCandidate] = useState<RationalisationCandidateDTO | null>(null);
   const [activeEvidenceMetric, setActiveEvidenceMetric] = useState<'source' | 'target' | 'frequency' | 'logic' | 'dag'>('source');
   const [loadingStage, setLoadingStage] = useState<number>(0);
+  const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
+  const [expandedTargets, setExpandedTargets] = useState<Record<string, boolean>>({});
+
+  const toggleSource = (key: string) => {
+    setExpandedSources((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const toggleTarget = (key: string) => {
+    setExpandedTargets((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const LOADING_STAGES = [
     'Reading canonical workflow fingerprints...',
@@ -1229,6 +1241,91 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         );
                       }
 
+                      if (cand.recommendation_type === 'RETIRE' || cand.recommendation_type === 'RETIRE_CANDIDATE') {
+                        const retiringName = cand.workflow_names[0];
+                        const retiringId = cand.workflow_ids[0];
+                        const summary = retiringId ? workflowMap.get(retiringId) : null;
+                        const complexityStyle = getLevelBadgeStyle(summary?.complexity_level || 'LOW');
+                        const criticalityStyle = getLevelBadgeStyle(summary?.criticality_level || 'LOW');
+
+                        return (
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '14px 18px',
+                              borderRadius: '8px',
+                              background: 'var(--color-surface-secondary)',
+                              border: '1px solid var(--color-border-subtle)',
+                              flexWrap: 'wrap',
+                              gap: '12px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
+                                Workflow to be Retired
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '15px', fontWeight: '700', color: 'var(--color-text)', wordBreak: 'break-word' }}>
+                                  {retiringName}
+                                </span>
+                                {summary && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span
+                                      style={{
+                                        fontSize: '10.5px',
+                                        fontWeight: '700',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        ...complexityStyle,
+                                      }}
+                                    >
+                                      Complexity: {summary.complexity_level || 'LOW'}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: '10.5px',
+                                        fontWeight: '700',
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        ...criticalityStyle,
+                                      }}
+                                    >
+                                      Criticality: {summary.criticality_level || 'LOW'}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {retiringId && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleInspectClick(retiringId);
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '6px 12px',
+                                  borderRadius: 'var(--radius-sm)',
+                                  background: 'var(--color-surface)',
+                                  border: '1px solid var(--color-border)',
+                                  color: 'var(--color-primary)',
+                                  fontSize: '12px',
+                                  fontWeight: '700',
+                                  cursor: 'pointer',
+                                }}
+                              >
+                                <span>Inspect</span>
+                                <ExternalLink size={12} />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      }
+
                       return (
                         <div
                           style={{
@@ -1320,6 +1417,54 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                       );
                     })()}
 
+                    {/* Retained Replacement Banner for Retire Candidate (if pairwise) */}
+                    {(cand.recommendation_type === 'RETIRE' || cand.recommendation_type === 'RETIRE_CANDIDATE') && cand.workflow_names.length > 1 && (
+                      <div
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: '8px',
+                          background: 'rgba(239, 68, 68, 0.06)',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: '10px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '13px' }}>
+                          <span style={{ color: 'var(--color-text-muted)', fontWeight: '600' }}>Replaced / Covered By:</span>
+                          <span style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.35)', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>
+                            {cand.workflow_names[1]}
+                          </span>
+                        </div>
+                        {cand.workflow_ids[1] && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleInspectClick(cand.workflow_ids[1]);
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              background: 'var(--color-surface)',
+                              border: '1px solid var(--color-border)',
+                              color: 'var(--color-primary)',
+                              fontSize: '11.5px',
+                              fontWeight: '700',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <span>Inspect Replacement</span>
+                            <ExternalLink size={11} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {/* Directional Data-Superset Merge Callout Banner */}
                     {(() => {
                       const dse = cand.data_subsumption_evidence || cand.consolidation_decision?.data_subsumption_evidence;
@@ -1358,45 +1503,25 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                               {dse.target_workflow_name} (Retained Superset)
                             </span>
                           </div>
-
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px', marginTop: '2px', fontSize: '12px' }}>
-                            <div style={{ padding: '6px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-subtle)' }}>
-                              <div style={{ color: 'var(--color-text-muted)', fontSize: '10.5px' }}>Data Coverage</div>
-                              <div style={{ color: '#34d399', fontWeight: '700' }}>{Math.round(dse.data_coverage_pct * 100)}% (0 Missing)</div>
-                            </div>
-                            <div style={{ padding: '6px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-subtle)' }}>
-                              <div style={{ color: 'var(--color-text-muted)', fontSize: '10.5px' }}>Processing Capability</div>
-                              <div style={{ color: '#34d399', fontWeight: '700' }}>{dse.processing_compatibility}</div>
-                            </div>
-                            <div style={{ padding: '6px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-subtle)' }}>
-                              <div style={{ color: 'var(--color-text-muted)', fontSize: '10.5px' }}>Output Compatibility</div>
-                              <div style={{ color: '#38bdf8', fontWeight: '700' }}>{dse.output_compatibility}</div>
-                            </div>
-                            <div style={{ padding: '6px 10px', background: 'var(--color-surface)', borderRadius: '6px', border: '1px solid var(--color-border-subtle)' }}>
-                              <div style={{ color: 'var(--color-text-muted)', fontSize: '10.5px' }}>Shared Required Fields</div>
-                              <div style={{ color: 'var(--color-text)', fontWeight: '700' }}>{dse.shared_required_fields.length} Fields</div>
-                            </div>
-                          </div>
                         </div>
                       );
                     })()}
 
-                    {/* Deterministic Similarity Metrics Progress Bars (Only for non-consolidate cards) */}
-                    {cand.recommendation_type !== 'CONSOLIDATE' && !cand.data_subsumption_evidence && (
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                          gap: '14px',
-                        }}
-                      >
-                        {[
-                          { label: 'Source Metadata Overlap', value: cand.deterministic_metrics.source_overlap },
-                          { label: 'Target Metadata Overlap', value: cand.deterministic_metrics.target_overlap },
-                          { label: 'Frequency Overlap', value: cand.deterministic_metrics.frequency_overlap ?? 0 },
-                          { label: 'Logic Overlap', value: cand.deterministic_metrics.transformation_similarity },
-                          { label: 'DAG Overlap', value: cand.deterministic_metrics.dag_similarity },
-                        ].map((m) => {
+                    {/* Deterministic Similarity Metrics Progress Bars (Rendered for ALL rationalisation cards) */}
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                        gap: '14px',
+                      }}
+                    >
+                      {[
+                        { label: 'Source Metadata Overlap', value: cand.deterministic_metrics.source_overlap },
+                        { label: 'Target Metadata Overlap', value: cand.deterministic_metrics.target_overlap },
+                        { label: 'Frequency Overlap', value: cand.deterministic_metrics.frequency_overlap ?? 0 },
+                        { label: 'Logic Overlap', value: cand.deterministic_metrics.transformation_similarity },
+                        { label: 'DAG Overlap', value: cand.deterministic_metrics.dag_similarity },
+                      ].map((m) => {
                           const pct = Math.round(m.value * 100);
                           const fillColor = pct >= 70 ? '#34d399' : pct >= 40 ? '#fbbf24' : '#38bdf8';
 
@@ -1444,7 +1569,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           );
                         })}
                       </div>
-                    )}
 
                     {/* Why It Matters (Reasoning) */}
                     <div>
@@ -2449,7 +2573,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           border: '1px solid var(--color-border-subtle)',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '12px',
+                          gap: '10px',
                           minWidth: 0,
                           maxWidth: '100%',
                           boxSizing: 'border-box',
@@ -2464,62 +2588,100 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           sourcesA.map((src, idx) => {
                             const isMatch = normB.has(normalizeItem(src));
                             const fields = getFieldsForSource(src, fieldsMapA);
+                            const sourceKey = `src-A-${idx}-${src}`;
+                            const isExpanded = expandedSources[sourceKey] !== undefined ? expandedSources[sourceKey] : false;
+                            const matchingFields = fields.filter((fld) => setFieldsB.has(fld.toLowerCase()));
 
                             return (
                               <div
                                 key={idx}
                                 style={{
-                                  padding: '10px 12px',
                                   borderRadius: '6px',
                                   background: isMatch ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface)',
                                   border: isMatch ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
                                   display: 'flex',
                                   flexDirection: 'column',
-                                  gap: '6px',
                                   minWidth: 0,
                                   maxWidth: '100%',
                                   boxSizing: 'border-box',
+                                  overflow: 'hidden',
                                 }}
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                <div
+                                  onClick={() => toggleSource(sourceKey)}
+                                  style={{
+                                    padding: '10px 12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '8px',
+                                    cursor: 'pointer',
+                                    userSelect: 'none',
+                                    background: isExpanded ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                                    <span style={{ color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center' }}>
+                                      {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                    </span>
                                     <Database size={13} style={{ flexShrink: 0 }} color={isMatch ? '#facc15' : 'var(--color-text-muted)'} />
-                                    <span style={{ minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{src}</span>
+                                    <span style={{ fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                      {src}
+                                    </span>
                                   </div>
-                                  {isMatch ? (
-                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
-                                      Matching Identity
-                                    </span>
-                                  ) : (
-                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
-                                      Distinct Identity
-                                    </span>
-                                  )}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                    {fields.length > 0 && (
+                                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                                        {matchingFields.length > 0 ? (
+                                          <span style={{ color: '#facc15', fontWeight: '700' }}>{matchingFields.length}/{fields.length} matching</span>
+                                        ) : (
+                                          <span>{fields.length} field{fields.length !== 1 ? 's' : ''}</span>
+                                        )}
+                                      </span>
+                                    )}
+                                    {isMatch ? (
+                                      <span style={{ fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                                        Matching Identity
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
+                                        Distinct Identity
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                                {fields.length > 0 && (
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px', minWidth: 0 }}>
-                                    {fields.map((fld) => {
-                                      const isColMatch = setFieldsB.has(fld.toLowerCase());
-                                      return (
-                                        <span
-                                          key={fld}
-                                          style={{
-                                            fontSize: '10.5px',
-                                            fontWeight: isColMatch ? '700' : '500',
-                                            padding: '2px 6px',
-                                            borderRadius: '4px',
-                                            background: isColMatch ? 'rgba(234, 179, 8, 0.18)' : 'var(--color-surface-secondary)',
-                                            color: isColMatch ? '#facc15' : 'var(--color-text-secondary)',
-                                            border: isColMatch ? '1px solid rgba(234, 179, 8, 0.4)' : '1px solid var(--color-border-subtle)',
-                                            maxWidth: '100%',
-                                            wordBreak: 'break-word',
-                                            overflowWrap: 'anywhere',
-                                          }}
-                                        >
-                                          {fld}
-                                        </span>
-                                      );
-                                    })}
+                                {isExpanded && (
+                                  <div style={{ padding: '0 12px 10px 12px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '8px' }}>
+                                    {fields.length === 0 ? (
+                                      <div style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                                        No schema fields detected for this source
+                                      </div>
+                                    ) : (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', minWidth: 0 }}>
+                                        {fields.map((fld) => {
+                                          const isColMatch = setFieldsB.has(fld.toLowerCase());
+                                          return (
+                                            <span
+                                              key={fld}
+                                              style={{
+                                                fontSize: '10.5px',
+                                                fontWeight: isColMatch ? '700' : '500',
+                                                padding: '2px 6px',
+                                                borderRadius: '4px',
+                                                background: isColMatch ? 'rgba(234, 179, 8, 0.18)' : 'var(--color-surface-secondary)',
+                                                color: isColMatch ? '#facc15' : 'var(--color-text-secondary)',
+                                                border: isColMatch ? '1px solid rgba(234, 179, 8, 0.4)' : '1px solid var(--color-border-subtle)',
+                                                maxWidth: '100%',
+                                                wordBreak: 'break-word',
+                                                overflowWrap: 'anywhere',
+                                              }}
+                                            >
+                                              {isColMatch ? `✓ ${fld}` : fld}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -2537,7 +2699,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           border: '1px solid var(--color-border-subtle)',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: '12px',
+                          gap: '10px',
                           minWidth: 0,
                           maxWidth: '100%',
                           boxSizing: 'border-box',
@@ -2552,62 +2714,100 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           sourcesB.map((src, idx) => {
                             const isMatch = normA.has(normalizeItem(src));
                             const fields = getFieldsForSource(src, fieldsMapB);
+                            const sourceKey = `src-B-${idx}-${src}`;
+                            const isExpanded = expandedSources[sourceKey] !== undefined ? expandedSources[sourceKey] : false;
+                            const matchingFields = fields.filter((fld) => setFieldsA.has(fld.toLowerCase()));
 
                             return (
                               <div
                                 key={idx}
                                 style={{
-                                  padding: '10px 12px',
                                   borderRadius: '6px',
                                   background: isMatch ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface)',
                                   border: isMatch ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
                                   display: 'flex',
                                   flexDirection: 'column',
-                                  gap: '6px',
                                   minWidth: 0,
                                   maxWidth: '100%',
                                   boxSizing: 'border-box',
+                                  overflow: 'hidden',
                                 }}
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                <div
+                                  onClick={() => toggleSource(sourceKey)}
+                                  style={{
+                                    padding: '10px 12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '8px',
+                                    cursor: 'pointer',
+                                    userSelect: 'none',
+                                    background: isExpanded ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                                    <span style={{ color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center' }}>
+                                      {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                    </span>
                                     <Database size={13} style={{ flexShrink: 0 }} color={isMatch ? '#facc15' : 'var(--color-text-muted)'} />
-                                    <span style={{ minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{src}</span>
+                                    <span style={{ fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                      {src}
+                                    </span>
                                   </div>
-                                  {isMatch ? (
-                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
-                                      Matching Identity
-                                    </span>
-                                  ) : (
-                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
-                                      Distinct Identity
-                                    </span>
-                                  )}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                    {fields.length > 0 && (
+                                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                                        {matchingFields.length > 0 ? (
+                                          <span style={{ color: '#facc15', fontWeight: '700' }}>{matchingFields.length}/{fields.length} matching</span>
+                                        ) : (
+                                          <span>{fields.length} field{fields.length !== 1 ? 's' : ''}</span>
+                                        )}
+                                      </span>
+                                    )}
+                                    {isMatch ? (
+                                      <span style={{ fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                                        Matching Identity
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
+                                        Distinct Identity
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                                {fields.length > 0 && (
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px', minWidth: 0 }}>
-                                    {fields.map((fld) => {
-                                      const isColMatch = setFieldsA.has(fld.toLowerCase());
-                                      return (
-                                        <span
-                                          key={fld}
-                                          style={{
-                                            fontSize: '10.5px',
-                                            fontWeight: isColMatch ? '700' : '500',
-                                            padding: '2px 6px',
-                                            borderRadius: '4px',
-                                            background: isColMatch ? 'rgba(234, 179, 8, 0.18)' : 'var(--color-surface-secondary)',
-                                            color: isColMatch ? '#facc15' : 'var(--color-text-secondary)',
-                                            border: isColMatch ? '1px solid rgba(234, 179, 8, 0.4)' : '1px solid var(--color-border-subtle)',
-                                            maxWidth: '100%',
-                                            wordBreak: 'break-word',
-                                            overflowWrap: 'anywhere',
-                                          }}
-                                        >
-                                          {fld}
-                                        </span>
-                                      );
-                                    })}
+                                {isExpanded && (
+                                  <div style={{ padding: '0 12px 10px 12px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '8px' }}>
+                                    {fields.length === 0 ? (
+                                      <div style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                                        No schema fields detected for this source
+                                      </div>
+                                    ) : (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', minWidth: 0 }}>
+                                        {fields.map((fld) => {
+                                          const isColMatch = setFieldsA.has(fld.toLowerCase());
+                                          return (
+                                            <span
+                                              key={fld}
+                                              style={{
+                                                fontSize: '10.5px',
+                                                fontWeight: isColMatch ? '700' : '500',
+                                                padding: '2px 6px',
+                                                borderRadius: '4px',
+                                                background: isColMatch ? 'rgba(234, 179, 8, 0.18)' : 'var(--color-surface-secondary)',
+                                                color: isColMatch ? '#facc15' : 'var(--color-text-secondary)',
+                                                border: isColMatch ? '1px solid rgba(234, 179, 8, 0.4)' : '1px solid var(--color-border-subtle)',
+                                                maxWidth: '100%',
+                                                wordBreak: 'break-word',
+                                                overflowWrap: 'anywhere',
+                                              }}
+                                            >
+                                              {isColMatch ? `✓ ${fld}` : fld}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -2621,24 +2821,64 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               }
 
               if (activeEvidenceMetric === 'target') {
-                const targetsA = selectedCandidate.output_evidence.production_targets[wfA_id] || [];
-                const targetsB = selectedCandidate.output_evidence.production_targets[wfB_id] || [];
+                const targetsA = selectedCandidate.targets_by_workflow?.[wfA_name] || selectedCandidate.output_evidence?.production_targets?.[wfA_id] || workflowMap.get(wfA_id)?.targets || [];
+                const targetsB = selectedCandidate.targets_by_workflow?.[wfB_name] || selectedCandidate.output_evidence?.production_targets?.[wfB_id] || workflowMap.get(wfB_id)?.targets || [];
                 const normB = new Set(targetsB.map(normalizeItem));
                 const normA = new Set(targetsA.map(normalizeItem));
+
+                const targetFieldsMapA = selectedCandidate.target_fields_by_workflow?.[wfA_name] || {};
+                const targetFieldsMapB = selectedCandidate.target_fields_by_workflow?.[wfB_name] || {};
+
+                const getFieldsForTarget = (tgt: string, fmap: Record<string, string[]>, outputSchemas: Record<string, string[]>) => {
+                  if (fmap[tgt] && fmap[tgt].length > 0) return fmap[tgt];
+                  const normTgt = normalizeItem(tgt);
+                  if (fmap[normTgt] && fmap[normTgt].length > 0) return fmap[normTgt];
+                  const matchingKey = Object.keys(fmap).find(k => normalizeItem(k) === normTgt);
+                  if (matchingKey && fmap[matchingKey] && fmap[matchingKey].length > 0) return fmap[matchingKey];
+                  if (outputSchemas[tgt] && outputSchemas[tgt].length > 0) return outputSchemas[tgt];
+                  const matchingSchemaKey = Object.keys(outputSchemas).find(k => normalizeItem(k) === normTgt);
+                  if (matchingSchemaKey && outputSchemas[matchingSchemaKey] && outputSchemas[matchingSchemaKey].length > 0) return outputSchemas[matchingSchemaKey];
+                  if (fmap['targets'] && fmap['targets'].length > 0) return fmap['targets'];
+                  return [];
+                };
+
+                const allTargetFieldsA = Array.from(new Set(Object.values(targetFieldsMapA).flat().concat(targetsA.flatMap(t => selectedCandidate.output_evidence?.output_schemas?.[t] || []))));
+                const allTargetFieldsB = Array.from(new Set(Object.values(targetFieldsMapB).flat().concat(targetsB.flatMap(t => selectedCandidate.output_evidence?.output_schemas?.[t] || []))));
+                const setTargetFieldsA = new Set(allTargetFieldsA.map(f => f.toLowerCase()));
+                const setTargetFieldsB = new Set(allTargetFieldsB.map(f => f.toLowerCase()));
+
+                const sharedTargetsCount = selectedCandidate.dependency_evidence?.shared_targets?.length || Array.from(normA).filter(t => normB.has(t)).length;
+                const sharedTargetFieldsCount = Array.from(setTargetFieldsA).filter(f => setTargetFieldsB.has(f)).length;
 
                 return (
                   <div>
                     <div
                       style={{
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.08em',
-                        color: 'var(--color-text-muted)',
-                        marginBottom: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                        marginBottom: '10px',
                       }}
                     >
-                      PRODUCTION TARGETS (YELLOW = MATCHING DESTINATIONS)
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.08em',
+                          color: 'var(--color-text-muted)',
+                        }}
+                      >
+                        PRODUCTION TARGETS & OUTPUT SCHEMAS (YELLOW = MATCHING)
+                      </div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--color-text-secondary)', display: 'flex', gap: '14px' }}>
+                        {sharedTargetsCount > 0 && (
+                          <span>Target Identity: <strong style={{ color: '#facc15' }}>{sharedTargetsCount} matching</strong></span>
+                        )}
+                        <span>Output Schema: <strong style={{ color: sharedTargetFieldsCount > 0 ? '#facc15' : 'var(--color-text-muted)' }}>{sharedTargetFieldsCount} matching output fields</strong></span>
+                      </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '16px' }}>
                       {/* Left: Targets A */}
@@ -2664,58 +2904,101 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         ) : (
                           targetsA.map((tgt, idx) => {
                             const isMatch = normB.has(normalizeItem(tgt));
-                            const schema = selectedCandidate.output_evidence.output_schemas[tgt] || [];
+                            const schema = getFieldsForTarget(tgt, targetFieldsMapA, selectedCandidate.output_evidence?.output_schemas || {});
+                            const targetKey = `tgt-A-${idx}-${tgt}`;
+                            const isExpanded = expandedTargets[targetKey] !== undefined ? expandedTargets[targetKey] : false;
+                            const matchingTargetFields = schema.filter((col) => setTargetFieldsB.has(col.toLowerCase()));
+
                             return (
                               <div
                                 key={idx}
                                 style={{
-                                  padding: '10px 12px',
                                   borderRadius: '6px',
                                   background: isMatch ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface)',
                                   border: isMatch ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
                                   display: 'flex',
                                   flexDirection: 'column',
-                                  gap: '6px',
                                   minWidth: 0,
                                   maxWidth: '100%',
                                   boxSizing: 'border-box',
+                                  overflow: 'hidden',
                                 }}
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                <div
+                                  onClick={() => toggleTarget(targetKey)}
+                                  style={{
+                                    padding: '10px 12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '8px',
+                                    cursor: 'pointer',
+                                    userSelect: 'none',
+                                    background: isExpanded ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                                    <span style={{ color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center' }}>
+                                      {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                    </span>
                                     <Target size={13} style={{ flexShrink: 0 }} color={isMatch ? '#facc15' : 'var(--color-text-muted)'} />
-                                    <span style={{ minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{tgt}</span>
+                                    <span style={{ fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                      {tgt}
+                                    </span>
                                   </div>
-                                  {isMatch ? (
-                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px' }}>
-                                      Matching Target
-                                    </span>
-                                  ) : (
-                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
-                                      Distinct Output
-                                    </span>
-                                  )}
-                                </div>
-                                {schema.length > 0 && (
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px', minWidth: 0 }}>
-                                    {schema.map((col) => (
-                                      <span
-                                        key={col}
-                                        style={{
-                                          fontSize: '10.5px',
-                                          padding: '2px 6px',
-                                          borderRadius: '4px',
-                                          background: 'var(--color-surface-secondary)',
-                                          color: 'var(--color-text-secondary)',
-                                          border: '1px solid var(--color-border-subtle)',
-                                          maxWidth: '100%',
-                                          wordBreak: 'break-word',
-                                          overflowWrap: 'anywhere',
-                                        }}
-                                      >
-                                        {col}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                    {schema.length > 0 && (
+                                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                                        {matchingTargetFields.length > 0 ? (
+                                          <span style={{ color: '#facc15', fontWeight: '700' }}>{matchingTargetFields.length}/{schema.length} matching</span>
+                                        ) : (
+                                          <span>{schema.length} field{schema.length !== 1 ? 's' : ''}</span>
+                                        )}
                                       </span>
-                                    ))}
+                                    )}
+                                    {isMatch ? (
+                                      <span style={{ fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px' }}>
+                                        Matching Target
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
+                                        Distinct Output
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {isExpanded && (
+                                  <div style={{ padding: '0 12px 10px 12px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '8px' }}>
+                                    {schema.length === 0 ? (
+                                      <div style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                                        No output schema columns detected
+                                      </div>
+                                    ) : (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', minWidth: 0 }}>
+                                        {schema.map((col) => {
+                                          const isColMatch = setTargetFieldsB.has(col.toLowerCase());
+                                          return (
+                                            <span
+                                              key={col}
+                                              style={{
+                                                fontSize: '10.5px',
+                                                fontWeight: isColMatch ? '700' : '500',
+                                                padding: '2px 6px',
+                                                borderRadius: '4px',
+                                                background: isColMatch ? 'rgba(234, 179, 8, 0.18)' : 'var(--color-surface-secondary)',
+                                                color: isColMatch ? '#facc15' : 'var(--color-text-secondary)',
+                                                border: isColMatch ? '1px solid rgba(234, 179, 8, 0.4)' : '1px solid var(--color-border-subtle)',
+                                                maxWidth: '100%',
+                                                wordBreak: 'break-word',
+                                                overflowWrap: 'anywhere',
+                                              }}
+                                            >
+                                              {isColMatch ? `✓ ${col}` : col}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -2747,58 +3030,101 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                         ) : (
                           targetsB.map((tgt, idx) => {
                             const isMatch = normA.has(normalizeItem(tgt));
-                            const schema = selectedCandidate.output_evidence.output_schemas[tgt] || [];
+                            const schema = getFieldsForTarget(tgt, targetFieldsMapB, selectedCandidate.output_evidence?.output_schemas || {});
+                            const targetKey = `tgt-B-${idx}-${tgt}`;
+                            const isExpanded = expandedTargets[targetKey] !== undefined ? expandedTargets[targetKey] : false;
+                            const matchingTargetFields = schema.filter((col) => setTargetFieldsA.has(col.toLowerCase()));
+
                             return (
                               <div
                                 key={idx}
                                 style={{
-                                  padding: '10px 12px',
                                   borderRadius: '6px',
                                   background: isMatch ? 'rgba(234, 179, 8, 0.08)' : 'var(--color-surface)',
                                   border: isMatch ? '1.5px solid rgba(234, 179, 8, 0.45)' : '1px solid var(--color-border-subtle)',
                                   display: 'flex',
                                   flexDirection: 'column',
-                                  gap: '6px',
                                   minWidth: 0,
                                   maxWidth: '100%',
                                   boxSizing: 'border-box',
+                                  overflow: 'hidden',
                                 }}
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', minWidth: 0 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, flex: 1, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                <div
+                                  onClick={() => toggleTarget(targetKey)}
+                                  style={{
+                                    padding: '10px 12px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '8px',
+                                    cursor: 'pointer',
+                                    userSelect: 'none',
+                                    background: isExpanded ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                                    <span style={{ color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center' }}>
+                                      {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                    </span>
                                     <Target size={13} style={{ flexShrink: 0 }} color={isMatch ? '#facc15' : 'var(--color-text-muted)'} />
-                                    <span style={{ minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>{tgt}</span>
+                                    <span style={{ fontWeight: '700', fontSize: '12.5px', color: isMatch ? '#facc15' : 'var(--color-text)', minWidth: 0, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                                      {tgt}
+                                    </span>
                                   </div>
-                                  {isMatch ? (
-                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px' }}>
-                                      Matching Target
-                                    </span>
-                                  ) : (
-                                    <span style={{ flexShrink: 0, fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
-                                      Distinct Output
-                                    </span>
-                                  )}
-                                </div>
-                                {schema.length > 0 && (
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '2px', minWidth: 0 }}>
-                                    {schema.map((col) => (
-                                      <span
-                                        key={col}
-                                        style={{
-                                          fontSize: '10.5px',
-                                          padding: '2px 6px',
-                                          borderRadius: '4px',
-                                          background: 'var(--color-surface-secondary)',
-                                          color: 'var(--color-text-secondary)',
-                                          border: '1px solid var(--color-border-subtle)',
-                                          maxWidth: '100%',
-                                          wordBreak: 'break-word',
-                                          overflowWrap: 'anywhere',
-                                        }}
-                                      >
-                                        {col}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                    {schema.length > 0 && (
+                                      <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                                        {matchingTargetFields.length > 0 ? (
+                                          <span style={{ color: '#facc15', fontWeight: '700' }}>{matchingTargetFields.length}/{schema.length} matching</span>
+                                        ) : (
+                                          <span>{schema.length} field{schema.length !== 1 ? 's' : ''}</span>
+                                        )}
                                       </span>
-                                    ))}
+                                    )}
+                                    {isMatch ? (
+                                      <span style={{ fontSize: '10px', fontWeight: '800', background: 'rgba(234, 179, 8, 0.22)', color: '#facc15', padding: '2px 6px', borderRadius: '4px' }}>
+                                        Matching Target
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: '10px', fontWeight: '600', color: 'var(--color-text-muted)' }}>
+                                        Distinct Output
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {isExpanded && (
+                                  <div style={{ padding: '0 12px 10px 12px', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '8px' }}>
+                                    {schema.length === 0 ? (
+                                      <div style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
+                                        No output schema columns detected
+                                      </div>
+                                    ) : (
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', minWidth: 0 }}>
+                                        {schema.map((col) => {
+                                          const isColMatch = setTargetFieldsA.has(col.toLowerCase());
+                                          return (
+                                            <span
+                                              key={col}
+                                              style={{
+                                                fontSize: '10.5px',
+                                                fontWeight: isColMatch ? '700' : '500',
+                                                padding: '2px 6px',
+                                                borderRadius: '4px',
+                                                background: isColMatch ? 'rgba(234, 179, 8, 0.18)' : 'var(--color-surface-secondary)',
+                                                color: isColMatch ? '#facc15' : 'var(--color-text-secondary)',
+                                                border: isColMatch ? '1px solid rgba(234, 179, 8, 0.4)' : '1px solid var(--color-border-subtle)',
+                                                maxWidth: '100%',
+                                                wordBreak: 'break-word',
+                                                overflowWrap: 'anywhere',
+                                              }}
+                                            >
+                                              {isColMatch ? `✓ ${col}` : col}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>

@@ -226,6 +226,8 @@ export interface RationalisationCandidateDTO {
   data_subsumption_evidence?: DataSubsumptionEvidenceDTO | null;
   sources_by_workflow?: Record<string, string[]>;
   source_fields_by_workflow?: Record<string, Record<string, string[]>>;
+  targets_by_workflow?: Record<string, string[]>;
+  target_fields_by_workflow?: Record<string, Record<string, string[]>>;
   transformations_by_workflow?: Record<string, string[]>;
   frequencies_by_workflow?: Record<string, string>;
   original_recommendation_type?: string;

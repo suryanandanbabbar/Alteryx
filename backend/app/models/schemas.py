@@ -502,6 +502,8 @@ class RationalisationCandidateDTO(BaseModel):
     data_subsumption_evidence: Optional[DataSubsumptionEvidenceDTO] = None
     sources_by_workflow: dict[str, list[str]] = Field(default_factory=dict)
     source_fields_by_workflow: dict[str, dict[str, list[str]]] = Field(default_factory=dict)
+    targets_by_workflow: dict[str, list[str]] = Field(default_factory=dict)
+    target_fields_by_workflow: dict[str, dict[str, list[str]]] = Field(default_factory=dict)
     transformations_by_workflow: dict[str, list[str]] = Field(default_factory=dict)
     frequencies_by_workflow: dict[str, str] = Field(default_factory=dict)
     original_recommendation_type: Optional[str] = None
