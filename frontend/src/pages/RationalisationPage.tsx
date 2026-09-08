@@ -3592,18 +3592,18 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   {/* Layer 1: Data Sufficiency & Column Coverage */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
-                      Layer 1: Data Sufficiency & Column Parity
+                      Layer 1: Source Metadata Analysis
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
                       <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Data Field Coverage</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Source Metadata Coverage</div>
                         <div style={{ fontSize: '20px', fontWeight: '800', color: '#34d399' }}>{Math.round(dse.data_coverage_pct * 100)}%</div>
                         <div style={{ fontSize: '11px', color: '#34d399', marginTop: '2px' }}>0 missing fields required</div>
                       </div>
                       <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
                         <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Shared Required Fields</div>
                         <div style={{ fontSize: '20px', fontWeight: '800', color: 'var(--color-text)' }}>{dse.shared_required_fields.length}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Fully available in target</div>
+                        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>Fully available in target workflow</div>
                       </div>
                       <div style={{ padding: '12px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)' }}>
                         <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Additional Target Fields</div>
@@ -3724,7 +3724,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   )}
 
                   {/* Output & Deliverable Compatibility */}
-                  <div style={{ padding: '14px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {/* <div style={{ padding: '14px', background: 'var(--color-surface)', borderRadius: '8px', border: '1px solid var(--color-border-subtle)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ fontSize: '11.5px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>
                       Output & Grain Compatibility
                     </div>
@@ -3737,7 +3737,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                           : 'Target workflow generates all required production deliverable datasets.'}
                       </span>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               );
             })()}

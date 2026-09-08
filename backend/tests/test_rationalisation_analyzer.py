@@ -269,3 +269,97 @@ def test_distinct_evidence_models_required_vs_metadata_matching():
     assert any("claim_id" in flds for flds in src_fields.values())
 
 
+def test_target_metadata_overlap_acceptance_suite():
+    # Acceptance Test 1: Distinct target files & 0 schema overlap -> target_overlap MUST be 0.0
+    s_wf03, res_wf03 = _make_dummy_workflow(
+        wid="wf-03",
+        name="WF03",
+        sources=["SourceA.csv"],
+        targets=["Deliverable_43.csv", "Deliverable_45.csv", "Deliverable_46.csv"],
+        fields=["f1", "f2"],
+    )
+    s_wf01, res_wf01 = _make_dummy_workflow(
+        wid="wf-01",
+        name="Workflow_01",
+        sources=["SourceB.csv"],
+        targets=["wf01_output_xlsx_sheet1.xlsx"],
+        fields=["f3", "f4"],
+    )
+    # Clear output schemas to test schema-less target comparison
+    fp_03 = build_workflow_fingerprint(s_wf03, res_wf03)
+    fp_01 = build_workflow_fingerprint(s_wf01, res_wf01)
+    fp_03.output_schemas.clear()
+    fp_01.output_schemas.clear()
+
+    comp1 = compare_workflows(fp_03, fp_01)
+    assert comp1.metrics.target_overlap == 0.0
+    assert comp1.metrics.schema_similarity == 0.0
+
+    # Acceptance Test 2: Same target file, no schema available -> target_overlap > 0
+    s_t2a, res_t2a = _make_dummy_workflow(
+        wid="wf-t2a",
+        name="WF_T2A",
+        sources=["Src.csv"],
+        targets=["claims_output.csv"],
+        fields=["f1"],
+    )
+    s_t2b, res_t2b = _make_dummy_workflow(
+        wid="wf-t2b",
+        name="WF_T2B",
+        sources=["Src.csv"],
+        targets=["claims_output.csv"],
+        fields=["f1"],
+    )
+    fp_t2a = build_workflow_fingerprint(s_t2a, res_t2a)
+    fp_t2b = build_workflow_fingerprint(s_t2b, res_t2b)
+    fp_t2a.output_schemas.clear()
+    fp_t2b.output_schemas.clear()
+
+    comp2 = compare_workflows(fp_t2a, fp_t2b)
+    assert comp2.metrics.target_overlap == 1.0
+
+    # Acceptance Test 3: Different target files, same output schema fields
+    s_t3a, res_t3a = _make_dummy_workflow(
+        wid="wf-t3a",
+        name="WF_T3A",
+        sources=["Src.csv"],
+        targets=["claims_output.csv"],
+        fields=["claim_id", "payment_date", "payment_amount"],
+    )
+    s_t3b, res_t3b = _make_dummy_workflow(
+        wid="wf-t3b",
+        name="WF_T3B",
+        sources=["Src.csv"],
+        targets=["claims_output.xlsx"],
+        fields=["claim_id", "payment_date", "payment_amount"],
+    )
+    fp_t3a = build_workflow_fingerprint(s_t3a, res_t3a)
+    fp_t3b = build_workflow_fingerprint(s_t3b, res_t3b)
+
+    comp3 = compare_workflows(fp_t3a, fp_t3b)
+    assert comp3.metrics.target_overlap == 1.0  # 100% schema match despite distinct filenames
+
+    # Acceptance Test 5: Same logic & frequency & DAG, but completely different targets and schemas
+    s_t5a, res_t5a = _make_dummy_workflow(
+        wid="wf-t5a",
+        name="WF_T5A",
+        sources=["Src.csv"],
+        targets=["target_alpha.csv"],
+        fields=["alpha_id"],
+    )
+    s_t5b, res_t5b = _make_dummy_workflow(
+        wid="wf-t5b",
+        name="WF_T5B",
+        sources=["Src.csv"],
+        targets=["target_beta.csv"],
+        fields=["beta_id"],
+    )
+    fp_t5a = build_workflow_fingerprint(s_t5a, res_t5a)
+    fp_t5b = build_workflow_fingerprint(s_t5b, res_t5b)
+
+    comp5 = compare_workflows(fp_t5a, fp_t5b)
+    assert comp5.metrics.target_overlap == 0.0
+    assert comp5.metrics.schema_similarity == 0.0
+
+
+

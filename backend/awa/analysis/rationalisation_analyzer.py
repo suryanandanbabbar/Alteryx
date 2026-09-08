@@ -1109,15 +1109,25 @@ def compare_workflows(
     if all_cols_a and all_cols_b:
         schema_similarity = _jaccard_similarity(all_cols_a, all_cols_b)
         schema_diffs = sorted(list((all_cols_a - all_cols_b) | (all_cols_b - all_cols_a)))
+        target_overlap = max(target_id_overlap, schema_similarity)
     elif not all_cols_a and not all_cols_b:
-        schema_similarity = 1.0 if target_id_overlap > 0.8 else 0.5
-        schema_diffs = []
+        if target_id_overlap > 0.0:
+            schema_similarity = target_id_overlap
+            schema_diffs = []
+            target_overlap = target_id_overlap
+        else:
+            schema_similarity = 0.0
+            schema_diffs = ["Output schema metadata not determinable from workflow definitions"]
+            target_overlap = 0.0
     else:
-        schema_similarity = 0.2
-        schema_diffs = ["One workflow lacks schema definition"]
-
-    # Target overlap reflects combined target identity and output schema overlap
-    target_overlap = max(target_id_overlap, schema_similarity) if (tgt_a or tgt_b or all_cols_a or all_cols_b) else target_id_overlap
+        if target_id_overlap > 0.0:
+            schema_similarity = target_id_overlap * 0.5
+            schema_diffs = ["One workflow lacks schema definition"]
+            target_overlap = target_id_overlap
+        else:
+            schema_similarity = 0.0
+            schema_diffs = ["One workflow lacks schema definition"]
+            target_overlap = 0.0
 
     # 4. Output Grain similarity
     grain_a = set(fp_a.output_grain)
