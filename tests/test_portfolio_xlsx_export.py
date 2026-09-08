@@ -254,11 +254,10 @@ class TestPortfolioXLSXExport:
 
         # Exact required headers in order
         expected_headers = [
-            "Workflow A",
-            "Workflow B",
-            "Business Area A",
-            "Business Area B",
-            "Opportunity Score",
+            "Workflow to Retire / Consolidate",
+            "Primary / Retained Workflow",
+            "Business Area — Workflow to Retire / Consolidate",
+            "Business Area — Primary / Retained Workflow",
             "Recommendation / Disposition",
             "Source Metadata Overlap %",
             "Target Metadata Overlap %",
@@ -272,14 +271,19 @@ class TestPortfolioXLSXExport:
         headers = [ws.cell(row=1, column=c).value for c in range(1, len(expected_headers) + 1)]
         assert headers == expected_headers
 
-        # Verify unwanted columns are absent
+        # Verify deprecated/unwanted columns are absent
+        assert "Workflow A" not in headers
+        assert "Workflow B" not in headers
+        assert "Opportunity Score" not in headers
         assert "Output Schema Overlap %" not in headers
         assert "Output Grain Alignment" not in headers
         assert "Output Grain Alignment %" not in headers
 
         # Check candidate rows if present
         for r in range(2, ws.max_row + 1):
-            shared_logic = ws.cell(row=r, column=12).value
+            rec_val = ws.cell(row=r, column=5).value
+            assert rec_val not in ("SHARED_LOGIC", "SHARED LOGIC", "SHARED-LOGIC", "SHARED_LOGIC_ONLY")
+            shared_logic = ws.cell(row=r, column=11).value
             if shared_logic:
                 assert "Join on =" not in str(shared_logic)
                 assert "Shared join key: =" not in str(shared_logic)
@@ -444,31 +448,157 @@ class TestPortfolioXLSXExport:
 
         assert ws.cell(row=2, column=1).value == "Demo_Claims.yxmd"
         assert ws.cell(row=2, column=2).value == "FTSE_100.yxmd"
-        assert ws.cell(row=2, column=5).value == 85.5
-        assert ws.cell(row=2, column=6).value == "CONSOLIDATE"
+        assert ws.cell(row=2, column=5).value == "CONSOLIDATE"
 
-        # Col 7: Source Metadata Overlap %
-        assert ws.cell(row=2, column=7).value == 1.0
+        # Col 6: Source Metadata Overlap %
+        assert ws.cell(row=2, column=6).value == 1.0
+        assert ws.cell(row=2, column=6).number_format == "0.0%"
+
+        # Col 7: Target Metadata Overlap %
+        assert ws.cell(row=2, column=7).value == 0.625
         assert ws.cell(row=2, column=7).number_format == "0.0%"
 
-        # Col 8: Target Metadata Overlap %
-        assert ws.cell(row=2, column=8).value == 0.625
+        # Col 8: Frequency Overlap %
+        assert ws.cell(row=2, column=8).value == 1.0
         assert ws.cell(row=2, column=8).number_format == "0.0%"
 
-        # Col 9: Frequency Overlap %
-        assert ws.cell(row=2, column=9).value == 1.0
+        # Col 9: Logic Overlap %
+        assert ws.cell(row=2, column=9).value == 0.45
         assert ws.cell(row=2, column=9).number_format == "0.0%"
 
-        # Col 10: Logic Overlap %
-        assert ws.cell(row=2, column=10).value == 0.45
+        # Col 10: DAG Overlap %
+        assert ws.cell(row=2, column=10).value == 0.75
         assert ws.cell(row=2, column=10).number_format == "0.0%"
 
-        # Col 11: DAG Overlap %
-        assert ws.cell(row=2, column=11).value == 0.75
-        assert ws.cell(row=2, column=11).number_format == "0.0%"
-
-        # Col 12: Shared Formulae
-        shared_val = ws.cell(row=2, column=12).value
+        # Col 11: Shared Formulae
+        shared_val = ws.cell(row=2, column=11).value
         assert "Formula: [Amount] * 1.2" in shared_val
         assert "Filter: [Active] = 1" in shared_val
+
+    def test_directional_consolidation_semantics_in_xlsx(self, tmp_path, sample_portfolio_and_results):
+        """Directional consolidation must place absorbed workflow in Col 1 and retained workflow in Col 2."""
+        portfolio, successful_results = sample_portfolio_and_results
+        from awa.model.portfolio import (
+            RationalisationAnalysis,
+            RationalisationCandidate,
+            DataSubsumptionEvidence,
+            ConsolidationDecision,
+            DeterministicMetrics,
+        )
+
+        # Candidate where workflow_names is [WF03, Workflow_01] but direction is Workflow_01 -> WF03
+        cand = RationalisationCandidate(
+            workflow_ids=["wf03", "wf01"],
+            workflow_names=["WF03.yxmd", "Workflow_01.yxmd"],
+            recommendation_type="CONSOLIDATE",
+            data_subsumption_evidence=DataSubsumptionEvidence(
+                source_workflow_id="wf01",
+                source_workflow_name="Workflow_01.yxmd",
+                target_workflow_id="wf03",
+                target_workflow_name="WF03.yxmd",
+                data_coverage_pct=1.0,
+            ),
+            consolidation_decision=ConsolidationDecision(
+                recommendation="MERGE",
+                merge_direction="Workflow_01.yxmd -> WF03.yxmd",
+            ),
+            deterministic_metrics=DeterministicMetrics(
+                source_overlap=1.0,
+                target_overlap=0.0,
+                frequency_overlap=1.0,
+                transformation_similarity=0.8,
+                dag_similarity=0.9,
+            ),
+            reasoning="Workflow_01 is fully subsumed by WF03.",
+        )
+
+        rat = RationalisationAnalysis(
+            portfolio_id=portfolio.portfolio_id,
+            candidates=[cand],
+        )
+
+        export_file = tmp_path / "directional_test.xlsx"
+        generate_portfolio_excel(portfolio, successful_results, rat, export_file)
+
+        wb = openpyxl.load_workbook(export_file)
+        ws = wb["Rationalisation Recommendation"]
+
+        # Col 1: Workflow to Retire / Consolidate (Must be absorbed workflow: Workflow_01.yxmd)
+        assert ws.cell(row=2, column=1).value == "Workflow_01.yxmd"
+        # Col 2: Primary / Retained Workflow (Must be retained workflow: WF03.yxmd)
+        assert ws.cell(row=2, column=2).value == "WF03.yxmd"
+        # Col 5: Recommendation / Disposition
+        assert ws.cell(row=2, column=5).value == "CONSOLIDATE"
+
+    def test_standalone_retire_semantics_in_xlsx(self, tmp_path, sample_portfolio_and_results):
+        """Retirement candidate must place retiring workflow in Col 1 and N/A in Col 2 and Col 4."""
+        portfolio, successful_results = sample_portfolio_and_results
+        from awa.model.portfolio import RationalisationAnalysis, RationalisationCandidate, DeterministicMetrics
+
+        cand = RationalisationCandidate(
+            workflow_ids=["wf_bbc"],
+            workflow_names=["BBCFoodAggr.yxmd"],
+            recommendation_type="RETIRE",
+            deterministic_metrics=DeterministicMetrics(
+                source_overlap=0.0,
+                target_overlap=0.0,
+            ),
+            reasoning="Redundant pipeline with zero active consumers.",
+        )
+
+        rat = RationalisationAnalysis(
+            portfolio_id=portfolio.portfolio_id,
+            candidates=[cand],
+        )
+
+        export_file = tmp_path / "retire_test.xlsx"
+        generate_portfolio_excel(portfolio, successful_results, rat, export_file)
+
+        wb = openpyxl.load_workbook(export_file)
+        ws = wb["Rationalisation Recommendation"]
+
+        # Col 1: Workflow to Retire / Consolidate
+        assert ws.cell(row=2, column=1).value == "BBCFoodAggr.yxmd"
+        # Col 2: Primary / Retained Workflow
+        assert ws.cell(row=2, column=2).value == "N/A"
+        # Col 4: Business Area — Primary / Retained Workflow
+        assert ws.cell(row=2, column=4).value == "N/A"
+        # Col 5: Recommendation / Disposition
+        assert ws.cell(row=2, column=5).value == "RETIRE"
+
+    def test_shared_logic_candidate_exclusion_in_xlsx(self, tmp_path, sample_portfolio_and_results):
+        """SHARED_LOGIC candidates must be strictly excluded from the exported sheet."""
+        portfolio, successful_results = sample_portfolio_and_results
+        from awa.model.portfolio import RationalisationAnalysis, RationalisationCandidate, DeterministicMetrics
+
+        cand_shared = RationalisationCandidate(
+            workflow_ids=["wf_a", "wf_b"],
+            workflow_names=["WF_A.yxmd", "WF_B.yxmd"],
+            recommendation_type="SHARED_LOGIC",
+            deterministic_metrics=DeterministicMetrics(transformation_similarity=0.7),
+            reasoning="Shared formula logic detected.",
+        )
+        cand_retire = RationalisationCandidate(
+            workflow_ids=["wf_c"],
+            workflow_names=["WF_C.yxmd"],
+            recommendation_type="RETIRE",
+            reasoning="Obsolete workflow.",
+        )
+
+        rat = RationalisationAnalysis(
+            portfolio_id=portfolio.portfolio_id,
+            candidates=[cand_shared, cand_retire],
+        )
+
+        export_file = tmp_path / "shared_logic_filter_test.xlsx"
+        generate_portfolio_excel(portfolio, successful_results, rat, export_file)
+
+        wb = openpyxl.load_workbook(export_file)
+        ws = wb["Rationalisation Recommendation"]
+
+        # Only 1 candidate row should be exported (the RETIRE one)
+        assert ws.max_row == 2
+        assert ws.cell(row=2, column=1).value == "WF_C.yxmd"
+        assert ws.cell(row=2, column=5).value == "RETIRE"
+
 

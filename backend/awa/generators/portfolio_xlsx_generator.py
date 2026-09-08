@@ -809,15 +809,14 @@ def _build_rationalisation_sheet(
     portfolio: PortfolioAnalysis,
     rationalisation: RationalisationAnalysis | None,
 ) -> None:
-    """Build Sheet 4: Rationalisation Recommendation with lossless evidence and zero synthetic artifacts."""
+    """Build Sheet 4: Rationalisation Recommendation with directional workflow semantics, lossless evidence, and zero synthetic artifacts."""
     ws.title = "Rationalisation Recommendation"
 
     headers = [
-        "Workflow A",
-        "Workflow B",
-        "Business Area A",
-        "Business Area B",
-        "Opportunity Score",
+        "Workflow to Retire / Consolidate",
+        "Primary / Retained Workflow",
+        "Business Area — Workflow to Retire / Consolidate",
+        "Business Area — Primary / Retained Workflow",
         "Recommendation / Disposition",
         "Source Metadata Overlap %",
         "Target Metadata Overlap %",
@@ -834,7 +833,7 @@ def _build_rationalisation_sheet(
         cell = ws.cell(row=1, column=col_idx, value=h)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
-        cell.alignment = ALIGN_HEADER_CENTER if 5 <= col_idx <= 11 else ALIGN_HEADER
+        cell.alignment = ALIGN_HEADER_CENTER if 5 <= col_idx <= 10 else ALIGN_HEADER
         cell.border = CELL_BORDER
 
     candidates = (rationalisation.candidates if rationalisation else []) or portfolio.rationalisation_candidates
@@ -849,25 +848,73 @@ def _build_rationalisation_sheet(
         except (ValueError, TypeError):
             return 0.0
 
-    current_row = 2
-    for idx, c in enumerate(candidates):
-        row_fill = ZEBRA_FILL if idx % 2 == 1 else WHITE_FILL
-        ws.row_dimensions[current_row].height = 50
-
-        wf_a = c.workflow_names[0] if len(c.workflow_names) > 0 else (c.workflow_ids[0] if c.workflow_ids else "N/A")
-        wf_b = c.workflow_names[1] if len(c.workflow_names) > 1 else (c.workflow_ids[1] if len(c.workflow_ids) > 1 else "Standalone")
-
-        # Lookup business areas
-        area_a = "Other / Unclassified"
-        area_b = "Other / Unclassified"
+    def _lookup_business_area(wf_name: str, wf_id: str = "") -> str:
+        if not wf_name or wf_name == "N/A":
+            return "N/A"
         for w in portfolio.workflows:
-            if w.filename == wf_a or w.workflow_id in c.workflow_ids[:1]:
-                area_a = _normalize_tag(w.business_area_tag)
-            if len(c.workflow_names) > 1 and (w.filename == wf_b or w.workflow_id in c.workflow_ids[1:2]):
-                area_b = _normalize_tag(w.business_area_tag)
+            if (wf_name and (w.filename == wf_name or getattr(w, "relative_path", "") == wf_name)) or (wf_id and w.workflow_id == wf_id):
+                return _normalize_tag(w.business_area_tag)
+        return "Other / Unclassified"
 
-        opp_score = getattr(c, "opportunity_score", 0.0) or 0.0
-        rec_type = c.recommendation_type or "REVIEW"
+    current_row = 2
+    row_count = 0
+    for c in candidates:
+        rec_raw = (c.recommendation_type or "").strip().upper()
+        # Exclude SHARED_LOGIC candidates and NO_ACTION/KEEP per requirements
+        if rec_raw in ("SHARED_LOGIC", "SHARED LOGIC", "SHARED-LOGIC", "SHARED_LOGIC_ONLY"):
+            continue
+        if rec_raw in ("KEEP", "NO_ACTION"):
+            continue
+
+        # Determine directional workflow identities
+        dse = getattr(c, "data_subsumption_evidence", None) or (
+            getattr(c.consolidation_decision, "data_subsumption_evidence", None)
+            if getattr(c, "consolidation_decision", None) else None
+        )
+
+        if rec_raw in ("CONSOLIDATE", "MERGE") or dse is not None:
+            rec_type = "CONSOLIDATE"
+            if dse and dse.source_workflow_name and dse.target_workflow_name:
+                wf_retire = dse.source_workflow_name
+                wf_retained = dse.target_workflow_name
+                id_retire = dse.source_workflow_id
+                id_retained = dse.target_workflow_id
+            elif getattr(c, "consolidation_decision", None) and getattr(c.consolidation_decision, "merge_direction", None):
+                md = c.consolidation_decision.merge_direction
+                if "->" in md:
+                    parts = [p.strip() for p in md.split("->")]
+                    wf_retire = parts[0]
+                    wf_retained = parts[1]
+                    id_retire = ""
+                    id_retained = ""
+                else:
+                    wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (c.workflow_ids[0] if c.workflow_ids else "N/A")
+                    wf_retained = c.workflow_names[1] if len(c.workflow_names) > 1 else (c.workflow_ids[1] if len(c.workflow_ids) > 1 else "N/A")
+                    id_retire = c.workflow_ids[0] if c.workflow_ids else ""
+                    id_retained = c.workflow_ids[1] if len(c.workflow_ids) > 1 else ""
+            else:
+                wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (c.workflow_ids[0] if c.workflow_ids else "N/A")
+                wf_retained = c.workflow_names[1] if len(c.workflow_names) > 1 else (c.workflow_ids[1] if len(c.workflow_ids) > 1 else "N/A")
+                id_retire = c.workflow_ids[0] if c.workflow_ids else ""
+                id_retained = c.workflow_ids[1] if len(c.workflow_ids) > 1 else ""
+
+        elif rec_raw in ("RETIRE", "RETIRE_CANDIDATE"):
+            rec_type = "RETIRE"
+            wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (c.workflow_ids[0] if c.workflow_ids else "N/A")
+            wf_retained = "N/A"
+            id_retire = c.workflow_ids[0] if c.workflow_ids else ""
+            id_retained = ""
+
+        else:
+            rec_type = c.recommendation_type or "REVIEW"
+            wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (c.workflow_ids[0] if c.workflow_ids else "N/A")
+            wf_retained = c.workflow_names[1] if len(c.workflow_names) > 1 else (c.workflow_ids[1] if len(c.workflow_ids) > 1 else "N/A")
+            id_retire = c.workflow_ids[0] if c.workflow_ids else ""
+            id_retained = c.workflow_ids[1] if len(c.workflow_ids) > 1 else ""
+
+        # Lookup business areas aligned with respective workflows
+        area_retire = _lookup_business_area(wf_retire, id_retire)
+        area_retained = _lookup_business_area(wf_retained, id_retained) if wf_retained != "N/A" else "N/A"
 
         # Sourced directly from deterministic_metrics (canonical rationalisation evidence)
         dm = getattr(c, "deterministic_metrics", None)
@@ -905,12 +952,14 @@ def _build_rationalisation_sheet(
 
         strategy = c.reasoning or getattr(c, "migration_disposition", "Assess for consolidation or shared macro extraction")
 
+        row_fill = ZEBRA_FILL if row_count % 2 == 1 else WHITE_FILL
+        ws.row_dimensions[current_row].height = 50
+
         row_values = [
-            (wf_a, BOLD_BODY_FONT, ALIGN_WRAP_TOP, None),
-            (wf_b, BOLD_BODY_FONT, ALIGN_WRAP_TOP, None),
-            (area_a, BODY_FONT, ALIGN_WRAP_TOP, None),
-            (area_b, BODY_FONT, ALIGN_WRAP_TOP, None),
-            (opp_score, BOLD_BODY_FONT, ALIGN_CENTER_TOP, "0.0"),
+            (wf_retire, BOLD_BODY_FONT, ALIGN_WRAP_TOP, None),
+            (wf_retained, BOLD_BODY_FONT, ALIGN_WRAP_TOP, None),
+            (area_retire, BODY_FONT, ALIGN_WRAP_TOP, None),
+            (area_retained, BODY_FONT, ALIGN_WRAP_TOP, None),
             (rec_type, BOLD_BODY_FONT, ALIGN_CENTER_TOP, None),
             (src_val, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
             (tgt_val, BODY_FONT, ALIGN_CENTER_TOP, "0.0%"),
@@ -932,13 +981,14 @@ def _build_rationalisation_sheet(
                 cell.number_format = num_format
 
         current_row += 1
+        row_count += 1
 
-    if not candidates:
+    if row_count == 0:
         ws.cell(row=2, column=1, value="No rationalisation candidates identified for this portfolio.").font = MUTED_FONT
 
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
-    _autofit_columns(ws, {1: 28, 2: 28, 3: 20, 4: 20, 5: 16, 6: 22, 7: 24, 8: 24, 9: 20, 10: 18, 11: 18, 12: 50, 13: 50, 14: 45})
+    _autofit_columns(ws, {1: 30, 2: 30, 3: 25, 4: 25, 5: 22, 6: 24, 7: 24, 8: 20, 9: 18, 10: 18, 11: 50, 12: 50, 13: 45})
 
 
 # ---------------------------------------------------------------------------

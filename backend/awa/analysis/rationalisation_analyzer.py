@@ -982,12 +982,10 @@ def build_workflow_fingerprint(
     for k in list(source_fields.keys()):
         source_fields[k] = sorted(list(set(source_fields[k])))
 
-    final_sources = raw_sources_list if raw_sources_list else sorted(clean_sources)
-
     return WorkflowFingerprint(
         workflow_id=summary.workflow_id,
         workflow_name=summary.filename,
-        sources=final_sources,
+        sources=sorted(clean_sources),
         source_types=source_types,
         source_fields=source_fields,
         production_targets=sorted(clean_targets),

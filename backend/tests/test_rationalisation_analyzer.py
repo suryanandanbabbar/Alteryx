@@ -524,7 +524,7 @@ def test_canonical_source_target_alignment_with_high_level_lineage():
         status="SUCCESS",
     )
     fp = build_workflow_fingerprint(summary, res)
-    assert fp.sources == sources
+    assert fp.sources == sorted(["source_input_1", "source_input_6", "source_input_28", "source_input_31", "source_input_39"])
     assert fp.production_targets == targets
     # Check that tool fields are mapped under the canonical source names
     assert "Claim_ID" in fp.source_fields.get("Source Input #1", [])
