@@ -1962,10 +1962,17 @@ def detect_candidate_from_comparison(
     # 4. Schema and grain compatibility
     # 5. Minimal unique logic (<= 1 unique tool/logic)
     # 6. Dependency safety (no known consumers)
-    # NOTE: Frequency overlap alone must NEVER qualify a workflow for retirement.
+    tgt_a_norm = {normalize_name(t) for t in fp_a.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
+    tgt_b_norm = {normalize_name(t) for t in fp_b.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
+    is_equivalent_target_destination = (
+        (_jaccard_similarity(tgt_a_norm, tgt_b_norm) >= t.RETIRE_TARGET_OVERLAP_MIN)
+        if (tgt_a_norm and tgt_b_norm)
+        else (not tgt_a_norm and not tgt_b_norm)
+    )
+
     has_known_consumers = bool(fp_a.downstream_consumers or fp_b.downstream_consumers)
     can_retire = (
-        (m.target_overlap >= t.RETIRE_TARGET_OVERLAP_MIN or (output_evidence.is_equivalent_target and m.target_overlap >= 0.70))
+        is_equivalent_target_destination
         and m.transformation_similarity >= t.RETIRE_LOGIC_SIMILARITY_MIN
         and (m.source_overlap >= 0.60 or (consolidation_decision.data_subsumption_evidence is not None and consolidation_decision.data_subsumption_evidence.data_coverage_pct == 1.0))
         and output_evidence.is_equivalent_schema
@@ -2295,17 +2302,18 @@ def enrich_candidate_with_llm(
     }
 
     cache_key: str | None = None
-    if getattr(generator, "_cache", None) and hasattr(generator.client, "model_name"):
+    raw_response: str | None = None
+    if getattr(generator, "_cache", None) is not None:
         try:
             cache_key = compute_cache_key(
                 workflow_id=candidate.candidate_id or "_".join(candidate.workflow_ids),
                 scope_key="candidate_rationalisation",
                 prompt_version="v1",
-                model_name=generator.client.model_name,
+                model_name=getattr(generator.client, "model_name", "unknown"),
                 facts_payload=evidence_payload,
             )
             cached = generator._cache.get(cache_key)
-            if cached is not None:
+            if isinstance(cached, NarrativeResult) and isinstance(cached.text, str):
                 logger.info("[Rationalisation LLM CACHE] status=HIT for candidate %s", candidate.candidate_id)
                 raw_response = cached.text
         except Exception:
@@ -2334,12 +2342,6 @@ def enrich_candidate_with_llm(
         f"{json.dumps(evidence_payload, indent=2)}\n\n"
         f"Structured JSON Response:"
     )
-
-    raw_response: str | None = None
-    if cache_key and getattr(generator, "_cache", None):
-        cached = generator._cache.get(cache_key)
-        if cached is not None:
-            raw_response = cached.text
 
     if raw_response is None:
         try:

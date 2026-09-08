@@ -238,9 +238,14 @@ def _detect_outputs(workflow: Workflow, graph: nx.DiGraph, evidence: list[str]) 
         if tool.tool_type in ("DbFileOutput", "OutputData", "Render")
     ]
 
-    candidate_tools = primary_output_tools if primary_output_tools else sorted(workflow.tools.items())
+    candidate_tools = primary_output_tools if primary_output_tools else [
+        (tid, tool) for tid, tool in sorted(workflow.tools.items())
+        if tool.tool_type not in ("BrowseV2", "Browse")
+    ]
 
     for tid, tool in candidate_tools:
+        if tool.tool_type in ("BrowseV2", "Browse"):
+            continue
         tdef = catalog.resolve(tool.plugin or tool.tool_type)
         is_output = (
             tool.tool_type in ("DbFileOutput", "OutputData", "Render")

@@ -164,7 +164,14 @@ def _extract_workflow_targets_and_sinks(
     # 2. Production targets from canonical business_outputs if present
     if result.business_summary and result.business_summary.business_outputs:
         for out in result.business_summary.business_outputs:
-            target_name = (getattr(out, "destination_name", None) or out.name or "").strip()
+            dest_raw = (out.raw_destination or "").strip()
+            dest_clean = _clean_table_name(dest_raw) if dest_raw else ""
+            if out.name and (out.name.startswith("deliverable_") or out.name.startswith("Source Input #")):
+                target_name = out.name
+            elif dest_clean and dest_clean.lower() not in ("standard output stream", "in-memory destination", "source dataset"):
+                target_name = dest_clean
+            else:
+                target_name = (out.name or dest_clean or "").strip()
             if not target_name or "*" in target_name or target_name.lower() == "*unknown":
                 continue
             if target_name not in seen_targets:
@@ -876,8 +883,8 @@ def enrich_portfolio_with_llm(portfolio: PortfolioAnalysis) -> PortfolioAnalysis
     )
 
     raw_response: str | None = None
-    cached = generator._cache.get(cache_key)
-    if cached is not None:
+    cached = generator._cache.get(cache_key) if getattr(generator, "_cache", None) else None
+    if isinstance(cached, NarrativeResult) and isinstance(cached.text, str):
         logger.info("[Portfolio LLM CACHE] status=HIT")
         raw_response = cached.text
     else:

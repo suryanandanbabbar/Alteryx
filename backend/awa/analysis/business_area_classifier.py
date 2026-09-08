@@ -995,8 +995,8 @@ def classify_workflow_business_area(
         f"business_area_classification:{json.dumps(cache_payload, sort_keys=True)}".encode("utf-8")
     ).hexdigest()
 
-    cached = generator._cache.get(cache_key)
-    if cached and cached.text:
+    cached = generator._cache.get(cache_key) if getattr(generator, "_cache", None) else None
+    if isinstance(cached, NarrativeResult) and isinstance(cached.text, str):
         validated = _validate_llm_classification_response(cached.text, allowed_evidence_strings, biz_purpose)
         if validated:
             return validated
@@ -1136,8 +1136,8 @@ def classify_portfolio_business_areas(
     ).hexdigest()
 
     raw_response: str | None = None
-    cached = generator._cache.get(cache_key)
-    if cached and cached.text:
+    cached = generator._cache.get(cache_key) if getattr(generator, "_cache", None) else None
+    if isinstance(cached, NarrativeResult) and isinstance(cached.text, str):
         raw_response = cached.text
     else:
         user_prompt = build_portfolio_business_area_classification_user_prompt(

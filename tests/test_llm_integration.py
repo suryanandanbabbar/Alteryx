@@ -596,7 +596,7 @@ def test_full_pipeline_with_demo_workflow():
             return "- Validate business ownership and operational escalation contacts.\n- Confirm production execution schedule and upstream refresh dependencies."
         elif "executive summary:" in user.lower():
             return "This workflow extracts claim volume data, performs multi-level aggregation by quarter and manager, and produces standardized reporting deliverables across historical reporting periods."
-        elif "business purpose:" in user.lower() or "business area tag" in user.lower() or "senior business intelligence" in sys.lower():
+        elif "business purpose:" in user.lower() or "business area tag" in user.lower() or "senior business intelligence" in system.lower():
             import json
             return json.dumps({
                 "business_purpose": "Automates quarterly insurance claims volume extraction, summarization, and matrix reporting.",

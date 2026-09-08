@@ -27,6 +27,7 @@ class WorkflowMetadata:
     author: str | None = None
     description: str | None = None
     properties: dict = dc_field(default_factory=dict)
+    content_hash: str = ""
 
     def to_dict(self) -> dict:
         d: dict = {
@@ -39,6 +40,8 @@ class WorkflowMetadata:
             d["description"] = self.description
         if self.properties:
             d["properties"] = self.properties
+        if self.content_hash:
+            d["content_hash"] = self.content_hash
         return d
 
 
@@ -57,6 +60,7 @@ class Workflow:
         textboxes: TextBoxes / annotations keyed by tool_id.
         dependencies: External dependencies detected.
         diagnostics: Diagnostic messages from analysis.
+        content_hash: SHA-256 hash of the workflow content.
     """
     metadata: WorkflowMetadata
     tools: dict[int, Tool] = dc_field(default_factory=dict)
@@ -65,6 +69,7 @@ class Workflow:
     textboxes: dict[int, TextBoxNode] = dc_field(default_factory=dict)
     dependencies: list[Dependency] = dc_field(default_factory=list)
     diagnostics: list[Diagnostic] = dc_field(default_factory=list)
+    content_hash: str = ""
 
     def to_dict(self) -> dict:
         return {

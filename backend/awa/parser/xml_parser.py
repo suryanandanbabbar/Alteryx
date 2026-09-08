@@ -1,3 +1,4 @@
+import hashlib
 import re
 import xml.etree.ElementTree as ET
 import xml.parsers.expat
@@ -133,13 +134,14 @@ def parse_workflow(path: str | Path) -> Workflow:
         raise FileNotFoundError(f"Workflow file not found: {path}")
 
     raw_bytes = path.read_bytes()
+    content_hash = hashlib.sha256(raw_bytes).hexdigest()
     raw_xml_text = raw_bytes.decode("utf-8", errors="replace")
     source_spans = _extract_all_node_source_spans(raw_bytes)
 
     tree = ET.parse(str(path))
     root = tree.getroot()
 
-    metadata = _parse_metadata(root, path)
+    metadata = _parse_metadata(root, path, content_hash=content_hash)
     tools, containers, textboxes = _parse_all_nodes(root, raw_xml_text=raw_xml_text, source_spans=source_spans)
     connections = _parse_connections(root, tools)
 
@@ -149,10 +151,11 @@ def parse_workflow(path: str | Path) -> Workflow:
         connections=connections,
         containers=containers,
         textboxes=textboxes,
+        content_hash=content_hash,
     )
 
 
-def _parse_metadata(root: ET.Element, path: Path) -> WorkflowMetadata:
+def _parse_metadata(root: ET.Element, path: Path, content_hash: str = "") -> WorkflowMetadata:
     """Extract workflow metadata from the document root."""
     version = root.get("yxmdVer", "")
 
@@ -183,6 +186,7 @@ def _parse_metadata(root: ET.Element, path: Path) -> WorkflowMetadata:
         author=author,
         description=description,
         properties=properties,
+        content_hash=content_hash,
     )
 
 

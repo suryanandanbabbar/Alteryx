@@ -16,6 +16,7 @@ import pytest
 
 from awa.llm.client import FakeLLMClient
 from awa.llm.generator import LLMNarrativeGenerator
+from awa.llm.cache import LLMNarrativeCache
 from awa.llm.schemas import CriticalityEvidencePackage, WorkflowFacts
 from awa.analysis.workflow_criticality import (
     calculate_workflow_criticality,
@@ -129,7 +130,7 @@ def test_other_llm_features_still_use_llm_client():
     mock_client.model_name = "test-model"
     mock_client.generate.return_value = '{"business_purpose": "The workflow ingests policy underwriting records and calculates premium reserves for commercial lines.", "business_function": "Underwriting Policy Calculation", "business_area_tag": "Underwriting"}'
 
-    generator = LLMNarrativeGenerator(client=mock_client)
+    generator = LLMNarrativeGenerator(client=mock_client, cache=LLMNarrativeCache(file_path=None))
     wf = Workflow(metadata=WorkflowMetadata(name="Test.yxmd", version="2024.1"))
     bs = WorkflowBusinessSummary(
         business_purpose="",

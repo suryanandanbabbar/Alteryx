@@ -1,0 +1,59 @@
+{
+  "86141a145bde788ba05dd3a29fff4894e1d96adee73b8c481bc9936698dffbba": {
+    "schema_type": "BusinessPurposeResult",
+    "data": {
+      "business_purpose": "The workflow ingests policy underwriting records and calculates premium reserves for commercial lines.",
+      "business_function": "Underwriting Policy Calculation",
+      "business_area_tag": "Underwriting",
+      "source": "llm",
+      "business_area_taxonomy_version": "3.0",
+      "classification_conflict": false,
+      "classification_evidence": [
+        "LLM classified as Underwriting"
+      ],
+      "model": "test-model",
+      "prompt_version": "4.0",
+      "is_cached": true
+    }
+  },
+  "d5c8e4bc5fb96f72ca46219b65db5f4ce382445b908b8aba6d802d9206238b19": {
+    "schema_type": "NarrativeResult",
+    "data": {
+      "text": "{\"stages\": [{\"stage_number\": 1, \"stage_name\": \"Source Ingestion\", \"category\": \"PROCESS\", \"description\": \"Loads customer master and order transaction files\", \"purpose\": \"Loads customer master and order transaction files\", \"transformation\": \"Validates schema and parses columnar datatypes\", \"key_actions\": [], \"tool_ids\": [1, 2, 3, 4, 5, 6]}, {\"stage_number\": 2, \"stage_name\": \"Relational Join & Aggregation\", \"category\": \"PROCESS\", \"description\": \"Joins orders to customer records and calculates totals\", \"purpose\": \"Joins orders to customer records and calculates totals\", \"transformation\": \"Executes inner join on customer_id and computes sum of amounts\", \"key_actions\": [], \"tool_ids\": []}, {\"stage_number\": 3, \"stage_name\": \"Deliverable Export\", \"category\": \"PROCESS\", \"description\": \"Exports finalized customer totals to Excel\", \"purpose\": \"Exports finalized customer totals to Excel\", \"transformation\": \"Formats numeric columns and writes workbook\", \"key_actions\": [], \"tool_ids\": []}]}",
+      "source": "llm",
+      "model": "mock-llama",
+      "prompt_version": "2.0",
+      "is_cached": true
+    }
+  },
+  "f40645284340178de1a849bb6a6fec1a18f6bfe6bb99acf027a30a9101e4027e": {
+    "schema_type": "NarrativeResult",
+    "data": {
+      "text": "{\"workflow_title\": \"Automated Customer Sales Reporting Pipeline\", \"workflow_description\": \"Production ETL pipeline consolidating customer transactions\", \"executive_summary\": \"This automated data workflow ingests daily customer transactions and generates aggregated portfolio revenue summaries for management reporting.\", \"methods_of_analysis\": \"The process joins customer master attributes with transaction event records, applies business calculation formulas to compute tax and net amounts, filters active accounts, and aggregates metrics by product line.\", \"findings\": [\"Combines two primary enterprise datasets into a unified analytical base.\", \"Enforces data standardization through automated calculation and zero-fill rules.\", \"Branches transformed data into specialized reporting extracts.\", \"Relies on external file storage for source ingestion.\"], \"conclusions\": \"The workflow serves as a centralized transaction preparation pipeline delivering reconciled revenue metrics to business stakeholders.\", \"inputs\": [{\"source_dataset\": \"customers.xlsx\", \"business_role\": \"Customer master dimension table\", \"source_format\": \"Excel Workbook\", \"dependency_significance\": \"Mandatory primary reference dataset\"}, {\"source_dataset\": \"orders.csv\", \"business_role\": \"Transactional order history feed\", \"source_format\": \"CSV Data File\", \"dependency_significance\": \"Daily transactional volume source\"}], \"outputs\": [{\"output_deliverable\": \"customer_totals.xlsx\", \"what_it_represents\": \"Reconciled customer sales revenue summary\", \"business_use\": \"Monthly commercial revenue audit\", \"destination_format\": \"Excel Workbook\"}], \"sequential_stages\": [{\"stage_number\": 1, \"stage_name\": \"Source Ingestion\", \"description\": \"Loads customer master and order transaction files\", \"operational_explanation\": \"Validates schema and parses columnar datatypes\"}, {\"stage_number\": 2, \"stage_name\": \"Relational Join & Aggregation\", \"description\": \"Joins orders to customer records and calculates totals\", \"operational_explanation\": \"Executes inner join on customer_id and computes sum of amounts\"}, {\"stage_number\": 3, \"stage_name\": \"Deliverable Export\", \"description\": \"Exports finalized customer totals to Excel\", \"operational_explanation\": \"Formats numeric columns and writes workbook\"}], \"business_rules\": [{\"business_rule\": \"Customer ID Reconciliation\", \"category\": \"Integration\", \"evidence_configuration\": \"customers.customer_id = orders.customer_id\"}, {\"business_rule\": \"Revenue Total Rollup\", \"category\": \"Aggregation\", \"evidence_configuration\": \"SUM(orders.amount) GROUP BY customer_id, name\"}], \"lineage\": [{\"source_datasets\": \"customers.xlsx + orders.csv\", \"major_business_transformation\": \"Join customer profiles with orders, aggregate revenue, and sort descending\", \"target_deliverable\": \"customer_totals.xlsx\"}]}",
+      "source": "llm",
+      "model": "mock-llama",
+      "prompt_version": "4.0",
+      "is_cached": true
+    }
+  },
+  "ba3c7ce61efa06c092c4b8e4325ba42654e4b173b0b1637575b35af72efe3c65": {
+    "schema_type": "NarrativeResult",
+    "data": {
+      "text": "{\"stages\": [{\"stage_number\": 1, \"stage_name\": \"Source Ingestion\", \"category\": \"PROCESS\", \"description\": \"Loads customer master and order transaction files\", \"purpose\": \"Loads customer master and order transaction files\", \"transformation\": \"Validates schema and parses columnar datatypes\", \"key_actions\": [], \"tool_ids\": [1, 2, 3, 4, 5, 6]}, {\"stage_number\": 2, \"stage_name\": \"Relational Join & Aggregation\", \"category\": \"PROCESS\", \"description\": \"Joins orders to customer records and calculates totals\", \"purpose\": \"Joins orders to customer records and calculates totals\", \"transformation\": \"Executes inner join on customer_id and computes sum of amounts\", \"key_actions\": [], \"tool_ids\": []}, {\"stage_number\": 3, \"stage_name\": \"Deliverable Export\", \"category\": \"PROCESS\", \"description\": \"Exports finalized customer totals to Excel\", \"purpose\": \"Exports finalized customer totals to Excel\", \"transformation\": \"Formats numeric columns and writes workbook\", \"key_actions\": [], \"tool_ids\": []}]}",
+      "source": "llm",
+      "model": "mock-llama",
+      "prompt_version": "2.0",
+      "is_cached": false
+    }
+  },
+  "2b5edb0f2f07c720152968119c9880f0f636be66e72bd63404b5815d7047ebd5": {
+    "schema_type": "NarrativeResult",
+    "data": {
+      "text": "{\"workflow_title\": \"Automated Customer Sales Reporting Pipeline\", \"workflow_description\": \"Production ETL pipeline consolidating customer transactions\", \"executive_summary\": \"This automated data workflow ingests daily customer transactions and generates aggregated portfolio revenue summaries for management reporting.\", \"methods_of_analysis\": \"The process joins customer master attributes with transaction event records, applies business calculation formulas to compute tax and net amounts, filters active accounts, and aggregates metrics by product line.\", \"findings\": [\"Combines two primary enterprise datasets into a unified analytical base.\", \"Enforces data standardization through automated calculation and zero-fill rules.\", \"Branches transformed data into specialized reporting extracts.\", \"Relies on external file storage for source ingestion.\"], \"conclusions\": \"The workflow serves as a centralized transaction preparation pipeline delivering reconciled revenue metrics to business stakeholders.\", \"inputs\": [{\"source_dataset\": \"customers.xlsx\", \"business_role\": \"Customer master dimension table\", \"source_format\": \"Excel Workbook\", \"dependency_significance\": \"Mandatory primary reference dataset\"}, {\"source_dataset\": \"orders.csv\", \"business_role\": \"Transactional order history feed\", \"source_format\": \"CSV Data File\", \"dependency_significance\": \"Daily transactional volume source\"}], \"outputs\": [{\"output_deliverable\": \"customer_totals.xlsx\", \"what_it_represents\": \"Reconciled customer sales revenue summary\", \"business_use\": \"Monthly commercial revenue audit\", \"destination_format\": \"Excel Workbook\"}], \"sequential_stages\": [{\"stage_number\": 1, \"stage_name\": \"Source Ingestion\", \"description\": \"Loads customer master and order transaction files\", \"operational_explanation\": \"Validates schema and parses columnar datatypes\"}, {\"stage_number\": 2, \"stage_name\": \"Relational Join & Aggregation\", \"description\": \"Joins orders to customer records and calculates totals\", \"operational_explanation\": \"Executes inner join on customer_id and computes sum of amounts\"}, {\"stage_number\": 3, \"stage_name\": \"Deliverable Export\", \"description\": \"Exports finalized customer totals to Excel\", \"operational_explanation\": \"Formats numeric columns and writes workbook\"}], \"business_rules\": [{\"business_rule\": \"Customer ID Reconciliation\", \"category\": \"Integration\", \"evidence_configuration\": \"customers.customer_id = orders.customer_id\"}, {\"business_rule\": \"Revenue Total Rollup\", \"category\": \"Aggregation\", \"evidence_configuration\": \"SUM(orders.amount) GROUP BY customer_id, name\"}], \"lineage\": [{\"source_datasets\": \"customers.xlsx + orders.csv\", \"major_business_transformation\": \"Join customer profiles with orders, aggregate revenue, and sort descending\", \"target_deliverable\": \"customer_totals.xlsx\"}]}",
+      "source": "llm",
+      "model": "mock-llama",
+      "prompt_version": "4.0",
+      "is_cached": false
+    }
+  }
+}

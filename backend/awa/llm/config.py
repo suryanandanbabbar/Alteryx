@@ -63,6 +63,8 @@ class LLMConfig:
     timeout: float = 30.0
     max_tokens: int = 500
     enabled: bool = True
+    cache_enabled: bool = True
+    cache_path: str = ""
 
     @classmethod
     def from_env(cls) -> LLMConfig:
@@ -90,6 +92,10 @@ class LLMConfig:
         enabled_str = os.getenv("AWA_LLM_ENABLED", "true").lower()
         is_enabled = enabled_str not in ("false", "0", "no", "off")
 
+        cache_enabled_str = os.getenv("AWA_LLM_CACHE_ENABLED", os.getenv("LLM_CACHE_ENABLED", "true")).lower()
+        cache_enabled = cache_enabled_str not in ("false", "0", "no", "off")
+        cache_path = os.getenv("AWA_LLM_CACHE_PATH", os.getenv("LLM_CACHE_PATH", "")).strip()
+
         # Config is active only when all required credentials are provided
         has_credentials = bool(endpoint and api_key and (deployment or deployment_name))
         active = is_enabled and has_credentials
@@ -103,6 +109,8 @@ class LLMConfig:
             timeout=timeout,
             max_tokens=max_tokens,
             enabled=active,
+            cache_enabled=cache_enabled,
+            cache_path=cache_path,
         )
 
     def is_available(self) -> bool:
@@ -116,7 +124,7 @@ class LLMConfig:
         model_name = self.deployment_name or self.deployment or "NONE"
         return (
             f"LLMConfig(endpoint={has_endpoint}, deployment='{model_name}', "
-            f"api_key={has_key}, enabled={self.enabled}, temperature={self.temperature})"
+            f"api_key={has_key}, enabled={self.enabled}, cache_enabled={self.cache_enabled}, temperature={self.temperature})"
         )
 
 
@@ -128,18 +136,26 @@ def initialize_llm() -> None:
     """
     from .client import AzureLlamaClient, set_default_llm_client
     from .generator import LLMNarrativeGenerator, set_default_generator
-    from .cache import get_global_narrative_cache
+    from .cache import LLMNarrativeCache, get_global_narrative_cache, reset_global_narrative_cache
 
     config = LLMConfig.from_env()
+
+    if config.cache_path:
+        cache = LLMNarrativeCache(file_path=config.cache_path, enabled=config.cache_enabled)
+        reset_global_narrative_cache(cache)
+    else:
+        cache = get_global_narrative_cache()
+        cache.enabled = config.cache_enabled
 
     if config.is_available():
         client = AzureLlamaClient(config=config)
         set_default_llm_client(client)
-        generator = LLMNarrativeGenerator(client=client, cache=get_global_narrative_cache())
+        generator = LLMNarrativeGenerator(client=client, cache=cache)
         set_default_generator(generator)
         logger.info(
-            "LLM provider: Azure | configuration: available | deployment: %s",
+            "LLM provider: Azure | configuration: available | deployment: %s | cache_entries: %d",
             config.deployment_name or config.deployment,
+            cache.count(),
         )
     else:
         logger.info(

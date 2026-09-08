@@ -1343,6 +1343,20 @@ def compose_deterministic_criticality_fallback(
     )
 
 
+def _resolve_workflow_cache_id(workflow: Workflow | None, workflow_id: str = "", default_name: str = "") -> str:
+    """Resolve canonical cache identifier preferring content hash, then explicit ID/name."""
+    if workflow_id:
+        return str(workflow_id)
+    if workflow is not None:
+        if getattr(workflow, "content_hash", ""):
+            return str(workflow.content_hash)
+        if workflow.metadata and getattr(workflow.metadata, "content_hash", ""):
+            return str(workflow.metadata.content_hash)
+        if workflow.metadata and workflow.metadata.name:
+            return str(workflow.metadata.name)
+    return default_name or "default_workflow"
+
+
 class LLMNarrativeGenerator:
     """High-level orchestration service for narrative generation with caching and fallback."""
 
@@ -1367,7 +1381,7 @@ class LLMNarrativeGenerator:
     ) -> NarrativeResult | None:
         """Check if a tool summary is already cached without triggering LLM generation."""
         facts = extract_tool_facts(workflow, tool, graph)
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key=f"tool_{tool.tool_id}",
@@ -1388,7 +1402,7 @@ class LLMNarrativeGenerator:
         fallback_text = get_tool_summary(tool.plugin or tool.tool_type)
 
         facts = extract_tool_facts(workflow, tool, graph)
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key=f"tool_{tool.tool_id}",
@@ -1534,7 +1548,7 @@ class LLMNarrativeGenerator:
             )
 
         facts = extract_workflow_facts(workflow, business_summary)
-        wf_key = workflow_id or wf_name or "default_workflow"
+        wf_key = _resolve_workflow_cache_id(workflow, workflow_id, default_name=wf_name)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key="business_purpose",
@@ -1691,7 +1705,7 @@ class LLMNarrativeGenerator:
         )
 
         facts = extract_workflow_facts(workflow, business_summary)
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key="executive_summary",
@@ -1745,7 +1759,7 @@ class LLMNarrativeGenerator:
         )
 
         facts = extract_workflow_facts(workflow, business_summary)
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key="methods_of_analysis",
@@ -1799,7 +1813,7 @@ class LLMNarrativeGenerator:
         )
 
         facts = extract_workflow_facts(workflow, business_summary)
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key="findings",
@@ -1868,7 +1882,7 @@ class LLMNarrativeGenerator:
         )
 
         facts = extract_workflow_facts(workflow, business_summary)
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key="conclusions",
@@ -1919,7 +1933,7 @@ class LLMNarrativeGenerator:
     ) -> BusinessReportContent | None:
         """Generate full, structured, LLM-authored Business Report content."""
         context = extract_comprehensive_workflow_context(workflow, business_summary, graph=graph)
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key="business_report_full",
@@ -2137,7 +2151,7 @@ class LLMNarrativeGenerator:
             fallback_data_flow = f"Receives data from {inp_str} and passes the resulting stream to {out_str}."
 
         facts = extract_tool_facts(workflow, tool, graph)
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key=f"tool_spec_{tool.tool_id}",
@@ -2167,33 +2181,35 @@ class LLMNarrativeGenerator:
 
         parsed_role = ""
         parsed_data_flow = ""
-        try:
-            import json
-            clean_json = raw_response.strip()
-            if "```" in clean_json:
-                clean_json = re.sub(r"^```(?:json)?\s*", "", clean_json, flags=re.MULTILINE)
-                clean_json = re.sub(r"\s*```$", "", clean_json, flags=re.MULTILINE)
-            start = clean_json.find("{")
-            end = clean_json.rfind("}")
-            if start != -1 and end != -1:
-                clean_json = clean_json[start : end + 1]
-                data = json.loads(clean_json)
-                parsed_role = str(data.get("role", "")).strip()
-                parsed_data_flow = str(data.get("data_flow_explanation", "")).strip()
-        except Exception as e:
-            logger.warning("[LLM] Failed to parse tool spec JSON for tool #%d: %s", tool.tool_id, e)
+        if raw_response and isinstance(raw_response, str) and raw_response.strip():
+            try:
+                import json
+                clean_json = raw_response.strip()
+                if "```" in clean_json:
+                    clean_json = re.sub(r"^```(?:json)?\s*", "", clean_json, flags=re.MULTILINE)
+                    clean_json = re.sub(r"\s*```$", "", clean_json, flags=re.MULTILINE)
+                start = clean_json.find("{")
+                end = clean_json.rfind("}")
+                if start != -1 and end != -1:
+                    clean_json = clean_json[start : end + 1]
+                    data = json.loads(clean_json)
+                    parsed_role = str(data.get("role", "")).strip()
+                    parsed_data_flow = str(data.get("data_flow_explanation", "")).strip()
+            except Exception as e:
+                logger.warning("[LLM] Failed to parse tool spec JSON for tool #%d: %s", tool.tool_id, e)
 
         role_final = parsed_role if (parsed_role and len(parsed_role) >= 15) else fallback_role
         data_flow_final = parsed_data_flow if (parsed_data_flow and len(parsed_data_flow) >= 15) else fallback_data_flow
 
-        import json
-        result = NarrativeResult(
-            text=json.dumps({"role": role_final, "data_flow_explanation": data_flow_final}),
-            source="llm" if (parsed_role and parsed_data_flow) else "deterministic_fallback",
-            model=self.client.model_name,
-            prompt_version=TOOL_SPECIFICATIONS_PROMPT_VERSION,
-        )
-        self._cache.set(cache_key, result)
+        if parsed_role and parsed_data_flow and len(parsed_role) >= 15 and len(parsed_data_flow) >= 15:
+            import json
+            result = NarrativeResult(
+                text=json.dumps({"role": role_final, "data_flow_explanation": data_flow_final}),
+                source="llm",
+                model=self.client.model_name,
+                prompt_version=TOOL_SPECIFICATIONS_PROMPT_VERSION,
+            )
+            self._cache.set(cache_key, result)
 
         return {
             "role": role_final,
@@ -2223,7 +2239,7 @@ class LLMNarrativeGenerator:
         from awa.model.business_summary import BusinessStage
 
         context = extract_comprehensive_workflow_context(workflow, business_summary=business_summary, graph=graph)
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key="process_stages",
@@ -2249,29 +2265,6 @@ class LLMNarrativeGenerator:
         if not stages:
             logger.warning("[LLM] Process stages generation failed validation, using generic deterministic fallback.")
             stages = self._generate_fallback_process_stages(workflow, graph, business_summary)
-            import json
-            fallback_payload = {
-                "stages": [
-                    {
-                        "stage_number": s.stage_number,
-                        "stage_name": s.name,
-                        "category": s.short_title.split()[-1] if s.short_title else "PROCESS",
-                        "description": s.description,
-                        "purpose": s.business_purpose,
-                        "transformation": s.major_transformation,
-                        "key_actions": s.annotations,
-                        "tool_ids": s.tool_ids,
-                    }
-                    for s in stages
-                ]
-            }
-            res = NarrativeResult(
-                text=json.dumps(fallback_payload),
-                source="deterministic_fallback",
-                model=self.client.model_name,
-                prompt_version=PROCESS_STAGES_PROMPT_VERSION,
-            )
-            self._cache.set(cache_key, res)
             return stages
 
         import json
@@ -2297,7 +2290,6 @@ class LLMNarrativeGenerator:
             prompt_version=PROCESS_STAGES_PROMPT_VERSION,
         )
         self._cache.set(cache_key, res)
-
         return stages
 
     def _parse_process_stages_json(
@@ -2308,6 +2300,8 @@ class LLMNarrativeGenerator:
     ) -> list[BusinessStage] | None:
         """Parse, validate, and enforce 100% tool coverage for LLM process stages."""
         from awa.model.business_summary import BusinessStage
+        if not raw_json or not isinstance(raw_json, str) or not raw_json.strip():
+            return None
         try:
             import json
             clean_json = raw_json.strip()
@@ -2631,7 +2625,7 @@ class LLMNarrativeGenerator:
         validator = STTMValidator(evidence_context, graph)
 
         # 2. Check Cache
-        wf_key = workflow_id or workflow.metadata.name or "default_workflow"
+        wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key_payload = {
             "source_datasets": evidence_context.get("source_datasets", []),
             "target_deliverables": evidence_context.get("target_deliverables", []),

@@ -618,7 +618,7 @@ def analyze_canonical(
             )
             output_ev = extract_output_evidence_for_workflow(temp_res)
             input_sources = _extract_workflow_sources(temp_res)
-            wf_key = sinfo.original_filename if (sinfo and sinfo.original_filename) else aid
+            wf_key = getattr(workflow, "content_hash", None) or (sinfo.original_filename if (sinfo and sinfo.original_filename) else aid)
 
             purpose_res = gen.generate_business_purpose(
                 workflow,
@@ -696,7 +696,7 @@ def analyze_canonical(
                     workflow,
                     graph=graph,
                     business_summary=business_summary,
-                    workflow_id=aid,
+                    workflow_id=wf_key,
                 )
                 if process_stages:
                     business_summary.processing_stages = process_stages
@@ -704,7 +704,7 @@ def analyze_canonical(
                 _llm_logger.warning("LLM process stages generation failed: %s", stg_err)
 
             # 2. Generate full Business Report content for DOCX
-            report_content = gen.generate_business_report(workflow, business_summary, graph=graph, workflow_id=aid)
+            report_content = gen.generate_business_report(workflow, business_summary, graph=graph, workflow_id=wf_key)
             if report_content is not None:
                 _llm_logger.info("LLM enrichment: full business_report successfully generated")
                 if report_content.workflow_description:
@@ -919,7 +919,7 @@ def analyze_workflow(
     tool_specs = gen.generate_all_tool_specifications(
         workflow,
         graph=canonical.graph,
-        workflow_id=canonical.analysis_id,
+        workflow_id=getattr(workflow, "content_hash", None) or canonical.analysis_id,
     )
     tool_doc = build_tool_specifications_document(
         workflow=workflow,
