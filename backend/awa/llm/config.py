@@ -61,10 +61,13 @@ class LLMConfig:
     deployment_name: str = ""
     temperature: float = 0.0
     timeout: float = 30.0
+    business_report_timeout: float = 60.0
     max_tokens: int = 500
     enabled: bool = True
     cache_enabled: bool = True
     cache_path: str = ""
+    retry_attempts: int = 2
+    retry_backoff_base: float = 1.0
 
     @classmethod
     def from_env(cls) -> LLMConfig:
@@ -85,9 +88,27 @@ class LLMConfig:
             timeout = 30.0
 
         try:
+            br_timeout = float(
+                os.getenv(
+                    "AWA_LLM_BUSINESS_REPORT_TIMEOUT_SECONDS",
+                    os.getenv(
+                        "LLM_BUSINESS_REPORT_TIMEOUT_SECONDS",
+                        os.getenv("AWA_LLM_BUSINESS_REPORT_TIMEOUT", "60.0"),
+                    ),
+                )
+            )
+        except ValueError:
+            br_timeout = 60.0
+
+        try:
             max_tokens = int(os.getenv("AWA_LLM_MAX_TOKENS", "500"))
         except ValueError:
             max_tokens = 500
+
+        try:
+            retry_attempts = int(os.getenv("AWA_LLM_RETRY_ATTEMPTS", os.getenv("LLM_RETRY_ATTEMPTS", "2")))
+        except ValueError:
+            retry_attempts = 2
 
         enabled_str = os.getenv("AWA_LLM_ENABLED", "true").lower()
         is_enabled = enabled_str not in ("false", "0", "no", "off")
@@ -107,10 +128,13 @@ class LLMConfig:
             deployment_name=deployment_name,
             temperature=temp,
             timeout=timeout,
+            business_report_timeout=br_timeout,
             max_tokens=max_tokens,
             enabled=active,
             cache_enabled=cache_enabled,
             cache_path=cache_path,
+            retry_attempts=retry_attempts,
+            retry_backoff_base=1.0,
         )
 
     def is_available(self) -> bool:

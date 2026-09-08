@@ -15,6 +15,8 @@ from .config import LLMConfig
 logger = logging.getLogger("awa.llm")
 
 
+import time
+
 class LLMClient(ABC):
     """Abstract interface for LLM completion services."""
 
@@ -25,6 +27,8 @@ class LLMClient(ABC):
         user_prompt: str,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        timeout: float | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> str | None:
         """Generate text completion from system and user prompts.
 
@@ -150,8 +154,10 @@ class AzureLlamaClient(LLMClient):
         user_prompt: str,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        timeout: float | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> str | None:
-        """Execute chat completion request against Azure endpoint with robust error handling."""
+        """Execute chat completion request against Azure endpoint with robust error handling and bounded retry."""
         if not self.config.is_available():
             logger.debug("Azure LLM client unavailable — missing runtime credentials")
             return None
@@ -163,6 +169,7 @@ class AzureLlamaClient(LLMClient):
 
         temp = temperature if temperature is not None else self.config.temperature
         tokens = max_tokens if max_tokens is not None else self.config.max_tokens
+        req_timeout = timeout if timeout is not None else self.config.timeout
 
         payload: dict[str, Any] = {
             "messages": [
@@ -173,6 +180,9 @@ class AzureLlamaClient(LLMClient):
             "max_tokens": tokens,
         }
 
+        if response_format:
+            payload["response_format"] = response_format
+
         model = self.config.deployment_name or self.config.deployment
         if model:
             payload["model"] = model
@@ -181,102 +191,149 @@ class AzureLlamaClient(LLMClient):
 
         parsed_url = urllib.parse.urlparse(url)
         logger.info(
-            "[LLM HTTP] method=POST endpoint_type=%s request_path=%s deployment_configured=%s",
+            "[LLM HTTP] method=POST endpoint_type=%s request_path=%s deployment_configured=%s timeout=%.1fs",
             self.classify_endpoint(),
             parsed_url.path,
             bool(model),
+            req_timeout,
         )
 
-        try:
-            req_bytes = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(
-                url=url,
-                data=req_bytes,
-                headers=headers,
-                method="POST",
-            )
+        max_attempts = 1 + max(0, self.config.retry_attempts)
+        for attempt in range(1, max_attempts + 1):
+            try:
+                req_bytes = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(
+                    url=url,
+                    data=req_bytes,
+                    headers=headers,
+                    method="POST",
+                )
 
-            with urllib.request.urlopen(req, timeout=self.config.timeout) as response:
-                status = response.status
-                if status != 200:
-                    logger.warning(
-                        "[LLM] HTTP status=%d response non-200",
-                        status,
-                    )
+                with urllib.request.urlopen(req, timeout=req_timeout) as response:
+                    status = response.status
+                    if status != 200:
+                        logger.warning(
+                            "[LLM] HTTP status=%d response non-200",
+                            status,
+                        )
+                        return None
+                    resp_bytes = response.read()
+                    data = json.loads(resp_bytes.decode("utf-8", errors="replace"))
+
+                # Parse standard chat completion format
+                choices = data.get("choices", [])
+                if not choices:
+                    logger.warning("[LLM] generation response contained no choices")
                     return None
-                resp_bytes = response.read()
-                data = json.loads(resp_bytes.decode("utf-8", errors="replace"))
 
-            # Parse standard chat completion format
-            choices = data.get("choices", [])
-            if not choices:
-                logger.warning("[LLM] generation response contained no choices")
+                first_choice = choices[0] if isinstance(choices, list) and choices else {}
+                message = first_choice.get("message", {}) if isinstance(first_choice, dict) else {}
+                content = message.get("content") if isinstance(message, dict) else None
+                if content is None and isinstance(first_choice, dict):
+                    content = first_choice.get("text")
+
+                # Handle multi-part content list (e.g. [{"type": "text", "text": "..."}])
+                if isinstance(content, list):
+                    parts = []
+                    for p in content:
+                        if isinstance(p, dict):
+                            parts.append(p.get("text") or p.get("content") or "")
+                        elif isinstance(p, str):
+                            parts.append(p)
+                    content_str = "".join(parts).strip()
+                elif isinstance(content, dict):
+                    content_str = json.dumps(content)
+                elif content:
+                    content_str = str(content).strip()
+                else:
+                    content_str = ""
+
+                logger.info(
+                    "[LLM] response received HTTP status=200 choices=%d content_type=%s length=%d",
+                    len(choices),
+                    type(content).__name__ if content is not None else "None",
+                    len(content_str),
+                )
+                return content_str if content_str else None
+
+            except urllib.error.HTTPError as e:
+                status_code = getattr(e, "code", 0)
+                error_body = ""
+                try:
+                    error_body = e.read().decode("utf-8", errors="replace")[:500]
+                except Exception:
+                    pass
+                sanitized_body = error_body
+                if self.config.api_key and len(self.config.api_key) > 8:
+                    sanitized_body = sanitized_body.replace(self.config.api_key, "[REDACTED]")
+
+                is_transient = status_code in (429, 500, 502, 503, 504)
+                if is_transient and attempt < max_attempts:
+                    backoff = min(10.0, self.config.retry_backoff_base * (2 ** (attempt - 1)))
+                    logger.warning(
+                        "[LLM HTTP] Transient failure status=%s reason=%s, retrying attempt %d/%d after %.1fs",
+                        status_code,
+                        getattr(e, "reason", "UNKNOWN"),
+                        attempt + 1,
+                        max_attempts,
+                        backoff,
+                    )
+                    time.sleep(backoff)
+                    continue
+
+                logger.warning(
+                    "[LLM] generation failed error_type=HTTPError status=%s reason=%s | body: %s",
+                    status_code,
+                    getattr(e, "reason", "UNKNOWN"),
+                    sanitized_body[:200] if sanitized_body else "(empty)",
+                )
                 return None
 
-            first_choice = choices[0] if isinstance(choices, list) and choices else {}
-            message = first_choice.get("message", {}) if isinstance(first_choice, dict) else {}
-            content = message.get("content") if isinstance(message, dict) else None
-            if content is None and isinstance(first_choice, dict):
-                content = first_choice.get("text")
+            except urllib.error.URLError as e:
+                is_timeout = isinstance(getattr(e, "reason", None), TimeoutError) or "timed out" in str(getattr(e, "reason", "")).lower()
+                if is_timeout and attempt < max_attempts:
+                    backoff = min(10.0, self.config.retry_backoff_base * (2 ** (attempt - 1)))
+                    logger.warning(
+                        "[LLM HTTP] Transient timeout URLError, retrying attempt %d/%d after %.1fs",
+                        attempt + 1,
+                        max_attempts,
+                        backoff,
+                    )
+                    time.sleep(backoff)
+                    continue
 
-            # Handle multi-part content list (e.g. [{"type": "text", "text": "..."}])
-            if isinstance(content, list):
-                parts = []
-                for p in content:
-                    if isinstance(p, dict):
-                        parts.append(p.get("text") or p.get("content") or "")
-                    elif isinstance(p, str):
-                        parts.append(p)
-                content_str = "".join(parts).strip()
-            elif isinstance(content, dict):
-                content_str = json.dumps(content)
-            elif content:
-                content_str = str(content).strip()
-            else:
-                content_str = ""
+                logger.warning(
+                    "[LLM] generation failed error_type=URLError reason=%s",
+                    getattr(e, "reason", "Connection failed"),
+                )
+                return None
 
-            logger.info(
-                "[LLM] response received HTTP status=200 choices=%d content_type=%s length=%d",
-                len(choices),
-                type(content).__name__ if content is not None else "None",
-                len(content_str),
-            )
-            return content_str if content_str else None
+            except TimeoutError:
+                if attempt < max_attempts:
+                    backoff = min(10.0, self.config.retry_backoff_base * (2 ** (attempt - 1)))
+                    logger.warning(
+                        "[LLM HTTP] Transient TimeoutError (timeout=%.1fs), retrying attempt %d/%d after %.1fs",
+                        req_timeout,
+                        attempt + 1,
+                        max_attempts,
+                        backoff,
+                    )
+                    time.sleep(backoff)
+                    continue
 
-        except urllib.error.HTTPError as e:
-            error_body = ""
-            try:
-                error_body = e.read().decode("utf-8", errors="replace")[:500]
-            except Exception:
-                pass
-            sanitized_body = error_body
-            if self.config.api_key and len(self.config.api_key) > 8:
-                sanitized_body = sanitized_body.replace(self.config.api_key, "[REDACTED]")
-            logger.warning(
-                "[LLM] generation failed error_type=HTTPError status=%s reason=%s | body: %s",
-                getattr(e, "code", "UNKNOWN"),
-                getattr(e, "reason", "UNKNOWN"),
-                sanitized_body[:200] if sanitized_body else "(empty)",
-            )
-            return None
-        except urllib.error.URLError as e:
-            logger.warning(
-                "[LLM] generation failed error_type=URLError reason=%s",
-                getattr(e, "reason", "Connection failed"),
-            )
-            return None
-        except TimeoutError:
-            logger.warning(
-                "[LLM] generation failed error_type=TimeoutError timeout=%.1fs",
-                self.config.timeout,
-            )
-            return None
-        except Exception as e:
-            logger.warning(
-                "[LLM] generation failed error_type=%s",
-                type(e).__name__,
-            )
-            return None
+                logger.warning(
+                    "[LLM] generation failed error_type=TimeoutError timeout=%.1fs",
+                    req_timeout,
+                )
+                return None
+
+            except Exception as e:
+                logger.warning(
+                    "[LLM] generation failed error_type=%s: %s",
+                    type(e).__name__,
+                    e,
+                )
+                return None
 
     def diagnose(self) -> dict[str, Any]:
         """Return a sanitized diagnostic result for the Azure LLM configuration."""
@@ -351,12 +408,16 @@ class FakeLLMClient(LLMClient):
         user_prompt: str,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        timeout: float | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> str | None:
         self.calls.append({
             "system_prompt": system_prompt,
             "user_prompt": user_prompt,
             "temperature": temperature,
             "max_tokens": max_tokens,
+            "timeout": timeout,
+            "response_format": response_format,
         })
 
         if self.generator_fn:

@@ -76,6 +76,7 @@ from .prompts import (
     build_sttm_user_prompt,
 )
 from .cache import LLMNarrativeCache, get_global_narrative_cache, compute_cache_key
+from .json_extractor import extract_and_parse_json
 
 logger = logging.getLogger("awa.llm")
 
@@ -685,51 +686,10 @@ def _is_clean_business_purpose(
 
 
 def _extract_structured_purpose_payload(raw_response: str | None) -> dict[str, Any] | None:
-    """Extract structured JSON payload containing business_purpose, business_function, and business_area_tag.
-
-    Extracts valid JSON even when the model wraps it in markdown code blocks or includes
-    conversational preamble / thinking before or after the JSON.
-    """
-    if not raw_response or not isinstance(raw_response, str):
-        return None
-
-    text = raw_response.strip()
-    if not text:
-        return None
-
-    # 1. Direct parse if response is clean JSON
-    try:
-        parsed = json.loads(text)
-        if isinstance(parsed, dict) and "business_purpose" in parsed:
-            return parsed
-    except Exception:
-        pass
-
-    # 2. Extract from markdown code blocks (e.g. ```json ... ```)
-    code_blocks = re.findall(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
-    for block in code_blocks:
-        try:
-            parsed = json.loads(block.strip())
-            if isinstance(parsed, dict) and "business_purpose" in parsed:
-                return parsed
-        except Exception:
-            pass
-
-    # 3. Progressive JSON scanning for any object containing "business_purpose"
-    decoder = json.JSONDecoder()
-    pos = 0
-    while True:
-        start = text.find("{", pos)
-        if start == -1:
-            break
-        try:
-            obj, end = decoder.raw_decode(text, idx=start)
-            if isinstance(obj, dict) and "business_purpose" in obj:
-                return obj
-            pos = end
-        except Exception:
-            pos = start + 1
-
+    """Extract structured JSON payload containing business_purpose, business_function, and business_area_tag."""
+    data, _, _ = extract_and_parse_json(raw_response, expected_type=dict)
+    if isinstance(data, dict) and "business_purpose" in data:
+        return data
     return None
 
 
@@ -1946,9 +1906,11 @@ class LLMNarrativeGenerator:
         if cached is not None:
             logger.info("[LLM CACHE] type=business_report_full status=HIT")
             try:
-                import json
-                data = json.loads(cached.text)
-                return self._parse_business_report_json(data)
+                data, _, _ = extract_and_parse_json(cached.text, expected_type=dict)
+                if isinstance(data, dict):
+                    report = self._parse_business_report_json(data)
+                    if report:
+                        return report
             except Exception as e:
                 logger.warning("[LLM CACHE] Failed to deserialize cached business report: %s", e)
 
@@ -1956,34 +1918,32 @@ class LLMNarrativeGenerator:
 
         system_prompt = BUSINESS_REPORT_SYSTEM_PROMPT
         user_prompt = build_business_report_user_prompt(context.to_dict())
-        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=2500)
+        timeout = getattr(getattr(self.client, "config", None), "business_report_timeout", 60.0)
+        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=2500, timeout=timeout)
 
         if not raw_response:
-            logger.warning("[LLM] Business report generation returned empty response")
+            logger.warning("[LLM JSON] operation=business_report_full extraction=FAILED error=empty_response")
             return None
 
-        # Clean response and parse JSON
-        cleaned = raw_response.strip()
-        if cleaned.startswith("```"):
-            cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
-            cleaned = re.sub(r"\n?```$", "", cleaned).strip()
+        data, mode, error = extract_and_parse_json(raw_response, expected_type=dict)
+        if data is None or not isinstance(data, dict):
+            logger.warning("[LLM JSON] operation=business_report_full extraction=FAILED error=%s", error)
+            return None
 
-        try:
-            import json
-            data = json.loads(cleaned)
-            report = self._parse_business_report_json(data)
-            if report:
-                result = NarrativeResult(
-                    text=json.dumps(report.to_dict()),
-                    source="llm",
-                    model=self.client.model_name,
-                    prompt_version=BUSINESS_REPORT_PROMPT_VERSION,
-                )
-                self._cache.set(cache_key, result)
-                logger.info("[LLM] Business report successfully generated and cached")
-                return report
-        except Exception as exc:
-            logger.warning("[LLM] Failed to parse Business Report JSON response: %s", exc)
+        logger.info("[LLM JSON] operation=business_report_full extraction=%s status=OK", mode)
+        report = self._parse_business_report_json(data)
+        if report:
+            result = NarrativeResult(
+                text=json.dumps(report.to_dict()),
+                source="llm",
+                model=self.client.model_name,
+                prompt_version=BUSINESS_REPORT_PROMPT_VERSION,
+            )
+            self._cache.set(cache_key, result)
+            logger.info("[LLM JSON] operation=business_report_full validation=OK status=CACHED")
+            return report
+        else:
+            logger.warning("[LLM JSON] operation=business_report_full validation=FAILED")
 
         return None
 
@@ -2182,21 +2142,10 @@ class LLMNarrativeGenerator:
         parsed_role = ""
         parsed_data_flow = ""
         if raw_response and isinstance(raw_response, str) and raw_response.strip():
-            try:
-                import json
-                clean_json = raw_response.strip()
-                if "```" in clean_json:
-                    clean_json = re.sub(r"^```(?:json)?\s*", "", clean_json, flags=re.MULTILINE)
-                    clean_json = re.sub(r"\s*```$", "", clean_json, flags=re.MULTILINE)
-                start = clean_json.find("{")
-                end = clean_json.rfind("}")
-                if start != -1 and end != -1:
-                    clean_json = clean_json[start : end + 1]
-                    data = json.loads(clean_json)
-                    parsed_role = str(data.get("role", "")).strip()
-                    parsed_data_flow = str(data.get("data_flow_explanation", "")).strip()
-            except Exception as e:
-                logger.warning("[LLM] Failed to parse tool spec JSON for tool #%d: %s", tool.tool_id, e)
+            data, _, _ = extract_and_parse_json(raw_response, expected_type=dict)
+            if isinstance(data, dict):
+                parsed_role = str(data.get("role", "")).strip()
+                parsed_data_flow = str(data.get("data_flow_explanation", "")).strip()
 
         role_final = parsed_role if (parsed_role and len(parsed_role) >= 15) else fallback_role
         data_flow_final = parsed_data_flow if (parsed_data_flow and len(parsed_data_flow) >= 15) else fallback_data_flow
@@ -2267,7 +2216,6 @@ class LLMNarrativeGenerator:
             stages = self._generate_fallback_process_stages(workflow, graph, business_summary)
             return stages
 
-        import json
         cache_payload = {
             "stages": [
                 {
@@ -2301,21 +2249,19 @@ class LLMNarrativeGenerator:
         """Parse, validate, and enforce 100% tool coverage for LLM process stages."""
         from awa.model.business_summary import BusinessStage
         if not raw_json or not isinstance(raw_json, str) or not raw_json.strip():
+            logger.warning("[LLM JSON] operation=process_stages extraction=FAILED error=empty_input")
             return None
+
+        data, mode, error = extract_and_parse_json(raw_json, expected_type=dict)
+        if data is None or not isinstance(data, dict):
+            logger.warning("[LLM JSON] operation=process_stages extraction=FAILED error=%s", error)
+            return None
+
+        logger.info("[LLM JSON] operation=process_stages extraction=%s status=OK", mode)
         try:
-            import json
-            clean_json = raw_json.strip()
-            if "```" in clean_json:
-                clean_json = re.sub(r"^```(?:json)?\s*", "", clean_json, flags=re.MULTILINE)
-                clean_json = re.sub(r"\s*```$", "", clean_json, flags=re.MULTILINE)
-            start = clean_json.find("{")
-            end = clean_json.rfind("}")
-            if start == -1 or end == -1:
-                return None
-            clean_json = clean_json[start : end + 1]
-            data = json.loads(clean_json)
             raw_stages = data.get("stages") or data.get("sequential_stages", [])
             if not isinstance(raw_stages, list) or not raw_stages:
+                logger.warning("[LLM JSON] operation=process_stages validation=FAILED reason=no_stages_list")
                 return None
 
             all_wf_tool_ids = set(workflow.tools.keys())
@@ -2366,6 +2312,7 @@ class LLMNarrativeGenerator:
                 parsed_stages.append(stage_obj)
 
             if not parsed_stages:
+                logger.warning("[LLM JSON] operation=process_stages validation=FAILED reason=no_valid_stages_parsed")
                 return None
 
             # Tool Coverage Guarantee: ensure every workflow tool is assigned to a stage
@@ -2395,9 +2342,10 @@ class LLMNarrativeGenerator:
                 stg.tool_ids.sort()
                 stg.tool_count = len(stg.tool_ids)
 
+            logger.info("[LLM JSON] operation=process_stages validation=OK stages_count=%d assigned_tools=%d", len(parsed_stages), len(all_wf_tool_ids))
             return parsed_stages
         except Exception as e:
-            logger.warning("[LLM] Error parsing process stages JSON: %s", e)
+            logger.warning("[LLM JSON] operation=process_stages validation=FAILED error=%s", e)
             return None
 
     def _generate_fallback_process_stages(
@@ -2684,24 +2632,17 @@ class LLMNarrativeGenerator:
         if not raw_text or not raw_text.strip():
             return None
 
-        clean = raw_text.strip()
-        # Strip markdown code fences if present
-        if clean.startswith("```"):
-            clean = re.sub(r"^```(?:json)?\s*", "", clean)
-            clean = re.sub(r"\s*```$", "", clean)
-            clean = clean.strip()
+        data, mode, error = extract_and_parse_json(raw_text, expected_type=(dict, list))
+        if data is None:
+            logger.warning("[LLM STTM] Failed to extract JSON: %s", error)
+            return None
 
-        try:
-            import json
-            data = json.loads(clean)
-            if isinstance(data, dict):
-                mappings = data.get("mappings")
-                if isinstance(mappings, list):
-                    return [m for m in mappings if isinstance(m, dict)]
-            elif isinstance(data, list):
-                return [m for m in data if isinstance(m, dict)]
-        except Exception as e:
-            logger.warning("[LLM STTM] Failed to parse JSON response: %s", e)
+        if isinstance(data, dict):
+            mappings = data.get("mappings")
+            if isinstance(mappings, list):
+                return [m for m in mappings if isinstance(m, dict)]
+        elif isinstance(data, list):
+            return [m for m in data if isinstance(m, dict)]
 
         return None
 
