@@ -3149,19 +3149,6 @@ const EvidenceModal: React.FC<EvidenceModalProps> = ({
                     <div style={{ fontSize: '13.5px', fontWeight: '700', color: 'var(--color-text)' }}>
                       {cand.workflow_names?.join(' ↔ ') || 'Candidate Workflow Pair'}
                     </div>
-                    <span
-                      style={{
-                        background: cand.recommendation_type === 'CONSOLIDATE' ? 'rgba(52, 211, 153, 0.2)' : 'rgba(249, 115, 22, 0.2)',
-                        color: cand.recommendation_type === 'CONSOLIDATE' ? '#34d399' : 'var(--color-primary)',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        fontWeight: '700',
-                        fontSize: '11px',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {cand.recommendation_type} ({cand.opportunity_score}/100)
-                    </span>
                   </div>
 
                   <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>

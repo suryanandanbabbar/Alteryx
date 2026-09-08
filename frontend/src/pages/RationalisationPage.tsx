@@ -26,6 +26,16 @@ import {
 import { apiClient } from '../api/client';
 import { getLevelBadgeStyle } from './PortfolioPage';
 
+// Demo configuration: categories to suppress from the frontend presentation
+export const HIDDEN_DEMO_CATEGORIES = new Set<string>([
+  'SHARED_FORMULAE',
+  'SHARED_LOGIC',
+]);
+
+export function getRecommendationCategory(cand: RationalisationCandidateDTO): string {
+  return cand.recommendation_type || (cand as any).recommendation_category || (cand as any).action || 'REVIEW';
+}
+
 export function isMeaningfulEvidence(item: string | null | undefined): boolean {
   if (!item || typeof item !== 'string') return false;
   const clean = item.trim();
@@ -340,16 +350,26 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
     return map;
   }, [workflows]);
 
-  // Filter candidates based on tab and search
-  const filteredCandidates = useMemo(() => {
-    if (!analysis) return [];
+  // Demo visibility filter: central collection excluding suppressed categories
+  const visibleCandidates = useMemo(() => {
+    if (!analysis?.candidates) return [];
     return analysis.candidates.filter((c) => {
+      const category = getRecommendationCategory(c);
+      return !HIDDEN_DEMO_CATEGORIES.has(category);
+    });
+  }, [analysis]);
+
+  // Filter candidates based on activeTab and search query
+  const filteredCandidates = useMemo(() => {
+    return visibleCandidates.filter((c) => {
+      const category = getRecommendationCategory(c);
+
       // Tab filter
       if (activeTab === 'CONSOLIDATE') {
-        if (c.recommendation_type !== 'CONSOLIDATE' || c.consolidation_decision?.recommendation !== 'MERGE') {
+        if (category !== 'CONSOLIDATE' || c.consolidation_decision?.recommendation !== 'MERGE') {
           return false;
         }
-      } else if (activeTab !== 'ALL' && c.recommendation_type !== activeTab) {
+      } else if (activeTab !== 'ALL' && category !== activeTab) {
         return false;
       }
 
@@ -358,7 +378,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
         const q = searchQuery.toLowerCase();
         const matchesName = c.workflow_names.some((n) => n.toLowerCase().includes(q));
         const matchesReason = c.reasoning.toLowerCase().includes(q);
-        const matchesRec = c.recommendation_type.toLowerCase().includes(q);
+        const matchesRec = category.toLowerCase().includes(q);
         const matchesStrategy = c.proposed_strategy.toLowerCase().includes(q);
         const matchesEvidence = c.evidence.some((e) => e.toLowerCase().includes(q));
         const matchesSharedLogic = c.shared_logic.some((l) => l.toLowerCase().includes(q));
@@ -380,21 +400,23 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
       }
       return true;
     });
-  }, [analysis, activeTab, searchQuery]);
+  }, [visibleCandidates, activeTab, searchQuery]);
 
   const counts = useMemo(() => {
-    if (!analysis?.candidates) {
-      return { CONSOLIDATE: 0, RETIRE_CANDIDATE: 0, SHARED_LOGIC: 0, REVIEW: 0 };
-    }
     return {
-      CONSOLIDATE: analysis.candidates.filter((c) => c.recommendation_type === 'CONSOLIDATE' && c.consolidation_decision?.recommendation === 'MERGE').length,
-      RETIRE_CANDIDATE: analysis.candidates.filter((c) => c.recommendation_type === 'RETIRE_CANDIDATE').length,
-      SHARED_LOGIC: analysis.candidates.filter((c) => c.recommendation_type === 'SHARED_LOGIC').length,
-      REVIEW: analysis.candidates.filter((c) => c.recommendation_type === 'REVIEW').length,
+      CONSOLIDATE: visibleCandidates.filter(
+        (c) => getRecommendationCategory(c) === 'CONSOLIDATE' && c.consolidation_decision?.recommendation === 'MERGE'
+      ).length,
+      RETIRE_CANDIDATE: visibleCandidates.filter(
+        (c) => getRecommendationCategory(c) === 'RETIRE_CANDIDATE'
+      ).length,
+      REVIEW: visibleCandidates.filter(
+        (c) => getRecommendationCategory(c) === 'REVIEW'
+      ).length,
     };
-  }, [analysis]);
+  }, [visibleCandidates]);
 
-  const totalOpportunities = analysis?.total_opportunities || 0;
+  const totalOpportunities = visibleCandidates.length;
 
   // Recommendation Badge Config
   const getRecommendationBadge = (type: string) => {
@@ -850,43 +872,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
 
             <div style={{ width: '1px', height: '36px', background: 'var(--color-border)' }} />
 
-            {/* Shared Logic */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '120px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span
-                  style={{
-                    width: '7px',
-                    height: '7px',
-                    borderRadius: '50%',
-                    background: '#38bdf8',
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: '10.5px',
-                    fontWeight: '700',
-                    color: 'var(--color-text-muted)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                  }}
-                >
-                  SHARED FORMULAE
-                </span>
-              </div>
-              <span
-                style={{
-                  fontSize: '22px',
-                  fontWeight: '800',
-                  color: '#38bdf8',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                {String(counts.SHARED_LOGIC || 0).padStart(2, '0')}
-              </span>
-            </div>
-
-            <div style={{ width: '1px', height: '36px', background: 'var(--color-border)' }} />
-
             {/* Review Needed */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '120px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -946,7 +931,6 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                 { key: 'ALL', label: 'All Opportunities', count: totalOpportunities },
                 { key: 'CONSOLIDATE', label: 'Consolidate', count: counts.CONSOLIDATE || 0 },
                 { key: 'RETIRE_CANDIDATE', label: 'Retire Candidates', count: counts.RETIRE_CANDIDATE || 0 },
-                { key: 'SHARED_LOGIC', label: 'Shared Formulae', count: counts.SHARED_LOGIC || 0 },
                 { key: 'REVIEW', label: 'Review', count: counts.REVIEW || 0 },
               ].map((tab) => {
                 const isSelected = activeTab === tab.key;
