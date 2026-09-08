@@ -176,7 +176,96 @@ export const ApplicationChooserPage: React.FC<ApplicationChooserPageProps> = ({ 
           width: '100%',
           boxSizing: 'border-box',
         }}>
-          {/* Card 1: Code-Based Workflows (Python) */}
+          {/* Card 1: Alteryx Workflows */}
+          <div
+            className="app-card"
+            onMouseEnter={() => setHoveredCard('alteryx')}
+            onMouseLeave={() => setHoveredCard(null)}
+            style={{
+              padding: '32px 28px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              background: 'var(--color-surface)',
+              borderColor: hoveredCard === 'alteryx' ? 'var(--color-primary-border)' : 'var(--color-border)',
+              borderRadius: 'var(--radius-lg)',
+              transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+              boxShadow: hoveredCard === 'alteryx' ? '0 4px 16px rgba(0, 0, 0, 0.12)' : '0 1px 3px rgba(0, 0, 0, 0.05)',
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--color-surface-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--color-primary)',
+                }}>
+                  <FileCode size={20} />
+                </div>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  color: 'var(--color-text-muted)',
+                  background: 'var(--color-surface-secondary)',
+                  padding: '4px 8px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border)',
+                }}>
+                  .yxmd / .yxwz / .xml
+                </span>
+              </div>
+
+              <h3 style={{
+                fontSize: '18px',
+                fontWeight: '700',
+                color: 'var(--color-text)',
+                marginBottom: '10px',
+                letterSpacing: '-0.3px',
+              }}>
+                Alteryx Workflows
+              </h3>
+
+              <p style={{
+                fontSize: '13px',
+                color: 'var(--color-text-muted)',
+                lineHeight: 1.5,
+                marginBottom: '24px',
+              }}>
+                Analyse Alteryx workflows for intelligence, rationalisation &amp; migration. Inspect tool configurations, data lineage, business logic, and export generated Python transformations.
+              </p>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={onSelectAlteryx}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '10px 16px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                }}
+              >
+                <span>Start</span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Card 2: Code-Based Workflows (Python) */}
           <div
             className="app-card"
             onMouseEnter={() => setHoveredCard('code')}
@@ -306,95 +395,6 @@ export const ApplicationChooserPage: React.FC<ApplicationChooserPageProps> = ({ 
                     <ArrowRight size={16} />
                   </>
                 )}
-              </button>
-            </div>
-          </div>
-
-          {/* Card 2: Alteryx Workflows */}
-          <div
-            className="app-card"
-            onMouseEnter={() => setHoveredCard('alteryx')}
-            onMouseLeave={() => setHoveredCard(null)}
-            style={{
-              padding: '32px 28px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between',
-              background: 'var(--color-surface)',
-              borderColor: hoveredCard === 'alteryx' ? 'var(--color-primary-border)' : 'var(--color-border)',
-              borderRadius: 'var(--radius-lg)',
-              transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
-              boxShadow: hoveredCard === 'alteryx' ? '0 4px 16px rgba(0, 0, 0, 0.12)' : '0 1px 3px rgba(0, 0, 0, 0.05)',
-            }}
-          >
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                <div style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--color-surface-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--color-primary)',
-                }}>
-                  <FileCode size={20} />
-                </div>
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  color: 'var(--color-text-muted)',
-                  background: 'var(--color-surface-secondary)',
-                  padding: '4px 8px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--color-border)',
-                }}>
-                  .yxmd / .yxwz / .xml
-                </span>
-              </div>
-
-              <h3 style={{
-                fontSize: '18px',
-                fontWeight: '700',
-                color: 'var(--color-text)',
-                marginBottom: '10px',
-                letterSpacing: '-0.3px',
-              }}>
-                Alteryx Workflows
-              </h3>
-
-              <p style={{
-                fontSize: '13px',
-                color: 'var(--color-text-muted)',
-                lineHeight: 1.5,
-                marginBottom: '24px',
-              }}>
-                Analyse Alteryx workflows for intelligence, rationalisation &amp; migration. Inspect tool configurations, data lineage, business logic, and export generated Python transformations.
-              </p>
-            </div>
-
-            <div>
-              <button
-                type="button"
-                onClick={onSelectAlteryx}
-                className="btn-primary"
-                style={{
-                  width: '100%',
-                  padding: '10px 16px',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                }}
-              >
-                <span>Start</span>
-                <ArrowRight size={16} />
               </button>
             </div>
           </div>

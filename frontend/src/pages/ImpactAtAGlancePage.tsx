@@ -367,7 +367,7 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
         >
           <InteractiveLifecycleStep
             stepNumber="01"
-            title="Estate Data Ingestion"
+            title="Source Metadata Analysis"
             count={totalSources}
             countLabel="Input Sources"
             description="Catalogues all upstream databases, files, and incoming feeds across workflows"
@@ -376,7 +376,7 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
           />
           <InteractiveLifecycleStep
             stepNumber="02"
-            title="Processing & Joins"
+            title="Tool Analysis"
             count={totalTools}
             countLabel="Total Tools"
             description="Analyzes all join, formula, filter, and transformation nodes across files"
@@ -394,7 +394,7 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
           />
           <InteractiveLifecycleStep
             stepNumber="04"
-            title="Shared Overlaps"
+            title="Source & Target Metadata Overlaps"
             count={shared_sources.length + shared_targets.length}
             countLabel="Shared Datasets"
             description="Identifies identical datasets consumed or produced across multiple workflows"
@@ -2327,7 +2327,7 @@ const EvidenceModal: React.FC<EvidenceModalProps> = ({
   if (activeModal.kind === 'step') {
     switch (activeModal.stepNumber) {
       case 1:
-        modalBadge = 'STEP 01 · ESTATE DATA INGESTION';
+        modalBadge = 'STEP 01 · SOURCE METADATA ANALYSIS';
         modalTitle = 'Discovered Input Sources Evidence';
         headlineMetric = `${totalSources} Input Sources across ${workflows.length} Workflows / ${uniqueSources} Unique Datasets`;
         headlineExplanation = 'All upstream files, databases, and ingest feeds identified across portfolio workflows.';
