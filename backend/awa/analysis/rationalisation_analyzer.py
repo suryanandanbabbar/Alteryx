@@ -61,8 +61,8 @@ class RationalisationThresholds:
     RETIRE_SCHEMA_SIMILARITY_MIN: float = 0.75
     RETIRE_MAX_UNIQUE_LOGIC_COUNT: int = 1
 
-    # Consolidation boundaries
-    CONSOLIDATE_SOURCE_OVERLAP_MIN: float = 0.50
+    # Consolidation boundaries (hard gate: source metadata overlap must be strictly > 60%)
+    CONSOLIDATE_SOURCE_OVERLAP_MIN: float = 0.60
     CONSOLIDATE_LOGIC_SIMILARITY_MIN: float = 0.45
     CONSOLIDATE_MIN_OPPORTUNITY_SCORE: float = 40.0
 
@@ -1475,9 +1475,10 @@ def evaluate_directional_data_subsumption(
     # 6. Downstream Consumers Check
     has_blocking_consumers = len(source_fp.downstream_consumers) > 0
 
-    # 7. Subsumption Gate Qualification
+    # 7. Subsumption Gate Qualification (Mandatory: Source Metadata Overlap > 60%)
     is_subsumed = bool(
-        len(missing_fields) == 0
+        comp.metrics.source_overlap > 0.60
+        and len(missing_fields) == 0
         and coverage_pct == 1.0
         and len(req_a) > 0
         and processing_compatibility == "SUPPORTED"
@@ -1524,75 +1525,22 @@ def evaluate_consolidation_rules(
 ) -> ConsolidationDecision:
     """Evaluate pairwise deterministic consolidation/merge rules from canonical evidence.
 
-    Rules:
-    - RULE DATA SUBSUMPTION: If Workflow B contains 100% of the data/fields required by Workflow A
-      and compatible processing capability with no unique functionality lost -> recommend MERGE.
-    - RULE A: If source/input files overlap 100% AND at least one workflow has Low complexity
-      AND both workflows have the same frequency -> recommend MERGE.
-    - RULE B: If the workflows have different outputs AND at least one workflow has Low complexity
-      AND both workflows have the same frequency -> recommend MERGE.
-    - RULE C: If outputs are different AND BOTH workflows are Medium or High complexity -> recommend DO NOT MERGE.
-    - RULE D: If Workflow B's logic can be incorporated into Workflow A while Workflow A still
-      produces the same existing result -> recommend MERGE.
+    Order of evaluation:
+    1. Obtain deterministic Source Metadata Overlap: comp.metrics.source_overlap
+    2. Apply Hard Eligibility Gate: Source Metadata Overlap > 60% (> 0.60).
+       If <= 60%, STOP CONSOLIDATION EVALUATION -> DO NOT MERGE.
+    3. Evaluate Directional Data Subsumption Gates.
+    4. Evaluate Functional Subsumption / Logic Preservation (Rule D).
+    5. Evaluate Identical Sources & Low Complexity (Rule A).
+    6. Evaluate Incompatible Outputs / Medium-High Complexity (Rule C).
+    7. Default fallback: DO NOT MERGE.
     """
-    # 0. Check Directional Data Subsumption Gates
-    subsumes_a_in_b, ev_a_in_b = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
-    if subsumes_a_in_b and ev_a_in_b is not None:
-        evidence = [
-            f"Data Sufficiency: 100% field coverage ({len(ev_a_in_b.shared_required_fields)} shared required fields, 0 missing in {fp_b.workflow_name})",
-            f"Processing Substitutability: {ev_a_in_b.processing_compatibility} across all {fp_a.workflow_name} operations",
-            f"Output Semantics: {ev_a_in_b.output_compatibility} ({fp_a.workflow_name} inspection sinks fully preservable)",
-            f"Direction: {ev_a_in_b.direction_statement}",
-        ]
-        return ConsolidationDecision(
-            recommendation="MERGE",
-            matched_rule=ConsolidationRules.RULE_DATA_SUBSUMPTION,
-            reason=ev_a_in_b.recommendation_summary,
-            evidence=evidence,
-            source_overlap_pct=comp.metrics.source_overlap,
-            is_source_100_pct=bool(comp.metrics.source_overlap >= 0.99),
-            output_relationship=ev_a_in_b.output_compatibility,
-            complexity_a=(fp_a.complexity_level or "LOW").upper(),
-            complexity_b=(fp_b.complexity_level or "LOW").upper(),
-            frequency_a=fp_a.frequency,
-            frequency_b=fp_b.frequency,
-            is_same_frequency=bool(fp_a.frequency and fp_b.frequency and fp_a.frequency.lower() == fp_b.frequency.lower()),
-            logic_preservable=True,
-            merge_direction=ev_a_in_b.direction_statement,
-            data_subsumption_evidence=ev_a_in_b,
-        )
-
-    subsumes_b_in_a, ev_b_in_a = evaluate_directional_data_subsumption(fp_b, fp_a, comp)
-    if subsumes_b_in_a and ev_b_in_a is not None:
-        evidence = [
-            f"Data Sufficiency: 100% field coverage ({len(ev_b_in_a.shared_required_fields)} shared required fields, 0 missing in {fp_a.workflow_name})",
-            f"Processing Substitutability: {ev_b_in_a.processing_compatibility} across all {fp_b.workflow_name} operations",
-            f"Output Semantics: {ev_b_in_a.output_compatibility} ({fp_b.workflow_name} inspection sinks fully preservable)",
-            f"Direction: {ev_b_in_a.direction_statement}",
-        ]
-        return ConsolidationDecision(
-            recommendation="MERGE",
-            matched_rule=ConsolidationRules.RULE_DATA_SUBSUMPTION,
-            reason=ev_b_in_a.recommendation_summary,
-            evidence=evidence,
-            source_overlap_pct=comp.metrics.source_overlap,
-            is_source_100_pct=bool(comp.metrics.source_overlap >= 0.99),
-            output_relationship=ev_b_in_a.output_compatibility,
-            complexity_a=(fp_a.complexity_level or "LOW").upper(),
-            complexity_b=(fp_b.complexity_level or "LOW").upper(),
-            frequency_a=fp_a.frequency,
-            frequency_b=fp_b.frequency,
-            is_same_frequency=bool(fp_a.frequency and fp_b.frequency and fp_a.frequency.lower() == fp_b.frequency.lower()),
-            logic_preservable=True,
-            merge_direction=ev_b_in_a.direction_statement,
-            data_subsumption_evidence=ev_b_in_a,
-        )
+    source_overlap_pct = comp.metrics.source_overlap
 
     # 1. Physical normalized sources (exclude *Unknown and empty)
     src_a = {normalize_name(s) for s in fp_a.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
     src_b = {normalize_name(s) for s in fp_b.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
     is_source_100_pct = bool(src_a and src_b and src_a == src_b)
-    source_overlap_pct = _jaccard_similarity(src_a, src_b)
 
     # 2. Physical normalized targets (exclude *Unknown and empty)
     tgt_a = {normalize_name(t) for t in fp_a.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
@@ -1617,6 +1565,105 @@ def evaluate_consolidation_rules(
     freq_a = (getattr(fp_a, "frequency", "Not documented") or "Not documented").strip()
     freq_b = (getattr(fp_b, "frequency", "Not documented") or "Not documented").strip()
     is_same_frequency = bool(freq_a and freq_b and freq_a.lower() == freq_b.lower())
+
+    # Build concise auditable evidence
+    if is_source_100_pct:
+        if comp.shared_sources:
+            source_desc = f"100% identical source files ({len(comp.shared_sources)} datasets: {', '.join(sorted(comp.shared_sources))})"
+        elif comp.shared_source_fields:
+            source_desc = f"100% source metadata overlap ({len(comp.shared_source_fields)} matching fields)"
+        else:
+            source_desc = "100% source metadata overlap"
+    elif comp.shared_source_fields:
+        source_desc = f"{round(source_overlap_pct * 100)}% source metadata overlap ({len(comp.shared_source_fields)} matching fields)"
+    elif comp.shared_sources:
+        source_desc = f"{round(source_overlap_pct * 100)}% source overlap (shared: {', '.join(comp.shared_sources)})"
+    else:
+        source_desc = f"{round(source_overlap_pct * 100)}% source overlap"
+
+    target_desc = (
+        f"Different output destinations ({fp_a.workflow_name}: {', '.join(sorted(tgt_a)) or 'None'} vs {fp_b.workflow_name}: {', '.join(sorted(tgt_b)) or 'None'})"
+        if different_outputs
+        else (f"Identical production targets ({', '.join(sorted(tgt_a))})" if tgt_a else "No production targets configured")
+    )
+    evidence = [
+        f"Source overlap: {source_desc}",
+        f"Production targets: {target_desc}",
+        f"Complexity: {fp_a.workflow_name} is {comp_a}, {fp_b.workflow_name} is {comp_b}",
+        f"Frequency: {fp_a.workflow_name} is '{freq_a}', {fp_b.workflow_name} is '{freq_b}' ({'Same frequency' if is_same_frequency else 'Different frequency'})",
+    ]
+
+    # STEP 2: HARD GATE — Source Metadata Overlap must be strictly > 60% (> 0.60) for CONSOLIDATE / MERGE
+    if source_overlap_pct <= 0.60:
+        return ConsolidationDecision(
+            recommendation="DO NOT MERGE",
+            matched_rule=ConsolidationRules.RULE_DEFAULT,
+            reason=f"Source metadata overlap ({round(source_overlap_pct * 100)}%) does not satisfy the mandatory >60% threshold required for workflow consolidation.",
+            evidence=evidence,
+            source_overlap_pct=source_overlap_pct,
+            is_source_100_pct=is_source_100_pct,
+            output_relationship=output_rel,
+            complexity_a=comp_a,
+            complexity_b=comp_b,
+            frequency_a=freq_a,
+            frequency_b=freq_b,
+            is_same_frequency=is_same_frequency,
+            logic_preservable=False,
+            merge_direction=None,
+        )
+
+    # STEP 3: Directional Data Subsumption Gates (>60% source overlap already verified)
+    subsumes_a_in_b, ev_a_in_b = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
+    if subsumes_a_in_b and ev_a_in_b is not None:
+        subsumption_evidence = [
+            f"Data Sufficiency: 100% field coverage ({len(ev_a_in_b.shared_required_fields)} shared required fields, 0 missing in {fp_b.workflow_name})",
+            f"Processing Substitutability: {ev_a_in_b.processing_compatibility} across all {fp_a.workflow_name} operations",
+            f"Output Semantics: {ev_a_in_b.output_compatibility} ({fp_a.workflow_name} inspection sinks fully preservable)",
+            f"Direction: {ev_a_in_b.direction_statement}",
+        ]
+        return ConsolidationDecision(
+            recommendation="MERGE",
+            matched_rule=ConsolidationRules.RULE_DATA_SUBSUMPTION,
+            reason=ev_a_in_b.recommendation_summary,
+            evidence=subsumption_evidence,
+            source_overlap_pct=comp.metrics.source_overlap,
+            is_source_100_pct=bool(comp.metrics.source_overlap >= 0.99),
+            output_relationship=ev_a_in_b.output_compatibility,
+            complexity_a=(fp_a.complexity_level or "LOW").upper(),
+            complexity_b=(fp_b.complexity_level or "LOW").upper(),
+            frequency_a=fp_a.frequency,
+            frequency_b=fp_b.frequency,
+            is_same_frequency=bool(fp_a.frequency and fp_b.frequency and fp_a.frequency.lower() == fp_b.frequency.lower()),
+            logic_preservable=True,
+            merge_direction=ev_a_in_b.direction_statement,
+            data_subsumption_evidence=ev_a_in_b,
+        )
+
+    subsumes_b_in_a, ev_b_in_a = evaluate_directional_data_subsumption(fp_b, fp_a, comp)
+    if subsumes_b_in_a and ev_b_in_a is not None:
+        subsumption_evidence = [
+            f"Data Sufficiency: 100% field coverage ({len(ev_b_in_a.shared_required_fields)} shared required fields, 0 missing in {fp_a.workflow_name})",
+            f"Processing Substitutability: {ev_b_in_a.processing_compatibility} across all {fp_b.workflow_name} operations",
+            f"Output Semantics: {ev_b_in_a.output_compatibility} ({fp_b.workflow_name} inspection sinks fully preservable)",
+            f"Direction: {ev_b_in_a.direction_statement}",
+        ]
+        return ConsolidationDecision(
+            recommendation="MERGE",
+            matched_rule=ConsolidationRules.RULE_DATA_SUBSUMPTION,
+            reason=ev_b_in_a.recommendation_summary,
+            evidence=subsumption_evidence,
+            source_overlap_pct=comp.metrics.source_overlap,
+            is_source_100_pct=bool(comp.metrics.source_overlap >= 0.99),
+            output_relationship=ev_b_in_a.output_compatibility,
+            complexity_a=(fp_a.complexity_level or "LOW").upper(),
+            complexity_b=(fp_b.complexity_level or "LOW").upper(),
+            frequency_a=fp_a.frequency,
+            frequency_b=fp_b.frequency,
+            is_same_frequency=bool(fp_a.frequency and fp_b.frequency and fp_a.frequency.lower() == fp_b.frequency.lower()),
+            logic_preservable=True,
+            merge_direction=ev_b_in_a.direction_statement,
+            data_subsumption_evidence=ev_b_in_a,
+        )
 
     # 5. Logic / Result Preservation (Rule D)
     sig_a = {s for s in fp_a.transformation_signatures if is_meaningful_evidence(s)}
@@ -1646,42 +1693,8 @@ def evaluate_consolidation_rules(
         elif fp_b.node_count > fp_a.node_count:
             merge_direction = f"{fp_b.workflow_name} absorbs {fp_a.workflow_name}"
 
-    # Build concise auditable evidence
-    if is_source_100_pct:
-        if comp.shared_sources:
-            source_desc = f"100% identical source files ({len(comp.shared_sources)} datasets: {', '.join(sorted(comp.shared_sources))})"
-        elif comp.shared_source_fields:
-            source_desc = f"100% source metadata overlap ({len(comp.shared_source_fields)} matching fields)"
-        else:
-            source_desc = "100% source metadata overlap"
-    elif comp.shared_source_fields:
-        source_desc = f"{round(source_overlap_pct * 100)}% source metadata overlap ({len(comp.shared_source_fields)} matching fields)"
-    elif comp.shared_sources:
-        source_desc = f"{round(source_overlap_pct * 100)}% source overlap (shared: {', '.join(comp.shared_sources)})"
-    else:
-        source_desc = f"{round(source_overlap_pct * 100)}% source overlap"
-
-    target_desc = (
-        f"Different output destinations ({fp_a.workflow_name}: {', '.join(sorted(tgt_a)) or 'None'} vs {fp_b.workflow_name}: {', '.join(sorted(tgt_b)) or 'None'})"
-        if different_outputs
-        else (f"Identical production targets ({', '.join(sorted(tgt_a))})" if tgt_a else "No production targets configured")
-    )
-    evidence = [
-        f"Source overlap: {source_desc}",
-        f"Production targets: {target_desc}",
-        f"Complexity: {fp_a.workflow_name} is {comp_a}, {fp_b.workflow_name} is {comp_b}",
-        f"Frequency: {fp_a.workflow_name} is '{freq_a}', {fp_b.workflow_name} is '{freq_b}' ({'Same frequency' if is_same_frequency else 'Different frequency'})",
-    ]
     if logic_preservable:
         evidence.append(f"Logic preservation: {preservation_reason}")
-
-    has_substantive_overlap = bool(
-        source_overlap_pct > 0.0
-        or comp.metrics.transformation_similarity > 0.0
-        or comp.shared_sources
-        or comp.shared_source_fields
-        or [s for s in comp.shared_logic if is_meaningful_evidence(s)]
-    )
 
     # Decision evaluation hierarchy:
     # 1. Rule D: Logic can be incorporated while preserving existing result
@@ -1713,25 +1726,6 @@ def evaluate_consolidation_rules(
             source_overlap_pct=source_overlap_pct,
             is_source_100_pct=True,
             output_relationship=output_rel,
-            complexity_a=comp_a,
-            complexity_b=comp_b,
-            frequency_a=freq_a,
-            frequency_b=freq_b,
-            is_same_frequency=True,
-            logic_preservable=False,
-            merge_direction=merge_direction,
-        )
-
-    # 3. Rule B: Different outputs + substantive commonality + at least one Low complexity + same frequency
-    if different_outputs and has_substantive_overlap and has_low_complexity and is_same_frequency:
-        return ConsolidationDecision(
-            recommendation="MERGE",
-            matched_rule=ConsolidationRules.RULE_B,
-            reason="Workflows generate different production outputs with common source or transformation processing on matching schedules, with at least one Low complexity workflow.",
-            evidence=evidence,
-            source_overlap_pct=source_overlap_pct,
-            is_source_100_pct=is_source_100_pct,
-            output_relationship="DIFFERENT",
             complexity_a=comp_a,
             complexity_b=comp_b,
             frequency_a=freq_a,
@@ -1823,6 +1817,7 @@ def detect_candidate_from_comparison(
         risk_level = "HIGH"
     elif fp_a.criticality_level == "MEDIUM" or fp_b.criticality_level == "MEDIUM":
         risk_level = "MEDIUM"
+    
 
     risk_context = RiskContext(
         complexity_by_workflow={
@@ -1853,8 +1848,11 @@ def detect_candidate_from_comparison(
     )
 
     # Safety Gate 2: Check CONSOLIDATE
-    # ONLY qualify as CONSOLIDATE if exact deterministic merge rules evaluated to MERGE
-    can_consolidate = (consolidation_decision.recommendation == "MERGE")
+    # ONLY qualify as CONSOLIDATE if exact deterministic merge rules evaluated to MERGE and source overlap > 60%
+    can_consolidate = (
+        consolidation_decision.recommendation == "MERGE"
+        and m.source_overlap > 0.60
+    )
 
     # Safety Gate 3: Check SHARED_LOGIC
     can_shared_logic = (

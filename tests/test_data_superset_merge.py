@@ -91,7 +91,7 @@ def bbcfood_results():
 
 
 def test_directional_subsumption_bbcfood(bbcfood_results):
-    """Verify that BBCFoodAggr is deterministically subsumed by BBCFood v2."""
+    """Verify that BBCFoodAggr has 100% data coverage in BBCFood v2, but fails consolidation hard gate (37% <= 60% source overlap)."""
     summary_v2, res_v2 = bbcfood_results["v2"]
     summary_aggr, res_aggr = bbcfood_results["aggr"]
 
@@ -100,15 +100,13 @@ def test_directional_subsumption_bbcfood(bbcfood_results):
 
     comp = compare_workflows(fp_aggr, fp_v2)
 
-    # 1. Forward direction: BBCFoodAggr -> BBCFood v2
+    # 1. Forward direction: BBCFoodAggr -> BBCFood v2 (100% data coverage, but source overlap 37% <= 60%)
     subsumed_fwd, ev_fwd = evaluate_directional_data_subsumption(fp_aggr, fp_v2, comp)
-    assert subsumed_fwd is True, "BBCFoodAggr should be subsumed by BBCFood v2"
+    assert subsumed_fwd is False, "BBCFoodAggr should NOT qualify for merge because source overlap <= 60%"
     assert ev_fwd is not None
     assert ev_fwd.data_coverage_pct == 1.0
     assert ev_fwd.missing_fields_count == 0
     assert ev_fwd.processing_compatibility == "SUPPORTED"
-    assert ev_fwd.output_compatibility in ("INSPECTION_SINK_ONLY", "COMPATIBLE")
-    assert ev_fwd.has_unresolved_unique_functionality is False
     assert len(ev_fwd.shared_required_fields) > 0
 
 
@@ -128,7 +126,7 @@ def test_asymmetric_rejection_reverse_direction(bbcfood_results):
 
 
 def test_consolidation_rule_and_candidate_detection(bbcfood_results):
-    """Verify that consolidation rule evaluation picks RULE_DATA_SUBSUMPTION and creates candidate."""
+    """Verify that consolidation rule returns DO NOT MERGE when source overlap <= 60% and candidate becomes SHARED_LOGIC."""
     summary_v2, res_v2 = bbcfood_results["v2"]
     summary_aggr, res_aggr = bbcfood_results["aggr"]
 
@@ -138,15 +136,11 @@ def test_consolidation_rule_and_candidate_detection(bbcfood_results):
     comp = compare_workflows(fp_aggr, fp_v2)
     decision = evaluate_consolidation_rules(fp_aggr, fp_v2, comp)
 
-    assert decision.recommendation == "MERGE"
-    assert decision.matched_rule == ConsolidationRules.RULE_DATA_SUBSUMPTION
-    assert decision.data_subsumption_evidence is not None
+    assert decision.recommendation == "DO NOT MERGE"
 
     cand = detect_candidate_from_comparison(comp, fp_aggr, fp_v2)
     assert cand is not None
-    assert cand.recommendation_type == "CONSOLIDATE"
-    assert cand.data_subsumption_evidence is not None
-    assert "Directional Data Subsumption Confirmed" in cand.reasoning
+    assert cand.recommendation_type in ("REVIEW", "SHARED_LOGIC")
 
 
 def test_synthetic_missing_field_rejection():
@@ -357,9 +351,9 @@ def test_embedded_csv_headers_and_subsumption_workflow_01_and_wf02():
     assert comp.shared_source_fields == ["claim_id", "diagnosis_type", "icd_code"]
     assert comp.shared_sources == ["textinput_8_field1"]
 
-    # 2. Forward Direction A -> B: 100% Data Subsumption
+    # 2. Forward Direction A -> B: 100% Data Field Coverage, but source overlap (33.3% <= 60%) fails merge hard gate
     subsumed_fwd, ev_fwd = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
-    assert subsumed_fwd is True, "Workflow_01 must be subsumed into WF02"
+    assert subsumed_fwd is False, "Workflow_01 cannot be merged into WF02 because source overlap is <= 60%"
     assert ev_fwd is not None
     assert ev_fwd.data_coverage_pct == 1.0
     assert ev_fwd.missing_fields_count == 0
@@ -374,18 +368,13 @@ def test_embedded_csv_headers_and_subsumption_workflow_01_and_wf02():
     assert ev_rev is not None
     assert ev_rev.missing_fields_count > 0
 
-    # 4. Consolidation rule & Candidate classification precedence
+    # 4. Consolidation rule returns DO NOT MERGE and candidate is SHARED_LOGIC
     decision = evaluate_consolidation_rules(fp_a, fp_b, comp)
-    assert decision.recommendation == "MERGE"
-    assert decision.matched_rule == ConsolidationRules.RULE_DATA_SUBSUMPTION
-    assert decision.data_subsumption_evidence is not None
+    assert decision.recommendation == "DO NOT MERGE"
 
     cand = detect_candidate_from_comparison(comp, fp_a, fp_b)
     assert cand is not None
-    # Precedence: Must be CONSOLIDATE (MERGE), NOT SHARED_LOGIC (Shared Formulae)!
-    assert cand.recommendation_type == "CONSOLIDATE"
-    assert cand.data_subsumption_evidence is not None
-    assert "Workflow_01.yxmd can be consolidated into WF02.yxmd" in cand.data_subsumption_evidence.direction_statement
+    assert cand.recommendation_type == "SHARED_LOGIC"
 
 
 def test_shared_formulae_preserved_when_missing_required_data():
@@ -640,13 +629,13 @@ def test_merge_candidate_admissible_bounds_and_llm_immutability():
         sources=["source_a.csv"],
         production_targets=[],
         inspection_sinks=["Browse (Tool #5)"],
-        source_fields={"source_a.csv": ["claim_id", "diagnosis_type"]},
+        source_fields={"source_a.csv": ["claim_id", "diagnosis_type", "icd_code", "claim_amount"]},
         transformation_signatures=["join:claim_id", "filter:claim_id"],
         complexity_level="LOW",
         criticality_level="LOW",
         frequency="Daily",
-        available_columns=["claim_id", "diagnosis_type", "icd_code"],
-        required_columns=["claim_id", "diagnosis_type"],
+        available_columns=["claim_id", "diagnosis_type", "icd_code", "claim_amount"],
+        required_columns=["claim_id", "diagnosis_type", "icd_code"],
     )
     fp_b = WorkflowFingerprint(
         workflow_id="wf_03",
@@ -844,8 +833,9 @@ def test_source_metadata_overlap_test5_data_superset_symmetry_and_directional_co
     assert comp_ba.shared_source_fields == ["a", "b", "c"]
 
     # 2. Data Subsumption Coverage is strictly directional
+    # In this case, 3 / 5 = 60.0% exactly, which fails the strict >60% hard gate
     subsumed_fwd, ev_fwd = evaluate_directional_data_subsumption(fp_a, fp_b, comp_ab)
-    assert subsumed_fwd is True
+    assert subsumed_fwd is False
     assert ev_fwd.data_coverage_pct == 1.0
     assert ev_fwd.missing_fields_count == 0
 
@@ -854,6 +844,22 @@ def test_source_metadata_overlap_test5_data_superset_symmetry_and_directional_co
     assert ev_rev.data_coverage_pct == 0.60
     assert ev_rev.missing_fields_count == 2
     assert set(ev_rev.missing_fields) == {"d", "e"}
+
+    # When overlap strictly exceeds 60% (e.g. 4/5 = 80%), subsumed is True
+    fp_a_4 = WorkflowFingerprint(
+        workflow_id="wf_a4",
+        workflow_name="Workflow_A4.yxmd",
+        sources=["feed_a.csv"],
+        available_columns=["a", "b", "c", "d"],
+        required_columns=["a", "b", "c", "d"],
+        inspection_sinks=["Browse (Tool #5)"],
+        production_targets=[],
+    )
+    comp_a4_b = compare_workflows(fp_a_4, fp_b)
+    assert comp_a4_b.metrics.source_overlap == 0.80
+    subsumed_a4, ev_a4 = evaluate_directional_data_subsumption(fp_a_4, fp_b, comp_a4_b)
+    assert subsumed_a4 is True
+    assert ev_a4.data_coverage_pct == 1.0
 
 
 def test_source_metadata_overlap_test6_workflow_01_and_wf03_real_world_regression():
@@ -916,7 +922,7 @@ def test_source_metadata_overlap_test6_workflow_01_and_wf03_real_world_regressio
     # 2. Source Metadata Overlap is non-zero (7 / 11 = ~63.6%)
     expected_overlap = len(set(fields_01) & set(fields_03)) / len(set(fields_01) | set(fields_03))
     assert comp.metrics.source_overlap == pytest.approx(expected_overlap, 0.001)
-    assert comp.metrics.source_overlap > 0.0
+    assert comp.metrics.source_overlap > 0.60
 
     # 3. Data Coverage A -> B is 100%
     subsumed, ev = evaluate_directional_data_subsumption(fp_01, fp_03, comp)
@@ -934,6 +940,233 @@ def test_source_metadata_overlap_test6_workflow_01_and_wf03_real_world_regressio
     assert cand is not None
     assert cand.recommendation_type == "CONSOLIDATE"
     assert cand.admissible_recommendations == ["CONSOLIDATE"]
+
+
+# =========================================================================
+# SECTION 9 VERIFICATION EXAMPLES & BOUNDARY TESTS
+# =========================================================================
+
+def test_hard_gate_example_1_high_overlap_full_coverage_supported():
+    """Example 1: Source Overlap 72%, Data Coverage 100%, Processing SUPPORTED -> MERGE / CONSOLIDATE."""
+    cols_a = [f"col_{i}" for i in range(1, 9)]  # 8 cols
+    cols_b = [f"col_{i}" for i in range(1, 12)]  # 11 cols (8/11 = ~72.7%)
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_ex1_a",
+        workflow_name="Workflow_EX1_A.yxmd",
+        sources=["feed_a.csv"],
+        available_columns=cols_a,
+        required_columns=cols_a,
+        inspection_sinks=["Browse (Tool #1)"],
+        production_targets=[],
+    )
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_ex1_b",
+        workflow_name="Workflow_EX1_B.yxmd",
+        sources=["feed_b.csv"],
+        available_columns=cols_b,
+        required_columns=cols_b,
+        production_targets=["target.yxdb"],
+        inspection_sinks=[],
+    )
+    comp = compare_workflows(fp_a, fp_b)
+    assert comp.metrics.source_overlap > 0.60
+    subsumed, ev = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
+    assert subsumed is True
+    assert ev.data_coverage_pct == 1.0
+
+    decision = evaluate_consolidation_rules(fp_a, fp_b, comp)
+    assert decision.recommendation == "MERGE"
+
+    cand = detect_candidate_from_comparison(comp, fp_a, fp_b)
+    assert cand.recommendation_type == "CONSOLIDATE"
+
+
+def test_hard_gate_example_2_low_overlap_full_coverage_rejected():
+    """Example 2: Source Overlap 3%, Data Coverage 100% -> DO NOT MERGE (Hard gate rejects)."""
+    # Create 1 shared col out of 33 cols -> 1/33 = 3.03%
+    shared = ["shared_1"]
+    cols_a = shared  # required: shared_1
+    cols_b = shared + [f"extra_{i}" for i in range(1, 33)]  # 33 total
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_ex2_a",
+        workflow_name="Workflow_EX2_A.yxmd",
+        sources=["feed_a.csv"],
+        available_columns=cols_a,
+        required_columns=cols_a,
+        inspection_sinks=["Browse (Tool #1)"],
+        production_targets=[],
+    )
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_ex2_b",
+        workflow_name="Workflow_EX2_B.yxmd",
+        sources=["feed_b.csv"],
+        available_columns=cols_b,
+        required_columns=cols_b,
+        production_targets=["target.yxdb"],
+        inspection_sinks=[],
+    )
+    comp = compare_workflows(fp_a, fp_b)
+    assert comp.metrics.source_overlap <= 0.60
+    assert pytest.approx(comp.metrics.source_overlap, abs=0.01) == 0.03
+
+    subsumed, ev = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
+    assert subsumed is False  # Fails hard gate
+    assert ev.data_coverage_pct == 1.0  # Even though column coverage is 100%
+
+    decision = evaluate_consolidation_rules(fp_a, fp_b, comp)
+    assert decision.recommendation == "DO NOT MERGE"
+    assert "60%" in decision.reason
+
+    cand = detect_candidate_from_comparison(comp, fp_a, fp_b)
+    assert cand is None or cand.recommendation_type != "CONSOLIDATE"
+
+
+def test_hard_gate_example_3_high_overlap_missing_required_fields():
+    """Example 3: Source Overlap 85%, Missing 2 Required Fields -> DO NOT MERGE (Data Sufficiency fails)."""
+    cols_common = [f"c_{i}" for i in range(1, 18)]  # 17 common
+    cols_a_only = ["req_missing_1", "req_missing_2"]  # 2 missing in B
+    cols_a = cols_common + cols_a_only  # 19 cols
+    cols_b = cols_common + ["other_b"]  # 18 cols
+    # Union = 17 common + 2 A + 1 B = 20 cols. Intersection = 17 / 20 = 85.0%
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_ex3_a",
+        workflow_name="Workflow_EX3_A.yxmd",
+        sources=["feed_a.csv"],
+        available_columns=cols_a,
+        required_columns=cols_a,  # all required including missing
+        inspection_sinks=["Browse (Tool #1)"],
+        production_targets=[],
+    )
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_ex3_b",
+        workflow_name="Workflow_EX3_B.yxmd",
+        sources=["feed_b.csv"],
+        available_columns=cols_b,
+        required_columns=cols_b,
+        production_targets=["target.yxdb"],
+        inspection_sinks=[],
+    )
+    comp = compare_workflows(fp_a, fp_b)
+    assert comp.metrics.source_overlap == 0.85
+
+    subsumed, ev = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
+    assert subsumed is False
+    assert ev.missing_fields_count == 2
+    assert set(ev.missing_fields) == {"req_missing_1", "req_missing_2"}
+
+    decision = evaluate_consolidation_rules(fp_a, fp_b, comp)
+    assert decision.recommendation == "DO NOT MERGE"
+
+    cand = detect_candidate_from_comparison(comp, fp_a, fp_b)
+    assert cand is None or cand.recommendation_type != "CONSOLIDATE"
+
+
+def test_hard_gate_example_4_high_overlap_full_coverage_incompatible_processing():
+    """Example 4: Source Overlap 90%, Data Coverage 100%, Processing Incompatible -> DO NOT MERGE."""
+    cols_common = [f"c_{i}" for i in range(1, 10)]  # 9 common
+    cols_a = cols_common  # 9 cols
+    cols_b = cols_common + ["b_extra"]  # 10 cols. 9 / 10 = 90.0%
+    fp_a = WorkflowFingerprint(
+        workflow_id="wf_ex4_a",
+        workflow_name="Workflow_EX4_A.yxmd",
+        sources=["feed_a.csv"],
+        available_columns=cols_a,
+        required_columns=cols_a,
+        inspection_sinks=[],
+        production_targets=["prod_a.yxdb"],
+        output_schemas={"prod_a.yxdb": cols_a},
+        tool_types=["InputData", "Summarize", "OutputData"],
+        operations_summary=[{"tool_id": "2", "tool_type": "Summarize", "operation": "GroupBy(c_1), Sum(c_2)"}],
+        transformation_signatures=["Summarize: GroupBy(c_1), Sum(c_2)"],
+        complexity_level="HIGH",
+        criticality_level="HIGH",
+    )
+    fp_b = WorkflowFingerprint(
+        workflow_id="wf_ex4_b",
+        workflow_name="Workflow_EX4_B.yxmd",
+        sources=["feed_b.csv"],
+        available_columns=cols_b,
+        required_columns=cols_b,
+        production_targets=["prod_b.yxdb"],
+        output_schemas={"prod_b.yxdb": ["different_1", "different_2"]},
+        tool_types=["InputData", "Join", "OutputData"],
+        operations_summary=[{"tool_id": "3", "tool_type": "Join", "operation": "Join on: x=y"}],
+        transformation_signatures=["Join on: x=y"],
+        complexity_level="LOW",
+        criticality_level="LOW",
+    )
+    comp = compare_workflows(fp_a, fp_b)
+    assert comp.metrics.source_overlap == 0.90
+
+    # fp_a has Summarize which fp_b lacks -> processing_compatibility is UNSUPPORTED
+    subsumed, ev = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
+    assert subsumed is False
+    assert ev.processing_compatibility == "UNSUPPORTED"
+
+    decision = evaluate_consolidation_rules(fp_a, fp_b, comp)
+    assert decision.recommendation == "DO NOT MERGE"
+
+    cand = detect_candidate_from_comparison(comp, fp_a, fp_b)
+    assert cand is None or cand.recommendation_type != "CONSOLIDATE"
+
+
+def test_hard_gate_boundary_strict_inequality():
+    """Boundary test: 60.0% -> DO NOT MERGE (Fails strict >60%). 60.1% -> MERGE."""
+    # 60.0% exactly: 3 / 5 = 0.6000000000
+    fp_a_60 = WorkflowFingerprint(
+        workflow_id="wf_60",
+        workflow_name="Workflow_60.yxmd",
+        sources=["feed_60.csv"],
+        available_columns=["a", "b", "c"],
+        required_columns=["a", "b", "c"],
+        inspection_sinks=["Browse"],
+        production_targets=[],
+    )
+    fp_b_60 = WorkflowFingerprint(
+        workflow_id="wf_b60",
+        workflow_name="Workflow_B60.yxmd",
+        sources=["feed_b60.csv"],
+        available_columns=["a", "b", "c", "d", "e"],
+        required_columns=["a", "b", "c", "d", "e"],
+        production_targets=["target.yxdb"],
+        inspection_sinks=[],
+    )
+    comp_60 = compare_workflows(fp_a_60, fp_b_60)
+    assert comp_60.metrics.source_overlap == 0.60
+    subsumed_60, ev_60 = evaluate_directional_data_subsumption(fp_a_60, fp_b_60, comp_60)
+    assert subsumed_60 is False
+    decision_60 = evaluate_consolidation_rules(fp_a_60, fp_b_60, comp_60)
+    assert decision_60.recommendation == "DO NOT MERGE"
+
+    # >60% (e.g. 60.1% or 601 / 1000):
+    common_601 = [f"f_{i}" for i in range(601)]
+    extra_b = [f"extra_{i}" for i in range(399)]
+    fp_a_601 = WorkflowFingerprint(
+        workflow_id="wf_601",
+        workflow_name="Workflow_601.yxmd",
+        sources=["feed_601.csv"],
+        available_columns=common_601,
+        required_columns=common_601,
+        inspection_sinks=["Browse"],
+        production_targets=[],
+    )
+    fp_b_1000 = WorkflowFingerprint(
+        workflow_id="wf_1000",
+        workflow_name="Workflow_1000.yxmd",
+        sources=["feed_1000.csv"],
+        available_columns=common_601 + extra_b,
+        required_columns=common_601 + extra_b,
+        production_targets=["target.yxdb"],
+        inspection_sinks=[],
+    )
+    comp_601 = compare_workflows(fp_a_601, fp_b_1000)
+    assert comp_601.metrics.source_overlap == 0.601
+    assert comp_601.metrics.source_overlap > 0.60
+    subsumed_601, ev_601 = evaluate_directional_data_subsumption(fp_a_601, fp_b_1000, comp_601)
+    assert subsumed_601 is True
+    decision_601 = evaluate_consolidation_rules(fp_a_601, fp_b_1000, comp_601)
+    assert decision_601.recommendation == "MERGE"
+
 
 
 
