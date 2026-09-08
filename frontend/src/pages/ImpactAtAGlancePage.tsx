@@ -405,7 +405,7 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
             stepNumber="05"
             title="Rationalisation"
             count={rationalisationCount}
-            countLabel="Consolidations"
+            countLabel="Opportunities"
             description="Pinpoints duplicate pipelines and candidate merge opportunities deterministically"
             color="#34d399"
             onClick={() => onOpenModal({ kind: 'step', stepNumber: 5 })}
