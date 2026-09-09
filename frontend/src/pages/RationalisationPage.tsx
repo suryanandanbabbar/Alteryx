@@ -46,6 +46,17 @@ export function getRecommendationCategory(cand: RationalisationCandidateDTO): st
   return rec;
 }
 
+export function getCanonicalOpportunities(candidates: RationalisationCandidateDTO[] = []): RationalisationCandidateDTO[] {
+  return candidates.filter((c) => {
+    const category = getRecommendationCategory(c);
+    return !HIDDEN_DEMO_CATEGORIES.has(category);
+  });
+}
+
+export function getCanonicalOpportunityCount(candidates: RationalisationCandidateDTO[] = []): number {
+  return getCanonicalOpportunities(candidates).length;
+}
+
 export function getPrimaryRetainedWorkflow(
   cand: RationalisationCandidateDTO,
   workflowMap?: Map<string, PortfolioWorkflowSummaryDTO>
@@ -430,10 +441,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
   // Demo visibility filter: central collection excluding suppressed categories
   const visibleCandidates = useMemo(() => {
     if (!analysis?.candidates) return [];
-    return analysis.candidates.filter((c) => {
-      const category = getRecommendationCategory(c);
-      return !HIDDEN_DEMO_CATEGORIES.has(category);
-    });
+    return getCanonicalOpportunities(analysis.candidates);
   }, [analysis]);
 
   // Filter candidates based on activeTab and search query

@@ -28,6 +28,9 @@ import {
   PortfolioOverviewDTO,
   SharedDatasetDTO,
 } from '../types/portfolio';
+import {
+  getCanonicalOpportunities,
+} from './RationalisationPage';
 
 export interface ImpactAtAGlancePageProps {
   mode: 'workflow' | 'portfolio';
@@ -120,7 +123,10 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
   const uniqueSources = metrics?.unique_sources ?? totalSources;
   const totalTargets = metrics?.total_targets ?? workflows.reduce((acc, w) => acc + (w.target_count || 0), 0);
   const uniqueTargets = metrics?.unique_targets ?? totalTargets;
-  const rationalisationCount = rationalisation_candidates.length;
+  const canonicalOpportunities = useMemo(() => {
+    return getCanonicalOpportunities(rationalisation_candidates);
+  }, [rationalisation_candidates]);
+  const rationalisationCount = canonicalOpportunities.length;
   const totalSttmMappings = workflows.reduce((acc, w) => acc + (w.sttm_mappings_count || 0), 0);
 
   // Derive total process stages across all workflows
@@ -146,12 +152,12 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
 
   // Find strongest rationalisation candidate
   const strongestCandidate = useMemo(() => {
-    return [...rationalisation_candidates].sort((a, b) => {
+    return [...canonicalOpportunities].sort((a, b) => {
       if (a.recommendation_type === 'CONSOLIDATE' && b.recommendation_type !== 'CONSOLIDATE') return -1;
       if (b.recommendation_type === 'CONSOLIDATE' && a.recommendation_type !== 'CONSOLIDATE') return 1;
       return (b.opportunity_score || 0) - (a.opportunity_score || 0);
     })[0];
-  }, [rationalisation_candidates]);
+  }, [canonicalOpportunities]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: '1400px', width: '100%' }}>
@@ -2242,6 +2248,9 @@ const EvidenceModal: React.FC<EvidenceModalProps> = ({
   };
 
   const { metrics, workflows = [], rationalisation_candidates = [], shared_sources = [], shared_targets = [] } = portfolio;
+  const canonicalOpportunities = useMemo(() => {
+    return getCanonicalOpportunities(rationalisation_candidates);
+  }, [rationalisation_candidates]);
   const totalTools = metrics?.total_tools ?? workflows.reduce((acc, w) => acc + (w.node_count || 0), 0);
   const totalSources = metrics?.total_sources ?? workflows.reduce((acc, w) => acc + (w.source_count || 0), 0);
   const uniqueSources = metrics?.unique_sources ?? totalSources;
@@ -2357,7 +2366,7 @@ const EvidenceModal: React.FC<EvidenceModalProps> = ({
       case 5:
         modalBadge = 'STEP 05 · RATIONALISATION';
         modalTitle = 'Consolidation & Rationalisation Opportunities';
-        headlineMetric = `${rationalisation_candidates.length} Opportunities Identified`;
+        headlineMetric = `${canonicalOpportunities.length} Opportunities Identified`;
         headlineExplanation = 'Deterministic rule matches and similarity metrics establishing merge, deduplication, and retirement candidates.';
         break;
       case 6:
@@ -3110,7 +3119,7 @@ const EvidenceModal: React.FC<EvidenceModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-text)' }}>
-                  Identified Rationalisation Opportunities ({rationalisation_candidates.length})
+                  Identified Rationalisation Opportunities ({canonicalOpportunities.length})
                 </div>
                 {onOpenRationalisation && (
                   <button
@@ -3136,7 +3145,7 @@ const EvidenceModal: React.FC<EvidenceModalProps> = ({
                 )}
               </div>
 
-              {rationalisation_candidates.map((cand) => (
+              {canonicalOpportunities.map((cand) => (
                 <div
                   key={cand.candidate_id}
                   style={{
