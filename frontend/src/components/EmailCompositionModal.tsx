@@ -43,8 +43,8 @@ export function buildDefaultEmailBody(candidate: RationalisationCandidateDTO, fr
   const lines: string[] = [];
 
   // 1. Salutation
-  lines.push('Hello,\n');
-  lines.push('I’m sharing the ETL rationalisation recommendation below for your review.\n');
+  lines.push('Hi Team,\n');
+  lines.push('Below are the listed recommendations:\n');
 
   // 2. Recommendation Section
   lines.push('Recommendation');
@@ -110,7 +110,7 @@ export function buildDefaultEmailBody(candidate: RationalisationCandidateDTO, fr
   lines.push('Please review the recommendation and validation points before any implementation or decommissioning activity is undertaken.\n');
 
   // 8. Sign-off
-  lines.push('Regards,');
+  lines.push('Thanks!');
   lines.push(fromAddr.trim() || 'ETL Migration Lead');
 
   return lines.join('\n');
@@ -367,7 +367,7 @@ export const EmailCompositionModal: React.FC<EmailCompositionModalProps> = ({
               required
               value={fromEmail}
               disabled={isSending}
-              placeholder="e.g. suryanandan.babbar@exlservice.com"
+              placeholder="e.g. etlagent@exlservice.com"
               onChange={(e) => handleFromChange(e.target.value)}
               style={{
                 background: '#070c14',
@@ -402,7 +402,7 @@ export const EmailCompositionModal: React.FC<EmailCompositionModalProps> = ({
               id="email-to-input"
               type="email"
               required
-              placeholder="e.g. neha.luthra@exlservice.com"
+              placeholder="e.g. governance-team@company.com"
               value={toEmail}
               disabled={isSending}
               onChange={(e) => {

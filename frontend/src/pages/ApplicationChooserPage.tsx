@@ -89,21 +89,31 @@ export const ApplicationChooserPage: React.FC<ApplicationChooserPageProps> = ({ 
 
         <button
           onClick={toggleTheme}
+          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
           style={{
-            background: 'none',
-            border: 'none',
-            color: 'var(--color-text-secondary)',
-            cursor: 'pointer',
-            padding: '6px',
-            borderRadius: 'var(--radius-sm)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'color 0.15s ease',
+            width: '32px',
+            height: '32px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-surface)',
+            color: 'var(--color-text-secondary)',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
           }}
-          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--color-surface-hover)';
+            e.currentTarget.style.color = 'var(--color-text)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+            e.currentTarget.style.color = 'var(--color-text-secondary)';
+          }}
         >
-          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
         </button>
       </header>
 

@@ -158,6 +158,21 @@ export const App: React.FC = () => {
           minWidth: 0,
           height: '100vh',
         }}>
+          {/* Top Header with Theme Toggle */}
+          <Header
+            sectionTitle={
+              showRationalisation
+                ? 'Rationalisation Recommendation'
+                : showImpact
+                ? 'Impact at a Glance'
+                : showComplexityCriticality
+                ? 'Complexity & Criticality'
+                : selectedBusinessArea
+                ? `Workflow Inventory · ${selectedBusinessArea}`
+                : 'ETL Workflow Inventory'
+            }
+          />
+
           <main style={{
             flex: 1,
             padding: '32px 40px',
