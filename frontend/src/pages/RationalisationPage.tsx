@@ -46,6 +46,35 @@ export function getRecommendationCategory(cand: RationalisationCandidateDTO): st
   return rec;
 }
 
+export function getPrimaryRetainedWorkflow(
+  cand: RationalisationCandidateDTO,
+  workflowMap?: Map<string, PortfolioWorkflowSummaryDTO>
+): { id?: string; name?: string; summary?: PortfolioWorkflowSummaryDTO } | null {
+  const category = getRecommendationCategory(cand);
+  const dse = cand.data_subsumption_evidence || cand.consolidation_decision?.data_subsumption_evidence;
+
+  if (category === 'CONSOLIDATE') {
+    const targetId = dse?.target_workflow_id || (cand.workflow_ids && cand.workflow_ids.length > 1 ? cand.workflow_ids[1] : cand.workflow_ids[0]);
+    const targetName = dse?.target_workflow_name || (cand.workflow_names && cand.workflow_names.length > 1 ? cand.workflow_names[1] : cand.workflow_names[0]);
+    const summary = targetId && workflowMap ? workflowMap.get(targetId) : undefined;
+    return { id: targetId, name: targetName, summary };
+  }
+
+  if (category === 'RETIRE') {
+    // For retire opportunities, if pairwise: candidate.workflow_names[1] / workflow_ids[1] is the retained replacement workflow
+    if (cand.workflow_ids && cand.workflow_ids.length > 1) {
+      const targetId = cand.workflow_ids[1];
+      const targetName = cand.workflow_names[1];
+      const summary = targetId && workflowMap ? workflowMap.get(targetId) : undefined;
+      return { id: targetId, name: targetName, summary };
+    }
+    // Standalone retire opportunity without a replacement partner
+    return null;
+  }
+
+  return null;
+}
+
 export function isMeaningfulEvidence(item: string | null | undefined): boolean {
   if (!item || typeof item !== 'string') return false;
   const clean = item.trim();
@@ -435,13 +464,44 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
     });
   }, [visibleCandidates, activeTab, searchQuery]);
 
+  // Retained primary workflows derived from the canonical rationalisation opportunities
+  const retainedWorkflowSummaries = useMemo(() => {
+    const result: PortfolioWorkflowSummaryDTO[] = [];
+
+    visibleCandidates.forEach((cand) => {
+      const primary = getPrimaryRetainedWorkflow(cand, workflowMap);
+      if (!primary) return;
+
+      let summary = primary.summary;
+      if (!summary && primary.id) {
+        summary = workflowMap.get(primary.id);
+      }
+      if (!summary && primary.name) {
+        summary = workflows.find((w) => w.filename === primary.name || w.workflow_id === primary.name);
+      }
+
+      if (summary) {
+        result.push(summary);
+      } else if (primary.name || primary.id) {
+        result.push({
+          workflow_id: primary.id || primary.name || '',
+          filename: primary.name || primary.id || '',
+          business_area: { business_area: 'Other / Unclassified', confidence: 1.0, matched_keywords: [] },
+          complexity_level: 'LOW',
+          criticality_level: 'LOW',
+          rationalisation_status: 'KEEP',
+          node_count: 0,
+          source_count: 0,
+          target_count: 0,
+        } as unknown as PortfolioWorkflowSummaryDTO);
+      }
+    });
+
+    return result;
+  }, [visibleCandidates, workflowMap, workflows]);
+
   const keepWorkflows = useMemo(() => {
-    return workflows.filter((w) => {
-      const classification =
-        analysis?.workflow_classifications?.[w.workflow_id] ||
-        w.rationalisation_status ||
-        'KEEP';
-      if (classification !== 'KEEP') return false;
+    return retainedWorkflowSummaries.filter((w) => {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesName = (w.filename || w.workflow_id).toLowerCase().includes(q);
@@ -451,7 +511,32 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
       }
       return true;
     });
-  }, [workflows, analysis, searchQuery]);
+  }, [retainedWorkflowSummaries, searchQuery]);
+
+  // Rationalisation opportunity filter counts (derived from canonical opportunities & primary retained workflows)
+  const opportunityCounts = useMemo(() => {
+    let consolidateCount = 0;
+    let retireCount = 0;
+
+    visibleCandidates.forEach((c) => {
+      const cat = getRecommendationCategory(c);
+      if (cat === 'CONSOLIDATE') {
+        consolidateCount++;
+      } else if (cat === 'RETIRE') {
+        retireCount++;
+      }
+    });
+
+    const keepCount = retainedWorkflowSummaries.length;
+    const allOpportunitiesCount = consolidateCount + retireCount;
+
+    return {
+      ALL: allOpportunitiesCount,
+      CONSOLIDATE: consolidateCount,
+      RETIRE: retireCount,
+      KEEP: keepCount,
+    };
+  }, [visibleCandidates, retainedWorkflowSummaries]);
 
   const workflowCounts = useMemo(() => {
     if (analysis?.workflow_counts) {
@@ -946,10 +1031,10 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               }}
             >
               {[
-                { key: 'ALL', label: 'All Workflows', count: analysis.analysed_workflow_count ?? workflows.length },
-                { key: 'RETIRE', label: 'Retire', count: workflowCounts.RETIRE || 0 },
-                { key: 'CONSOLIDATE', label: 'Consolidate', count: workflowCounts.CONSOLIDATE || 0 },
-                { key: 'KEEP', label: 'Keep', count: workflowCounts.KEEP || 0 },
+                { key: 'ALL', label: 'All Opportunities', count: opportunityCounts.ALL },
+                { key: 'RETIRE', label: 'Retire', count: opportunityCounts.RETIRE },
+                { key: 'CONSOLIDATE', label: 'Consolidate', count: opportunityCounts.CONSOLIDATE },
+                { key: 'KEEP', label: 'Keep', count: opportunityCounts.KEEP },
               ].map((tab) => {
                 const isSelected = activeTab === tab.key;
                 return (
@@ -1073,7 +1158,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
           </div>
 
           {/* 6. Opportunity / Workflow Cards List */}
-          {(filteredCandidates.length > 0 || ((activeTab === 'ALL' || activeTab === 'KEEP') && keepWorkflows.length > 0)) ? (
+          {(filteredCandidates.length > 0 || (activeTab === 'KEEP' && keepWorkflows.length > 0)) ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               {(activeTab === 'ALL' || activeTab === 'CONSOLIDATE' || activeTab === 'RETIRE') &&
                 filteredCandidates.map((cand) => {
