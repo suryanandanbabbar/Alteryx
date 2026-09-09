@@ -332,11 +332,6 @@ export const EvaluationModelDonutChart: React.FC<EvaluationModelDonutChartProps>
                     >
                       {factor.name}
                     </span>
-                    {factor.category && (
-                      <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>
-                        {factor.category}
-                      </span>
-                    )}
                   </div>
                 </div>
 
