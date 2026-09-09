@@ -12,21 +12,13 @@ interface EvaluationModelDonutChartProps {
   themeVariant?: 'complexity' | 'criticality';
 }
 
-// Harmonious enterprise palettes for dark navy UI
-const COMPLEXITY_COLORS = [
-  '#f59e0b', // Amber (Structural Size)
-  '#f97316', // Orange (Transformation)
-  '#fb7185', // Rose (DAG Topology)
-  '#a855f7', // Purple (Expression)
-  '#3b82f6', // Blue (Runtime & Integration)
-];
-
-const CRITICALITY_COLORS = [
-  '#06b6d4', // Cyan (Downstream outputs - Technical)
-  '#38bdf8', // Sky Blue (Upstream sources - Technical)
-  '#6366f1', // Indigo (Consuming ETL workflows - Technical)
-  '#10b981', // Emerald (Last Run - Operational)
-  '#84cc16', // Lime (Frequency - Operational)
+// Monochromatic brand orange palette derived from #FB4E0B
+const BRAND_ORANGE_PALETTE = [
+  '#FDB08E', // Light Peach Tint (Factor 1)
+  '#FC835A', // Coral Orange (Factor 2)
+  '#FB4E0B', // Core Brand Orange (Factor 3)
+  '#D94008', // Deep Terracotta (Factor 4)
+  '#A83208', // Dark Rust Orange (Factor 5)
 ];
 
 export const EvaluationModelDonutChart: React.FC<EvaluationModelDonutChartProps> = ({
@@ -40,9 +32,9 @@ export const EvaluationModelDonutChart: React.FC<EvaluationModelDonutChartProps>
 }) => {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const colors = themeVariant === 'complexity' ? COMPLEXITY_COLORS : CRITICALITY_COLORS;
-  const accentColor = themeVariant === 'complexity' ? 'var(--color-primary)' : '#38bdf8';
-  const accentBg = themeVariant === 'complexity' ? 'rgba(249, 115, 22, 0.12)' : 'rgba(56, 189, 248, 0.12)';
+  const colors = BRAND_ORANGE_PALETTE;
+  const accentColor = '#FB4E0B';
+  const accentBg = 'rgba(251, 78, 11, 0.12)';
 
   // SVG Geometry parameters
   const size = 200;
@@ -165,9 +157,9 @@ export const EvaluationModelDonutChart: React.FC<EvaluationModelDonutChartProps>
                 fontWeight: '700',
                 padding: '2px 7px',
                 borderRadius: '4px',
-                background: 'rgba(56, 189, 248, 0.1)',
-                color: '#38bdf8',
-                border: '1px solid rgba(56, 189, 248, 0.25)',
+                background: 'rgba(251, 78, 11, 0.1)',
+                color: '#FB4E0B',
+                border: '1px solid rgba(251, 78, 11, 0.25)',
               }}
             >
               Technical: {technicalWeightPct}%
@@ -178,9 +170,9 @@ export const EvaluationModelDonutChart: React.FC<EvaluationModelDonutChartProps>
                 fontWeight: '700',
                 padding: '2px 7px',
                 borderRadius: '4px',
-                background: 'rgba(16, 185, 129, 0.1)',
-                color: '#10b981',
-                border: '1px solid rgba(16, 185, 129, 0.25)',
+                background: 'rgba(217, 64, 8, 0.1)',
+                color: '#D94008',
+                border: '1px solid rgba(217, 64, 8, 0.25)',
               }}
             >
               Operational: {operationalWeightPct}%
@@ -238,22 +230,22 @@ export const EvaluationModelDonutChart: React.FC<EvaluationModelDonutChartProps>
                     onMouseLeave={() => setHoveredId(null)}
                   />
                   {/* Percentage on Slice */}
-                  <text
-                    x={s.labelX}
-                    y={s.labelY + 3.5}
-                    textAnchor="middle"
-                    fill="#ffffff"
-                    fontSize="10.5px"
-                    fontWeight="800"
-                    pointerEvents="none"
-                    style={{
-                      textShadow: '0 1px 3px rgba(0, 0, 0, 0.7)',
-                      opacity: isDimmed ? 0.35 : 1,
-                      transition: 'opacity 0.18s ease',
-                    }}
-                  >
-                    {s.factor.weight_pct}%
-                  </text>
+                    <text
+                      x={s.labelX}
+                      y={s.labelY + 3.5}
+                      textAnchor="middle"
+                      fill="#ffffff"
+                      fontSize="10.5px"
+                      fontWeight="800"
+                      pointerEvents="none"
+                      style={{
+                        textShadow: '0 1px 3px rgba(0, 0, 0, 0.85), 0 0 2px rgba(0, 0, 0, 0.85)',
+                        opacity: isDimmed ? 0.35 : 1,
+                        transition: 'opacity 0.18s ease',
+                      }}
+                    >
+                      {s.factor.weight_pct}%
+                    </text>
                 </g>
               );
             })}
