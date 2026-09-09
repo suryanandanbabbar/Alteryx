@@ -126,6 +126,24 @@ class Settings(BaseModel):
             os.getenv("KPI_ONTOLOGY_BANK_URL") or os.getenv("AWA_KPI_ONTOLOGY_BANK_URL")
         )
     )
+    email_from_address: str = Field(
+        default_factory=lambda: os.getenv("EMAIL_FROM_ADDRESS", "noreply@awa-etl.internal")
+    )
+    smtp_host: str | None = Field(
+        default_factory=lambda: os.getenv("SMTP_HOST")
+    )
+    smtp_port: int = Field(
+        default_factory=lambda: int(os.getenv("SMTP_PORT", "587"))
+    )
+    smtp_username: str | None = Field(
+        default_factory=lambda: os.getenv("SMTP_USERNAME")
+    )
+    smtp_password: str | None = Field(
+        default_factory=lambda: os.getenv("SMTP_PASSWORD")
+    )
+    smtp_use_tls: bool = Field(
+        default_factory=lambda: os.getenv("SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+    )
 
     @field_validator("code_based_workflows_url", mode="after")
     @classmethod

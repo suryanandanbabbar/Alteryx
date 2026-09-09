@@ -7,6 +7,8 @@ import {
   DiagramDTO,
   PythonOutputDTO,
   AppConfigDTO,
+  SendEmailRequest,
+  SendEmailResponse,
 } from '../types/workflow';
 import { PortfolioOverviewDTO, RationalisationAnalysisDTO } from '../types/portfolio';
 
@@ -206,7 +208,19 @@ export const api = {
     const res = await fetch(`${BASE_URL}/config`);
     return handleResponse<AppConfigDTO>(res);
   },
+
+  async sendRationalisationEmail(payload: SendEmailRequest): Promise<SendEmailResponse> {
+    const res = await fetch(`${BASE_URL}/portfolio/rationalisation/email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<SendEmailResponse>(res);
+  },
 };
 
 export const apiClient = api;
+
 

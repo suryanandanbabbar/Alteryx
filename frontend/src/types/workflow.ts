@@ -265,5 +265,22 @@ export interface AnalysisOverviewDTO {
 export interface AppConfigDTO {
   code_based_workflows_url: string | null;
   kpi_ontology_bank_url: string | null;
+  email_from_address?: string | null;
 }
+
+export interface SendEmailRequest {
+  portfolio_id: string;
+  candidate_id: string;
+  to_email: string;
+  subject: string;
+  body: string;
+  from_email?: string | null;
+}
+
+export interface SendEmailResponse {
+  status: string;
+  message: string;
+  recipient: string;
+}
+
 

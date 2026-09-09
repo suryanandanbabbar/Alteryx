@@ -17,6 +17,8 @@ from backend.app.models.schemas import (
     PortfolioOverviewDTO,
     PortfolioWorkflowSummaryDTO,
     RationalisationAnalysisDTO,
+    SendEmailRequestDTO,
+    SendEmailResponseDTO,
 )
 from backend.app.services.analyzer import to_overview_dto
 from backend.app.services.portfolio_service import (
@@ -261,5 +263,75 @@ def export_portfolio_xlsx(portfolio_id: str, background_tasks: BackgroundTasks):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=filename,
     )
+
+
+@router.post("/rationalisation/email", response_model=SendEmailResponseDTO)
+def send_rationalisation_email(request: SendEmailRequestDTO):
+    """Send an in-app email containing canonical rationalisation recommendation details."""
+    storage = get_storage()
+    portfolio = storage.get_portfolio(request.portfolio_id)
+    if portfolio is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Portfolio with ID '{request.portfolio_id}' not found or session has expired.",
+        )
+
+    # Validate candidate exists in portfolio and check recommendation category
+    matched_candidate = None
+    for cand in getattr(portfolio, "rationalisation_candidates", []) or []:
+        cand_id = getattr(cand, "candidate_id", None) or (cand.get("candidate_id") if isinstance(cand, dict) else None)
+        if cand_id == request.candidate_id:
+            matched_candidate = cand
+            break
+
+    if matched_candidate is not None:
+        rec_type = (
+            getattr(matched_candidate, "recommendation_type", "")
+            or (matched_candidate.get("recommendation_type") if isinstance(matched_candidate, dict) else "")
+        ).upper()
+        if rec_type not in ("CONSOLIDATE", "RETIRE", "RETIRE_CANDIDATE", "REVIEW"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Email dispatch is only permitted for CONSOLIDATE and RETIRE recommendations (received '{rec_type}').",
+            )
+
+    from backend.app.services.email_service import (
+        EmailDeliveryError,
+        EmailValidationError,
+        get_email_service,
+    )
+
+    try:
+        service = get_email_service()
+        service.send_email(
+            to_email=request.to_email,
+            subject=request.subject,
+            body=request.body,
+            from_email=request.from_email,
+        )
+    except EmailValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_EMAIL_PARAMS", "message": str(e)},
+        ) from e
+    except EmailDeliveryError as e:
+        logger.error("Failed to deliver rationalisation email: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "EMAIL_DELIVERY_FAILED", "message": str(e)},
+        ) from e
+    except Exception as e:
+        logger.exception("Unexpected error dispatching rationalisation email: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "EMAIL_DELIVERY_FAILED", "message": "Failed to send email due to an unexpected server error."},
+        ) from e
+
+    return SendEmailResponseDTO(
+        status="success",
+        message="Email sent successfully.",
+        recipient=request.to_email.strip(),
+    )
+
 
 

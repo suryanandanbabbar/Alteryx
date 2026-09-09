@@ -19,13 +19,17 @@ import {
   Sparkles,
   Copy,
   Clock,
+  Mail,
 } from 'lucide-react';
 import {
   RationalisationAnalysisDTO,
   RationalisationCandidateDTO,
   PortfolioWorkflowSummaryDTO,
 } from '../types/portfolio';
+import { AppConfigDTO } from '../types/workflow';
 import { apiClient } from '../api/client';
+import { EmailCompositionModal } from '../components/EmailCompositionModal';
+import { EmailSuccessToast } from '../components/EmailSuccessToast';
 import { getLevelBadgeStyle } from './PortfolioPage';
 
 // Demo configuration: categories to suppress from the frontend presentation
@@ -307,10 +311,17 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCandidate, setSelectedCandidate] = useState<RationalisationCandidateDTO | null>(null);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState<boolean>(false);
+  const [sentToastRecipient, setSentToastRecipient] = useState<string | null>(null);
+  const [appConfig, setAppConfig] = useState<AppConfigDTO | null>(null);
   const [activeEvidenceMetric, setActiveEvidenceMetric] = useState<'source' | 'target' | 'frequency' | 'logic' | 'dag'>('source');
   const [loadingStage, setLoadingStage] = useState<number>(0);
   const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
   const [expandedTargets, setExpandedTargets] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    apiClient.getConfig().then(setAppConfig).catch(() => {});
+  }, []);
 
   const toggleSource = (key: string) => {
     setExpandedSources((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -2203,23 +2214,66 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                 </div>
               </div>
 
-              <button
-                onClick={() => setSelectedCandidate(null)}
-                style={{
-                  background: 'var(--color-surface-secondary)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '6px',
-                  padding: '6px',
-                  color: 'var(--color-text-secondary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                title="Close modal"
-              >
-                <X size={18} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {(() => {
+                  const recCat = getRecommendationCategory(selectedCandidate);
+                  if (recCat === 'CONSOLIDATE' || recCat === 'RETIRE') {
+                    return (
+                      <button
+                        onClick={() => setIsEmailModalOpen(true)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: 'rgba(59, 130, 246, 0.12)',
+                          border: '1px solid rgba(59, 130, 246, 0.35)',
+                          borderRadius: '6px',
+                          padding: '6px 12px',
+                          color: '#60a5fa',
+                          fontSize: '12.5px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'rgba(59, 130, 246, 0.22)';
+                          e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.55)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)';
+                          e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.35)';
+                        }}
+                        title="Compose and send rationalisation recommendation email"
+                      >
+                        <Mail size={14} />
+                        <span>Email</span>
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
+
+                <button
+                  onClick={() => {
+                    setSelectedCandidate(null);
+                    setIsEmailModalOpen(false);
+                  }}
+                  style={{
+                    background: 'var(--color-surface-secondary)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '6px',
+                    padding: '6px',
+                    color: 'var(--color-text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  title="Close modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {/* In-Scope Workflows Side-by-Side */}
@@ -3827,7 +3881,10 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               }}
             >
               <button
-                onClick={() => setSelectedCandidate(null)}
+                onClick={() => {
+                  setSelectedCandidate(null);
+                  setIsEmailModalOpen(false);
+                }}
                 style={{
                   padding: '8px 20px',
                   borderRadius: 'var(--radius-sm)',
@@ -3845,6 +3902,29 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* 8. Email Composition Modal */}
+      {selectedCandidate && isEmailModalOpen && (
+        <EmailCompositionModal
+          candidate={selectedCandidate}
+          portfolioId={portfolioId}
+          fromAddress={appConfig?.email_from_address}
+          onClose={() => setIsEmailModalOpen(false)}
+          onSuccess={(recipient) => {
+            setIsEmailModalOpen(false);
+            setSentToastRecipient(recipient);
+          }}
+        />
+      )}
+
+      {/* 9. Email Sent Success Toast */}
+      {sentToastRecipient && (
+        <EmailSuccessToast
+          recipient={sentToastRecipient}
+          onClose={() => setSentToastRecipient(null)}
+        />
+      )}
     </div>
   );
 };
+

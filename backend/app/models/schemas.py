@@ -590,4 +590,23 @@ class AppConfigDTO(BaseModel):
     """Public application configuration metadata exposed to the frontend."""
     code_based_workflows_url: str | None = None
     kpi_ontology_bank_url: str | None = None
+    email_from_address: str | None = None
+
+
+class SendEmailRequestDTO(BaseModel):
+    """Request payload for sending rationalisation recommendation email."""
+    portfolio_id: str
+    candidate_id: str
+    to_email: str
+    subject: str
+    body: str
+    from_email: str | None = None
+
+
+class SendEmailResponseDTO(BaseModel):
+    """Response payload after rationalisation recommendation email dispatch."""
+    status: str = "success"
+    message: str = "Email sent successfully."
+    recipient: str
+
 
