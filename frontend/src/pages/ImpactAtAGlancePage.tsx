@@ -101,6 +101,7 @@ interface PortfolioImpactViewProps {
 const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
   portfolio,
   onOpenModal,
+  onOpenRationalisation,
 }) => {
   if (!portfolio) {
     return (
@@ -133,6 +134,7 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
   // Migration asset counts derived from runtime successful workflows
   const pythonAssetCount = successfulWorkflows;
   const jsonAssetCount = successfulWorkflows;
+  const migrationDocumentCount = pythonAssetCount + jsonAssetCount;
   const sttmAssetCount = workflows.filter((w) => (w.sttm_mappings_count || 0) > 0 || w.status === 'SUCCESS').length;
   const businessReportCount = successfulWorkflows;
   const toolSpecCount = successfulWorkflows;
@@ -267,7 +269,7 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
           subtext="Opportunities Identified"
           icon={Sparkles}
           color="#34d399"
-          onClick={() => onOpenModal({ kind: 'step', stepNumber: 5 })}
+          onClick={onOpenRationalisation ? onOpenRationalisation : () => onOpenModal({ kind: 'step', stepNumber: 5 })}
         />
       </div>
 
@@ -322,6 +324,7 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
         >
           <AssetCountCard count={pythonAssetCount} label="Python Translations" sub="Pandas / PySpark" icon={FileCode} />
           <AssetCountCard count={jsonAssetCount} label="JSON Graph IR" sub="Executable AST" icon={Boxes} />
+          <AssetCountCard count={migrationDocumentCount} label="Migration Documents Generated" sub="Python + JSON" icon={Layers} />
           <AssetCountCard count={sttmAssetCount} label="STTM Matrices" sub="Source-to-Target XLSX" icon={FileSpreadsheet} />
           <AssetCountCard count={businessReportCount} label="Business Reports" sub="Executive DOCX" icon={FileText} />
           <AssetCountCard count={toolSpecCount} label="Tool Specifications" sub="Node Configuration DOCX" icon={Sliders} />
@@ -408,7 +411,8 @@ const PortfolioImpactView: React.FC<PortfolioImpactViewProps> = ({
             countLabel="Opportunities"
             description="Pinpoints duplicate pipelines and candidate merge opportunities deterministically"
             color="#34d399"
-            onClick={() => onOpenModal({ kind: 'step', stepNumber: 5 })}
+            actionText="View recommendations"
+            onClick={onOpenRationalisation ? onOpenRationalisation : () => onOpenModal({ kind: 'step', stepNumber: 5 })}
           />
           <InteractiveLifecycleStep
             stepNumber="06"
@@ -3771,6 +3775,7 @@ interface InteractiveLifecycleStepProps {
   description: string;
   color: string;
   onClick: () => void;
+  actionText?: string;
 }
 
 const InteractiveLifecycleStep: React.FC<InteractiveLifecycleStepProps> = ({
@@ -3781,6 +3786,7 @@ const InteractiveLifecycleStep: React.FC<InteractiveLifecycleStepProps> = ({
   description,
   color,
   onClick,
+  actionText,
 }) => {
   return (
     <div
@@ -3852,7 +3858,7 @@ const InteractiveLifecycleStep: React.FC<InteractiveLifecycleStepProps> = ({
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: color, fontSize: '11px', fontWeight: '700', marginTop: 'auto', paddingTop: '6px' }}>
-        <span>Inspect evidence</span>
+        <span>{actionText || 'Inspect evidence'}</span>
         <ArrowRight size={12} />
       </div>
     </div>
