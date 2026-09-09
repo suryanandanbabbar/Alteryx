@@ -75,6 +75,27 @@ export function getPrimaryRetainedWorkflow(
   return null;
 }
 
+export function getSecondaryRemovedWorkflow(
+  cand: RationalisationCandidateDTO
+): { id?: string; name?: string } | null {
+  const category = getRecommendationCategory(cand);
+  const dse = cand.data_subsumption_evidence || cand.consolidation_decision?.data_subsumption_evidence;
+
+  if (category === 'CONSOLIDATE') {
+    const sourceId = dse?.source_workflow_id || (cand.workflow_ids && cand.workflow_ids[0]);
+    const sourceName = dse?.source_workflow_name || (cand.workflow_names && cand.workflow_names[0]);
+    return { id: sourceId, name: sourceName };
+  }
+
+  if (category === 'RETIRE') {
+    const retiringId = cand.workflow_ids && cand.workflow_ids[0];
+    const retiringName = cand.workflow_names && cand.workflow_names[0];
+    return { id: retiringId, name: retiringName };
+  }
+
+  return null;
+}
+
 export function isMeaningfulEvidence(item: string | null | undefined): boolean {
   if (!item || typeof item !== 'string') return false;
   const clean = item.trim();
@@ -464,41 +485,62 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
     });
   }, [visibleCandidates, activeTab, searchQuery]);
 
-  // Retained primary workflows derived from the canonical rationalisation opportunities
-  const retainedWorkflowSummaries = useMemo(() => {
-    const result: PortfolioWorkflowSummaryDTO[] = [];
+  // Map of secondary (absorbed / retired) workflow IDs and names from canonical opportunities
+  const secondaryWorkflowMap = useMemo(() => {
+    const ids = new Set<string>();
+    const names = new Set<string>();
+
+    visibleCandidates.forEach((cand) => {
+      const sec = getSecondaryRemovedWorkflow(cand);
+      if (sec?.id) ids.add(sec.id);
+      if (sec?.name) names.add(sec.name);
+    });
+
+    return { ids, names };
+  }, [visibleCandidates]);
+
+  // Map of primary retained workflows from canonical opportunities
+  const primaryOpportunities = useMemo(() => {
+    const map = new Map<string, RationalisationCandidateDTO[]>();
 
     visibleCandidates.forEach((cand) => {
       const primary = getPrimaryRetainedWorkflow(cand, workflowMap);
-      if (!primary) return;
-
-      let summary = primary.summary;
-      if (!summary && primary.id) {
-        summary = workflowMap.get(primary.id);
+      if (primary?.id) {
+        const list = map.get(primary.id) || [];
+        list.push(cand);
+        map.set(primary.id, list);
       }
-      if (!summary && primary.name) {
-        summary = workflows.find((w) => w.filename === primary.name || w.workflow_id === primary.name);
+      if (primary?.name) {
+        const list = map.get(primary.name) || [];
+        list.push(cand);
+        map.set(primary.name, list);
       }
+    });
 
-      if (summary) {
-        result.push(summary);
-      } else if (primary.name || primary.id) {
-        result.push({
-          workflow_id: primary.id || primary.name || '',
-          filename: primary.name || primary.id || '',
-          business_area: { business_area: 'Other / Unclassified', confidence: 1.0, matched_keywords: [] },
-          complexity_level: 'LOW',
-          criticality_level: 'LOW',
-          rationalisation_status: 'KEEP',
-          node_count: 0,
-          source_count: 0,
-          target_count: 0,
-        } as unknown as PortfolioWorkflowSummaryDTO);
+    return map;
+  }, [visibleCandidates, workflowMap]);
+
+  // Complete Keep Population: All workflows in the current scope that remain in the estate
+  // (i.e. primary/retained workflows from opportunities + all residual workflows with no rationalisation action)
+  const retainedWorkflowSummaries = useMemo(() => {
+    const result: PortfolioWorkflowSummaryDTO[] = [];
+    const addedIds = new Set<string>();
+
+    workflows.forEach((w) => {
+      const isSecondary =
+        secondaryWorkflowMap.ids.has(w.workflow_id) ||
+        (w.filename && secondaryWorkflowMap.names.has(w.filename));
+
+      if (!isSecondary) {
+        if (!addedIds.has(w.workflow_id)) {
+          addedIds.add(w.workflow_id);
+          result.push(w);
+        }
       }
     });
 
     return result;
-  }, [visibleCandidates, workflowMap, workflows]);
+  }, [workflows, secondaryWorkflowMap]);
 
   const keepWorkflows = useMemo(() => {
     return retainedWorkflowSummaries.filter((w) => {
@@ -513,7 +555,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
     });
   }, [retainedWorkflowSummaries, searchQuery]);
 
-  // Rationalisation opportunity filter counts (derived from canonical opportunities & primary retained workflows)
+  // Rationalisation opportunity filter counts (derived from canonical opportunities & primary/residual retained workflows)
   const opportunityCounts = useMemo(() => {
     let consolidateCount = 0;
     let retireCount = 0;
@@ -538,32 +580,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
     };
   }, [visibleCandidates, retainedWorkflowSummaries]);
 
-  const workflowCounts = useMemo(() => {
-    if (analysis?.workflow_counts) {
-      return {
-        CONSOLIDATE: analysis.workflow_counts.CONSOLIDATE ?? 0,
-        RETIRE: analysis.workflow_counts.RETIRE ?? 0,
-        KEEP: analysis.workflow_counts.KEEP ?? 0,
-      };
-    }
-    let cons = 0;
-    let ret = 0;
-    let keep = 0;
-    workflows.forEach((w) => {
-      const cls =
-        analysis?.workflow_classifications?.[w.workflow_id] ||
-        w.rationalisation_status ||
-        'KEEP';
-      if (cls === 'CONSOLIDATE') cons++;
-      else if (cls === 'RETIRE' || cls === 'REVIEW' || cls === 'RETIRE_CANDIDATE') ret++;
-      else keep++;
-    });
-    return {
-      CONSOLIDATE: cons,
-      RETIRE: ret,
-      KEEP: keep,
-    };
-  }, [analysis, workflows]);
+
 
   // Recommendation Badge Config
   const getRecommendationBadge = (type: string) => {
@@ -874,7 +891,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               flexWrap: 'wrap',
             }}
           >
-            {/* Estate Workflows */}
+            {/* All Opportunities */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '130px' }}>
               <span
                 style={{
@@ -885,7 +902,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   letterSpacing: '0.08em',
                 }}
               >
-                ESTATE WORKFLOWS
+                ALL OPPORTUNITIES
               </span>
               <span
                 style={{
@@ -895,7 +912,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {String(analysis.analysed_workflow_count ?? workflows.length).padStart(2, '0')}
+                {String(opportunityCounts.ALL || 0).padStart(2, '0')}
               </span>
             </div>
 
@@ -932,7 +949,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {String(workflowCounts.CONSOLIDATE || 0).padStart(2, '0')}
+                {String(opportunityCounts.CONSOLIDATE || 0).padStart(2, '0')}
               </span>
             </div>
 
@@ -969,7 +986,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {String(workflowCounts.RETIRE || 0).padStart(2, '0')}
+                {String(opportunityCounts.RETIRE || 0).padStart(2, '0')}
               </span>
             </div>
 
@@ -1006,7 +1023,7 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {String(workflowCounts.KEEP || 0).padStart(2, '0')}
+                {String(opportunityCounts.KEEP || 0).padStart(2, '0')}
               </span>
             </div>
           </div>
@@ -1807,10 +1824,13 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
               })}
 
               {/* Keep Workflow Cards */}
-              {(activeTab === 'ALL' || activeTab === 'KEEP') &&
+              {activeTab === 'KEEP' &&
                 keepWorkflows.map((w) => {
                   const complexityStyle = getLevelBadgeStyle(w.complexity_level || 'LOW');
                   const criticalityStyle = getLevelBadgeStyle(w.criticality_level || 'LOW');
+                  const associatedOpps = primaryOpportunities.get(w.workflow_id) || (w.filename ? primaryOpportunities.get(w.filename) : undefined);
+                  const isRetainedPrimary = Boolean(associatedOpps && associatedOpps.length > 0);
+
                   return (
                     <div
                       key={w.workflow_id}
@@ -1873,12 +1893,16 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                               fontWeight: '700',
                               padding: '3px 8px',
                               borderRadius: '4px',
-                              background: 'var(--color-surface-secondary)',
-                              color: 'var(--color-text-muted)',
-                              border: '1px solid var(--color-border-subtle)',
+                              background: isRetainedPrimary
+                                ? 'rgba(56, 189, 248, 0.1)'
+                                : 'var(--color-surface-secondary)',
+                              color: isRetainedPrimary ? '#38bdf8' : 'var(--color-text-muted)',
+                              border: isRetainedPrimary
+                                ? '1px solid rgba(56, 189, 248, 0.25)'
+                                : '1px solid var(--color-border-subtle)',
                             }}
                           >
-                            Retain As-Is
+                            {isRetainedPrimary ? 'Primary Retained' : 'Retain As-Is'}
                           </span>
                         </div>
 
@@ -1985,7 +2009,9 @@ export const RationalisationPage: React.FC<RationalisationPageProps> = ({
                             margin: 0,
                           }}
                         >
-                          The workflow is not currently identified as a Rationalisation candidate by the project's deterministic decision model.
+                          {isRetainedPrimary
+                            ? 'Primary workflow retained after rationalisation analysis.'
+                            : 'The workflow is not currently identified as a Rationalisation candidate by the project\'s deterministic decision model.'}
                         </p>
                       </div>
 
