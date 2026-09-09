@@ -435,6 +435,15 @@ export const ComplexityCriticalityPage: React.FC<ComplexityCriticalityPageProps>
               EVALUATION MODEL
             </span>
 
+            {/* Complexity Evaluation Model Donut Chart */}
+            <EvaluationModelDonutChart
+              title={evaluationModels.complexity.model_name}
+              subtitle={evaluationModels.complexity.description || 'How the overall complexity score is weighted'}
+              factors={evaluationModels.complexity.factors}
+              totalWeightPct={evaluationModels.complexity.total_weight_pct}
+              themeVariant="complexity"
+            />
+
             <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: '1.5' }}>
               <li>
                 <strong style={{ color: 'var(--color-text)' }}>Zero LLM involvement:</strong> Purely deterministic, objective, and reproducible evaluation calculated directly from workflow AST and canonical IR.
@@ -471,14 +480,7 @@ export const ComplexityCriticalityPage: React.FC<ComplexityCriticalityPageProps>
               </li>
             </ul>
 
-            {/* Complexity Evaluation Model Donut Chart */}
-            <EvaluationModelDonutChart
-              title={evaluationModels.complexity.model_name}
-              subtitle={evaluationModels.complexity.description || 'How the overall complexity score is weighted'}
-              factors={evaluationModels.complexity.factors}
-              totalWeightPct={evaluationModels.complexity.total_weight_pct}
-              themeVariant="complexity"
-            />
+            
           </div>
 
           <div style={{ height: '1px', background: 'var(--color-border)', margin: '0' }} />
@@ -648,6 +650,17 @@ export const ComplexityCriticalityPage: React.FC<ComplexityCriticalityPageProps>
               EVALUATION MODEL
             </span>
 
+            {/* Criticality Evaluation Model Donut Chart */}
+            <EvaluationModelDonutChart
+              title={evaluationModels.criticality.model_name}
+              subtitle={evaluationModels.criticality.description || 'How the overall criticality score is weighted'}
+              factors={evaluationModels.criticality.factors}
+              totalWeightPct={evaluationModels.criticality.total_weight_pct}
+              technicalWeightPct={evaluationModels.criticality.technical_weight_pct || 60}
+              operationalWeightPct={evaluationModels.criticality.operational_weight_pct || 40}
+              themeVariant="criticality"
+            />
+
             <ul style={{ margin: 0, paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: '1.5' }}>
               <li>
                 <strong style={{ color: 'var(--color-text)' }}>Zero LLM involvement:</strong> 100% deterministic, reproducible, and auditable calculation across exactly 5 factors.
@@ -685,16 +698,7 @@ export const ComplexityCriticalityPage: React.FC<ComplexityCriticalityPageProps>
               </li>
             </ul>
 
-            {/* Criticality Evaluation Model Donut Chart */}
-            <EvaluationModelDonutChart
-              title={evaluationModels.criticality.model_name}
-              subtitle={evaluationModels.criticality.description || 'How the overall criticality score is weighted'}
-              factors={evaluationModels.criticality.factors}
-              totalWeightPct={evaluationModels.criticality.total_weight_pct}
-              technicalWeightPct={evaluationModels.criticality.technical_weight_pct || 60}
-              operationalWeightPct={evaluationModels.criticality.operational_weight_pct || 40}
-              themeVariant="criticality"
-            />
+            
           </div>
 
           <div style={{ height: '1px', background: 'var(--color-border)', margin: '0' }} />
