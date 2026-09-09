@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft,
   ChevronDown,
@@ -8,8 +8,98 @@ import {
   Cpu,
   ExternalLink,
 } from 'lucide-react';
-import { PortfolioOverviewDTO, PortfolioWorkflowSummaryDTO } from '../types/portfolio';
+import {
+  EvaluationModelDTO,
+  EvaluationModelsDTO,
+  PortfolioOverviewDTO,
+  PortfolioWorkflowSummaryDTO,
+} from '../types/portfolio';
+import { apiClient } from '../api/client';
+import { EvaluationModelDonutChart } from '../components/EvaluationModelDonutChart';
 import { getLevelBadgeStyle } from './PortfolioPage';
+
+const DEFAULT_COMPLEXITY_MODEL: EvaluationModelDTO = {
+  model_name: 'Complexity Evaluation Model',
+  description: 'How the overall complexity score is weighted',
+  total_weight_pct: 100,
+  factors: [
+    {
+      id: 'size',
+      name: 'Structural Size',
+      weight_pct: 20,
+      description: 'Evaluates total tools, total connections, and distinct tool types.',
+    },
+    {
+      id: 'transformation',
+      name: 'Transformation Complexity',
+      weight_pct: 25,
+      description: 'Evaluates tool operational weights based on transformation semantics.',
+    },
+    {
+      id: 'topology',
+      name: 'DAG Topology Complexity',
+      weight_pct: 25,
+      description: 'Evaluates branch points, merge points, and maximum DAG path depth.',
+    },
+    {
+      id: 'expression',
+      name: 'Expression Complexity',
+      weight_pct: 15,
+      description: 'Evaluates total formula/filter expressions, conditional logic blocks, and expression length.',
+    },
+    {
+      id: 'runtime',
+      name: 'Runtime & Integration Complexity',
+      weight_pct: 15,
+      description: 'Evaluates scripts (Python/R), macro dependencies, dynamic connectors, and database connections.',
+    },
+  ],
+};
+
+const DEFAULT_CRITICALITY_MODEL: EvaluationModelDTO = {
+  model_name: 'Criticality Evaluation Model',
+  description: 'How the overall criticality score is weighted',
+  technical_weight_pct: 60,
+  operational_weight_pct: 40,
+  total_weight_pct: 100,
+  factors: [
+    {
+      id: 'downstream_outputs',
+      name: 'Downstream outputs',
+      category: 'Technical',
+      weight_pct: 20,
+      description: 'Number of production targets produced.',
+    },
+    {
+      id: 'upstream_sources',
+      name: 'Upstream sources',
+      category: 'Technical',
+      weight_pct: 20,
+      description: 'Number of distinct source datasets consumed.',
+    },
+    {
+      id: 'etl_consumers',
+      name: 'Consuming ETL workflows',
+      category: 'Technical',
+      weight_pct: 20,
+      description: 'Number of other workflows in the estate consuming outputs from this workflow.',
+    },
+    {
+      id: 'last_run',
+      name: 'Last Run',
+      category: 'Operational',
+      weight_pct: 20,
+      description: 'Recency in operational metadata.',
+    },
+    {
+      id: 'frequency',
+      name: 'Frequency',
+      category: 'Operational',
+      weight_pct: 20,
+      description: 'Scheduled execution interval.',
+    },
+  ],
+};
 
 interface ComplexityCriticalityPageProps {
   portfolio: PortfolioOverviewDTO;
@@ -22,6 +112,24 @@ export const ComplexityCriticalityPage: React.FC<ComplexityCriticalityPageProps>
   onBackToPortfolio,
   onSelectWorkflow,
 }) => {
+  const [evaluationModels, setEvaluationModels] = useState<EvaluationModelsDTO>({
+    complexity: DEFAULT_COMPLEXITY_MODEL,
+    criticality: DEFAULT_CRITICALITY_MODEL,
+  });
+
+  useEffect(() => {
+    apiClient
+      .getEvaluationModels()
+      .then((models) => {
+        if (models && models.complexity && models.criticality) {
+          setEvaluationModels(models);
+        }
+      })
+      .catch(() => {
+        // Retain canonical defaults
+      });
+  }, []);
+
   const successfulWorkflows = useMemo(() => {
     return (portfolio.workflows || []).filter((w) => w.status === 'SUCCESS');
   }, [portfolio.workflows]);
@@ -33,6 +141,7 @@ export const ComplexityCriticalityPage: React.FC<ComplexityCriticalityPageProps>
   const selectedWorkflow: PortfolioWorkflowSummaryDTO | undefined = useMemo(() => {
     return successfulWorkflows.find((w) => w.workflow_id === selectedWorkflowId) || successfulWorkflows[0];
   }, [successfulWorkflows, selectedWorkflowId]);
+
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: '1400px', width: '100%', margin: '0 auto' }}>
@@ -361,6 +470,15 @@ export const ComplexityCriticalityPage: React.FC<ComplexityCriticalityPageProps>
                 </ul>
               </li>
             </ul>
+
+            {/* Complexity Evaluation Model Donut Chart */}
+            <EvaluationModelDonutChart
+              title={evaluationModels.complexity.model_name}
+              subtitle={evaluationModels.complexity.description || 'How the overall complexity score is weighted'}
+              factors={evaluationModels.complexity.factors}
+              totalWeightPct={evaluationModels.complexity.total_weight_pct}
+              themeVariant="complexity"
+            />
           </div>
 
           <div style={{ height: '1px', background: 'var(--color-border)', margin: '0' }} />
@@ -566,6 +684,17 @@ export const ComplexityCriticalityPage: React.FC<ComplexityCriticalityPageProps>
                 </em>
               </li>
             </ul>
+
+            {/* Criticality Evaluation Model Donut Chart */}
+            <EvaluationModelDonutChart
+              title={evaluationModels.criticality.model_name}
+              subtitle={evaluationModels.criticality.description || 'How the overall criticality score is weighted'}
+              factors={evaluationModels.criticality.factors}
+              totalWeightPct={evaluationModels.criticality.total_weight_pct}
+              technicalWeightPct={evaluationModels.criticality.technical_weight_pct || 60}
+              operationalWeightPct={evaluationModels.criticality.operational_weight_pct || 40}
+              themeVariant="criticality"
+            />
           </div>
 
           <div style={{ height: '1px', background: 'var(--color-border)', margin: '0' }} />

@@ -610,3 +610,29 @@ class SendEmailResponseDTO(BaseModel):
     recipient: str
 
 
+class EvaluationFactorDTO(BaseModel):
+    """Metadata for a single factor within a deterministic evaluation model."""
+    id: str
+    name: str
+    weight_pct: int
+    category: str | None = None
+    description: str = ""
+
+
+class EvaluationModelDTO(BaseModel):
+    """Specification of an entire deterministic evaluation model and its factor breakdown."""
+    model_name: str
+    description: str = ""
+    total_weight_pct: int = 100
+    technical_weight_pct: int | None = None
+    operational_weight_pct: int | None = None
+    factors: list[EvaluationFactorDTO] = Field(default_factory=list)
+
+
+class EvaluationModelsResponseDTO(BaseModel):
+    """Combined response containing Complexity and Criticality evaluation model specifications."""
+    complexity: EvaluationModelDTO
+    criticality: EvaluationModelDTO
+
+
+

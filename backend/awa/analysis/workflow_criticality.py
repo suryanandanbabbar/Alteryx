@@ -37,6 +37,56 @@ CRITICALITY_FACTOR_WEIGHT: float = 0.20  # 20% per factor
 TECHNICAL_WEIGHT_TOTAL: float = 0.60    # 60%
 OPERATIONAL_WEIGHT_TOTAL: float = 0.40  # 40%
 
+CRITICALITY_EVALUATION_FACTORS: list[dict[str, Any]] = [
+    {
+        "id": "downstream_outputs",
+        "name": "Downstream outputs",
+        "category": "Technical",
+        "weight_pct": int(CRITICALITY_FACTOR_WEIGHT * 100),
+        "description": "Number of production targets produced.",
+    },
+    {
+        "id": "upstream_sources",
+        "name": "Upstream sources",
+        "category": "Technical",
+        "weight_pct": int(CRITICALITY_FACTOR_WEIGHT * 100),
+        "description": "Number of distinct source datasets consumed.",
+    },
+    {
+        "id": "etl_consumers",
+        "name": "Consuming ETL workflows",
+        "category": "Technical",
+        "weight_pct": int(CRITICALITY_FACTOR_WEIGHT * 100),
+        "description": "Number of other workflows in the estate consuming outputs from this workflow.",
+    },
+    {
+        "id": "last_run",
+        "name": "Last Run",
+        "category": "Operational",
+        "weight_pct": int(CRITICALITY_FACTOR_WEIGHT * 100),
+        "description": "Recency in operational metadata.",
+    },
+    {
+        "id": "frequency",
+        "name": "Frequency",
+        "category": "Operational",
+        "weight_pct": int(CRITICALITY_FACTOR_WEIGHT * 100),
+        "description": "Scheduled execution interval.",
+    },
+]
+
+
+def get_criticality_evaluation_model() -> dict[str, Any]:
+    """Return the authoritative criticality evaluation model specification."""
+    return {
+        "model_name": "Criticality Evaluation Model",
+        "description": "How the overall criticality score is weighted",
+        "technical_weight_pct": int(TECHNICAL_WEIGHT_TOTAL * 100),
+        "operational_weight_pct": int(OPERATIONAL_WEIGHT_TOTAL * 100),
+        "total_weight_pct": sum(f["weight_pct"] for f in CRITICALITY_EVALUATION_FACTORS),
+        "factors": list(CRITICALITY_EVALUATION_FACTORS),
+    }
+
 CRITICALITY_LOW_MAX: float = 34.0
 CRITICALITY_MEDIUM_MAX: float = 60.0
 

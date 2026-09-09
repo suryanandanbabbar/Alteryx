@@ -14,6 +14,7 @@ from awa.parser.format_handler import detect_format
 from backend.app.config import settings
 from backend.app.models.schemas import (
     AnalysisOverviewDTO,
+    EvaluationModelsResponseDTO,
     PortfolioOverviewDTO,
     PortfolioWorkflowSummaryDTO,
     RationalisationAnalysisDTO,
@@ -103,6 +104,18 @@ async def upload_portfolio(
     # Case B/C: Multiple workflows -> Portfolio mode
     portfolio = process_portfolio_uploads(discovered_workflows, portfolio_name=portfolio_name)
     return _to_portfolio_dto(portfolio)
+
+
+@router.get("/evaluation-models", response_model=EvaluationModelsResponseDTO)
+def get_evaluation_models():
+    """Return authoritative deterministic Complexity and Criticality evaluation model specifications."""
+    from awa.analysis.workflow_complexity import get_complexity_evaluation_model
+    from awa.analysis.workflow_criticality import get_criticality_evaluation_model
+
+    return EvaluationModelsResponseDTO(
+        complexity=get_complexity_evaluation_model(),
+        criticality=get_criticality_evaluation_model(),
+    )
 
 
 @router.get("/{portfolio_id}", response_model=PortfolioOverviewDTO)
@@ -332,6 +345,8 @@ def send_rationalisation_email(request: SendEmailRequestDTO):
         message="Email sent successfully.",
         recipient=request.to_email.strip(),
     )
+
+
 
 
 

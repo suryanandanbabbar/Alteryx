@@ -288,3 +288,26 @@ export interface PortfolioOverviewDTO {
   created_at: number;
 }
 
+export interface EvaluationFactorDTO {
+  id: string;
+  name: string;
+  weight_pct: number;
+  category?: string | null;
+  description?: string;
+}
+
+export interface EvaluationModelDTO {
+  model_name: string;
+  description?: string;
+  total_weight_pct: number;
+  technical_weight_pct?: number | null;
+  operational_weight_pct?: number | null;
+  factors: EvaluationFactorDTO[];
+}
+
+export interface EvaluationModelsDTO {
+  complexity: EvaluationModelDTO;
+  criticality: EvaluationModelDTO;
+}
+
+

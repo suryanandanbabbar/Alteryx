@@ -37,6 +37,49 @@ COMPLEXITY_WEIGHTS: dict[str, float] = {
     "runtime": 0.15,
 }
 
+COMPLEXITY_EVALUATION_FACTORS: list[dict[str, Any]] = [
+    {
+        "id": "size",
+        "name": "Structural Size",
+        "weight_pct": int(COMPLEXITY_WEIGHTS["size"] * 100),
+        "description": "Evaluates total tools, total connections, and distinct tool types.",
+    },
+    {
+        "id": "transformation",
+        "name": "Transformation Complexity",
+        "weight_pct": int(COMPLEXITY_WEIGHTS["transformation"] * 100),
+        "description": "Evaluates tool operational weights based on transformation semantics.",
+    },
+    {
+        "id": "topology",
+        "name": "DAG Topology Complexity",
+        "weight_pct": int(COMPLEXITY_WEIGHTS["topology"] * 100),
+        "description": "Evaluates branch points, merge points, and maximum DAG path depth.",
+    },
+    {
+        "id": "expression",
+        "name": "Expression Complexity",
+        "weight_pct": int(COMPLEXITY_WEIGHTS["expression"] * 100),
+        "description": "Evaluates total formula/filter expressions, conditional logic blocks, and expression length.",
+    },
+    {
+        "id": "runtime",
+        "name": "Runtime & Integration Complexity",
+        "weight_pct": int(COMPLEXITY_WEIGHTS["runtime"] * 100),
+        "description": "Evaluates scripts (Python/R), macro dependencies, dynamic connectors, and database connections.",
+    },
+]
+
+
+def get_complexity_evaluation_model() -> dict[str, Any]:
+    """Return the authoritative complexity evaluation model specification."""
+    return {
+        "model_name": "Complexity Evaluation Model",
+        "description": "How the overall complexity score is weighted",
+        "total_weight_pct": sum(f["weight_pct"] for f in COMPLEXITY_EVALUATION_FACTORS),
+        "factors": list(COMPLEXITY_EVALUATION_FACTORS),
+    }
+
 COMPLEXITY_LOW_MAX: float = 34.0
 COMPLEXITY_MEDIUM_MAX: float = 69.0
 

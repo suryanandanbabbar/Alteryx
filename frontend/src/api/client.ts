@@ -10,7 +10,11 @@ import {
   SendEmailRequest,
   SendEmailResponse,
 } from '../types/workflow';
-import { PortfolioOverviewDTO, RationalisationAnalysisDTO } from '../types/portfolio';
+import {
+  EvaluationModelsDTO,
+  PortfolioOverviewDTO,
+  RationalisationAnalysisDTO,
+} from '../types/portfolio';
 
 const BASE_URL = '/api';
 
@@ -218,6 +222,11 @@ export const api = {
       body: JSON.stringify(payload),
     });
     return handleResponse<SendEmailResponse>(res);
+  },
+
+  async getEvaluationModels(): Promise<EvaluationModelsDTO> {
+    const res = await fetch(`${BASE_URL}/portfolio/evaluation-models`);
+    return handleResponse<EvaluationModelsDTO>(res);
   },
 };
 
