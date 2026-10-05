@@ -17,7 +17,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from .config import LicenseConfig
-from .errors import LicenseInvalidError, LicenseNetworkError
+from .errors import LicenseAuthenticationError, LicenseInvalidError, LicenseNetworkError
 from .models import LicenseValidationRequest, LicenseValidationResponse
 
 logger = logging.getLogger("awa.licensing.client")
@@ -76,15 +76,19 @@ def validate_license(
 
     req_body = request_model.model_dump_json().encode("utf-8")
 
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "AWA-LicenseClient/1.0",
+    }
+    if config.api_client_secret:
+        headers["Authorization"] = f"Bearer {config.api_client_secret}"
+
     try:
         req = Request(
             url,
             data=req_body,
-            headers={
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                "User-Agent": "AWA-LicenseClient/1.0",
-            },
+            headers=headers,
             method="POST",
         )
 
@@ -102,6 +106,14 @@ def validate_license(
         logger.warning(
             "License API returned HTTP %d: %s", status_code, error_body[:200]
         )
+        if status_code in (401, 403):
+            raise LicenseAuthenticationError(
+                f"License API authentication failed: HTTP {status_code}."
+            ) from exc
+        if 400 <= status_code < 500:
+            raise LicenseInvalidError(
+                f"License API returned client/protocol error: HTTP {status_code}."
+            ) from exc
         raise LicenseNetworkError(
             f"License API returned HTTP {status_code}."
         ) from exc

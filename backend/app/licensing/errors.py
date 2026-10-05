@@ -20,6 +20,11 @@ class LicenseNetworkError(LicenseError):
     pass
 
 
+class LicenseAuthenticationError(LicenseError):
+    """Raised when API client authentication fails (HTTP 401/403)."""
+    pass
+
+
 class LicenseSignatureError(LicenseError):
     """Raised when Ed25519 signature verification fails."""
     pass

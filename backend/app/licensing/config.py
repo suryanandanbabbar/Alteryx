@@ -16,15 +16,11 @@ logger = logging.getLogger("awa.licensing.config")
 # ---------------------------------------------------------------------------
 # Production Ed25519 public key (base64-encoded, 32 bytes).
 #
-# CONFIGURATION REQUIRED:
-#   Replace this value with the actual production public key before the
-#   final Nuitka build.  The corresponding private key MUST remain in
-#   Azure Key Vault and MUST NEVER appear in this file or repository.
-#
-#   Example (test-only, NOT a real production key):
-#     _EMBEDDED_PUBLIC_KEY = "dGVzdC1wdWJsaWMta2V5LTMyLWJ5dGVzLXBhZA=="
+# Extracted from license_server/alteryx-license-public.pem.
+# The corresponding private key resides exclusively in Azure Key Vault and is
+# NEVER included in client builds or repositories.
 # ---------------------------------------------------------------------------
-_EMBEDDED_PUBLIC_KEY: str | None = None
+_EMBEDDED_PUBLIC_KEY: str = "aykIwjC0U0mxmTXUDhQdwBCiogj8YRNWy/8EieAfx9s="
 
 # Default timing constants (seconds)
 _DEFAULT_GRACE_SECONDS = 259_200      # 72 hours
@@ -46,9 +42,10 @@ class LicenseConfig:
     license_id: str = ""
     product: str = "alteryx-etl"
     environment: str = "production"
-    public_key_b64: str | None = None
+    public_key_b64: str = _EMBEDDED_PUBLIC_KEY
     grace_seconds: int = _DEFAULT_GRACE_SECONDS
     heartbeat_seconds: int = _DEFAULT_HEARTBEAT_SECONDS
+    api_client_secret: str = ""
 
     # ── Factory ──────────────────────────────────────────────────────
 
@@ -81,6 +78,7 @@ class LicenseConfig:
             heartbeat_seconds=int(
                 os.getenv("ALTERYX_LICENSE_HEARTBEAT_SECONDS", str(_DEFAULT_HEARTBEAT_SECONDS))
             ),
+            api_client_secret=os.getenv("ALTERYX_LICENSE_API_CLIENT_SECRET", "").strip(),
         )
 
     # ── Validation ───────────────────────────────────────────────────

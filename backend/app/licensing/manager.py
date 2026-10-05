@@ -17,6 +17,7 @@ from typing import Callable
 
 from .config import LicenseConfig
 from .errors import (
+    LicenseAuthenticationError,
     LicenseExpiredError,
     LicenseInvalidError,
     LicenseNetworkError,
@@ -285,6 +286,16 @@ class LicenseManager:
                 logger.error(
                     "Invalid license/protocol response received during renewal: %s. "
                     "Application will shut down immediately.",
+                    exc,
+                )
+                self._lease.valid = False
+                self._on_shutdown(str(exc))
+                break
+
+            except LicenseAuthenticationError as exc:
+                logger.error(
+                    "License API authentication failed during renewal: %s. "
+                    "Application will shut down immediately without grace.",
                     exc,
                 )
                 self._lease.valid = False

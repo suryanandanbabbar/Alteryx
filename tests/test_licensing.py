@@ -27,6 +27,7 @@ Test requirements coverage (Section 10):
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import secrets
@@ -37,8 +38,9 @@ import pytest
 from nacl.signing import SigningKey
 
 from backend.app.licensing.client import get_instance_id
-from backend.app.licensing.config import LicenseConfig
+from backend.app.licensing.config import LicenseConfig, _EMBEDDED_PUBLIC_KEY
 from backend.app.licensing.errors import (
+    LicenseAuthenticationError,
     LicenseConfigurationError,
     LicenseExpiredError,
     LicenseInvalidError,
@@ -752,4 +754,208 @@ def test_24_client_instance_mismatch_rejected(test_keypair):
     with patch("backend.app.licensing.client.validate_license", return_value=(resp_dict, resp_obj, resp_dict["request_id"], "expected-request-instance")):
         with pytest.raises(LicenseInvalidError, match="Client instance mismatch"):
             manager.validate_or_raise()
+
+
+# ── 25. Embedded Public Key Is Present and 32 Bytes ───────────────────
+
+
+def test_25_embedded_public_key_present_and_valid():
+    """25. Embedded public key is present, non-empty, and decodes to exactly 32 bytes."""
+    from nacl.signing import VerifyKey
+
+    assert isinstance(_EMBEDDED_PUBLIC_KEY, str)
+    assert len(_EMBEDDED_PUBLIC_KEY) > 0
+
+    raw_bytes = base64.b64decode(_EMBEDDED_PUBLIC_KEY)
+    assert len(raw_bytes) == 32
+
+    # VerifyKey must accept it without error
+    vk = VerifyKey(raw_bytes)
+    assert len(vk.encode()) == 32
+
+
+# ── 26. Production Public Key Cannot Be Overridden By Environment ─────
+
+
+def test_26_production_public_key_cannot_be_overridden_by_env(monkeypatch):
+    """26. ALTERYX_LICENSE_PUBLIC_KEY cannot replace the embedded production key."""
+    fake_key = base64.b64encode(b"B" * 32).decode("ascii")
+    monkeypatch.setenv("ALTERYX_LICENSE_PUBLIC_KEY", fake_key)
+
+    config = LicenseConfig.from_env()
+    assert config.public_key_b64 == _EMBEDDED_PUBLIC_KEY
+    assert config.public_key_b64 != fake_key
+
+
+# ── 27. Client Sends Authorization Bearer Header ──────────────────────
+
+
+def test_27_client_sends_authorization_bearer_header():
+    """27. Client sends Authorization: Bearer <secret> when api_client_secret is configured."""
+    from urllib.error import HTTPError
+    from io import BytesIO
+    from backend.app.licensing.client import validate_license
+
+    config = LicenseConfig(
+        api_url="https://license.example.com",
+        license_id="TEST-001",
+        api_client_secret="my-super-secret-api-token",
+    )
+
+    captured_headers = {}
+
+    def mock_urlopen(req, timeout=15):
+        captured_headers.update(req.headers)
+        # Return minimal valid JSON response
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "license_id": "TEST-001",
+            "product": "alteryx-etl",
+            "environment": "production",
+            "client_instance_id": "inst-1",
+            "request_id": "req-1",
+            "status": "active",
+            "lease_expires_at": "2026-10-06T12:00:00+00:00",
+            "server_time": "2026-10-05T12:00:00+00:00",
+            "features": {},
+            "signature": "mock",
+        }).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+        return mock_resp
+
+    with patch("backend.app.licensing.client.urlopen", side_effect=mock_urlopen):
+        validate_license(config)
+
+    assert "Authorization" in captured_headers
+    assert captured_headers["Authorization"] == "Bearer my-super-secret-api-token"
+
+
+# ── 28. Authentication Failure Fails Closed Without Grace ─────────────
+
+
+def test_28_authentication_failure_fails_closed_without_grace():
+    """28. HTTP 401/403 raises LicenseAuthenticationError and fails closed immediately without entering grace."""
+    from urllib.error import HTTPError
+    from io import BytesIO
+    from backend.app.licensing.client import validate_license
+
+    config = LicenseConfig(
+        api_url="https://license.example.com",
+        license_id="TEST-001",
+        api_client_secret="wrong-token",
+        grace_seconds=86400,
+    )
+    manager = LicenseManager(config=config)
+
+    def mock_urlopen_401(req, timeout=15):
+        raise HTTPError(
+            url="https://license.example.com/v1/license/validate",
+            code=401,
+            msg="Unauthorized",
+            hdrs={},
+            fp=BytesIO(b'{"detail":"Invalid credentials"}'),
+        )
+
+    with patch("backend.app.licensing.client.urlopen", side_effect=mock_urlopen_401):
+        # Client raises LicenseAuthenticationError
+        with pytest.raises(LicenseAuthenticationError):
+            validate_license(config)
+
+        # Manager also fails closed immediately
+        with pytest.raises(LicenseAuthenticationError):
+            manager.validate_or_raise()
+
+    assert manager.is_licensed is False
+
+
+# ── 29. Renewal Authentication Failure Triggers Immediate Shutdown ────
+
+
+def test_29_renewal_authentication_failure_triggers_immediate_shutdown(test_keypair):
+    """29. HTTP 401 during heartbeat renewal shuts down immediately without entering grace."""
+    config = LicenseConfig(
+        enabled=True,
+        api_url="https://license.example.com",
+        license_id="TEST-LIC-001",
+        public_key_b64=test_keypair["public_b64"],
+        grace_seconds=86400,
+        heartbeat_seconds=1,
+    )
+    shutdown_reasons: list[str] = []
+    manager = LicenseManager(
+        config=config,
+        on_shutdown=lambda reason: shutdown_reasons.append(reason),
+    )
+
+    now = datetime.now(timezone.utc)
+    # Establish valid initial lease
+    resp1_dict, _ = make_signed_payload(
+        test_keypair["signing_key"],
+        license_id="TEST-LIC-001",
+        status="active",
+        lease_hours=24,
+        server_time=now,
+    )
+    resp1_obj = LicenseValidationResponse(**resp1_dict)
+    manager.lease.update_from_response(resp1_obj)
+    assert manager.is_licensed is True
+
+    # Renewal fails with 401 LicenseAuthenticationError
+    async def _run_heartbeat():
+        with patch("backend.app.licensing.client.validate_license", side_effect=LicenseAuthenticationError("HTTP 401")):
+            await manager.start_renewal_loop()
+            await asyncio.sleep(1.2)
+            await manager.stop_renewal_loop()
+
+    asyncio.run(_run_heartbeat())
+
+    # Must shut down immediately without entering grace
+    assert len(shutdown_reasons) == 1
+    assert "HTTP 401" in shutdown_reasons[0]
+    assert manager.lease.valid is False
+    assert manager.is_licensed is False
+
+
+# ── 30. Network Outage Uses Grace While 4xx Fails Closed ──────────────
+
+
+def test_30_network_outage_uses_grace_while_4xx_fails_closed(test_keypair):
+    """30. Network outages (5xx/timeout) use grace period, while protocol/client 4xx errors fail closed."""
+    from urllib.error import HTTPError
+    from io import BytesIO
+    from backend.app.licensing.client import validate_license
+
+    config = LicenseConfig(
+        api_url="https://license.example.com",
+        license_id="TEST-001",
+    )
+
+    # 400 Bad Request -> LicenseInvalidError (not eligible for network grace)
+    def mock_urlopen_400(req, timeout=15):
+        raise HTTPError(
+            url="https://license.example.com/v1/license/validate",
+            code=400,
+            msg="Bad Request",
+            hdrs={},
+            fp=BytesIO(b'{"detail":"Malformed payload"}'),
+        )
+
+    with patch("backend.app.licensing.client.urlopen", side_effect=mock_urlopen_400):
+        with pytest.raises(LicenseInvalidError):
+            validate_license(config)
+
+    # 503 Service Unavailable -> LicenseNetworkError (eligible for network grace)
+    def mock_urlopen_503(req, timeout=15):
+        raise HTTPError(
+            url="https://license.example.com/v1/license/validate",
+            code=503,
+            msg="Service Unavailable",
+            hdrs={},
+            fp=BytesIO(b'{"detail":"Key Vault unavailable"}'),
+        )
+
+    with patch("backend.app.licensing.client.urlopen", side_effect=mock_urlopen_503):
+        with pytest.raises(LicenseNetworkError):
+            validate_license(config)
+
 
