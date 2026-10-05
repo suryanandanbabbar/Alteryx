@@ -10,8 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import networkx as nx
 
-from awa.model.workflow import Workflow, Tool
-from awa.graph.builder import execution_order
+from backend.awa.model.workflow import Workflow, Tool
+from backend.awa.graph.builder import execution_order
 
 
 @dataclass
@@ -19,11 +19,13 @@ class ToolSpecificationRow:
     """Represents a single row in the Tool Specifications worksheet."""
     tool_id: int
     tool_id_formatted: str               # e.g. "#1"
-    xml_tool_name: str                   # e.g. "AlteryxBasePluginsGui.DbFileInput.DbFileInput"
+    # e.g. "AlteryxBasePluginsGui.DbFileInput.DbFileInput"
+    xml_tool_name: str
     tool_type: str                       # e.g. "DbFileInput"
     role: str                            # LLM-generated "Role — What It Does"
     data_flow_explanation: str           # LLM-generated "Data Flow Explanation"
-    input_tool: str                      # Deterministic: "Source" or "#3 Summarize; #7 Join"
+    # Deterministic: "Source" or "#3 Summarize; #7 Join"
+    input_tool: str
     output_tool: str                     # Deterministic: "None" or "#2 Filter; #5 Browse"
 
 
@@ -90,7 +92,8 @@ def build_tool_specifications_document(
     if graph is not None:
         try:
             exec_steps = execution_order(graph)
-            ordered_tool_ids = [step.tool_id for step in exec_steps if step.tool_id in workflow.tools]
+            ordered_tool_ids = [
+                step.tool_id for step in exec_steps if step.tool_id in workflow.tools]
         except Exception:
             ordered_tool_ids = []
 

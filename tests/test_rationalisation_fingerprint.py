@@ -6,17 +6,17 @@ import networkx as nx
 import pytest
 from types import SimpleNamespace
 
-from awa.analysis.rationalisation_analyzer import (
+from backend.awa.analysis.rationalisation_analyzer import (
     build_workflow_fingerprint,
     normalize_name,
     normalize_expression,
 )
-from awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
-from awa.model.connection import Connection
-from awa.model.field import Field
-from awa.model.portfolio import PortfolioWorkflowSummary
-from awa.model.tool import Tool, ToolConfiguration, Position
-from awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
+from backend.awa.model.connection import Connection
+from backend.awa.model.field import Field
+from backend.awa.model.portfolio import PortfolioWorkflowSummary
+from backend.awa.model.tool import Tool, ToolConfiguration, Position
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
 
 
 def _create_test_workflow(
@@ -71,7 +71,8 @@ def _create_test_workflow(
 
     out_schema = None
     if output_schema_fields:
-        out_schema = SimpleNamespace(fields=[Field(name=f, type="V_WString", size=100) for f in output_schema_fields])
+        out_schema = SimpleNamespace(
+            fields=[Field(name=f, type="V_WString", size=100) for f in output_schema_fields])
 
     res = SimpleNamespace(
         analysis_id=workflow_id,
@@ -112,8 +113,10 @@ class TestRationalisationFingerprint:
             (3, "DbFileOutput", "<File>Active_Customers.yxdb</File>"),
         ]
         conns = [(1, 2), (2, 3)]
-        s1, res1 = _create_test_workflow("wf_1", "Customer_A.yxmd", ["Customer.xlsx"], ["Active_Customers.yxdb"], [], tools, conns)
-        s2, res2 = _create_test_workflow("wf_1", "Customer_A.yxmd", ["Customer.xlsx"], ["Active_Customers.yxdb"], [], tools, conns)
+        s1, res1 = _create_test_workflow("wf_1", "Customer_A.yxmd", ["Customer.xlsx"], [
+                                         "Active_Customers.yxdb"], [], tools, conns)
+        s2, res2 = _create_test_workflow("wf_1", "Customer_A.yxmd", ["Customer.xlsx"], [
+                                         "Active_Customers.yxdb"], [], tools, conns)
 
         fp1 = build_workflow_fingerprint(s1, res1)
         fp2 = build_workflow_fingerprint(s2, res2)
@@ -193,19 +196,22 @@ class TestRationalisationFingerprint:
 
         assert "customerid" in fp.output_grain
         assert "region" in fp.output_grain
-        assert fp.output_schemas["customer_regional_summary"] == ["CustomerID", "Region", "TotalAmount"]
+        assert fp.output_schemas["customer_regional_summary"] == [
+            "CustomerID", "Region", "TotalAmount"]
 
     def test_transformation_signatures_captured(self):
         """Filters, joins, aggregations, Python, and macros must produce normalized signatures."""
         tools = [
             (1, "DbFileInput", ""),
-            (2, "Filter", "<Expression>[Sales] > 1000 AND [Region] = 'EMEA'</Expression>"),
+            (2, "Filter",
+             "<Expression>[Sales] > 1000 AND [Region] = 'EMEA'</Expression>"),
             (3, "Join", ""),
             (4, "Python", ""),
             (5, "DbFileOutput", ""),
         ]
         conns = [(1, 2), (2, 3), (3, 4), (4, 5)]
-        s, res = _create_test_workflow("wf_sig", "Sig_Test.yxmd", ["Source.xlsx"], ["Target.yxdb"], [], tools, conns)
+        s, res = _create_test_workflow("wf_sig", "Sig_Test.yxmd", ["Source.xlsx"], [
+                                       "Target.yxdb"], [], tools, conns)
         fp = build_workflow_fingerprint(s, res)
 
         assert fp.has_python is True
@@ -224,7 +230,8 @@ class TestRationalisationFingerprint:
             (4, "Join", ""),
         ]
         conns = [(1, 2), (1, 3), (2, 4), (3, 4)]
-        s, res = _create_test_workflow("wf_dag", "DAG_Test.yxmd", ["In.csv"], ["Out.csv"], [], tools, conns)
+        s, res = _create_test_workflow("wf_dag", "DAG_Test.yxmd", ["In.csv"], [
+                                       "Out.csv"], [], tools, conns)
         fp = build_workflow_fingerprint(s, res)
 
         assert fp.node_count == 4

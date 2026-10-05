@@ -1,9 +1,9 @@
 """Tests for ToolCatalog loading, iteration, and counts."""
 
 import pytest
-from awa.tools import get_tool_catalog, ToolCatalog
-from awa.tools.categories import ToolCategory
-from awa.tools.definitions import ALL_TOOLS
+from backend.awa.tools import get_tool_catalog, ToolCatalog
+from backend.awa.tools.categories import ToolCategory
+from backend.awa.tools.definitions import ALL_TOOLS
 
 
 class TestToolCatalog:

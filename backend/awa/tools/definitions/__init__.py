@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from awa.tools.definition import ToolDefinition
+from backend.awa.tools.definition import ToolDefinition
 from .in_out import IN_OUT_TOOLS
 from .preparation import PREPARATION_TOOLS
 from .join import JOIN_TOOLS

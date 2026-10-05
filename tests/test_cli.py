@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from click.testing import CliRunner
 
-from awa.cli.main import cli
+from backend.awa.cli.main import cli
 
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
@@ -36,7 +36,8 @@ class TestCLI:
         runner = CliRunner()
         fixture = FIXTURES_DIR / "basic" / "simple_filter.yxmd"
         out_dir = tmp_path / "cli_analysis"
-        result = runner.invoke(cli, ["analyze", str(fixture), "--output", str(out_dir)])
+        result = runner.invoke(
+            cli, ["analyze", str(fixture), "--output", str(out_dir)])
         assert result.exit_code == 0
         assert "Analyzing:" in result.output
         assert "Done." in result.output

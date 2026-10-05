@@ -21,19 +21,19 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from awa.analysis.business_area_classifier import (
+from backend.awa.analysis.business_area_classifier import (
     ALLOWED_BUSINESS_AREAS,
     classify_business_area_deterministic,
     classify_workflow_business_area,
     extract_output_evidence_for_workflow,
 )
-from awa.analysis.portfolio_analyzer import build_portfolio_analysis
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.llm.cache import LLMNarrativeCache
-from awa.llm.client import FakeLLMClient
-from awa.llm.generator import LLMNarrativeGenerator
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.portfolio import BusinessAreaClassification
+from backend.awa.analysis.portfolio_analyzer import build_portfolio_analysis
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.llm.cache import LLMNarrativeCache
+from backend.awa.llm.client import FakeLLMClient
+from backend.awa.llm.generator import LLMNarrativeGenerator
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.portfolio import BusinessAreaClassification
 
 
 class TestBusinessAreaClassification:
@@ -63,7 +63,8 @@ class TestBusinessAreaClassification:
         result = classify_business_area_deterministic(evidence)
         assert result.business_area == "Legal"
         assert result.confidence in ("HIGH", "MEDIUM")
-        assert any(ev in result.evidence for ev in ["Matter_ID", "Contract_ID", "Litigation_Status", "Legal_Matters.xlsx"])
+        assert any(ev in result.evidence for ev in [
+                   "Matter_ID", "Contract_ID", "Litigation_Status", "Legal_Matters.xlsx"])
 
     def test_underwriting_deterministic_classification(self):
         """Requirement 27: Underwriting domain evidence correctly classified."""
@@ -76,7 +77,8 @@ class TestBusinessAreaClassification:
         result = classify_business_area_deterministic(evidence)
         assert result.business_area == "Underwriting"
         assert result.confidence in ("HIGH", "MEDIUM")
-        assert any(ev in result.evidence for ev in ["Policy_ID", "Coverage", "Premium", "Policy_Underwriting.xlsx"])
+        assert any(ev in result.evidence for ev in [
+                   "Policy_ID", "Coverage", "Premium", "Policy_Underwriting.xlsx"])
 
     def test_sales_and_distribution_deterministic_classification(self):
         """Requirement 27: Sales & Distribution domain evidence correctly classified."""
@@ -89,7 +91,8 @@ class TestBusinessAreaClassification:
         result = classify_business_area_deterministic(evidence)
         assert result.business_area == "Sales & Distribution"
         assert result.confidence in ("HIGH", "MEDIUM")
-        assert any(ev in result.evidence for ev in ["Customer_ID", "Sales_Amount", "Distributor", "Sales_Distribution.xlsx"])
+        assert any(ev in result.evidence for ev in [
+                   "Customer_ID", "Sales_Amount", "Distributor", "Sales_Distribution.xlsx"])
 
     def test_forbidden_evidence_boundary(self):
         """Requirement 29: Classifier payload contains ONLY output datasets and columns.
@@ -112,7 +115,8 @@ class TestBusinessAreaClassification:
         if canonical_res.business_summary:
             for inp in canonical_res.business_summary.source_inputs:
                 if inp.source_filename:
-                    assert inp.source_filename not in [out["dataset"] for out in evidence]
+                    assert inp.source_filename not in [
+                        out["dataset"] for out in evidence]
 
         # No workflow business purpose
         if canonical_res.business_summary and canonical_res.business_summary.business_purpose:
@@ -143,7 +147,8 @@ class TestBusinessAreaClassification:
             })
 
         fake_client = FakeLLMClient(generator_fn=hallucinating_generator)
-        gen = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
 
         # Create dummy CanonicalAnalysisResult
         dummy_res = MagicMock()
@@ -151,11 +156,12 @@ class TestBusinessAreaClassification:
         dummy_res.graph.nodes = []
 
         # Patch extraction
-        import awa.analysis.business_area_classifier as bac
+        import backend.awa.analysis.business_area_classifier as bac
         orig_extract = bac.extract_output_evidence_for_workflow
         try:
             bac.extract_output_evidence_for_workflow = lambda r: evidence
-            classified = classify_workflow_business_area(dummy_res, generator=gen)
+            classified = classify_workflow_business_area(
+                dummy_res, generator=gen)
 
             # Hallucinated LLM response must be rejected -> source is deterministic_fallback
             assert classified.classification_source == "deterministic_fallback"
@@ -181,14 +187,16 @@ class TestBusinessAreaClassification:
             })
 
         fake_client = FakeLLMClient(generator_fn=invalid_area_generator)
-        gen = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
 
         dummy_res = MagicMock()
-        import awa.analysis.business_area_classifier as bac
+        import backend.awa.analysis.business_area_classifier as bac
         orig_extract = bac.extract_output_evidence_for_workflow
         try:
             bac.extract_output_evidence_for_workflow = lambda r: evidence
-            classified = classify_workflow_business_area(dummy_res, generator=gen)
+            classified = classify_workflow_business_area(
+                dummy_res, generator=gen)
 
             # Invalid area rejected
             assert classified.business_area != "Finance"
@@ -209,14 +217,16 @@ class TestBusinessAreaClassification:
             raise RuntimeError("Connection timed out after 30s")
 
         fake_client = FakeLLMClient(generator_fn=error_generator)
-        gen = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
 
         dummy_res = MagicMock()
-        import awa.analysis.business_area_classifier as bac
+        import backend.awa.analysis.business_area_classifier as bac
         orig_extract = bac.extract_output_evidence_for_workflow
         try:
             bac.extract_output_evidence_for_workflow = lambda r: evidence
-            classified = classify_workflow_business_area(dummy_res, generator=gen)
+            classified = classify_workflow_business_area(
+                dummy_res, generator=gen)
 
             assert classified.business_area == "Legal"
             assert classified.classification_source == "deterministic_fallback"
@@ -231,7 +241,8 @@ class TestBusinessAreaClassification:
         assert len(evidence) == 0  # 0 production outputs
 
         classified = classify_workflow_business_area(canonical_res)
-        assert classified.business_area in ("UNCLASSIFIED", "Other / Unclassified")
+        assert classified.business_area in (
+            "UNCLASSIFIED", "Other / Unclassified")
         assert classified.confidence in ("UNCLASSIFIED", "LOW")
         assert len(classified.evidence) == 0
         assert classified.classification_source == "deterministic_fallback"
@@ -270,7 +281,8 @@ class TestBusinessAreaClassification:
 
     def test_portfolio_business_area_aggregation(self):
         """Requirement 15: Portfolio aggregates business area counts deterministically."""
-        claims_res = analyze_canonical(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        claims_res = analyze_canonical(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         ftse_res = analyze_canonical(Path("FTSE 100.yxmd"))
 
         portfolio = build_portfolio_analysis([

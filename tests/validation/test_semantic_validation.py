@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from pathlib import Path
 
-from awa.analysis.workflow_analyzer import analyze_workflow
+from backend.awa.analysis.workflow_analyzer import analyze_workflow
 
 
 FIXTURES_DIR = Path(__file__).parent.parent.parent / "fixtures"
@@ -35,7 +35,7 @@ class TestSemanticExecution:
             "status": ["active", "inactive", "active", "active"],
             "revenue": [150.0, 500.0, 50.0, 300.0]
         })
-        
+
         # Output directory for the script execution
         data_dir = tmp_path / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
@@ -46,10 +46,12 @@ class TestSemanticExecution:
         # In the generated script, patch the input/output paths to point to tmp_path
         script_path = out_dir / "workflow.py"
         script_code = script_path.read_text()
-        
-        input_raw = result.workflow.tools[1].configuration.parsed.get("file_path", "")
-        output_raw = result.workflow.tools[3].configuration.parsed.get("file_path", "")
-        
+
+        input_raw = result.workflow.tools[1].configuration.parsed.get(
+            "file_path", "")
+        output_raw = result.workflow.tools[3].configuration.parsed.get(
+            "file_path", "")
+
         patched_code = script_code.replace(
             repr(input_raw), repr(str(input_file))
         ).replace(
@@ -105,9 +107,12 @@ class TestSemanticExecution:
         script_path = out_dir / "workflow.py"
         script_code = script_path.read_text()
 
-        input1_raw = result.workflow.tools[1].configuration.parsed.get("file_path", "")
-        input2_raw = result.workflow.tools[2].configuration.parsed.get("file_path", "")
-        output_raw = result.workflow.tools[6].configuration.parsed.get("file_path", "")
+        input1_raw = result.workflow.tools[1].configuration.parsed.get(
+            "file_path", "")
+        input2_raw = result.workflow.tools[2].configuration.parsed.get(
+            "file_path", "")
+        output_raw = result.workflow.tools[6].configuration.parsed.get(
+            "file_path", "")
 
         patched_code = script_code.replace(
             repr(input1_raw), repr(str(customers_file))

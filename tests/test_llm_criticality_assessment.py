@@ -14,32 +14,33 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 import pytest
 
-from awa.llm.client import FakeLLMClient
-from awa.llm.generator import LLMNarrativeGenerator
-from awa.llm.cache import LLMNarrativeCache
-from awa.llm.schemas import CriticalityEvidencePackage, WorkflowFacts
-from awa.analysis.workflow_criticality import (
+from backend.awa.llm.client import FakeLLMClient
+from backend.awa.llm.generator import LLMNarrativeGenerator
+from backend.awa.llm.cache import LLMNarrativeCache
+from backend.awa.llm.schemas import CriticalityEvidencePackage, WorkflowFacts
+from backend.awa.analysis.workflow_criticality import (
     calculate_workflow_criticality,
     build_criticality_evidence_package,
     PortfolioDependencyContext,
 )
-from awa.analysis.portfolio_analyzer import build_portfolio_analysis
-from awa.model.business_summary import WorkflowBusinessSummary
-from awa.model.portfolio import PortfolioWorkflowSummary, PortfolioAnalysis, PortfolioAggregateMetrics
-from awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
-from awa.model.source_info import SourceInfo
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.generators.portfolio_xlsx_generator import generate_portfolio_excel
+from backend.awa.analysis.portfolio_analyzer import build_portfolio_analysis
+from backend.awa.model.business_summary import WorkflowBusinessSummary
+from backend.awa.model.portfolio import PortfolioWorkflowSummary, PortfolioAnalysis, PortfolioAggregateMetrics
+from backend.awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
+from backend.awa.model.source_info import SourceInfo
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.generators.portfolio_xlsx_generator import generate_portfolio_excel
 
 
 import networkx as nx
-from awa.model.dag_layout import DagLayout
-from awa.model.python_trace import PythonTraceMap
+from backend.awa.model.dag_layout import DagLayout
+from backend.awa.model.python_trace import PythonTraceMap
 
 
 def _make_dummy_result(filename: str, bs: WorkflowBusinessSummary) -> CanonicalAnalysisResult:
     wf = Workflow(metadata=WorkflowMetadata(name=filename, version="2024.1"))
-    metrics = WorkflowMetrics(total_nodes=10, total_connections=10, input_count=1, output_count=1)
+    metrics = WorkflowMetrics(
+        total_nodes=10, total_connections=10, input_count=1, output_count=1)
     return CanonicalAnalysisResult(
         analysis_id=f"aid_{filename}",
         source=SourceInfo(source_format="yxmd", original_filename=filename),
@@ -50,7 +51,8 @@ def _make_dummy_result(filename: str, bs: WorkflowBusinessSummary) -> CanonicalA
         consumed_anchors={},
         lineage_paths=[],
         metrics=metrics,
-        dag_layout=DagLayout(nodes=[], edges=[], width=200, height=100, title=filename),
+        dag_layout=DagLayout(nodes=[], edges=[], width=200,
+                             height=100, title=filename),
         python_trace=PythonTraceMap(entries=[], total_lines=5),
         tool_explanations={},
         required_libraries=[],
@@ -72,7 +74,8 @@ def test_generate_criticality_assessment_makes_zero_llm_calls():
         sources=["input.csv"],
         targets=["output.yxdb"],
         inspection_sinks=[],
-        operational_metadata={"last_run": "5 months ago", "frequency": "Monthly"},
+        operational_metadata={
+            "last_run": "5 months ago", "frequency": "Monthly"},
     )
 
     result = generator.generate_criticality_assessment(evidence)
@@ -130,8 +133,10 @@ def test_other_llm_features_still_use_llm_client():
     mock_client.model_name = "test-model"
     mock_client.generate.return_value = '{"business_purpose": "The workflow ingests policy underwriting records and calculates premium reserves for commercial lines.", "business_function": "Underwriting Policy Calculation", "business_area_tag": "Underwriting"}'
 
-    generator = LLMNarrativeGenerator(client=mock_client, cache=LLMNarrativeCache(file_path=None))
-    wf = Workflow(metadata=WorkflowMetadata(name="Test.yxmd", version="2024.1"))
+    generator = LLMNarrativeGenerator(
+        client=mock_client, cache=LLMNarrativeCache(file_path=None))
+    wf = Workflow(metadata=WorkflowMetadata(
+        name="Test.yxmd", version="2024.1"))
     bs = WorkflowBusinessSummary(
         business_purpose="",
         one_line_purpose="",
@@ -162,7 +167,8 @@ def test_xlsx_export_zero_llm_calls(tmp_path):
         portfolio_name="Test Portfolio",
         workflow_count=1,
         workflows=[wf_summary],
-        metrics=PortfolioAggregateMetrics(total_workflows=1, successful_workflows=1),
+        metrics=PortfolioAggregateMetrics(
+            total_workflows=1, successful_workflows=1),
         shared_sources=[],
         shared_targets=[],
         relationships=[],
@@ -171,7 +177,8 @@ def test_xlsx_export_zero_llm_calls(tmp_path):
 
     out_file = tmp_path / "test_portfolio.xlsx"
     with patch("awa.llm.generator.LLMNarrativeGenerator.generate_criticality_assessment") as mock_gen:
-        generate_portfolio_excel(portfolio, successful_results={}, rationalisation=None, output_path=out_file)
+        generate_portfolio_excel(portfolio, successful_results={
+        }, rationalisation=None, output_path=out_file)
         assert out_file.exists()
         assert out_file.stat().st_size > 0
         mock_gen.assert_not_called()
@@ -205,5 +212,3 @@ def test_legacy_persisted_analysis_backward_compatibility():
     pws_dict = legacy_pws.to_dict()
     assert "criticality_score" in pws_dict
     assert "criticality_justification" in pws_dict
-
-

@@ -87,6 +87,7 @@ def get_criticality_evaluation_model() -> dict[str, Any]:
         "factors": list(CRITICALITY_EVALUATION_FACTORS),
     }
 
+
 CRITICALITY_LOW_MAX: float = 34.0
 CRITICALITY_MEDIUM_MAX: float = 60.0
 
@@ -147,9 +148,11 @@ class CriticalityAssessment:
 class PortfolioDependencyContext:
     """Deterministic cross-workflow dependency context derived from the portfolio."""
     # Mapping of target dataset name -> list of (workflow_id, filename) producing it
-    target_to_producers: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
+    target_to_producers: dict[str, list[tuple[str, str]]] = field(
+        default_factory=dict)
     # Mapping of source dataset name -> list of (workflow_id, filename) consuming it
-    source_to_consumers: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
+    source_to_consumers: dict[str, list[tuple[str, str]]] = field(
+        default_factory=dict)
     # Set of shared target datasets (produced by multiple workflows or consumed cross-workflow)
     shared_targets: set[str] = field(default_factory=set)
     # Set of shared source datasets (consumed by multiple workflows)
@@ -371,7 +374,8 @@ def calculate_workflow_criticality(
         if isinstance(operational_metadata.get("MetaInfo"), dict):
             op_dict.update(operational_metadata["MetaInfo"])
 
-        norm_map = {k.lower().replace("_", "").replace(" ", ""): v for k, v in op_dict.items() if isinstance(k, str)}
+        norm_map = {k.lower().replace("_", "").replace(
+            " ", ""): v for k, v in op_dict.items() if isinstance(k, str)}
 
         last_run_input = (
             op_dict.get("last_run")
@@ -401,9 +405,12 @@ def calculate_workflow_criticality(
     freq_score, freq_raw = normalize_frequency_score(frequency_input)
 
     # Subtotals & Total Calculation
-    technical_score = round((out_score + src_score + etl_score) * CRITICALITY_FACTOR_WEIGHT, 1)
-    operational_score = round((last_run_score + freq_score) * CRITICALITY_FACTOR_WEIGHT, 1)
-    final_score = round(max(0.0, min(100.0, technical_score + operational_score)), 1)
+    technical_score = round(
+        (out_score + src_score + etl_score) * CRITICALITY_FACTOR_WEIGHT, 1)
+    operational_score = round(
+        (last_run_score + freq_score) * CRITICALITY_FACTOR_WEIGHT, 1)
+    final_score = round(
+        max(0.0, min(100.0, technical_score + operational_score)), 1)
 
     if final_score >= CRITICALITY_MEDIUM_MAX + 1:
         level: Literal["HIGH", "MEDIUM", "LOW"] = "HIGH"
@@ -537,7 +544,7 @@ def build_criticality_evidence_package(
     deterministic_counts: dict[str, int] | None = None,
 ) -> Any:
     """Construct a deterministic evidence package."""
-    from awa.llm.schemas import CriticalityEvidencePackage
+    from backend.awa.llm.schemas import CriticalityEvidencePackage
 
     ctx = context or PortfolioDependencyContext()
     downstream_consumers: list[str] = []
@@ -583,7 +590,8 @@ def build_criticality_evidence_package(
         downstream_consumers=downstream_consumers,
         shared_targets=[t for t in targets if t in ctx.shared_targets],
         shared_sources=[s for s in sources if s in ctx.shared_sources],
-        dependency_position="Isolated Process" if not downstream_consumers and not upstream_producers else ("Midstream Integration Hub" if downstream_consumers and upstream_producers else ("Upstream Root Producer" if downstream_consumers else "Leaf Consumer")),
+        dependency_position="Isolated Process" if not downstream_consumers and not upstream_producers else (
+            "Midstream Integration Hub" if downstream_consumers and upstream_producers else ("Upstream Root Producer" if downstream_consumers else "Leaf Consumer")),
         deterministic_counts=counts,
         semantic_impact_signals=[],
         operational_metadata=operational_metadata or {},

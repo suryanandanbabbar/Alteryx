@@ -7,9 +7,9 @@ Assertions check actual extracted data, not just 'is not None' (§32).
 import pytest
 from pathlib import Path
 
-from awa.parser.xml_parser import parse_workflow
-from awa.model.workflow import Workflow
-from awa.model.connection import Connection
+from backend.awa.parser.xml_parser import parse_workflow
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.connection import Connection
 
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
@@ -48,7 +48,8 @@ class TestSimpleFilterWorkflow:
         assert tool.position is not None
         assert tool.position.x == 78
         assert tool.position.y == 78
-        assert "customers.xlsx" in tool.configuration.parsed.get("file_path", "")
+        assert "customers.xlsx" in tool.configuration.parsed.get(
+            "file_path", "")
 
     def test_filter_tool(self, workflow: Workflow):
         tool = workflow.tools[2]
@@ -65,7 +66,8 @@ class TestSimpleFilterWorkflow:
         tool = workflow.tools[3]
         assert tool.tool_type == "DbFileOutput"
         assert tool.name == "Output Active Customers"
-        assert "active_customers.xlsx" in tool.configuration.parsed.get("file_path", "")
+        assert "active_customers.xlsx" in tool.configuration.parsed.get(
+            "file_path", "")
 
     def test_connections(self, workflow: Workflow):
         assert len(workflow.connections) == 2
@@ -93,7 +95,8 @@ class TestSimpleFilterWorkflow:
         assert "revenue" in field_names
 
         # Check types
-        revenue_field = next(f for f in tool.output_fields if f.name == "revenue")
+        revenue_field = next(
+            f for f in tool.output_fields if f.name == "revenue")
         assert revenue_field.type == "Double"
 
     def test_raw_xml_preserved(self, workflow: Workflow):

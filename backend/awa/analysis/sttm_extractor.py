@@ -16,11 +16,11 @@ from typing import Any
 
 import networkx as nx
 
-from awa.model.sttm import STTMMapping, STTMDocument
-from awa.model.workflow import Workflow
-from awa.model.tool import Tool
-from awa.model.business_summary import WorkflowBusinessSummary
-from awa.tools.catalog import get_tool_catalog
+from backend.awa.model.sttm import STTMMapping, STTMDocument
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.tool import Tool
+from backend.awa.model.business_summary import WorkflowBusinessSummary
+from backend.awa.tools.catalog import get_tool_catalog
 
 
 @dataclass
@@ -30,7 +30,8 @@ class FieldOrigin:
     source_attribute: str
     source_tool_id: int
     current_name: str
-    transformation_category: str = "Direct"  # Direct, Rename, Join, Derived Calculation, Aggregation, Filter, Union, Pivot / Reshape, Opaque Transformation
+    # Direct, Rename, Join, Derived Calculation, Aggregation, Filter, Union, Pivot / Reshape, Opaque Transformation
+    transformation_category: str = "Direct"
     transformation_logic: str = ""
     expression: str = ""
     notes: list[str] = dc_field(default_factory=list)
@@ -59,7 +60,8 @@ def _humanize_label(name: str) -> str:
     """Convert snake_case, camelCase, or file path to clean Title Case."""
     name = re.sub(r"[_\-]+", " ", name)
     name = re.sub(r"([a-z])([A-Z])", r"\1 \2", name)
-    words = [w.capitalize() for w in name.split() if w.lower() not in ("demo", "output", "extract", "data")]
+    words = [w.capitalize() for w in name.split() if w.lower()
+             not in ("demo", "output", "extract", "data")]
     res = " ".join(words).strip()
     return res if res else "Dataset"
 
@@ -70,19 +72,20 @@ def _clean_table_name(raw_name: str) -> str:
     """
     if not raw_name:
         return "Source Dataset"
-    
+
     clean = raw_name.strip().strip('"\'')
     if "|||" in clean:
         parts = clean.split("|||", 1)
         base = parts[0].replace("\\", "/").rstrip("/").split("/")[-1]
         sheet = parts[1].replace("$", "").strip()
         if sheet.lower().startswith("select"):
-            m = re.search(r"from\s+[`\[]?([A-Za-z0-9_]+)[`\]]?", sheet, re.IGNORECASE)
+            m = re.search(
+                r"from\s+[`\[]?([A-Za-z0-9_]+)[`\]]?", sheet, re.IGNORECASE)
             sheet = m.group(1) if m else ""
         if sheet and sheet.lower() not in ("data", ""):
             return f"{base} — {sheet}"
         return base
-    
+
     name = clean.replace("\\", "/").rstrip("/").split("/")[-1]
     return name if name else "Source Dataset"
 
@@ -94,7 +97,8 @@ def _humanize_generic_expression(expr: str, target_attr: str, ref_fields: list[s
 
     clean_expr = expr.strip().replace("\n", " ").replace("\r", "")
     lower_expr = clean_expr.lower()
-    ref_str = ", ".join(f"[{f}]" for f in ref_fields) if ref_fields else "source attributes"
+    ref_str = ", ".join(
+        f"[{f}]" for f in ref_fields) if ref_fields else "source attributes"
 
     # 1. Conditional Expressions
     if "if " in lower_expr and "then " in lower_expr and "endif" in lower_expr:
@@ -141,8 +145,10 @@ class STTMExtractor:
 
     def _resolve_names(self):
         """Map source and sink tool IDs to authoritative dataset names with strict actual filename precedence."""
-        biz_inputs = {inp.tool_id: inp for inp in (self.business_summary.source_inputs if self.business_summary else [])}
-        biz_outputs = {out.tool_id: out for out in (self.business_summary.business_outputs if self.business_summary else [])}
+        biz_inputs = {inp.tool_id: inp for inp in (
+            self.business_summary.source_inputs if self.business_summary else [])}
+        biz_outputs = {out.tool_id: out for out in (
+            self.business_summary.business_outputs if self.business_summary else [])}
 
         for tid, tool in self.workflow.tools.items():
             cfg = tool.configuration.parsed or {}
@@ -154,8 +160,9 @@ class STTMExtractor:
             )
 
             tdef = self.catalog.resolve(tool.plugin or tool.tool_type)
-            is_input = not tdef.input_anchors or tool.tool_type in ("DbFileInput", "InputData", "TextInput", "Directory", "DynamicInput")
-            
+            is_input = not tdef.input_anchors or tool.tool_type in (
+                "DbFileInput", "InputData", "TextInput", "Directory", "DynamicInput")
+
             if is_input:
                 # 1. Configured file path
                 if file_path:
@@ -180,9 +187,11 @@ class STTMExtractor:
                     self.input_names[tid] = f"Source #{tid}"
 
             # Check if production sink
-            is_explicit_sink = tool.tool_type in ("DbFileOutput", "OutputData", "Render")
-            is_leaf = self.graph.has_node(tid) and self.graph.out_degree(tid) == 0 and tool.tool_type not in ("BrowseV2", "Browse")
-            
+            is_explicit_sink = tool.tool_type in (
+                "DbFileOutput", "OutputData", "Render")
+            is_leaf = self.graph.has_node(tid) and self.graph.out_degree(
+                tid) == 0 and tool.tool_type not in ("BrowseV2", "Browse")
+
             if is_explicit_sink or is_leaf:
                 if file_path:
                     self.output_names[tid] = _clean_table_name(file_path)
@@ -199,7 +208,7 @@ class STTMExtractor:
     def extract_document(self) -> STTMDocument:
         """Extract the full collection of STTM mappings from the workflow."""
         workflow_name = self.workflow.metadata.name or "Workflow"
-        
+
         # Discover intrinsic fields originated at each input node
         source_field_registry = self._discover_source_fields()
 
@@ -216,7 +225,7 @@ class STTMExtractor:
             if tid not in self.workflow.tools:
                 continue
             tool = self.workflow.tools[tid]
-            
+
             # Incoming schemas from upstream predecessors mapped by connection destination anchor
             predecessors = list(self.graph.predecessors(tid))
             incoming_schemas: list[dict[str, list[FieldOrigin]]] = [
@@ -229,7 +238,8 @@ class STTMExtractor:
                     incoming_by_anchor[anchor] = node_schemas[conn.origin_tool_id]
 
             # Process node and calculate output schema
-            out_schema = self._process_node(tool, incoming_schemas, incoming_by_anchor, source_field_registry)
+            out_schema = self._process_node(
+                tool, incoming_schemas, incoming_by_anchor, source_field_registry)
             node_schemas[tid] = out_schema
 
         # Collect mappings from all production output / sink nodes
@@ -239,9 +249,10 @@ class STTMExtractor:
                 tool.tool_type in ("DbFileOutput", "OutputData", "Render")
                 or (self.graph.has_node(tid) and self.graph.out_degree(tid) == 0 and tool.tool_type not in ("BrowseV2", "Browse"))
             )
-            
+
             if is_sink:
-                target_table = self.output_names.get(tid, f"Deliverable #{tid}")
+                target_table = self.output_names.get(
+                    tid, f"Deliverable #{tid}")
                 out_fields = node_schemas.get(tid, {})
 
                 for tgt_attr, origins in out_fields.items():
@@ -250,7 +261,8 @@ class STTMExtractor:
                     for origin in origins:
                         if origin.source_attribute.startswith("*"):
                             continue
-                        mapping = self._build_mapping(target_table, tgt_attr, origin, tid)
+                        mapping = self._build_mapping(
+                            target_table, tgt_attr, origin, tid)
                         mappings.append(mapping)
 
         # Deduplicate and sort deterministically
@@ -263,7 +275,7 @@ class STTMExtractor:
             tid for tid, t in self.workflow.tools.items()
             if t.tool_type in ("DbFileInput", "InputData", "TextInput", "Directory", "DynamicInput") or self.graph.in_degree(tid) == 0
         ]
-        
+
         input_fields: dict[int, list[str]] = {tid: [] for tid in input_tids}
 
         # 1. Level 1: Explicit XML RecordInfo or TextInput fields
@@ -299,7 +311,8 @@ class STTMExtractor:
 
                 if "formula_fields" in cfg:
                     for ff in cfg["formula_fields"]:
-                        input_fields[tid].extend(_extract_referenced_fields(ff.get("expression", "")))
+                        input_fields[tid].extend(
+                            _extract_referenced_fields(ff.get("expression", "")))
 
                 if "summarize_fields" in cfg:
                     for sf in cfg["summarize_fields"]:
@@ -334,7 +347,8 @@ class STTMExtractor:
             if not join_tool or join_tool.tool_type not in ("Join", "AlteryxBasePluginsGui.Join.Join"):
                 continue
 
-            root_inputs = [inp for inp in input_tids if nx.has_path(self.graph, inp, origin_tid) or inp == origin_tid]
+            root_inputs = [inp for inp in input_tids if nx.has_path(
+                self.graph, inp, origin_tid) or inp == origin_tid]
             if not root_inputs:
                 continue
             root_tid = root_inputs[0]
@@ -367,7 +381,8 @@ class STTMExtractor:
 
                 if j_tool.tool_type in ("Formula", "MultiFieldFormula"):
                     for ff in j_cfg.get("formula_fields", []):
-                        refs = _extract_referenced_fields(ff.get("expression", ""))
+                        refs = _extract_referenced_fields(
+                            ff.get("expression", ""))
                         for rf in refs:
                             if rf not in input_fields[input_tids[0]] and rf not in input_fields[root_tid]:
                                 input_fields[root_tid].append(rf)
@@ -497,13 +512,15 @@ class STTMExtractor:
             if unknown_selected:
                 for in_col, in_origins in base_incoming.items():
                     if not in_col.startswith("*") and in_col not in explicit_fields and in_col not in out_schema:
-                        out_schema[in_col] = [self._copy_origin(o) for o in in_origins]
+                        out_schema[in_col] = [
+                            self._copy_origin(o) for o in in_origins]
 
             return out_schema
 
         # 3. Formula / MultiFieldFormula
         if ttype in ("Formula", "MultiFieldFormula"):
-            out_schema = {k: [self._copy_origin(o) for o in v] for k, v in base_incoming.items()}
+            out_schema = {k: [self._copy_origin(
+                o) for o in v] for k, v in base_incoming.items()}
             formula_fields = cfg.get("formula_fields", [])
 
             for ff in formula_fields:
@@ -513,7 +530,8 @@ class STTMExtractor:
                     continue
 
                 ref_fields = _extract_referenced_fields(expr)
-                logic_desc = _humanize_generic_expression(expr, target_name, ref_fields)
+                logic_desc = _humanize_generic_expression(
+                    expr, target_name, ref_fields)
 
                 origins: list[FieldOrigin] = []
                 for rf in ref_fields:
@@ -555,13 +573,18 @@ class STTMExtractor:
         if ttype == "Join":
             out_schema = {}
             # Incoming mapped by Left/Right anchor
-            left_schema = incoming_by_anchor.get("Left") or (incoming[0] if len(incoming) > 0 else {})
-            right_schema = incoming_by_anchor.get("Right") or (incoming[1] if len(incoming) > 1 else {})
+            left_schema = incoming_by_anchor.get("Left") or (
+                incoming[0] if len(incoming) > 0 else {})
+            right_schema = incoming_by_anchor.get("Right") or (
+                incoming[1] if len(incoming) > 1 else {})
 
             join_fields = cfg.get("join_fields", [])
-            join_keys_left = {jf.get("left") for jf in join_fields if jf.get("left")}
-            join_keys_right = {jf.get("right") for jf in join_fields if jf.get("right")}
-            join_cond_str = ", ".join(f"{jf.get('left')} = {jf.get('right')}" for jf in join_fields) if join_fields else "matching key attributes"
+            join_keys_left = {jf.get("left")
+                              for jf in join_fields if jf.get("left")}
+            join_keys_right = {jf.get("right")
+                               for jf in join_fields if jf.get("right")}
+            join_cond_str = ", ".join(
+                f"{jf.get('left')} = {jf.get('right')}" for jf in join_fields) if join_fields else "matching key attributes"
 
             # 1. Left stream fields pass through with authoritative left origin
             for k, origins in left_schema.items():
@@ -582,7 +605,7 @@ class STTMExtractor:
                         co.transformation_category = "Join"
                         co.transformation_logic = f"Enriches dataset with [{k}] from [{co.source_table}] matched on {join_cond_str}."
                     joined_origins.append(co)
-                
+
                 out_schema[k] = joined_origins
 
             return out_schema
@@ -596,7 +619,8 @@ class STTMExtractor:
                 src_f = sf.get("field", "")
                 action = sf.get("action", "GroupBy")
                 rename = sf.get("rename", "")
-                target_name = rename if rename else (src_f if action == "GroupBy" else f"{action}_{src_f}")
+                target_name = rename if rename else (
+                    src_f if action == "GroupBy" else f"{action}_{src_f}")
 
                 origins: list[FieldOrigin] = []
 
@@ -711,13 +735,14 @@ class STTMExtractor:
 
             # If no downstream Select tool, check output_fields or fallback to generic indicator
             if not discovered_pivoted_cols:
-                discovered_pivoted_cols = [f.name for f in tool.output_fields if f.name and f.name not in group_fields]
+                discovered_pivoted_cols = [
+                    f.name for f in tool.output_fields if f.name and f.name not in group_fields]
             if not discovered_pivoted_cols:
                 discovered_pivoted_cols = [f"{header_field}_Values"]
 
             for col_name in discovered_pivoted_cols:
                 col_origins = []
-                
+
                 # Add Data Measure origin
                 for mo in measure_origins:
                     co = self._copy_origin(mo)
@@ -832,13 +857,15 @@ class STTMExtractor:
             ):
                 continue
 
-            key = (m.target_table, m.target_attribute, m.source_table, m.source_attribute, m.transformation)
+            key = (m.target_table, m.target_attribute, m.source_table,
+                   m.source_attribute, m.transformation)
             if key not in seen:
                 seen.add(key)
                 unique.append(m)
 
         # Deterministic sorting: Target Table -> Target Attribute -> Source Table -> Source Attribute
-        unique.sort(key=lambda x: (x.target_table, x.target_attribute, x.source_table, x.source_attribute))
+        unique.sort(key=lambda x: (x.target_table,
+                    x.target_attribute, x.source_table, x.source_attribute))
         return unique
 
 
@@ -858,7 +885,7 @@ def build_sttm_evidence_context(
     business_summary: WorkflowBusinessSummary | None = None,
 ) -> dict[str, Any]:
     """Extract comprehensive deterministic evidence context to ground LLM STTM generation.
-    
+
     Strictly adheres to the Mapping Authority Invariant:
     1. Authoritative source datasets with actual filenames/paths and intrinsic fields (minus *Unknown)
     2. Authoritative target deliverables with actual filenames/sheets and target attributes
@@ -909,7 +936,8 @@ def build_sttm_evidence_context(
             and graph.has_node(m.target_tool_id)
         ):
             try:
-                shortest = nx.shortest_path(graph, m.source_tool_id, m.target_tool_id)
+                shortest = nx.shortest_path(
+                    graph, m.source_tool_id, m.target_tool_id)
                 path_tool_ids = shortest
             except Exception:
                 path_tool_ids = [m.source_tool_id, m.target_tool_id]

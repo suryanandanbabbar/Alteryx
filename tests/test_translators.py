@@ -3,11 +3,11 @@
 import pandas as pd
 import pytest
 
-from awa.model.tool import Tool, ToolConfiguration
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.diagnostic import SupportLevel
-from awa.translators.registry import get_translator
-import awa.translators  # noqa: F401
+from backend.awa.model.tool import Tool, ToolConfiguration
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.translators.registry import get_translator
+import backend.awa.translators  # noqa: F401
 
 
 @pytest.fixture
@@ -35,7 +35,8 @@ class TestTranslators:
             ),
         )
         translator = get_translator(tool)
-        res = translator.translate(tool, ["df_left", "df_right"], empty_workflow)
+        res = translator.translate(
+            tool, ["df_left", "df_right"], empty_workflow)
         assert res.support_level == SupportLevel.SUPPORTED
         assert "Join" in res.output_map
         assert "Left" in res.output_map
@@ -49,7 +50,8 @@ class TestTranslators:
             tool_type="Union",
             name="Union Streams",
             position=None,
-            configuration=ToolConfiguration(raw_xml="", parsed={"by_name_or_pos": "ByName"}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"by_name_or_pos": "ByName"}),
         )
         translator = get_translator(tool)
         res = translator.translate(tool, ["df_1", "df_2"], empty_workflow)
@@ -67,7 +69,8 @@ class TestTranslators:
                 parsed={
                     "summarize_fields": [
                         {"field": "region", "action": "GroupBy", "rename": "region"},
-                        {"field": "sales", "action": "Sum", "rename": "total_sales"},
+                        {"field": "sales", "action": "Sum",
+                            "rename": "total_sales"},
                     ]
                 }
             ),
@@ -122,7 +125,8 @@ class TestTranslators:
             position=None,
             configuration=ToolConfiguration(
                 raw_xml="",
-                parsed={"cleansing_fields": ["name"], "trimwhitespace": True, "modify_case": "upper"}
+                parsed={"cleansing_fields": [
+                    "name"], "trimwhitespace": True, "modify_case": "upper"}
             ),
         )
         translator = get_translator(tool)

@@ -4,14 +4,14 @@ import json
 import pytest
 import networkx as nx
 
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, ToolConfiguration, Position
-from awa.model.business_summary import WorkflowBusinessSummary, BusinessStage
-from awa.llm.client import LLMClient
-from awa.llm.generator import LLMNarrativeGenerator
-from awa.llm.cache import LLMNarrativeCache
-from awa.llm.schemas import ProcessStageContent, WorkflowProcessStages
-from awa.llm.prompts import PROCESS_STAGES_PROMPT_VERSION, PROCESS_STAGES_SYSTEM_PROMPT
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.tool import Tool, ToolConfiguration, Position
+from backend.awa.model.business_summary import WorkflowBusinessSummary, BusinessStage
+from backend.awa.llm.client import LLMClient
+from backend.awa.llm.generator import LLMNarrativeGenerator
+from backend.awa.llm.cache import LLMNarrativeCache
+from backend.awa.llm.schemas import ProcessStageContent, WorkflowProcessStages
+from backend.awa.llm.prompts import PROCESS_STAGES_PROMPT_VERSION, PROCESS_STAGES_SYSTEM_PROMPT
 
 
 class MockLLMClient(LLMClient):
@@ -49,7 +49,8 @@ def _create_sample_workflow() -> tuple[Workflow, nx.DiGraph]:
         5: Tool(tool_id=5, plugin="DbFileOutput", tool_type="DbFileOutput", name="Output", position=Position(500, 100), configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "Regional_Report.xlsx"}), annotation="Export regional report"),
     }
     wf = Workflow(
-        metadata=WorkflowMetadata(name="Sales Reporting", version="2021.3", description="Aggregates regional sales"),
+        metadata=WorkflowMetadata(
+            name="Sales Reporting", version="2021.3", description="Aggregates regional sales"),
         tools=tools,
     )
     g = nx.DiGraph()
@@ -100,9 +101,11 @@ class TestProcessStages:
         })
 
         client = MockLLMClient(response_text=mock_response)
-        generator = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+        generator = LLMNarrativeGenerator(
+            client=client, cache=LLMNarrativeCache())
 
-        stages = generator.generate_process_stages(wf, g, workflow_id="test_sales")
+        stages = generator.generate_process_stages(
+            wf, g, workflow_id="test_sales")
 
         assert client.call_count == 1
         assert len(stages) == 3
@@ -161,9 +164,11 @@ class TestProcessStages:
         })
 
         client = MockLLMClient(response_text=partial_response)
-        generator = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+        generator = LLMNarrativeGenerator(
+            client=client, cache=LLMNarrativeCache())
 
-        stages = generator.generate_process_stages(wf, g, workflow_id="test_coverage")
+        stages = generator.generate_process_stages(
+            wf, g, workflow_id="test_coverage")
 
         # Verify all 5 workflow tools are present across stages
         all_assigned = []
@@ -206,9 +211,11 @@ class TestProcessStages:
         })
 
         client = MockLLMClient(response_text=duplicate_response)
-        generator = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+        generator = LLMNarrativeGenerator(
+            client=client, cache=LLMNarrativeCache())
 
-        stages = generator.generate_process_stages(wf, g, workflow_id="test_dedup")
+        stages = generator.generate_process_stages(
+            wf, g, workflow_id="test_dedup")
 
         all_assigned = []
         for s in stages:
@@ -220,15 +227,19 @@ class TestProcessStages:
     def test_deterministic_fallback_when_llm_fails(self):
         """Test that deterministic fallback derives factual stages when LLM returns invalid JSON."""
         wf, g = _create_sample_workflow()
-        client = MockLLMClient(response_text="Error: service temporarily unavailable")
-        generator = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+        client = MockLLMClient(
+            response_text="Error: service temporarily unavailable")
+        generator = LLMNarrativeGenerator(
+            client=client, cache=LLMNarrativeCache())
 
-        stages = generator.generate_process_stages(wf, g, workflow_id="test_fallback")
+        stages = generator.generate_process_stages(
+            wf, g, workflow_id="test_fallback")
 
         assert len(stages) >= 3
         # Check that fallback is generic and contains no claims-specific hardcoding
         stage_names = [s.name.lower() for s in stages]
-        combined_text = " ".join([f"{s.name} {s.summary} {s.business_purpose}" for s in stages]).lower()
+        combined_text = " ".join(
+            [f"{s.name} {s.summary} {s.business_purpose}" for s in stages]).lower()
 
         assert "claim" not in combined_text
         assert "policy master" not in combined_text
@@ -261,10 +272,12 @@ class TestProcessStages:
         cache = LLMNarrativeCache()
         generator = LLMNarrativeGenerator(client=client, cache=cache)
 
-        stages1 = generator.generate_process_stages(wf, g, workflow_id="sales_001")
+        stages1 = generator.generate_process_stages(
+            wf, g, workflow_id="sales_001")
         assert client.call_count == 1
 
-        stages2 = generator.generate_process_stages(wf, g, workflow_id="sales_001")
+        stages2 = generator.generate_process_stages(
+            wf, g, workflow_id="sales_001")
         assert client.call_count == 1  # From cache
         assert stages1[0].name == stages2[0].name
 
@@ -277,7 +290,8 @@ class TestProcessStages:
             13: Tool(tool_id=13, plugin="DbFileOutput", tool_type="DbFileOutput", name="Orders Output", position=Position(400, 100), configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "Purchase_Orders.xlsx"}), annotation="Output purchase orders"),
         }
         wf = Workflow(
-            metadata=WorkflowMetadata(name="Inventory Replenishment", version="2021.3", description="Automates store stock replenishment orders"),
+            metadata=WorkflowMetadata(name="Inventory Replenishment", version="2021.3",
+                                      description="Automates store stock replenishment orders"),
             tools=tools,
         )
         g = nx.DiGraph()
@@ -320,9 +334,11 @@ class TestProcessStages:
         })
 
         client = MockLLMClient(response_text=llm_response)
-        generator = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+        generator = LLMNarrativeGenerator(
+            client=client, cache=LLMNarrativeCache())
 
-        stages = generator.generate_process_stages(wf, g, workflow_id="inventory_wf")
+        stages = generator.generate_process_stages(
+            wf, g, workflow_id="inventory_wf")
 
         assert len(stages) == 3
         assert stages[0].name == "Store Inventory Ingestion"
@@ -332,7 +348,8 @@ class TestProcessStages:
         assert stages[2].name == "Purchase Order Deliverable Publication"
         assert stages[2].short_title == "03 PUBLISH"
 
-        combined = " ".join([f"{s.name} {s.summary} {s.business_purpose}" for s in stages]).lower()
+        combined = " ".join(
+            [f"{s.name} {s.summary} {s.business_purpose}" for s in stages]).lower()
         assert "claim" not in combined
         assert "policy" not in combined
         assert "litigation" not in combined
@@ -341,8 +358,8 @@ class TestProcessStages:
     def test_simple_filter_workflow_stages(self):
         """Test process stages on simple filter workflow has meaningful dynamic categories."""
         from pathlib import Path
-        from awa.parser.xml_parser import parse_workflow
-        from awa.graph.builder import build_graph
+        from backend.awa.parser.xml_parser import parse_workflow
+        from backend.awa.graph.builder import build_graph
 
         filter_path = Path("fixtures/basic/simple_filter.yxmd")
         if not filter_path.exists():
@@ -351,8 +368,10 @@ class TestProcessStages:
         wf = parse_workflow(filter_path)
         g = build_graph(wf)
 
-        generator = LLMNarrativeGenerator(client=MockLLMClient(response_text=""), cache=LLMNarrativeCache())
-        stages = generator.generate_process_stages(wf, g, workflow_id="simple_filter_test")
+        generator = LLMNarrativeGenerator(client=MockLLMClient(
+            response_text=""), cache=LLMNarrativeCache())
+        stages = generator.generate_process_stages(
+            wf, g, workflow_id="simple_filter_test")
 
         assert len(stages) == 3
         # Ensure categories are not generic 12-char truncated tokens
@@ -363,8 +382,8 @@ class TestProcessStages:
     def test_join_workflow_enrichment_stages(self):
         """Test process stages on join workflow captures enrichment, aggregation, ordering, publication."""
         from pathlib import Path
-        from awa.parser.xml_parser import parse_workflow
-        from awa.graph.builder import build_graph
+        from backend.awa.parser.xml_parser import parse_workflow
+        from backend.awa.graph.builder import build_graph
 
         join_path = Path("fixtures/joins/join_workflow.yxmd")
         if not join_path.exists():
@@ -373,8 +392,10 @@ class TestProcessStages:
         wf = parse_workflow(join_path)
         g = build_graph(wf)
 
-        generator = LLMNarrativeGenerator(client=MockLLMClient(response_text=""), cache=LLMNarrativeCache())
-        stages = generator.generate_process_stages(wf, g, workflow_id="join_test")
+        generator = LLMNarrativeGenerator(client=MockLLMClient(
+            response_text=""), cache=LLMNarrativeCache())
+        stages = generator.generate_process_stages(
+            wf, g, workflow_id="join_test")
 
         assert len(stages) >= 4
         categories = [s.short_title for s in stages]
@@ -396,7 +417,8 @@ class TestProcessStages:
             3: Tool(tool_id=3, plugin="DbFileOutput", tool_type="DbFileOutput", name="Risk Report", position=Position(300, 100), configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "Risk_Output.xlsx"}), annotation="Publish scored risks"),
         }
         wf = Workflow(
-            metadata=WorkflowMetadata(name="Macro Risk Processing", version="2021.3", description="Executes risk scoring macro"),
+            metadata=WorkflowMetadata(
+                name="Macro Risk Processing", version="2021.3", description="Executes risk scoring macro"),
             tools=tools,
         )
         g = nx.DiGraph()
@@ -439,9 +461,11 @@ class TestProcessStages:
         })
 
         client = MockLLMClient(response_text=llm_response)
-        generator = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+        generator = LLMNarrativeGenerator(
+            client=client, cache=LLMNarrativeCache())
 
-        stages = generator.generate_process_stages(wf, g, workflow_id="macro_risk_wf")
+        stages = generator.generate_process_stages(
+            wf, g, workflow_id="macro_risk_wf")
         assert len(stages) == 3
         assert stages[1].short_title == "02 MACRO SCORING"
         assert stages[1].name == "Risk Scoring Macro Execution"
@@ -476,13 +500,13 @@ class TestProcessStages:
         })
 
         client = MockLLMClient(response_text=mock_response)
-        generator = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
+        generator = LLMNarrativeGenerator(
+            client=client, cache=LLMNarrativeCache())
 
-        stages = generator.generate_process_stages(wf, g, workflow_id="category_formatting_test")
+        stages = generator.generate_process_stages(
+            wf, g, workflow_id="category_formatting_test")
 
         assert stages[0].short_title == "01 CUSTOMER INGESTION STAGING" or "01 CUSTOMER INGESTION & STAGING"
         assert stages[1].short_title == "02 COMMERCIAL REVENUE AGGREGATION"
         assert not stages[0].short_title.endswith("...")
         assert not stages[1].short_title.endswith("...")
-
-

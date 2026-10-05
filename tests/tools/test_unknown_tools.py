@@ -1,18 +1,19 @@
 """Tests for unknown and custom tool graceful fallback handling."""
 
 import pytest
-from awa.tools import create_fallback_tool_definition, resolve_tool_definition
-from awa.model.diagnostic import SupportLevel
-from awa.model.tool import Tool, ToolConfiguration
-from awa.translators.registry import get_translator
-from awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.tools import create_fallback_tool_definition, resolve_tool_definition
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.model.tool import Tool, ToolConfiguration
+from backend.awa.translators.registry import get_translator
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
 
 
 class TestUnknownTools:
     """Validate that unknown tools are safely handled without throwing exceptions."""
 
     def test_fallback_definition_properties(self):
-        fallback = create_fallback_tool_definition("Vendor.CustomTransformer.SpecialTool")
+        fallback = create_fallback_tool_definition(
+            "Vendor.CustomTransformer.SpecialTool")
         assert fallback.xml_name == "Vendor.CustomTransformer.SpecialTool"
         assert fallback.display_name == "SpecialTool"
         assert fallback.support_level == SupportLevel.UNSUPPORTED
@@ -26,7 +27,8 @@ class TestUnknownTools:
             tool_type="SpecialTool",
             name="My Custom Step",
             position=None,
-            configuration=ToolConfiguration(raw_xml="<Configuration><SecretKey>123</SecretKey></Configuration>"),
+            configuration=ToolConfiguration(
+                raw_xml="<Configuration><SecretKey>123</SecretKey></Configuration>"),
         )
         wf = Workflow(
             metadata=WorkflowMetadata(name="TestWF", version="2024.1"),

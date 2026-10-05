@@ -4,8 +4,8 @@ import tempfile
 from pathlib import Path
 import pytest
 
-from awa.parser.xml_parser import parse_workflow
-from awa.analysis.workflow_analyzer import analyze_canonical, analyze_workflow
+from backend.awa.parser.xml_parser import parse_workflow
+from backend.awa.analysis.workflow_analyzer import analyze_canonical, analyze_workflow
 from backend.app.services.analyzer import to_overview_dto, to_diagram_dto
 
 
@@ -20,16 +20,20 @@ class TestNestedContainersAndNodeDiscovery:
         workflow = parse_workflow(wf_path)
 
         # 1. Executable tools must equal 39 (NOT 2)
-        assert len(workflow.tools) == 39, f"Expected 39 executable tools, got {len(workflow.tools)}"
+        assert len(
+            workflow.tools) == 39, f"Expected 39 executable tools, got {len(workflow.tools)}"
 
         # 2. Containers must equal 8
-        assert len(workflow.containers) == 8, f"Expected 8 ToolContainers, got {len(workflow.containers)}"
+        assert len(
+            workflow.containers) == 8, f"Expected 8 ToolContainers, got {len(workflow.containers)}"
 
         # 3. TextBoxes must equal 2
-        assert len(workflow.textboxes) == 2, f"Expected 2 TextBoxes, got {len(workflow.textboxes)}"
+        assert len(
+            workflow.textboxes) == 2, f"Expected 2 TextBoxes, got {len(workflow.textboxes)}"
 
         # 4. Total connections must equal 41
-        assert len(workflow.connections) == 41, f"Expected 41 connections, got {len(workflow.connections)}"
+        assert len(
+            workflow.connections) == 41, f"Expected 41 connections, got {len(workflow.connections)}"
 
         # 5. TextBoxes and Containers must NOT be in tools
         assert 200 not in workflow.tools  # TextBox #200
@@ -50,7 +54,8 @@ class TestNestedContainersAndNodeDiscovery:
 
     def test_canonical_analysis_pipeline_on_nested_workflow(self):
         """Verify the full analysis pipeline on the nested ToolContainer workflow."""
-        canonical = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        canonical = analyze_canonical(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd")
 
         # Check metrics
         assert canonical.metrics.total_nodes == 39
@@ -61,7 +66,8 @@ class TestNestedContainersAndNodeDiscovery:
         assert canonical.metrics.output_count == 7
         assert canonical.metrics.terminal_node_count == 7
         assert canonical.metrics.business_output_count == 5
-        assert canonical.metrics.business_output_node_ids == [17, 18, 132, 142, 152]
+        assert canonical.metrics.business_output_node_ids == [
+            17, 18, 132, 142, 152]
 
         # Check execution order length and step numbering independence
         assert len(canonical.execution_order) == 39
@@ -398,14 +404,14 @@ class TestNestedContainersAndNodeDiscovery:
 
     def test_exact_source_preservation_and_nonexistent_fallback(self, tmp_path: Path):
         """Test 4 & 6: Preserves exact formatting/attributes; missing nodes handled safely."""
-        from awa.parser.xml_parser import _extract_node_xml_snippet
+        from backend.awa.parser.xml_parser import _extract_node_xml_snippet
         raw_xml = '<AlteryxDocument><Nodes><Node ToolID="123" CustomAttr="PreserveMe"   >\n  <GuiSettings Plugin="Custom.Plugin" />\n  <Properties><Configuration /></Properties>\n</Node></Nodes></AlteryxDocument>'
-        
+
         # Exact snippet preservation
         extracted = _extract_node_xml_snippet(raw_xml, 123)
         assert extracted == '<Node ToolID="123" CustomAttr="PreserveMe"   >\n  <GuiSettings Plugin="Custom.Plugin" />\n  <Properties><Configuration /></Properties>\n</Node>'
         assert 'CustomAttr="PreserveMe"' in extracted
-        
+
         # Missing tool ID returns empty string
         missing = _extract_node_xml_snippet(raw_xml, 999)
         assert missing == ""

@@ -11,11 +11,12 @@ import zipfile
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from awa.model.source_info import SourceInfo, PackageMetadata
+from backend.awa.model.source_info import SourceInfo, PackageMetadata
 
 
 class FormatValidationError(Exception):
     """Raised when an uploaded file fails format or security validation."""
+
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code

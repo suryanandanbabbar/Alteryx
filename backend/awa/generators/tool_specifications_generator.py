@@ -11,7 +11,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from awa.model.tool_specifications import ToolSpecificationsDocument
+from backend.awa.model.tool_specifications import ToolSpecificationsDocument
 
 # Styling Constants
 FONT_FAMILY = "Calibri"
@@ -22,13 +22,17 @@ COLOR_BORDER = "CBD5E1"     # Light Slate Border
 COLOR_TEXT_MAIN = "1E293B"  # Slate 800
 COLOR_TEXT_BOLD = "0F172A"  # Slate 900
 
-HEADER_FILL = PatternFill(start_color=COLOR_NAVY, end_color=COLOR_NAVY, fill_type="solid")
-ZEBRA_FILL = PatternFill(start_color=COLOR_ZEBRA, end_color=COLOR_ZEBRA, fill_type="solid")
-WHITE_FILL = PatternFill(start_color=COLOR_WHITE, end_color=COLOR_WHITE, fill_type="solid")
+HEADER_FILL = PatternFill(start_color=COLOR_NAVY,
+                          end_color=COLOR_NAVY, fill_type="solid")
+ZEBRA_FILL = PatternFill(start_color=COLOR_ZEBRA,
+                         end_color=COLOR_ZEBRA, fill_type="solid")
+WHITE_FILL = PatternFill(start_color=COLOR_WHITE,
+                         end_color=COLOR_WHITE, fill_type="solid")
 
 HEADER_FONT = Font(name=FONT_FAMILY, size=10, bold=True, color=COLOR_WHITE)
 BODY_FONT = Font(name=FONT_FAMILY, size=9.5, bold=False, color=COLOR_TEXT_MAIN)
-BOLD_BODY_FONT = Font(name=FONT_FAMILY, size=9.5, bold=True, color=COLOR_TEXT_BOLD)
+BOLD_BODY_FONT = Font(name=FONT_FAMILY, size=9.5,
+                      bold=True, color=COLOR_TEXT_BOLD)
 
 THIN_BORDER_SIDE = Side(border_style="thin", color=COLOR_BORDER)
 CELL_BORDER = Border(

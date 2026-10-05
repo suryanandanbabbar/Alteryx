@@ -1,11 +1,11 @@
 """Registry integrity tests verifying the 100-tool catalog invariants."""
 
 import pytest
-from awa.tools import get_tool_catalog
-from awa.model.diagnostic import SupportLevel
-from awa.model.tool import Tool, ToolConfiguration
-from awa.translators.registry import get_translator
-from awa.translators.base import UnsupportedTranslator
+from backend.awa.tools import get_tool_catalog
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.model.tool import Tool, ToolConfiguration
+from backend.awa.translators.registry import get_translator
+from backend.awa.translators.base import UnsupportedTranslator
 
 
 class TestRegistryIntegrity:
@@ -19,7 +19,8 @@ class TestRegistryIntegrity:
     def test_no_duplicate_canonical_xml_names(self):
         catalog = get_tool_catalog()
         xml_names = [tool.xml_name for tool in catalog]
-        assert len(xml_names) == len(set(xml_names)), "Duplicate XML names detected in catalog"
+        assert len(xml_names) == len(set(xml_names)
+                                     ), "Duplicate XML names detected in catalog"
 
     def test_every_tool_has_category(self):
         catalog = get_tool_catalog()
@@ -30,7 +31,8 @@ class TestRegistryIntegrity:
     def test_every_tool_has_support_classification(self):
         catalog = get_tool_catalog()
         for tool in catalog:
-            assert isinstance(tool.support_level, SupportLevel), f"Tool {tool.display_name} has invalid support level {tool.support_level}"
+            assert isinstance(
+                tool.support_level, SupportLevel), f"Tool {tool.display_name} has invalid support level {tool.support_level}"
 
     def test_every_tool_has_description(self):
         catalog = get_tool_catalog()
@@ -49,10 +51,12 @@ class TestRegistryIntegrity:
                     tool_type=tool_def.display_name,
                     name=tool_def.display_name,
                     position=None,
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>"),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>"),
                 )
                 translator = get_translator(mock_tool)
-                assert not isinstance(translator, UnsupportedTranslator), f"Tool {tool_def.display_name} translator '{tool_def.translator_name}' did not resolve"
+                assert not isinstance(
+                    translator, UnsupportedTranslator), f"Tool {tool_def.display_name} translator '{tool_def.translator_name}' did not resolve"
 
     def test_pass_through_and_documentation_resolvers(self):
         """Pass-through and documentation tools must resolve without falling back to UnsupportedTranslator."""
@@ -65,7 +69,9 @@ class TestRegistryIntegrity:
                     tool_type=tool_def.display_name,
                     name=tool_def.display_name,
                     position=None,
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>"),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>"),
                 )
                 translator = get_translator(mock_tool)
-                assert not isinstance(translator, UnsupportedTranslator), f"Tool {tool_def.display_name} fell back to UnsupportedTranslator"
+                assert not isinstance(
+                    translator, UnsupportedTranslator), f"Tool {tool_def.display_name} fell back to UnsupportedTranslator"

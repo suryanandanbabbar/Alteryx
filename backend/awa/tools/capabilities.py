@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from awa.model.diagnostic import SupportLevel
+from backend.awa.model.diagnostic import SupportLevel
 
 
 @dataclass(frozen=True)

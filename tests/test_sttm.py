@@ -11,14 +11,14 @@ import openpyxl
 import pytest
 from fastapi.testclient import TestClient
 
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.analysis.sttm_extractor import extract_sttm
-from awa.generators.sttm_generator import generate_sttm_excel
-from awa.parser.xml_parser import parse_workflow
-from awa.graph.builder import build_graph, execution_order
-from awa.analysis.business_intelligence import generate_business_summary
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.analysis.sttm_extractor import extract_sttm
+from backend.awa.generators.sttm_generator import generate_sttm_excel
+from backend.awa.parser.xml_parser import parse_workflow
+from backend.awa.graph.builder import build_graph, execution_order
+from backend.awa.analysis.business_intelligence import generate_business_summary
 from backend.app.main import app
-import awa.analysis.sttm_extractor as sttm_module
+import backend.awa.analysis.sttm_extractor as sttm_module
 
 
 class TestGenericSTTM:
@@ -48,7 +48,8 @@ class TestGenericSTTM:
         ]
 
         for term in forbidden_terms:
-            assert term.lower() not in source_code.lower(), f"Forbidden hard-coded term '{term}' found in sttm_extractor.py!"
+            assert term.lower() not in source_code.lower(
+            ), f"Forbidden hard-coded term '{term}' found in sttm_extractor.py!"
 
     def test_direct_mapping_generic(self, tmp_path: Path):
         """TEST 1: Direct pass-through mapping (Input.A -> Output.A)."""
@@ -120,8 +121,10 @@ class TestGenericSTTM:
         g = build_graph(wf)
         sttm = extract_sttm(wf, g)
 
-        gross_mappings = [m for m in sttm.mappings if m.target_attribute == "GrossAmount"]
-        assert len(gross_mappings) == 2, f"Expected 2 source origins (Qty, Price), got {len(gross_mappings)}"
+        gross_mappings = [
+            m for m in sttm.mappings if m.target_attribute == "GrossAmount"]
+        assert len(
+            gross_mappings) == 2, f"Expected 2 source origins (Qty, Price), got {len(gross_mappings)}"
         src_attrs = {m.source_attribute for m in gross_mappings}
         assert src_attrs == {"Qty", "Price"}
         for m in gross_mappings:
@@ -154,7 +157,8 @@ class TestGenericSTTM:
 
         assert sttm.total_mappings >= 1
         # Check join key origin comes from primary Left input
-        cust_id_mappings = [m for m in sttm.mappings if m.target_attribute == "cust_id"]
+        cust_id_mappings = [
+            m for m in sttm.mappings if m.target_attribute == "cust_id"]
         assert len(cust_id_mappings) == 1
         assert "order" in cust_id_mappings[0].source_table.lower()
 
@@ -242,7 +246,8 @@ class TestGenericSTTM:
         # Verify Q1, Q2, Q3, Q4 each receive DUAL dependencies: SalesVolume measure and QuarterName category
         for q in ["Q1", "Q2", "Q3", "Q4"]:
             q_mappings = [m for m in sttm.mappings if m.target_attribute == q]
-            assert len(q_mappings) == 2, f"Expected 2 dual dependencies for {q}, got {len(q_mappings)}"
+            assert len(
+                q_mappings) == 2, f"Expected 2 dual dependencies for {q}, got {len(q_mappings)}"
             src_attrs = {m.source_attribute for m in q_mappings}
             assert "SalesVolume" in src_attrs
             assert "QuarterName" in src_attrs
@@ -328,8 +333,10 @@ class TestGenericSTTM:
         g = build_graph(wf)
         sttm = extract_sttm(wf, g)
 
-        adj_mappings = [m for m in sttm.mappings if m.target_attribute == "TotalAdjusted"]
-        assert len(adj_mappings) == 2, f"Expected 2 origins (Gross, Discount), got {len(adj_mappings)}"
+        adj_mappings = [
+            m for m in sttm.mappings if m.target_attribute == "TotalAdjusted"]
+        assert len(
+            adj_mappings) == 2, f"Expected 2 origins (Gross, Discount), got {len(adj_mappings)}"
         src_attrs = {m.source_attribute for m in adj_mappings}
         assert src_attrs == {"Gross", "Discount"}
 
@@ -372,7 +379,7 @@ class TestGenericSTTM:
 
         assert sttm.total_mappings == 3
         target_map = {m.target_attribute: m for m in sttm.mappings}
-        
+
         # RiskTier traces to credit_ratings.CreditScore via formula
         assert "RiskTier" in target_map
         assert "credit" in target_map["RiskTier"].source_table.lower()
@@ -417,7 +424,8 @@ class TestGenericSTTM:
         client = TestClient(app)
         wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
         with open(wf_path, "rb") as f:
-            resp = client.post("/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
+            resp = client.post(
+                "/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
 
         assert resp.status_code == 200
         analysis_id = resp.json()["analysis_id"]
@@ -432,7 +440,8 @@ class TestGenericSTTM:
 
         with zipfile.ZipFile(io.BytesIO(zip_resp.content)) as zf:
             filenames = zf.namelist()
-            assert any(f.endswith("_STTM.xlsx") or f.endswith("sttm.xlsx") for f in filenames)
+            assert any(f.endswith("_STTM.xlsx") or f.endswith("sttm.xlsx")
+                       for f in filenames)
 
     def test_demo_claims_regression(self):
         """TEST 16: Verify Demo Claims produces all expected mappings naturally from generic logic."""
@@ -444,7 +453,8 @@ class TestGenericSTTM:
         assert sttm.total_mappings == 31
 
         # Check Claim Count in Product Type, State, and Aging
-        claim_count_mappings = [m for m in sttm.mappings if m.target_attribute == "Claim Count"]
+        claim_count_mappings = [
+            m for m in sttm.mappings if m.target_attribute == "Claim Count"]
         assert len(claim_count_mappings) == 3
         for m in claim_count_mappings:
             assert "Claims_Volume" in m.source_table or m.source_table == "Claims Volume"
@@ -452,13 +462,15 @@ class TestGenericSTTM:
             assert m.transformation == "Aggregation"
 
         # Check Aging Bucket
-        aging_m = [m for m in sttm.mappings if m.target_attribute == "Aging Bucket"]
+        aging_m = [
+            m for m in sttm.mappings if m.target_attribute == "Aging Bucket"]
         assert len(aging_m) == 1
         assert "Claim_Diary" in aging_m[0].source_table or aging_m[0].source_table == "Claim Diary Notes"
         assert aging_m[0].source_attribute == "Last Activity Date"
 
         # Check Total Paid Amount
-        paid_m = [m for m in sttm.mappings if m.target_attribute == "Total Paid Amount"]
+        paid_m = [m for m in sttm.mappings if m.target_attribute ==
+                  "Total Paid Amount"]
         assert len(paid_m) == 1
         assert "Claim_Payments" in paid_m[0].source_table or paid_m[0].source_table == "Claim Payments"
         assert paid_m[0].source_attribute == "Payment Amount"

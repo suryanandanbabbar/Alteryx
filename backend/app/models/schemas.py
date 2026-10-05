@@ -263,11 +263,13 @@ class WorkflowBusinessSummaryDTO(BaseModel):
     why_it_matters: str = ""
     source_inputs: list[BusinessInputDTO] = Field(default_factory=list)
     processing_stages: list[BusinessStageDTO] = Field(default_factory=list)
-    transformations: list[BusinessTransformationDTO] = Field(default_factory=list)
+    transformations: list[BusinessTransformationDTO] = Field(
+        default_factory=list)
     business_rules: list[BusinessRuleDTO] = Field(default_factory=list)
     lineage: list[BusinessLineageDTO] = Field(default_factory=list)
     business_outputs: list[BusinessOutputDTO] = Field(default_factory=list)
-    assessment: BusinessAssessmentDTO = Field(default_factory=BusinessAssessmentDTO)
+    assessment: BusinessAssessmentDTO = Field(
+        default_factory=BusinessAssessmentDTO)
     process_overview: str = ""
     information_flow: list[str] = Field(default_factory=list)
     overall_interpretation: str = ""
@@ -293,7 +295,6 @@ class FactorAssessmentDTO(BaseModel):
     assessment: str
     evidence: str
     rationale: str
-
 
 
 class AnalysisOverviewDTO(BaseModel):
@@ -341,7 +342,8 @@ class PortfolioWorkflowSummaryDTO(BaseModel):
     business_purpose: str = ""
     business_function: str = ""
     sttm_mappings_count: int = 0
-    business_area: BusinessAreaClassificationDTO = Field(default_factory=BusinessAreaClassificationDTO)
+    business_area: BusinessAreaClassificationDTO = Field(
+        default_factory=BusinessAreaClassificationDTO)
     business_area_tag: str = "UNCLASSIFIED"
     business_area_tag_source: str = "deterministic_fallback"
     business_area_taxonomy_version: str = "3.0"
@@ -450,9 +452,11 @@ class DataSubsumptionEvidenceDTO(BaseModel):
     missing_fields: list[str] = Field(default_factory=list)
     shared_required_fields: list[str] = Field(default_factory=list)
     additional_fields_in_target: list[str] = Field(default_factory=list)
-    field_provenance_map: dict[str, ColumnEvidenceDTO] = Field(default_factory=dict)
+    field_provenance_map: dict[str, ColumnEvidenceDTO] = Field(
+        default_factory=dict)
     sample_data_matches: list[dict[str, Any]] = Field(default_factory=list)
-    processing_substitutability_matrix: list[dict[str, Any]] = Field(default_factory=list)
+    processing_substitutability_matrix: list[dict[str, Any]] = Field(
+        default_factory=list)
     processing_compatibility: str = "SUPPORTED"
     output_compatibility: str = "COMPATIBLE"
     has_unresolved_unique_functionality: bool = False
@@ -483,7 +487,8 @@ class RationalisationCandidateDTO(BaseModel):
     candidate_id: str = ""
     workflow_ids: list[str]
     workflow_names: list[str]
-    recommendation_type: Literal["CONSOLIDATE", "RETIRE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW", "KEEP", "NO_ACTION"]
+    recommendation_type: Literal["CONSOLIDATE", "RETIRE",
+                                 "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW", "KEEP", "NO_ACTION"]
     confidence: Literal["HIGH", "MEDIUM", "LOW"] = "HIGH"
     opportunity_score: float = 0.0
     reasoning: str = ""
@@ -492,19 +497,25 @@ class RationalisationCandidateDTO(BaseModel):
     unique_functionality: dict[str, list[str]] = Field(default_factory=dict)
     proposed_strategy: str = ""
     validation_requirements: list[str] = Field(default_factory=list)
-    deterministic_metrics: DeterministicMetricsDTO = Field(default_factory=DeterministicMetricsDTO)
-    output_evidence: OutputEvidenceDTO = Field(default_factory=OutputEvidenceDTO)
-    dependency_evidence: DependencyEvidenceDTO = Field(default_factory=DependencyEvidenceDTO)
+    deterministic_metrics: DeterministicMetricsDTO = Field(
+        default_factory=DeterministicMetricsDTO)
+    output_evidence: OutputEvidenceDTO = Field(
+        default_factory=OutputEvidenceDTO)
+    dependency_evidence: DependencyEvidenceDTO = Field(
+        default_factory=DependencyEvidenceDTO)
     risk_context: RiskContextDTO = Field(default_factory=RiskContextDTO)
     admissible_recommendations: list[str] = Field(default_factory=list)
     llm_enrichment_status: str = "DETERMINISTIC_BASELINE"
     consolidation_decision: Optional[ConsolidationDecisionDTO] = None
     data_subsumption_evidence: Optional[DataSubsumptionEvidenceDTO] = None
     sources_by_workflow: dict[str, list[str]] = Field(default_factory=dict)
-    source_fields_by_workflow: dict[str, dict[str, list[str]]] = Field(default_factory=dict)
+    source_fields_by_workflow: dict[str, dict[str, list[str]]] = Field(
+        default_factory=dict)
     targets_by_workflow: dict[str, list[str]] = Field(default_factory=dict)
-    target_fields_by_workflow: dict[str, dict[str, list[str]]] = Field(default_factory=dict)
-    transformations_by_workflow: dict[str, list[str]] = Field(default_factory=dict)
+    target_fields_by_workflow: dict[str, dict[str, list[str]]] = Field(
+        default_factory=dict)
+    transformations_by_workflow: dict[str,
+                                      list[str]] = Field(default_factory=dict)
     frequencies_by_workflow: dict[str, str] = Field(default_factory=dict)
     original_recommendation_type: Optional[str] = None
 
@@ -513,7 +524,7 @@ class RationalisationCandidateDTO(BaseModel):
     def sanitize_shared_logic(cls, v: Any) -> list[str]:
         if not isinstance(v, list):
             return []
-        from awa.analysis.rationalisation_analyzer import is_meaningful_evidence
+        from backend.awa.analysis.rationalisation_analyzer import is_meaningful_evidence
         return [str(item).strip() for item in v if is_meaningful_evidence(str(item))]
 
     @field_validator("unique_functionality", mode="before")
@@ -521,11 +532,12 @@ class RationalisationCandidateDTO(BaseModel):
     def sanitize_unique_functionality(cls, v: Any) -> dict[str, list[str]]:
         if not isinstance(v, dict):
             return {}
-        from awa.analysis.rationalisation_analyzer import is_meaningful_evidence
+        from backend.awa.analysis.rationalisation_analyzer import is_meaningful_evidence
         cleaned: dict[str, list[str]] = {}
         for k, items in v.items():
             if isinstance(items, list):
-                valid_items = [str(it).strip() for it in items if is_meaningful_evidence(str(it))]
+                valid_items = [str(it).strip()
+                               for it in items if is_meaningful_evidence(str(it))]
                 if valid_items:
                     cleaned[k] = valid_items
         return cleaned
@@ -633,6 +645,3 @@ class EvaluationModelsResponseDTO(BaseModel):
     """Combined response containing Complexity and Criticality evaluation model specifications."""
     complexity: EvaluationModelDTO
     criticality: EvaluationModelDTO
-
-
-

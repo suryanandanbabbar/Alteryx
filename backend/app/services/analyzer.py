@@ -5,12 +5,12 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from awa.parser.format_handler import handle_upload
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.visual_category import get_visual_category
-from awa.tools import get_tool_summary, humanize_tool_configuration
-from awa.llm import get_default_generator
+from backend.awa.parser.format_handler import handle_upload
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.visual_category import get_visual_category
+from backend.awa.tools import get_tool_summary, humanize_tool_configuration
+from backend.awa.llm import get_default_generator
 
 from backend.app.models.schemas import (
     AnalysisOverviewDTO,
@@ -39,15 +39,17 @@ from backend.app.models.schemas import (
     PythonOutputDTO,
     PythonTraceDTO,
 )
-from awa.generators.svg_generator import generate_svg
+from backend.awa.generators.svg_generator import generate_svg
 
 
 def process_uploaded_workflow(filename: str, content: bytes) -> CanonicalAnalysisResult:
     """Validate, extract, and analyze an uploaded workflow file."""
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
-        extracted_path, source_info = handle_upload(filename, content, temp_path)
-        canonical_result = analyze_canonical(extracted_path, source_info=source_info)
+        extracted_path, source_info = handle_upload(
+            filename, content, temp_path)
+        canonical_result = analyze_canonical(
+            extracted_path, source_info=source_info)
         return canonical_result
 
 
@@ -96,7 +98,8 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
         tool = res.workflow.tools.get(tid)
         ttype = tool.tool_type if tool else "Unknown"
         name = (tool.name if tool and tool.name else ttype)
-        summary = get_tool_summary(tool.plugin or ttype) if tool else get_tool_summary(ttype)
+        summary = get_tool_summary(
+            tool.plugin or ttype) if tool else get_tool_summary(ttype)
         container_id = tool.container_id if tool else None
         container_name = tool.container_name if tool else None
         exec_steps.append(
@@ -142,17 +145,26 @@ def to_overview_dto(res: CanonicalAnalysisResult) -> AnalysisOverviewDTO:
             business_purpose=bs.business_purpose,
             business_function=getattr(bs, "business_function", ""),
             business_area_tag=getattr(bs, "business_area_tag", "UNCLASSIFIED"),
-            business_area_tag_source=getattr(bs, "business_area_tag_source", "deterministic_fallback"),
-            business_area_taxonomy_version=getattr(bs, "business_area_taxonomy_version", "3.0"),
+            business_area_tag_source=getattr(
+                bs, "business_area_tag_source", "deterministic_fallback"),
+            business_area_taxonomy_version=getattr(
+                bs, "business_area_taxonomy_version", "3.0"),
             criticality_score=getattr(bs, "criticality_score", 0.0),
             criticality_level=getattr(bs, "criticality_level", "LOW"),
-            criticality_justification=getattr(bs, "criticality_justification", ""),
-            criticality_business_consequence=getattr(bs, "criticality_business_consequence", ""),
-            criticality_dependency_impact=getattr(bs, "criticality_dependency_impact", ""),
-            criticality_affected_scope=getattr(bs, "criticality_affected_scope", ""),
-            criticality_migration_implication=getattr(bs, "criticality_migration_implication", ""),
-            criticality_confidence=getattr(bs, "criticality_confidence", "HIGH"),
-            criticality_source=getattr(bs, "criticality_source", "deterministic_fallback"),
+            criticality_justification=getattr(
+                bs, "criticality_justification", ""),
+            criticality_business_consequence=getattr(
+                bs, "criticality_business_consequence", ""),
+            criticality_dependency_impact=getattr(
+                bs, "criticality_dependency_impact", ""),
+            criticality_affected_scope=getattr(
+                bs, "criticality_affected_scope", ""),
+            criticality_migration_implication=getattr(
+                bs, "criticality_migration_implication", ""),
+            criticality_confidence=getattr(
+                bs, "criticality_confidence", "HIGH"),
+            criticality_source=getattr(
+                bs, "criticality_source", "deterministic_fallback"),
             criticality_factors=getattr(bs, "criticality_factors", []),
             factor_assessments=getattr(bs, "factor_assessments", {}),
             one_line_purpose=bs.one_line_purpose,
@@ -279,7 +291,7 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
     svg_str = generate_svg(res.dag_layout)
 
     nodes_dto: list[NodeDTO] = []
-    from awa.tools.catalog import get_tool_catalog
+    from backend.awa.tools.catalog import get_tool_catalog
     catalog = get_tool_catalog()
     generator = get_default_generator()
 
@@ -289,12 +301,15 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
             continue
         tr = res.translations.get(tid)
         support = tr.support_level.value if tr else "unknown"
-        cached_summary = generator.get_cached_tool_summary(res.workflow, tool, res.graph, workflow_id=res.analysis_id)
-        summary = cached_summary.text if cached_summary else get_tool_summary(tool.plugin or tool.tool_type)
+        cached_summary = generator.get_cached_tool_summary(
+            res.workflow, tool, res.graph, workflow_id=res.analysis_id)
+        summary = cached_summary.text if cached_summary else get_tool_summary(
+            tool.plugin or tool.tool_type)
         tool_def = catalog.get(tool.plugin or tool.tool_type)
         xml_tool_name = tool_def.xml_name if tool_def else (tool.plugin or "")
 
-        pos_dto = PositionDTO(x=tool.position.x, y=tool.position.y) if tool.position else None
+        pos_dto = PositionDTO(
+            x=tool.position.x, y=tool.position.y) if tool.position else None
         fields_dto = [
             FieldDTO(name=f.name, type=f.type, size=f.size, scale=f.scale)
             for f in tool.output_fields
@@ -307,7 +322,8 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
                 name=tool.name or tool.tool_type,
                 plugin=tool.plugin,
                 position=pos_dto,
-                configuration=humanize_tool_configuration(tool.tool_type, tool.configuration.parsed),
+                configuration=humanize_tool_configuration(
+                    tool.tool_type, tool.configuration.parsed),
                 support_level=support,
                 summary=summary,
                 annotation=tool.annotation,
@@ -405,7 +421,7 @@ def to_diagram_dto(res: CanonicalAnalysisResult) -> DiagramDTO:
 
 def to_python_dto(res: CanonicalAnalysisResult) -> PythonOutputDTO:
     """Convert CanonicalAnalysisResult to PythonOutputDTO."""
-    from awa.generators.python_generator import generate_python_code
+    from backend.awa.generators.python_generator import generate_python_code
 
     code, trace_map, req_libs = generate_python_code(
         res.workflow, res.execution_order, res.translations, res.consumed_anchors

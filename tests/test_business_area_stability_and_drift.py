@@ -21,23 +21,23 @@ from unittest.mock import MagicMock, patch
 import pytest
 from starlette.testclient import TestClient
 
-from awa.analysis.business_area_classifier import (
+from backend.awa.analysis.business_area_classifier import (
     ALLOWED_BUSINESS_AREAS,
     classify_business_area_deterministic,
     classify_business_function_deterministic,
     extract_output_evidence_for_workflow,
 )
-from awa.analysis.portfolio_analyzer import (
+from backend.awa.analysis.portfolio_analyzer import (
     build_portfolio_analysis,
     CONFIGURED_PORTFOLIO_BUSINESS_AREAS,
 )
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.llm.cache import LLMNarrativeCache
-from awa.llm.client import FakeLLMClient
-from awa.llm.generator import LLMNarrativeGenerator, get_default_generator
-from awa.llm.schemas import BusinessPurposeResult
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.business_summary import WorkflowBusinessSummary
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.llm.cache import LLMNarrativeCache
+from backend.awa.llm.client import FakeLLMClient
+from backend.awa.llm.generator import LLMNarrativeGenerator, get_default_generator
+from backend.awa.llm.schemas import BusinessPurposeResult
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.business_summary import WorkflowBusinessSummary
 from backend.app.main import app
 from backend.app.services.analyzer import process_uploaded_workflow, to_overview_dto
 from backend.app.services.storage import InMemoryStorage, get_storage
@@ -67,7 +67,8 @@ class TestBusinessAreaStabilityAndDrift:
                 business_function=func,
                 input_sources=sources,
             )
-            results.append((res.business_area, res.confidence, res.classification_source, tuple(res.evidence)))
+            results.append((res.business_area, res.confidence,
+                           res.classification_source, tuple(res.evidence)))
 
         first = results[0]
         assert first[0] == "Underwriting"
@@ -77,12 +78,14 @@ class TestBusinessAreaStabilityAndDrift:
     def test_portfolio_does_not_reclassify_existing_canonical_tags(self):
         """Test 2: Portfolio builder strictly consumes canonical tags and never reclassifies them."""
         # Create a mock result with an explicit canonical business_area_tag
-        res1 = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="wf_claims_1")
+        res1 = analyze_canonical(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="wf_claims_1")
         res1.business_summary.business_area_tag = "Claims & Risk"
         res1.business_summary.business_area_tag_source = "llm"
         res1.business_summary.business_function = "Claims adjudication and loss reserve management"
 
-        res2 = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="wf_legal_2")
+        res2 = analyze_canonical(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="wf_legal_2")
         res2.business_summary.business_area_tag = "Legal"
         res2.business_summary.business_area_tag_source = "llm"
         res2.business_summary.business_function = "Regulatory compliance reporting"
@@ -102,7 +105,8 @@ class TestBusinessAreaStabilityAndDrift:
 
     def test_valid_canonical_area_cannot_be_overwritten_by_other_unclassified(self):
         """Test 3: An existing valid business area tag is immutable against fallback overrides."""
-        res = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="wf_uw_3")
+        res = analyze_canonical(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="wf_uw_3")
         res.business_summary.business_area_tag = "Underwriting"
         res.business_summary.business_function = "Underwriting decisioning"
 
@@ -113,7 +117,8 @@ class TestBusinessAreaStabilityAndDrift:
 
     def test_all_five_configured_business_areas_supported(self):
         """Test 4: All 5 configured business areas are recognized and supported without drift."""
-        expected_areas = ["Claims & Risk", "Legal", "Underwriting", "Sales & Distribution", "Actuarial"]
+        expected_areas = ["Claims & Risk", "Legal",
+                          "Underwriting", "Sales & Distribution", "Actuarial"]
         for area in expected_areas:
             assert area in ALLOWED_BUSINESS_AREAS
             assert area in CONFIGURED_PORTFOLIO_BUSINESS_AREAS
@@ -124,7 +129,8 @@ class TestBusinessAreaStabilityAndDrift:
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=fake_failing_client, cache=cache)
 
-        res = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="wf_fallback_test")
+        res = analyze_canonical(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="wf_fallback_test")
         purpose_res = gen.generate_business_purpose(
             res.workflow,
             res.business_summary,
@@ -153,7 +159,8 @@ class TestBusinessAreaStabilityAndDrift:
     def test_refresh_equivalence(self):
         """Test 7: Direct portfolio upload matches storage retrieval on refresh exactly."""
         client = TestClient(app)
-        wf_bytes = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes()
+        wf_bytes = Path(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes()
         ftse_bytes = Path("FTSE 100.yxmd").read_bytes()
 
         import zipfile
@@ -166,7 +173,8 @@ class TestBusinessAreaStabilityAndDrift:
         # Upload
         resp_upload = client.post(
             "/api/portfolio/upload",
-            files=[("files", ("portfolio.zip", zip_buf.getvalue(), "application/zip"))],
+            files=[
+                ("files", ("portfolio.zip", zip_buf.getvalue(), "application/zip"))],
             data={"portfolio_name": "Stability Test Portfolio"},
         )
         assert resp_upload.status_code == 200

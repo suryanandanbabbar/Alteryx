@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import os
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel, Dependency
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel, Dependency
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -71,7 +71,8 @@ class InputDataTranslator(ToolTranslator):
         raw_path = config.get("file_path", "input.csv")
         file_format_code = config.get("file_format", "")
 
-        file_path, sheet_name, fmt = _parse_input_path(raw_path, file_format_code)
+        file_path, sheet_name, fmt = _parse_input_path(
+            raw_path, file_format_code)
         output_var = f"df_{tool.tool_id}"
         diagnostics: list[Diagnostic] = []
 
@@ -164,7 +165,8 @@ class TextInputTranslator(ToolTranslator):
         rows = config.get("rows", [])
         output_var = f"df_{tool.tool_id}"
 
-        data_dict = {f: [r[i] if i < len(r) else None for r in rows] for i, f in enumerate(fields)}
+        data_dict = {f: [r[i] if i < len(r) else None for r in rows]
+                     for i, f in enumerate(fields)}
         code = f"{output_var} = pd.DataFrame({repr(data_dict)})"
 
         return TranslationResult(
@@ -209,11 +211,13 @@ class DateTimeNowTranslator(ToolTranslator):
 register_type("DbFileInput", InputDataTranslator)
 register_type("InputData", InputDataTranslator)
 register_type("InputDataTranslator", InputDataTranslator)
-register_plugin("AlteryxBasePluginsGui.DbFileInput.DbFileInput", InputDataTranslator)
+register_plugin("AlteryxBasePluginsGui.DbFileInput.DbFileInput",
+                InputDataTranslator)
 
 register_type("TextInput", TextInputTranslator)
 register_type("TextInputTranslator", TextInputTranslator)
-register_plugin("AlteryxBasePluginsGui.TextInput.TextInput", TextInputTranslator)
+register_plugin("AlteryxBasePluginsGui.TextInput.TextInput",
+                TextInputTranslator)
 
 register_type("DateTimeNow", DateTimeNowTranslator)
 register_type("DateTimeNowTranslator", DateTimeNowTranslator)

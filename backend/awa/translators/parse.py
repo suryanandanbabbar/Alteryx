@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import SupportLevel
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import SupportLevel
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -53,24 +53,30 @@ class RegExTranslator(ToolTranslator):
         lines = [f"{out_var} = {in_var}.copy()"]
 
         if method == "ParseComplex" and config.get("parse_complex_fields"):
-            cols = [f["field"] for f in config["parse_complex_fields"] if f.get("field")]
+            cols = [f["field"]
+                    for f in config["parse_complex_fields"] if f.get("field")]
             cols_repr = repr(cols)
-            lines.append(f'{out_var}[{cols_repr}] = {out_var}["{field}"].astype(str).str.extract({pattern})')
+            lines.append(
+                f'{out_var}[{cols_repr}] = {out_var}["{field}"].astype(str).str.extract({pattern})')
         elif method == "Match":
             mfield = repr(config.get("match_field", f"{field}_Matched"))
-            lines.append(f'{out_var}[{mfield}] = {out_var}["{field}"].astype(str).str.contains({pattern}, regex=True, na=False)')
+            lines.append(
+                f'{out_var}[{mfield}] = {out_var}["{field}"].astype(str).str.contains({pattern}, regex=True, na=False)')
         elif method == "Replace":
             r_str = repr(config.get("replacestring", ""))
-            lines.append(f'{out_var}["{field}"] = {out_var}["{field}"].astype(str).str.replace({pattern}, {r_str}, regex=True)')
+            lines.append(
+                f'{out_var}["{field}"] = {out_var}["{field}"].astype(str).str.replace({pattern}, {r_str}, regex=True)')
         elif method == "ParseSimple":
             simple = config.get("parse_simple", {})
             rname = simple.get("root_name") or field
             nfields = simple.get("num_fields", 1)
             cols = [f"{rname}{i}" for i in range(1, nfields + 1)]
             cols_repr = repr(cols)
-            lines.append(f'{out_var}[{cols_repr}] = {out_var}["{field}"].astype(str).str.extract({pattern})')
+            lines.append(
+                f'{out_var}[{cols_repr}] = {out_var}["{field}"].astype(str).str.extract({pattern})')
         else:
-            lines.append(f'{out_var}["{field}_regex"] = {out_var}["{field}"].astype(str).str.extract({pattern})')
+            lines.append(
+                f'{out_var}["{field}_regex"] = {out_var}["{field}"].astype(str).str.extract({pattern})')
 
         return TranslationResult(
             tool_id=tool.tool_id,
@@ -167,12 +173,15 @@ register_plugin("AlteryxBasePluginsGui.RegEx.RegEx", RegExTranslator)
 
 register_type("TextToColumns", TextToColumnsTranslator)
 register_type("TextToColumnsTranslator", TextToColumnsTranslator)
-register_plugin("AlteryxBasePluginsGui.TextToColumns.TextToColumns", TextToColumnsTranslator)
+register_plugin(
+    "AlteryxBasePluginsGui.TextToColumns.TextToColumns", TextToColumnsTranslator)
 
 register_type("JSONParse", JSONParseTranslator)
 register_type("JSONParseTranslator", JSONParseTranslator)
-register_plugin("AlteryxBasePluginsGui.JSONParse.JSONParse", JSONParseTranslator)
+register_plugin("AlteryxBasePluginsGui.JSONParse.JSONParse",
+                JSONParseTranslator)
 
 register_type("JSONBuild", JSONBuildTranslator)
 register_type("JSONBuildTranslator", JSONBuildTranslator)
-register_plugin("AlteryxBasePluginsGui.JSONBuild.JSONBuild", JSONBuildTranslator)
+register_plugin("AlteryxBasePluginsGui.JSONBuild.JSONBuild",
+                JSONBuildTranslator)

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from awa.model.diagnostic import SupportLevel
-from awa.tools.categories import ToolCategory
-from awa.tools.definition import ToolDefinition
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.tools.categories import ToolCategory
+from backend.awa.tools.definition import ToolDefinition
 
 CONNECTOR_TOOLS: tuple[ToolDefinition, ...] = (
     # 92. Amazon S3 Download
@@ -21,7 +21,8 @@ CONNECTOR_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=(),
         output_anchors=("Output",),
-        aliases=("AlteryxConnectorGui.AmazonS3Download.AmazonS3Download", "AmazonS3Download"),
+        aliases=("AlteryxConnectorGui.AmazonS3Download.AmazonS3Download",
+                 "AmazonS3Download"),
         description="Retrieves and reads files stored in Amazon Web Services Simple Storage Service (S3) buckets.",
         visual_category="connector",
     ),
@@ -39,7 +40,8 @@ CONNECTOR_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=("Input",),
         output_anchors=(),
-        aliases=("AlteryxConnectorGui.AmazonS3Upload.AmazonS3Upload", "AmazonS3Upload"),
+        aliases=("AlteryxConnectorGui.AmazonS3Upload.AmazonS3Upload",
+                 "AmazonS3Upload"),
         description="Uploads workflow records and data files to an Amazon S3 cloud bucket destination.",
         visual_category="connector",
     ),
@@ -57,7 +59,8 @@ CONNECTOR_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=(),
         output_anchors=("Output",),
-        aliases=("AlteryxConnectorGui.SharePointFilesInput.SharePointFilesInput", "SharePointFilesInput"),
+        aliases=("AlteryxConnectorGui.SharePointFilesInput.SharePointFilesInput",
+                 "SharePointFilesInput"),
         description="Downloads and reads Excel, CSV, or XML data files from Microsoft SharePoint document libraries.",
         visual_category="connector",
     ),
@@ -75,7 +78,8 @@ CONNECTOR_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=("Input",),
         output_anchors=(),
-        aliases=("AlteryxConnectorGui.SharePointFilesOutput.SharePointFilesOutput", "SharePointFilesOutput"),
+        aliases=("AlteryxConnectorGui.SharePointFilesOutput.SharePointFilesOutput",
+                 "SharePointFilesOutput"),
         description="Writes and uploads dataset files to a target Microsoft SharePoint document library.",
         visual_category="connector",
     ),
@@ -93,7 +97,8 @@ CONNECTOR_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=(),
         output_anchors=("Output",),
-        aliases=("AlteryxConnectorGui.SalesforceInput.SalesforceInput", "SalesforceInput"),
+        aliases=("AlteryxConnectorGui.SalesforceInput.SalesforceInput",
+                 "SalesforceInput"),
         description="Queries and extracts tables and object records from Salesforce CRM via SOQL API.",
         visual_category="connector",
     ),
@@ -111,7 +116,8 @@ CONNECTOR_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=("Input",),
         output_anchors=(),
-        aliases=("AlteryxConnectorGui.SalesforceOutput.SalesforceOutput", "SalesforceOutput"),
+        aliases=("AlteryxConnectorGui.SalesforceOutput.SalesforceOutput",
+                 "SalesforceOutput"),
         description="Inserts, updates, or upserts workflow records into Salesforce database objects via API.",
         visual_category="connector",
     ),
@@ -129,7 +135,8 @@ CONNECTOR_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=("Input",),
         output_anchors=(),
-        aliases=("AlteryxConnectorGui.TableauOutput.TableauOutput", "TableauOutput", "PublishToTableauServer.yxmc"),
+        aliases=("AlteryxConnectorGui.TableauOutput.TableauOutput",
+                 "TableauOutput", "PublishToTableauServer.yxmc"),
         description="Publishes data extracts (.hyper) directly to Tableau Server or Tableau Cloud sites.",
         visual_category="connector",
     ),

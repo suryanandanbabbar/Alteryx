@@ -8,15 +8,15 @@ import tempfile
 import openpyxl
 import pytest
 
-from awa.parser.xml_parser import parse_workflow
-from awa.graph.builder import build_graph
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.analysis.sttm_extractor import extract_sttm, build_sttm_evidence_context
-from awa.analysis.sttm_validator import STTMValidator
-from awa.llm.client import FakeLLMClient
-from awa.llm.generator import LLMNarrativeGenerator
-from awa.llm.cache import LLMNarrativeCache
-from awa.generators.sttm_generator import generate_sttm_excel
+from backend.awa.parser.xml_parser import parse_workflow
+from backend.awa.graph.builder import build_graph
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.analysis.sttm_extractor import extract_sttm, build_sttm_evidence_context
+from backend.awa.analysis.sttm_validator import STTMValidator
+from backend.awa.llm.client import FakeLLMClient
+from backend.awa.llm.generator import LLMNarrativeGenerator
+from backend.awa.llm.cache import LLMNarrativeCache
+from backend.awa.generators.sttm_generator import generate_sttm_excel
 
 
 class TestSTTMLLMIntegration:
@@ -40,21 +40,25 @@ class TestSTTMLLMIntegration:
             or m.source_attribute.startswith("*")
             or m.target_attribute.startswith("*")
         ]
-        assert len(unknown_mappings) == 0, f"Found leaked *Unknown mappings: {unknown_mappings}"
+        assert len(
+            unknown_mappings) == 0, f"Found leaked *Unknown mappings: {unknown_mappings}"
 
         # Verify target attribute AdjustedClose exists
-        adj_close = [m for m in sttm.mappings if m.target_attribute == "AdjustedClose"]
+        adj_close = [
+            m for m in sttm.mappings if m.target_attribute == "AdjustedClose"]
         assert len(adj_close) > 0
         assert adj_close[0].target_table == "FTSEData.tde"
 
     def test_actual_filename_precedence(self):
         """Invariant 4: Precedence requires actual configured file names/paths across all workflows."""
         # 1. Demo Claims
-        wf_claims = parse_workflow(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        wf_claims = parse_workflow(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         g_claims = build_graph(wf_claims)
         ev_claims = build_sttm_evidence_context(wf_claims, g_claims)
         src_names = [s["dataset_name"] for s in ev_claims["source_datasets"]]
-        tgt_names = [t["deliverable_name"] for t in ev_claims["target_deliverables"]]
+        tgt_names = [t["deliverable_name"]
+                     for t in ev_claims["target_deliverables"]]
 
         assert any("Claims_Volume_Extract_Demo.xlsx" in s for s in src_names)
         assert any("Policy_Master_Demo.xlsx" in s for s in src_names)
@@ -74,7 +78,8 @@ class TestSTTMLLMIntegration:
         wf_ftse = parse_workflow(Path("FTSE 100.yxmd"))
         g_ftse = build_graph(wf_ftse)
         ev_ftse = build_sttm_evidence_context(wf_ftse, g_ftse)
-        ftse_tgts = [t["deliverable_name"] for t in ev_ftse["target_deliverables"]]
+        ftse_tgts = [t["deliverable_name"]
+                     for t in ev_ftse["target_deliverables"]]
         assert "FTSEData.tde" in ftse_tgts
 
     def test_bbcfood_aggr_browse_sink_distinction(self):
@@ -100,7 +105,8 @@ class TestSTTMLLMIntegration:
 
     def test_validator_rejects_hallucinations(self):
         """Mapping Authority Invariant: Validator strictly rejects fabricated entities."""
-        wf = parse_workflow(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        wf = parse_workflow(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         g = build_graph(wf)
         evidence = build_sttm_evidence_context(wf, g)
         validator = STTMValidator(evidence, g)
@@ -186,7 +192,8 @@ class TestSTTMLLMIntegration:
 
     def test_no_confidence_string_in_mappings(self):
         """User Constraint: Strictly no 'confidence' string in STTM mappings or dicts."""
-        wf = parse_workflow(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        wf = parse_workflow(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         g = build_graph(wf)
         sttm = extract_sttm(wf, g)
 
@@ -197,7 +204,8 @@ class TestSTTMLLMIntegration:
 
     def test_llm_generation_and_reconciliation(self):
         """Verify LLM generator enriches transformation logic and reconciles 100% target completeness."""
-        wf = parse_workflow(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        wf = parse_workflow(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         g = build_graph(wf)
         evidence = build_sttm_evidence_context(wf, g)
         baseline_total = len(evidence["deterministic_baseline"].mappings)
@@ -233,7 +241,8 @@ class TestSTTMLLMIntegration:
         }
 
         fake_client = FakeLLMClient(default_response=json.dumps(mock_payload))
-        generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        generator = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
 
         sttm_doc = generator.generate_sttm(wf, g, workflow_id="test_wf_llm")
         assert sttm_doc.total_mappings == baseline_total
@@ -248,16 +257,20 @@ class TestSTTMLLMIntegration:
         assert refined[0].source == "llm"
 
         # Verify hallucinated entry was rejected
-        assert not any(m.source_table == "FakeSource" for m in sttm_doc.mappings)
+        assert not any(m.source_table ==
+                       "FakeSource" for m in sttm_doc.mappings)
 
     def test_llm_fallback_on_error(self):
         """Verify seamless fallback to deterministic baseline when LLM raises error or malformed JSON."""
-        wf = parse_workflow(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        wf = parse_workflow(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         g = build_graph(wf)
 
         # 1. Malformed JSON
-        malformed_client = FakeLLMClient(default_response="Not a JSON string {invalid")
-        gen1 = LLMNarrativeGenerator(client=malformed_client, cache=LLMNarrativeCache())
+        malformed_client = FakeLLMClient(
+            default_response="Not a JSON string {invalid")
+        gen1 = LLMNarrativeGenerator(
+            client=malformed_client, cache=LLMNarrativeCache())
         sttm1 = gen1.generate_sttm(wf, g, workflow_id="test_malformed")
         assert sttm1.total_mappings == 31
 
@@ -266,13 +279,15 @@ class TestSTTMLLMIntegration:
             raise TimeoutError("LLM API timed out")
 
         error_client = FakeLLMClient(generator_fn=raise_err)
-        gen2 = LLMNarrativeGenerator(client=error_client, cache=LLMNarrativeCache())
+        gen2 = LLMNarrativeGenerator(
+            client=error_client, cache=LLMNarrativeCache())
         sttm2 = gen2.generate_sttm(wf, g, workflow_id="test_error")
         assert sttm2.total_mappings == 31
 
     def test_xlsx_skeleton_unchanged(self):
         """Requirement 12 & 13: Existing STTM XLSX skeleton MUST remain unchanged."""
-        wf = parse_workflow(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        wf = parse_workflow(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         g = build_graph(wf)
         sttm = extract_sttm(wf, g)
 
@@ -284,7 +299,8 @@ class TestSTTMLLMIntegration:
             wb = openpyxl.load_workbook(tmp_path)
 
             # Check sheet names
-            assert wb.sheetnames == ["Source-to-Target Mapping", "STTM Summary"]
+            assert wb.sheetnames == [
+                "Source-to-Target Mapping", "STTM Summary"]
 
             # Sheet 1: Headers & Columns
             ws1 = wb["Source-to-Target Mapping"]
@@ -296,7 +312,8 @@ class TestSTTMLLMIntegration:
                 "Target Table",
                 "Target Attribute",
             ]
-            actual_headers = [ws1.cell(row=1, column=c).value for c in range(1, 7)]
+            actual_headers = [
+                ws1.cell(row=1, column=c).value for c in range(1, 7)]
             assert actual_headers == expected_headers
 
             # Autofilter & freeze panes
@@ -305,9 +322,11 @@ class TestSTTMLLMIntegration:
 
             # Sheet 2: Summary KPIs
             ws2 = wb["STTM Summary"]
-            assert ws2.cell(row=2, column=2).value == "Source-to-Target Mapping Summary"
+            assert ws2.cell(
+                row=2, column=2).value == "Source-to-Target Mapping Summary"
             assert ws2.cell(row=5, column=2).value == "Metric"
-            assert ws2.cell(row=12, column=2).value == "Transformation Category"
+            assert ws2.cell(
+                row=12, column=2).value == "Transformation Category"
 
         finally:
             if tmp_path.exists():
@@ -323,7 +342,8 @@ class TestSTTMLLMIntegration:
         client = TestClient(app)
         wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
         with open(wf_path, "rb") as f:
-            resp = client.post("/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
+            resp = client.post(
+                "/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
 
         assert resp.status_code == 200
         analysis_id = resp.json()["analysis_id"]
@@ -344,4 +364,3 @@ class TestSTTMLLMIntegration:
         with zipfile.ZipFile(io.BytesIO(zip_resp.content)) as zf:
             filenames = zf.namelist()
             assert any(f.endswith("_STTM.xlsx") for f in filenames)
-

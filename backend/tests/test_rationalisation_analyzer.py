@@ -1,28 +1,28 @@
 import pytest
-from awa.analysis.rationalisation_analyzer import (
+from backend.awa.analysis.rationalisation_analyzer import (
     WorkflowFingerprint,
     build_workflow_fingerprint,
     compare_workflows,
     detect_candidate_from_comparison,
     build_rationalisation_analysis,
 )
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, ToolConfiguration, Position
-from awa.model.field import Field
-from awa.model.source_info import SourceInfo
-from awa.model.portfolio import (
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.tool import Tool, ToolConfiguration, Position
+from backend.awa.model.field import Field
+from backend.awa.model.source_info import SourceInfo
+from backend.awa.model.portfolio import (
     PortfolioWorkflowSummary,
     PortfolioAnalysis,
     PortfolioAggregateMetrics,
     RationalisationAnalysis,
     RationalisationCandidate,
 )
-from awa.analysis.portfolio_analyzer import (
+from backend.awa.analysis.portfolio_analyzer import (
     _extract_workflow_sources,
     _extract_workflow_targets_and_sinks,
 )
-from awa.model.business_summary import (
+from backend.awa.model.business_summary import (
     WorkflowBusinessSummary,
     BusinessInput,
     BusinessOutput,
@@ -49,7 +49,8 @@ def _make_dummy_workflow(wid: str, name: str, sources: list[str], targets: list[
             tool_type="DbFileInput",
             name="Input",
             position=Position(x=10, y=10),
-            configuration=ToolConfiguration(raw_xml="", parsed={"clean_sources": sources, "clean_fields": fields}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"clean_sources": sources, "clean_fields": fields}),
             output_fields=[Field(name=f, type="V_WString") for f in fields],
         ),
         2: Tool(
@@ -58,7 +59,8 @@ def _make_dummy_workflow(wid: str, name: str, sources: list[str], targets: list[
             tool_type="DbFileOutput",
             name="Output",
             position=Position(x=100, y=10),
-            configuration=ToolConfiguration(raw_xml="", parsed={"clean_targets": targets, "clean_fields": fields}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"clean_targets": targets, "clean_fields": fields}),
             output_fields=[Field(name=f, type="V_WString") for f in fields],
         ),
     }
@@ -69,7 +71,8 @@ def _make_dummy_workflow(wid: str, name: str, sources: list[str], targets: list[
     )
     res = CanonicalAnalysisResult(
         analysis_id=f"res_{wid}",
-        source=SourceInfo(source_format="yxmd", original_filename=f"{name}.yxmd"),
+        source=SourceInfo(source_format="yxmd",
+                          original_filename=f"{name}.yxmd"),
         workflow=wf,
         graph=None,
         execution_order=[1, 2],
@@ -190,7 +193,8 @@ def test_rationalisation_unique_workflow_partitioning():
     assert classifications["wf-3"] == "KEEP"
 
     # Verify summary counts match classifications
-    consolidate_count = sum(1 for c in classifications.values() if c == "CONSOLIDATE")
+    consolidate_count = sum(
+        1 for c in classifications.values() if c == "CONSOLIDATE")
     keep_count = sum(1 for c in classifications.values() if c == "KEEP")
     retire_count = sum(1 for c in classifications.values() if c == "RETIRE")
 
@@ -253,7 +257,8 @@ def test_distinct_evidence_models_required_vs_metadata_matching():
         name="Retained Master",
         sources=["Master.csv"],
         targets=["Analytics.DW_Final"],
-        fields=["claim_id", "diagnosis_type", "icd_code", "month_end_date", "payment_amount", "payment_date", "payment_id", "extra_1", "extra_2", "extra_3"],
+        fields=["claim_id", "diagnosis_type", "icd_code", "month_end_date",
+                "payment_amount", "payment_date", "payment_id", "extra_1", "extra_2", "extra_3"],
     )
     # Absorbed workflow requires 7 fields but also has extra common metadata
     s_absorbed, wf_absorbed = _make_dummy_workflow(
@@ -261,7 +266,8 @@ def test_distinct_evidence_models_required_vs_metadata_matching():
         name="Absorbed Process",
         sources=["Claims_Input.csv"],
         targets=["Analytics.Claims_Staging"],
-        fields=["claim_id", "diagnosis_type", "icd_code", "month_end_date", "payment_amount", "payment_date", "payment_id", "extra_1", "extra_2"],
+        fields=["claim_id", "diagnosis_type", "icd_code", "month_end_date",
+                "payment_amount", "payment_date", "payment_id", "extra_1", "extra_2"],
     )
 
     fp_target = build_workflow_fingerprint(s_target, wf_target)
@@ -274,7 +280,8 @@ def test_distinct_evidence_models_required_vs_metadata_matching():
     # 1. Broader metadata matches (9 fields shared)
     assert len(cand.dependency_evidence.shared_source_fields) == 9
     # 2. Source fields by workflow populated for Claims_Input.csv
-    src_fields = cand.source_fields_by_workflow.get(fp_absorbed.workflow_name, {})
+    src_fields = cand.source_fields_by_workflow.get(
+        fp_absorbed.workflow_name, {})
     assert any("claim_id" in flds for flds in src_fields.values())
 
 
@@ -284,7 +291,8 @@ def test_target_metadata_overlap_acceptance_suite():
         wid="wf-03",
         name="WF03",
         sources=["SourceA.csv"],
-        targets=["Deliverable_43.csv", "Deliverable_45.csv", "Deliverable_46.csv"],
+        targets=["Deliverable_43.csv",
+                 "Deliverable_45.csv", "Deliverable_46.csv"],
         fields=["f1", "f2"],
     )
     s_wf01, res_wf01 = _make_dummy_workflow(
@@ -346,7 +354,8 @@ def test_target_metadata_overlap_acceptance_suite():
     fp_t3b = build_workflow_fingerprint(s_t3b, res_t3b)
 
     comp3 = compare_workflows(fp_t3a, fp_t3b)
-    assert comp3.metrics.target_overlap == 1.0  # 100% schema match despite distinct filenames
+    # 100% schema match despite distinct filenames
+    assert comp3.metrics.target_overlap == 1.0
 
     # Acceptance Test 5: Same logic & frequency & DAG, but completely different targets and schemas
     s_t5a, res_t5a = _make_dummy_workflow(
@@ -382,8 +391,10 @@ def test_canonical_source_target_alignment_with_high_level_lineage():
             tool_type="TextInput",
             name="Source Input #1",
             position=Position(x=10, y=10),
-            configuration=ToolConfiguration(raw_xml="", parsed={"fields": ["Claim_ID", "Diagnosis_Type", "ICD_Code"]}),
-            output_fields=[Field(name="Claim_ID", type="V_WString"), Field(name="Diagnosis_Type", type="V_WString"), Field(name="ICD_Code", type="V_WString")],
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"fields": ["Claim_ID", "Diagnosis_Type", "ICD_Code"]}),
+            output_fields=[Field(name="Claim_ID", type="V_WString"), Field(
+                name="Diagnosis_Type", type="V_WString"), Field(name="ICD_Code", type="V_WString")],
         ),
         6: Tool(
             tool_id=6,
@@ -391,8 +402,10 @@ def test_canonical_source_target_alignment_with_high_level_lineage():
             tool_type="TextInput",
             name="Source Input #6",
             position=Position(x=10, y=50),
-            configuration=ToolConfiguration(raw_xml="", parsed={"fields": ["Payment_ID", "Payment_Amount", "Payment_Date"]}),
-            output_fields=[Field(name="Payment_ID", type="V_WString"), Field(name="Payment_Amount", type="V_WString"), Field(name="Payment_Date", type="V_WString")],
+            configuration=ToolConfiguration(raw_xml="", parsed={"fields": [
+                                            "Payment_ID", "Payment_Amount", "Payment_Date"]}),
+            output_fields=[Field(name="Payment_ID", type="V_WString"), Field(
+                name="Payment_Amount", type="V_WString"), Field(name="Payment_Date", type="V_WString")],
         ),
         28: Tool(
             tool_id=28,
@@ -400,7 +413,8 @@ def test_canonical_source_target_alignment_with_high_level_lineage():
             tool_type="TextInput",
             name="Source Input #28",
             position=Position(x=10, y=90),
-            configuration=ToolConfiguration(raw_xml="", parsed={"fields": ["Month_End_Date"]}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"fields": ["Month_End_Date"]}),
             output_fields=[Field(name="Month_End_Date", type="V_WString")],
         ),
         31: Tool(
@@ -409,7 +423,8 @@ def test_canonical_source_target_alignment_with_high_level_lineage():
             tool_type="TextInput",
             name="Source Input #31",
             position=Position(x=10, y=130),
-            configuration=ToolConfiguration(raw_xml="", parsed={"fields": ["Ref_Code"]}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"fields": ["Ref_Code"]}),
             output_fields=[Field(name="Ref_Code", type="V_WString")],
         ),
         39: Tool(
@@ -418,7 +433,8 @@ def test_canonical_source_target_alignment_with_high_level_lineage():
             tool_type="TextInput",
             name="Source Input #39",
             position=Position(x=10, y=170),
-            configuration=ToolConfiguration(raw_xml="", parsed={"fields": ["Audit_Flag"]}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"fields": ["Audit_Flag"]}),
             output_fields=[Field(name="Audit_Flag", type="V_WString")],
         ),
         43: Tool(
@@ -427,7 +443,8 @@ def test_canonical_source_target_alignment_with_high_level_lineage():
             tool_type="DbFileOutput",
             name="Deliverable #43",
             position=Position(x=300, y=10),
-            configuration=ToolConfiguration(raw_xml="", parsed={"File": "deliverable_43.xlsx"}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"File": "deliverable_43.xlsx"}),
             output_fields=[Field(name="Claim_ID", type="V_WString")],
         ),
         45: Tool(
@@ -436,7 +453,8 @@ def test_canonical_source_target_alignment_with_high_level_lineage():
             tool_type="DbFileOutput",
             name="Deliverable #45",
             position=Position(x=300, y=50),
-            configuration=ToolConfiguration(raw_xml="", parsed={"File": "deliverable_45.xlsx"}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"File": "deliverable_45.xlsx"}),
             output_fields=[Field(name="Payment_ID", type="V_WString")],
         ),
         46: Tool(
@@ -445,7 +463,8 @@ def test_canonical_source_target_alignment_with_high_level_lineage():
             tool_type="DbFileOutput",
             name="Deliverable #46",
             position=Position(x=300, y=90),
-            configuration=ToolConfiguration(raw_xml="", parsed={"File": "deliverable_46.xlsx"}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"File": "deliverable_46.xlsx"}),
             output_fields=[Field(name="Payment_Amount", type="V_WString")],
         ),
     }
@@ -455,16 +474,24 @@ def test_canonical_source_target_alignment_with_high_level_lineage():
         one_line_purpose="Claims processing workflow",
         why_it_matters="Critical for claims reconciliation",
         source_inputs=[
-            BusinessInput(tool_id=1, name="Source Input #1", raw_source="In-memory configuration", source_type="TextInput"),
-            BusinessInput(tool_id=6, name="Source Input #6", raw_source="In-memory configuration", source_type="TextInput"),
-            BusinessInput(tool_id=28, name="Source Input #28", raw_source="In-memory configuration", source_type="TextInput"),
-            BusinessInput(tool_id=31, name="Source Input #31", raw_source="In-memory configuration", source_type="TextInput"),
-            BusinessInput(tool_id=39, name="Source Input #39", raw_source="In-memory configuration", source_type="TextInput"),
+            BusinessInput(tool_id=1, name="Source Input #1",
+                          raw_source="In-memory configuration", source_type="TextInput"),
+            BusinessInput(tool_id=6, name="Source Input #6",
+                          raw_source="In-memory configuration", source_type="TextInput"),
+            BusinessInput(tool_id=28, name="Source Input #28",
+                          raw_source="In-memory configuration", source_type="TextInput"),
+            BusinessInput(tool_id=31, name="Source Input #31",
+                          raw_source="In-memory configuration", source_type="TextInput"),
+            BusinessInput(tool_id=39, name="Source Input #39",
+                          raw_source="In-memory configuration", source_type="TextInput"),
         ],
         business_outputs=[
-            BusinessOutput(tool_id=43, name="deliverable_43", raw_destination="deliverable_43.xlsx", destination_type="Excel Workbook"),
-            BusinessOutput(tool_id=45, name="deliverable_45", raw_destination="deliverable_45.xlsx", destination_type="Excel Workbook"),
-            BusinessOutput(tool_id=46, name="deliverable_46", raw_destination="deliverable_46.xlsx", destination_type="Excel Workbook"),
+            BusinessOutput(tool_id=43, name="deliverable_43",
+                           raw_destination="deliverable_43.xlsx", destination_type="Excel Workbook"),
+            BusinessOutput(tool_id=45, name="deliverable_45",
+                           raw_destination="deliverable_45.xlsx", destination_type="Excel Workbook"),
+            BusinessOutput(tool_id=46, name="deliverable_46",
+                           raw_destination="deliverable_46.xlsx", destination_type="Excel Workbook"),
         ],
     )
 
@@ -524,13 +551,10 @@ def test_canonical_source_target_alignment_with_high_level_lineage():
         status="SUCCESS",
     )
     fp = build_workflow_fingerprint(summary, res)
-    assert fp.sources == sorted(["source_input_1", "source_input_6", "source_input_28", "source_input_31", "source_input_39"])
+    assert fp.sources == sorted(
+        ["source_input_1", "source_input_6", "source_input_28", "source_input_31", "source_input_39"])
     assert fp.production_targets == targets
     # Check that tool fields are mapped under the canonical source names
     assert "Claim_ID" in fp.source_fields.get("Source Input #1", [])
     assert "Payment_ID" in fp.source_fields.get("Source Input #6", [])
     assert "Month_End_Date" in fp.source_fields.get("Source Input #28", [])
-
-
-
-

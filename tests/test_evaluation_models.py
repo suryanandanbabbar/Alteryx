@@ -5,12 +5,12 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from awa.analysis.workflow_complexity import (
+from backend.awa.analysis.workflow_complexity import (
     COMPLEXITY_EVALUATION_FACTORS,
     COMPLEXITY_WEIGHTS,
     get_complexity_evaluation_model,
 )
-from awa.analysis.workflow_criticality import (
+from backend.awa.analysis.workflow_criticality import (
     CRITICALITY_EVALUATION_FACTORS,
     CRITICALITY_FACTOR_WEIGHT,
     OPERATIONAL_WEIGHT_TOTAL,
@@ -54,7 +54,8 @@ def test_get_evaluation_models_api_endpoint():
     assert criticality["operational_weight_pct"] == 40
     assert len(criticality["factors"]) == 5
 
-    criticality_weight_sum = sum(f["weight_pct"] for f in criticality["factors"])
+    criticality_weight_sum = sum(f["weight_pct"]
+                                 for f in criticality["factors"])
     assert criticality_weight_sum == 100
 
     crit_factor_map = {f["id"]: f for f in criticality["factors"]}
@@ -90,4 +91,5 @@ def test_criticality_model_weights_synchronization():
         assert f["weight_pct"] == int(CRITICALITY_FACTOR_WEIGHT * 100)
     assert sum(f["weight_pct"] for f in factors) == 100
     assert model["technical_weight_pct"] == int(TECHNICAL_WEIGHT_TOTAL * 100)
-    assert model["operational_weight_pct"] == int(OPERATIONAL_WEIGHT_TOTAL * 100)
+    assert model["operational_weight_pct"] == int(
+        OPERATIONAL_WEIGHT_TOTAL * 100)

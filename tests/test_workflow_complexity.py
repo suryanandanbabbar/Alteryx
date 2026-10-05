@@ -6,17 +6,17 @@ from types import SimpleNamespace
 import networkx as nx
 import pytest
 
-from awa.analysis.workflow_complexity import (
+from backend.awa.analysis.workflow_complexity import (
     calculate_workflow_complexity,
     COMPLEXITY_WEIGHTS,
     COMPLEXITY_LOW_MAX,
     COMPLEXITY_MEDIUM_MAX,
     TOOL_COMPLEXITY_WEIGHTS,
 )
-from awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, ToolConfiguration, Position
-from awa.model.connection import Connection
+from backend.awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.tool import Tool, ToolConfiguration, Position
+from backend.awa.model.connection import Connection
 
 
 def _build_mock_result(
@@ -100,15 +100,18 @@ class TestWorkflowComplexity:
             (1, "DbFileInput", {"file_path": "sales.csv"}),
             (2, "DbFileInput", {"file_path": "lookup.csv"}),
             (3, "DbFileInput", {"file_path": "targets.csv"}),
-            (4, "Formula", {"formula_fields": [{"expression": "[Amount] * 1.2"}]}),
+            (4, "Formula", {"formula_fields": [
+             {"expression": "[Amount] * 1.2"}]}),
             (5, "Join", {}),
             (6, "Join", {}),
             (7, "Union", {}),
             (8, "Summarize", {}),
             (9, "Sort", {}),
             (10, "Select", {}),
-            (11, "Filter", {"expression": "[Amount] > 100 AND [Status] == 'ACTIVE'"}),
-            (12, "Formula", {"formula_fields": [{"expression": "IF [Tax] > 0 THEN [Tax] ELSE 0 ENDIF"}]}),
+            (11, "Filter", {
+             "expression": "[Amount] > 100 AND [Status] == 'ACTIVE'"}),
+            (12, "Formula", {"formula_fields": [
+             {"expression": "IF [Tax] > 0 THEN [Tax] ELSE 0 ENDIF"}]}),
             (13, "DbFileOutput", {"file_path": "out1.csv"}),
             (14, "DbFileOutput", {"file_path": "out2.csv"}),
         ]
@@ -138,7 +141,8 @@ class TestWorkflowComplexity:
                 ttype = "MultiRowFormula"
             elif i % 4 == 0:
                 ttype = "Formula"
-                cfg = {"formula_fields": [{"expression": "IF [A] > 10 THEN [B] ELSE [C] ENDIF"}]}
+                cfg = {"formula_fields": [
+                    {"expression": "IF [A] > 10 THEN [B] ELSE [C] ENDIF"}]}
             else:
                 ttype = "Select"
                 cfg = None
@@ -187,7 +191,8 @@ class TestWorkflowComplexity:
             (3, "DbFileOutput", {}),
         ]
         simple_res = _build_mock_result(simple_tools, [(1, 2), (2, 3)])
-        simple_score = calculate_workflow_complexity(simple_res).breakdown["expression"]
+        simple_score = calculate_workflow_complexity(
+            simple_res).breakdown["expression"]
 
         complex_tools = [
             (1, "DbFileInput", {}),
@@ -200,14 +205,16 @@ class TestWorkflowComplexity:
             (3, "DbFileOutput", {}),
         ]
         complex_res = _build_mock_result(complex_tools, [(1, 2), (2, 3)])
-        complex_score = calculate_workflow_complexity(complex_res).breakdown["expression"]
+        complex_score = calculate_workflow_complexity(
+            complex_res).breakdown["expression"]
 
         assert complex_score > simple_score
 
     def test_score_remains_strictly_clamped_0_to_100(self):
         """Scores must strictly stay in [0.0, 100.0] even under extreme workflow size."""
         huge_tools = [(i, "Python", {}) for i in range(1, 100)]
-        huge_conns = [(i, i + 1) for i in range(1, 99)] + [(i, i + 2) for i in range(1, 50, 2)]
+        huge_conns = [(i, i + 1) for i in range(1, 99)] + \
+            [(i, i + 2) for i in range(1, 50, 2)]
         res = _build_mock_result(huge_tools, huge_conns)
 
         assessment = calculate_workflow_complexity(res)

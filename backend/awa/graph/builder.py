@@ -6,11 +6,12 @@ branch consumption analysis.
 """
 
 from __future__ import annotations
+import heapq
 
 import networkx as nx
 
-from awa.model.workflow import Workflow
-from awa.model.connection import Connection
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.connection import Connection
 
 
 class CyclicWorkflowError(Exception):
@@ -53,8 +54,6 @@ def build_graph(workflow: Workflow) -> nx.DiGraph:
 
     return g
 
-
-import heapq
 
 def execution_order(g: nx.DiGraph) -> list[int]:
     """Return tool IDs in deterministic topological (execution) order.
@@ -127,7 +126,7 @@ def build_input_map(
     for conn in workflow.connections:
         orig_tid = conn.origin_tool_id
         orig_anchor = (conn.origin_anchor or "").lower()
-        
+
         # Look up variable in stream_env, falling back to resolve_output_variable
         df_name = (
             env.get((orig_tid, orig_anchor))
@@ -145,7 +144,8 @@ def build_input_map(
         tool = workflow.tools.get(tool_id)
         if tool and tool.tool_type in ("Join", "FindReplace", "AppendFields") and len(inputs) >= 2:
             left_dfs = [df for df, anchor in inputs if anchor in _LEFT_ANCHORS]
-            right_dfs = [df for df, anchor in inputs if anchor in _RIGHT_ANCHORS]
+            right_dfs = [df for df,
+                         anchor in inputs if anchor in _RIGHT_ANCHORS]
             other_dfs = [
                 df for df, anchor in inputs
                 if anchor not in _LEFT_ANCHORS

@@ -4,15 +4,15 @@ from pathlib import Path
 import docx
 import pytest
 
-from awa.parser.xml_parser import parse_workflow
-from awa.graph.builder import build_graph, execution_order, build_input_map
-from awa.graph.dag_layouter import compute_dag_layout
-from awa.graph.lineage import compute_lineage_paths
-from awa.translators.registry import get_translator
-import awa.translators  # register translators
-from awa.generators.doc_builder import build_document_model
-from awa.generators.docx_generator import generate_docx
-from awa.generators.svg_generator import generate_svg
+from backend.awa.parser.xml_parser import parse_workflow
+from backend.awa.graph.builder import build_graph, execution_order, build_input_map
+from backend.awa.graph.dag_layouter import compute_dag_layout
+from backend.awa.graph.lineage import compute_lineage_paths
+from backend.awa.translators.registry import get_translator
+import backend.awa.translators  # register translators
+from backend.awa.generators.doc_builder import build_document_model
+from backend.awa.generators.docx_generator import generate_docx
+from backend.awa.generators.svg_generator import generate_svg
 
 
 def test_docx_generation(tmp_path: Path):
@@ -30,10 +30,11 @@ def test_docx_generation(tmp_path: Path):
     layout = compute_dag_layout(g, wf, order)
     lineage = compute_lineage_paths(wf, g)
 
-    from awa.analysis.business_intelligence import generate_business_summary
+    from backend.awa.analysis.business_intelligence import generate_business_summary
 
     bs = generate_business_summary(wf, g, order)
-    doc_model = build_document_model(wf, order, translations, layout, lineage, business_summary=bs)
+    doc_model = build_document_model(
+        wf, order, translations, layout, lineage, business_summary=bs)
     assert "join_workflow" in doc_model.title
     assert len(doc_model.nodes) == 6
     assert len(doc_model.execution_order) == 6
@@ -46,7 +47,8 @@ def test_docx_generation(tmp_path: Path):
 
     # Verify python-docx can open and read it
     doc = docx.Document(str(docx_path))
-    headings = [p.text for p in doc.paragraphs if p.text.startswith("1.") or p.text.startswith("2.") or p.text.startswith("3.")]
+    headings = [p.text for p in doc.paragraphs if p.text.startswith(
+        "1.") or p.text.startswith("2.") or p.text.startswith("3.")]
     assert len(headings) >= 3
     assert len(doc.tables) >= 3
 

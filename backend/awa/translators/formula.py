@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
-from awa.expressions.pandas_emitter import emit_pandas
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.awa.expressions.pandas_emitter import emit_pandas
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -30,7 +30,8 @@ class FormulaTranslator(ToolTranslator):
         imports: set[str] = {"import pandas as pd"}
         lines: list[str] = [f"{output_var} = {input_var}.copy()"]
 
-        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+        upstream_schema = getattr(
+            workflow, "_stream_schemas", {}).get(input_var)
         created_in_step: set[str] = set()
 
         if not formula_fields:
@@ -60,7 +61,8 @@ class FormulaTranslator(ToolTranslator):
                     import re
                     bracketed = re.findall(r"\[([^\]]+)\]", expression)
                     available = set(upstream_schema) | created_in_step
-                    unknown_streams = getattr(workflow, "_unknown_schema_streams", set())
+                    unknown_streams = getattr(
+                        workflow, "_unknown_schema_streams", set())
                     is_unknown = input_var in unknown_streams
                     for ref_field in bracketed:
                         if ref_field not in available and not is_unknown:
@@ -77,7 +79,8 @@ class FormulaTranslator(ToolTranslator):
                 created_in_step.add(field_name)
 
                 try:
-                    expr_code, expr_imports = emit_pandas(expression, output_var)
+                    expr_code, expr_imports = emit_pandas(
+                        expression, output_var)
                     imports.update(expr_imports)
                     lines.append(f'{output_var}["{field_name}"] = {expr_code}')
                 except Exception as e:
@@ -89,9 +92,12 @@ class FormulaTranslator(ToolTranslator):
                         message=f"Failed to translate formula expression for '{field_name}': {e}",
                         detail=expression,
                     ))
-                    clean_expr_comment = (expression or "").replace("\n", " ").replace("\r", " ")
-                    lines.append(f'# Warning: fallback translating expression for {field_name}: {clean_expr_comment}')
-                    lines.append(f'{output_var}["{field_name}"] = None  # Translation failed')
+                    clean_expr_comment = (expression or "").replace(
+                        "\n", " ").replace("\r", " ")
+                    lines.append(
+                        f'# Warning: fallback translating expression for {field_name}: {clean_expr_comment}')
+                    lines.append(
+                        f'{output_var}["{field_name}"] = None  # Translation failed')
 
         code = "\n".join(lines)
 
@@ -185,12 +191,15 @@ register_plugin("AlteryxBasePluginsGui.Formula.Formula", FormulaTranslator)
 
 register_type("MultiFieldFormula", MultiFieldFormulaTranslator)
 register_type("MultiFieldFormulaTranslator", MultiFieldFormulaTranslator)
-register_plugin("AlteryxBasePluginsGui.MultiFieldFormula.MultiFieldFormula", MultiFieldFormulaTranslator)
+register_plugin("AlteryxBasePluginsGui.MultiFieldFormula.MultiFieldFormula",
+                MultiFieldFormulaTranslator)
 
 register_type("MultiRowFormula", MultiRowFormulaTranslator)
 register_type("MultiRowFormulaTranslator", MultiRowFormulaTranslator)
-register_plugin("AlteryxBasePluginsGui.MultiRowFormula.MultiRowFormula", MultiRowFormulaTranslator)
+register_plugin("AlteryxBasePluginsGui.MultiRowFormula.MultiRowFormula",
+                MultiRowFormulaTranslator)
 
 register_type("GenerateRows", GenerateRowsTranslator)
 register_type("GenerateRowsTranslator", GenerateRowsTranslator)
-register_plugin("AlteryxBasePluginsGui.GenerateRows.GenerateRows", GenerateRowsTranslator)
+register_plugin("AlteryxBasePluginsGui.GenerateRows.GenerateRows",
+                GenerateRowsTranslator)

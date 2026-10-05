@@ -19,7 +19,7 @@ from typing import Any
 import networkx as nx
 import pytest
 
-from awa.analysis.rationalisation_analyzer import (
+from backend.awa.analysis.rationalisation_analyzer import (
     build_rationalisation_analysis,
     compare_workflows,
     detect_candidate_from_comparison,
@@ -27,11 +27,11 @@ from awa.analysis.rationalisation_analyzer import (
     ConsolidationRules,
     RationalisationThresholds,
 )
-from awa.model.analysis_result import WorkflowMetrics
-from awa.model.connection import Connection
-from awa.model.tool import Tool, ToolConfiguration, Position
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.portfolio import (
+from backend.awa.model.analysis_result import WorkflowMetrics
+from backend.awa.model.connection import Connection
+from backend.awa.model.tool import Tool, ToolConfiguration, Position
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.portfolio import (
     PortfolioAggregateMetrics,
     PortfolioAnalysis,
     PortfolioWorkflowSummary,
@@ -152,8 +152,10 @@ class TestRationalisationFilters:
             sources=["raw_data.csv"],
             targets=[],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "raw_data.csv"}, '<Configuration><File>raw_data.csv</File></Configuration>'),
-                (2, "BrowseV2", {"temp_file": "temp_browse.yxdb"}, '<Configuration><TempFile>temp_browse.yxdb</TempFile></Configuration>'),
+                (1, "DbFileInput", {"file_path": "raw_data.csv"},
+                 '<Configuration><File>raw_data.csv</File></Configuration>'),
+                (2, "BrowseV2", {"temp_file": "temp_browse.yxdb"},
+                 '<Configuration><TempFile>temp_browse.yxdb</TempFile></Configuration>'),
             ],
             inspection_sinks=["temp_browse.yxdb"],
         )
@@ -164,16 +166,20 @@ class TestRationalisationFilters:
             sources=["sales.csv"],
             targets=["report.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "sales.csv"}, '<Configuration><File>sales.csv</File></Configuration>'),
-                (2, "DbFileOutput", {"file_path": "report.yxdb"}, '<Configuration><File>report.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "sales.csv"},
+                 '<Configuration><File>sales.csv</File></Configuration>'),
+                (2, "DbFileOutput", {"file_path": "report.yxdb"},
+                 '<Configuration><File>report.yxdb</File></Configuration>'),
             ],
         )
 
         portfolio, results = _make_portfolio([w_sink, w_prod], "port_retire")
-        analysis = build_rationalisation_analysis(portfolio, results, use_llm=False)
+        analysis = build_rationalisation_analysis(
+            portfolio, results, use_llm=False)
 
         # Inspect candidate generated for wf_sink
-        sink_cands = [c for c in analysis.candidates if "wf_sink" in c.workflow_ids]
+        sink_cands = [
+            c for c in analysis.candidates if "wf_sink" in c.workflow_ids]
         assert len(sink_cands) >= 1
         for cand in sink_cands:
             assert cand.recommendation_type in ("RETIRE", "RETIRE_CANDIDATE")
@@ -193,9 +199,12 @@ class TestRationalisationFilters:
             sources=["claims.csv"],
             targets=["claims_summary.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "claims.csv"}, '<Configuration><File>claims.csv</File><Fields><Field name="claim_id"/><Field name="amount"/></Fields></Configuration>'),
-                (2, "Filter", {"expression": "amount > 0"}, '<Configuration><Expression>amount &gt; 0</Expression></Configuration>'),
-                (3, "DbFileOutput", {"file_path": "claims_summary.yxdb"}, '<Configuration><File>claims_summary.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "claims.csv"},
+                 '<Configuration><File>claims.csv</File><Fields><Field name="claim_id"/><Field name="amount"/></Fields></Configuration>'),
+                (2, "Filter", {"expression": "amount > 0"},
+                 '<Configuration><Expression>amount &gt; 0</Expression></Configuration>'),
+                (3, "DbFileOutput", {"file_path": "claims_summary.yxdb"},
+                 '<Configuration><File>claims_summary.yxdb</File></Configuration>'),
             ],
             complexity_level="LOW",
             complexity_score=20.0,
@@ -207,17 +216,23 @@ class TestRationalisationFilters:
             sources=["claims.csv"],
             targets=["claims_summary.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "claims.csv"}, '<Configuration><File>claims.csv</File><Fields><Field name="claim_id"/><Field name="amount"/><Field name="date"/></Fields></Configuration>'),
-                (2, "Filter", {"expression": "amount > 0"}, '<Configuration><Expression>amount &gt; 0</Expression></Configuration>'),
-                (3, "Formula", {"formula_fields": [{"field_name": "extra", "expression": "1"}]}, '<Configuration><FormulaFields><FormulaField field="extra" expression="1"/></FormulaFields></Configuration>'),
-                (4, "DbFileOutput", {"file_path": "claims_summary.yxdb"}, '<Configuration><File>claims_summary.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "claims.csv"},
+                 '<Configuration><File>claims.csv</File><Fields><Field name="claim_id"/><Field name="amount"/><Field name="date"/></Fields></Configuration>'),
+                (2, "Filter", {"expression": "amount > 0"},
+                 '<Configuration><Expression>amount &gt; 0</Expression></Configuration>'),
+                (3, "Formula", {"formula_fields": [{"field_name": "extra", "expression": "1"}]},
+                 '<Configuration><FormulaFields><FormulaField field="extra" expression="1"/></FormulaFields></Configuration>'),
+                (4, "DbFileOutput", {"file_path": "claims_summary.yxdb"},
+                 '<Configuration><File>claims_summary.yxdb</File></Configuration>'),
             ],
         )
 
         portfolio, results = _make_portfolio([w_a, w_b], "port_cons")
-        analysis = build_rationalisation_analysis(portfolio, results, use_llm=False)
+        analysis = build_rationalisation_analysis(
+            portfolio, results, use_llm=False)
 
-        cons_cands = [c for c in analysis.candidates if c.recommendation_type == "CONSOLIDATE"]
+        cons_cands = [
+            c for c in analysis.candidates if c.recommendation_type == "CONSOLIDATE"]
         assert len(cons_cands) >= 1
         cand = cons_cands[0]
         assert cand.consolidation_decision is not None
@@ -235,9 +250,12 @@ class TestRationalisationFilters:
             sources=["gl_entries.csv"],
             targets=["gl_monthly.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "gl_entries.csv"}, '<Configuration><File>gl_entries.csv</File></Configuration>'),
-                (2, "Formula", {"formula_fields": [{"field_name": "bal", "expression": "dr-cr"}]}, '<Configuration><FormulaFields><FormulaField field="bal" expression="dr-cr"/></FormulaFields></Configuration>'),
-                (3, "DbFileOutput", {"file_path": "gl_monthly.yxdb"}, '<Configuration><File>gl_monthly.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "gl_entries.csv"},
+                 '<Configuration><File>gl_entries.csv</File></Configuration>'),
+                (2, "Formula", {"formula_fields": [{"field_name": "bal", "expression": "dr-cr"}]},
+                 '<Configuration><FormulaFields><FormulaField field="bal" expression="dr-cr"/></FormulaFields></Configuration>'),
+                (3, "DbFileOutput", {"file_path": "gl_monthly.yxdb"},
+                 '<Configuration><File>gl_monthly.yxdb</File></Configuration>'),
             ],
         )
 
@@ -247,14 +265,18 @@ class TestRationalisationFilters:
             sources=["employees.csv"],
             targets=["payroll_summary.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "employees.csv"}, '<Configuration><File>employees.csv</File></Configuration>'),
-                (2, "Formula", {"formula_fields": [{"field_name": "net", "expression": "gross-tax"}]}, '<Configuration><FormulaFields><FormulaField field="net" expression="gross-tax"/></FormulaFields></Configuration>'),
-                (3, "DbFileOutput", {"file_path": "payroll_summary.yxdb"}, '<Configuration><File>payroll_summary.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "employees.csv"},
+                 '<Configuration><File>employees.csv</File></Configuration>'),
+                (2, "Formula", {"formula_fields": [{"field_name": "net", "expression": "gross-tax"}]},
+                 '<Configuration><FormulaFields><FormulaField field="net" expression="gross-tax"/></FormulaFields></Configuration>'),
+                (3, "DbFileOutput", {"file_path": "payroll_summary.yxdb"},
+                 '<Configuration><File>payroll_summary.yxdb</File></Configuration>'),
             ],
         )
 
         portfolio, results = _make_portfolio([w_1, w_2], "port_keep")
-        analysis = build_rationalisation_analysis(portfolio, results, use_llm=False)
+        analysis = build_rationalisation_analysis(
+            portfolio, results, use_llm=False)
 
         assert analysis.workflow_classifications["wf_1"] == "KEEP"
         assert analysis.workflow_classifications["wf_2"] == "KEEP"
@@ -273,10 +295,14 @@ class TestRationalisationFilters:
             sources=["store_a_pos.csv"],
             targets=["store_a_kpi.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "store_a_pos.csv"}, '<Configuration><File>store_a_pos.csv</File></Configuration>'),
-                (2, "Formula", {"formula_fields": [{"field_name": "calc_tax", "expression": "revenue*0.2"}]}, '<Configuration><FormulaFields><FormulaField field="calc_tax" expression="revenue*0.2"/></FormulaFields></Configuration>'),
-                (3, "Filter", {"expression": "region='US'"}, '<Configuration><Expression>region=&apos;US&apos;</Expression></Configuration>'),
-                (4, "DbFileOutput", {"file_path": "store_a_kpi.yxdb"}, '<Configuration><File>store_a_kpi.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "store_a_pos.csv"},
+                 '<Configuration><File>store_a_pos.csv</File></Configuration>'),
+                (2, "Formula", {"formula_fields": [{"field_name": "calc_tax", "expression": "revenue*0.2"}]},
+                 '<Configuration><FormulaFields><FormulaField field="calc_tax" expression="revenue*0.2"/></FormulaFields></Configuration>'),
+                (3, "Filter", {"expression": "region='US'"},
+                 '<Configuration><Expression>region=&apos;US&apos;</Expression></Configuration>'),
+                (4, "DbFileOutput", {"file_path": "store_a_kpi.yxdb"},
+                 '<Configuration><File>store_a_kpi.yxdb</File></Configuration>'),
             ],
         )
 
@@ -286,15 +312,20 @@ class TestRationalisationFilters:
             sources=["store_b_pos.csv"],
             targets=["store_b_kpi.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "store_b_pos.csv"}, '<Configuration><File>store_b_pos.csv</File></Configuration>'),
-                (2, "Formula", {"formula_fields": [{"field_name": "calc_tax", "expression": "revenue*0.2"}]}, '<Configuration><FormulaFields><FormulaField field="calc_tax" expression="revenue*0.2"/></FormulaFields></Configuration>'),
-                (3, "Filter", {"expression": "region='US'"}, '<Configuration><Expression>region=&apos;US&apos;</Expression></Configuration>'),
-                (4, "DbFileOutput", {"file_path": "store_b_kpi.yxdb"}, '<Configuration><File>store_b_kpi.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "store_b_pos.csv"},
+                 '<Configuration><File>store_b_pos.csv</File></Configuration>'),
+                (2, "Formula", {"formula_fields": [{"field_name": "calc_tax", "expression": "revenue*0.2"}]},
+                 '<Configuration><FormulaFields><FormulaField field="calc_tax" expression="revenue*0.2"/></FormulaFields></Configuration>'),
+                (3, "Filter", {"expression": "region='US'"},
+                 '<Configuration><Expression>region=&apos;US&apos;</Expression></Configuration>'),
+                (4, "DbFileOutput", {"file_path": "store_b_kpi.yxdb"},
+                 '<Configuration><File>store_b_kpi.yxdb</File></Configuration>'),
             ],
         )
 
         portfolio, results = _make_portfolio([w_1, w_2], "port_shared_logic")
-        analysis = build_rationalisation_analysis(portfolio, results, use_llm=False)
+        analysis = build_rationalisation_analysis(
+            portfolio, results, use_llm=False)
 
         # Candidate can be emitted as SHARED_LOGIC similarity
         # But workflow classifications must be KEEP
@@ -310,8 +341,10 @@ class TestRationalisationFilters:
         w_ret = _make_test_workflow(
             "wf_ret", "RetireMe.yxmd", ["raw.csv"], [],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "raw.csv"}, '<Configuration><File>raw.csv</File></Configuration>'),
-                (2, "BrowseV2", {"temp_file": "browse.yxdb"}, '<Configuration><TempFile>browse.yxdb</TempFile></Configuration>'),
+                (1, "DbFileInput", {"file_path": "raw.csv"},
+                 '<Configuration><File>raw.csv</File></Configuration>'),
+                (2, "BrowseV2", {"temp_file": "browse.yxdb"},
+                 '<Configuration><TempFile>browse.yxdb</TempFile></Configuration>'),
             ],
             inspection_sinks=["browse.yxdb"],
         )
@@ -320,9 +353,12 @@ class TestRationalisationFilters:
         w_sub = _make_test_workflow(
             "wf_sub", "Subset.yxmd", ["data.csv"], ["out.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "data.csv"}, '<Configuration><File>data.csv</File><Fields><Field name="id"/><Field name="val"/></Fields></Configuration>'),
-                (2, "Filter", {"expression": "val>0"}, '<Configuration><Expression>val&gt;0</Expression></Configuration>'),
-                (3, "DbFileOutput", {"file_path": "out.yxdb"}, '<Configuration><File>out.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "data.csv"},
+                 '<Configuration><File>data.csv</File><Fields><Field name="id"/><Field name="val"/></Fields></Configuration>'),
+                (2, "Filter", {"expression": "val>0"},
+                 '<Configuration><Expression>val&gt;0</Expression></Configuration>'),
+                (3, "DbFileOutput", {"file_path": "out.yxdb"},
+                 '<Configuration><File>out.yxdb</File></Configuration>'),
             ],
             complexity_level="LOW",
             complexity_score=20.0,
@@ -331,10 +367,14 @@ class TestRationalisationFilters:
         w_super = _make_test_workflow(
             "wf_super", "Superset.yxmd", ["data.csv"], ["out.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "data.csv"}, '<Configuration><File>data.csv</File><Fields><Field name="id"/><Field name="val"/><Field name="extra"/></Fields></Configuration>'),
-                (2, "Filter", {"expression": "val>0"}, '<Configuration><Expression>val&gt;0</Expression></Configuration>'),
-                (3, "Formula", {"formula_fields": [{"field_name": "extra", "expression": "1"}]}, '<Configuration><FormulaFields><FormulaField field="extra" expression="1"/></FormulaFields></Configuration>'),
-                (4, "DbFileOutput", {"file_path": "out.yxdb"}, '<Configuration><File>out.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "data.csv"},
+                 '<Configuration><File>data.csv</File><Fields><Field name="id"/><Field name="val"/><Field name="extra"/></Fields></Configuration>'),
+                (2, "Filter", {"expression": "val>0"},
+                 '<Configuration><Expression>val&gt;0</Expression></Configuration>'),
+                (3, "Formula", {"formula_fields": [{"field_name": "extra", "expression": "1"}]},
+                 '<Configuration><FormulaFields><FormulaField field="extra" expression="1"/></FormulaFields></Configuration>'),
+                (4, "DbFileOutput", {"file_path": "out.yxdb"},
+                 '<Configuration><File>out.yxdb</File></Configuration>'),
             ],
         )
 
@@ -342,18 +382,24 @@ class TestRationalisationFilters:
         w_k1 = _make_test_workflow(
             "wf_k1", "Keep1.yxmd", ["k1_in.csv"], ["k1_out.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "k1_in.csv"}, '<Configuration><File>k1_in.csv</File></Configuration>'),
-                (2, "Formula", {"formula_fields": [{"field_name": "k1", "expression": "1"}]}, '<Configuration><FormulaFields><FormulaField field="k1" expression="1"/></FormulaFields></Configuration>'),
-                (3, "DbFileOutput", {"file_path": "k1_out.yxdb"}, '<Configuration><File>k1_out.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "k1_in.csv"},
+                 '<Configuration><File>k1_in.csv</File></Configuration>'),
+                (2, "Formula", {"formula_fields": [{"field_name": "k1", "expression": "1"}]},
+                 '<Configuration><FormulaFields><FormulaField field="k1" expression="1"/></FormulaFields></Configuration>'),
+                (3, "DbFileOutput", {"file_path": "k1_out.yxdb"},
+                 '<Configuration><File>k1_out.yxdb</File></Configuration>'),
             ],
         )
 
         w_k2 = _make_test_workflow(
             "wf_k2", "Keep2.yxmd", ["k2_in.csv"], ["k2_out.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "k2_in.csv"}, '<Configuration><File>k2_in.csv</File></Configuration>'),
-                (2, "Formula", {"formula_fields": [{"field_name": "k2", "expression": "2"}]}, '<Configuration><FormulaFields><FormulaField field="k2" expression="2"/></FormulaFields></Configuration>'),
-                (3, "DbFileOutput", {"file_path": "k2_out.yxdb"}, '<Configuration><File>k2_out.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "k2_in.csv"},
+                 '<Configuration><File>k2_in.csv</File></Configuration>'),
+                (2, "Formula", {"formula_fields": [{"field_name": "k2", "expression": "2"}]},
+                 '<Configuration><FormulaFields><FormulaField field="k2" expression="2"/></FormulaFields></Configuration>'),
+                (3, "DbFileOutput", {"file_path": "k2_out.yxdb"},
+                 '<Configuration><File>k2_out.yxdb</File></Configuration>'),
             ],
         )
 
@@ -361,16 +407,20 @@ class TestRationalisationFilters:
         n_total = len(all_items)
 
         portfolio, results = _make_portfolio(all_items, "port_partition")
-        analysis = build_rationalisation_analysis(portfolio, results, use_llm=False)
+        analysis = build_rationalisation_analysis(
+            portfolio, results, use_llm=False)
 
         # 1. Total count matches
         assert analysis.analysed_workflow_count == n_total
         assert len(analysis.workflow_classifications) == n_total
 
         # 2. Partition sets are disjoint and cover all workflows
-        retire_set = {wid for wid, cat in analysis.workflow_classifications.items() if cat == "RETIRE"}
-        consolidate_set = {wid for wid, cat in analysis.workflow_classifications.items() if cat == "CONSOLIDATE"}
-        keep_set = {wid for wid, cat in analysis.workflow_classifications.items() if cat == "KEEP"}
+        retire_set = {
+            wid for wid, cat in analysis.workflow_classifications.items() if cat == "RETIRE"}
+        consolidate_set = {wid for wid, cat in analysis.workflow_classifications.items(
+        ) if cat == "CONSOLIDATE"}
+        keep_set = {
+            wid for wid, cat in analysis.workflow_classifications.items() if cat == "KEEP"}
 
         assert retire_set.isdisjoint(consolidate_set)
         assert retire_set.isdisjoint(keep_set)
@@ -394,8 +444,10 @@ class TestRationalisationFilters:
         w_1 = _make_test_workflow(
             "wf_1", "W1.yxmd", ["raw.csv"], [],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "raw.csv"}, '<Configuration><File>raw.csv</File></Configuration>'),
-                (2, "BrowseV2", {"temp_file": "browse.yxdb"}, '<Configuration><TempFile>browse.yxdb</TempFile></Configuration>'),
+                (1, "DbFileInput", {"file_path": "raw.csv"},
+                 '<Configuration><File>raw.csv</File></Configuration>'),
+                (2, "BrowseV2", {"temp_file": "browse.yxdb"},
+                 '<Configuration><TempFile>browse.yxdb</TempFile></Configuration>'),
             ],
             inspection_sinks=["browse.yxdb"],
         )
@@ -403,18 +455,22 @@ class TestRationalisationFilters:
         w_2 = _make_test_workflow(
             "wf_2", "W2.yxmd", ["in2.csv"], ["out2.yxdb"],
             tools_spec=[
-                (1, "DbFileInput", {"file_path": "in2.csv"}, '<Configuration><File>in2.csv</File></Configuration>'),
-                (2, "DbFileOutput", {"file_path": "out2.yxdb"}, '<Configuration><File>out2.yxdb</File></Configuration>'),
+                (1, "DbFileInput", {"file_path": "in2.csv"},
+                 '<Configuration><File>in2.csv</File></Configuration>'),
+                (2, "DbFileOutput", {"file_path": "out2.yxdb"},
+                 '<Configuration><File>out2.yxdb</File></Configuration>'),
             ],
         )
 
         portfolio, results = _make_portfolio([w_1, w_2], "port_refresh")
 
-        analysis_run1 = build_rationalisation_analysis(portfolio, results, use_llm=False)
+        analysis_run1 = build_rationalisation_analysis(
+            portfolio, results, use_llm=False)
         dict_run1 = analysis_run1.to_dict()
 
         # Re-run
-        analysis_run2 = build_rationalisation_analysis(portfolio, results, use_llm=False)
+        analysis_run2 = build_rationalisation_analysis(
+            portfolio, results, use_llm=False)
         dict_run2 = analysis_run2.to_dict()
 
         assert dict_run1["workflow_classifications"] == dict_run2["workflow_classifications"]
@@ -427,9 +483,12 @@ class TestRationalisationFilters:
             _make_test_workflow(
                 f"wf_{i}", f"W{i}.yxmd", [f"in_{i}.csv"], [f"out_{i}.yxdb"],
                 tools_spec=[
-                    (1, "DbFileInput", {"file_path": f"in_{i}.csv"}, f'<Configuration><File>in_{i}.csv</File></Configuration>'),
-                    (2, "Formula", {"formula_fields": [{"field_name": f"f{i}", "expression": str(i)}]}, f'<Configuration><FormulaFields><FormulaField field="f{i}" expression="{i}"/></FormulaFields></Configuration>'),
-                    (3, "DbFileOutput", {"file_path": f"out_{i}.yxdb"}, f'<Configuration><File>out_{i}.yxdb</File></Configuration>'),
+                    (1, "DbFileInput", {"file_path": f"in_{i}.csv"},
+                     f'<Configuration><File>in_{i}.csv</File></Configuration>'),
+                    (2, "Formula", {"formula_fields": [{"field_name": f"f{i}", "expression": str(
+                        i)}]}, f'<Configuration><FormulaFields><FormulaField field="f{i}" expression="{i}"/></FormulaFields></Configuration>'),
+                    (3, "DbFileOutput", {"file_path": f"out_{i}.yxdb"},
+                     f'<Configuration><File>out_{i}.yxdb</File></Configuration>'),
                 ],
             )
             for i in range(6)
@@ -437,19 +496,24 @@ class TestRationalisationFilters:
 
         # Order A
         portfolio_a, results_a = _make_portfolio(all_items, "port_order_a")
-        analysis_a = build_rationalisation_analysis(portfolio_a, results_a, use_llm=False)
+        analysis_a = build_rationalisation_analysis(
+            portfolio_a, results_a, use_llm=False)
 
         # Order B (reversed)
         items_reversed = list(reversed(all_items))
-        portfolio_b, results_b = _make_portfolio(items_reversed, "port_order_b")
-        analysis_b = build_rationalisation_analysis(portfolio_b, results_b, use_llm=False)
+        portfolio_b, results_b = _make_portfolio(
+            items_reversed, "port_order_b")
+        analysis_b = build_rationalisation_analysis(
+            portfolio_b, results_b, use_llm=False)
 
         # Order C (shuffled)
         rng = random.Random(42)
         items_shuffled = list(all_items)
         rng.shuffle(items_shuffled)
-        portfolio_c, results_c = _make_portfolio(items_shuffled, "port_order_c")
-        analysis_c = build_rationalisation_analysis(portfolio_c, results_c, use_llm=False)
+        portfolio_c, results_c = _make_portfolio(
+            items_shuffled, "port_order_c")
+        analysis_c = build_rationalisation_analysis(
+            portfolio_c, results_c, use_llm=False)
 
         assert analysis_a.workflow_classifications == analysis_b.workflow_classifications == analysis_c.workflow_classifications
         assert analysis_a.workflow_counts == analysis_b.workflow_counts == analysis_c.workflow_counts

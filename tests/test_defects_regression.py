@@ -12,9 +12,9 @@ from pathlib import Path
 import zipfile
 import pytest
 
-from awa.analysis.workflow_analyzer import analyze_canonical, analyze_workflow
-from awa.generators.python_generator import generate_python_code
-from awa.model.diagnostic import DiagnosticLevel, SupportLevel
+from backend.awa.analysis.workflow_analyzer import analyze_canonical, analyze_workflow
+from backend.awa.generators.python_generator import generate_python_code
+from backend.awa.model.diagnostic import DiagnosticLevel, SupportLevel
 
 
 def test_defect1_python_trace_total_lines_exact_match():
@@ -34,8 +34,8 @@ def test_defect1_python_trace_total_lines_exact_match():
 
 
 def test_defect2_docx_contains_embedded_dag_image(tmp_path: Path):
-    from awa.generators.docx_generator import render_dag_to_png
-    from awa.analysis.workflow_analyzer import analyze_canonical
+    from backend.awa.generators.docx_generator import render_dag_to_png
+    from backend.awa.analysis.workflow_analyzer import analyze_canonical
     canonical = analyze_canonical("fixtures/basic/simple_filter.yxmd")
     png_bytes = render_dag_to_png(canonical.dag_layout, scale=1.5)
     assert len(png_bytes) > 100
@@ -44,7 +44,7 @@ def test_defect2_docx_contains_embedded_dag_image(tmp_path: Path):
 
 def test_defect3_external_dependency_diagnostic():
     canonical = analyze_canonical("fixtures/basic/simple_filter.yxmd")
-    
+
     # DbFileInput translation should be SUPPORTED
     tool1_tr = canonical.translations[1]
     assert tool1_tr.support_level == SupportLevel.SUPPORTED
@@ -55,20 +55,24 @@ def test_defect3_external_dependency_diagnostic():
         if d.category == "external_dependency"
     ]
     assert len(ext_diags) >= 1
-    assert "\\\\server\\data\\customers.xlsx" in ext_diags[0].message or "customers.xlsx" in ext_diags[0].message
+    assert "\\\\server\\data\\customers.xlsx" in ext_diags[
+        0].message or "customers.xlsx" in ext_diags[0].message
 
     # Total diagnostics in canonical result must contain external_dependency
-    all_ext_diags = [d for d in canonical.diagnostics if d.category == "external_dependency"]
+    all_ext_diags = [
+        d for d in canonical.diagnostics if d.category == "external_dependency"]
     assert len(all_ext_diags) >= 1
 
 
 def test_defect4_canonical_json_preserves_engine_settings():
     canonical = analyze_canonical("fixtures/basic/simple_filter.yxmd")
     tool1 = canonical.workflow.tools[1]
-    
+
     assert hasattr(tool1, "engine_settings")
-    assert tool1.engine_settings.get("EngineDll") == "AlteryxBasePluginsEngine.dll"
-    assert tool1.engine_settings.get("EngineDllEntryPoint") == "AlteryxDbFileInput"
+    assert tool1.engine_settings.get(
+        "EngineDll") == "AlteryxBasePluginsEngine.dll"
+    assert tool1.engine_settings.get(
+        "EngineDllEntryPoint") == "AlteryxDbFileInput"
 
     d = tool1.to_dict()
     assert "engine_settings" in d
@@ -77,8 +81,9 @@ def test_defect4_canonical_json_preserves_engine_settings():
 
 def test_defect5_execution_equivalence_distinction():
     canonical = analyze_canonical("fixtures/basic/simple_filter.yxmd")
-    
+
     # Check that unresolved dependencies are flagged as unresolved
-    unresolved_deps = [dep for dep in canonical.workflow.dependencies if not dep.resolved]
+    unresolved_deps = [
+        dep for dep in canonical.workflow.dependencies if not dep.resolved]
     assert len(unresolved_deps) >= 1
     assert unresolved_deps[0].reference == r"\\server\data\customers.xlsx"

@@ -24,24 +24,24 @@ import openpyxl
 import pytest
 from pathlib import Path
 
-from awa.analysis.business_area_classifier import (
+from backend.awa.analysis.business_area_classifier import (
     ALLOWED_BUSINESS_AREAS,
     classify_business_area_deterministic,
     classify_business_function_deterministic,
 )
-from awa.analysis.portfolio_analyzer import (
+from backend.awa.analysis.portfolio_analyzer import (
     build_portfolio_analysis,
     ALL_PORTFOLIO_BUSINESS_AREAS,
     CONFIGURED_PORTFOLIO_BUSINESS_AREAS,
 )
-from awa.analysis.rationalisation_analyzer import build_rationalisation_analysis
-from awa.generators.portfolio_xlsx_generator import generate_portfolio_excel
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.business_summary import WorkflowBusinessSummary, BusinessRule
-from awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.analysis.rationalisation_analyzer import build_rationalisation_analysis
+from backend.awa.generators.portfolio_xlsx_generator import generate_portfolio_excel
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.business_summary import WorkflowBusinessSummary, BusinessRule
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
 
 
-from awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
 
 
 def _make_dummy_canonical_result(
@@ -52,7 +52,8 @@ def _make_dummy_canonical_result(
     business_purpose: str = "",
 ) -> CanonicalAnalysisResult:
     """Helper to construct a valid CanonicalAnalysisResult for testing."""
-    res = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id=analysis_id)
+    res = analyze_canonical(
+        "Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id=analysis_id)
     res.workflow.metadata.name = workflow_name
     if res.business_summary:
         res.business_summary.business_purpose = business_purpose
@@ -80,7 +81,8 @@ class TestBusinessAreaReconciliation:
             business_purpose="Processes historical claims volume data to calculate commercial policy pricing and rating factors for underwriting risk assessment.",
             workflow_name="Commercial_Policy_Pricing_Engine.yxmd",
             business_function="Policy pricing and premium rating calculation",
-            input_sources=["Claims_Volume_Extract.xlsx", "Loss_History_Master.xlsx"],
+            input_sources=["Claims_Volume_Extract.xlsx",
+                           "Loss_History_Master.xlsx"],
         )
         assert res.business_area == "Underwriting"
         assert res.confidence in ("HIGH", "MEDIUM")
@@ -156,7 +158,8 @@ class TestBusinessAreaReconciliation:
             business_purpose="Evaluates applicant risk scores and determines policy eligibility.",
             business_function="",
         )
-        portfolio = build_portfolio_analysis([("Underwriting_Risk_Matrix.yxmd", "Underwriting_Risk_Matrix.yxmd", raw_res)])
+        portfolio = build_portfolio_analysis(
+            [("Underwriting_Risk_Matrix.yxmd", "Underwriting_Risk_Matrix.yxmd", raw_res)])
         summary = portfolio.workflows[0]
 
         # Tag must be deterministically resolved to Underwriting, not left blank or UNCLASSIFIED
@@ -166,13 +169,20 @@ class TestBusinessAreaReconciliation:
 
     def test_five_area_portfolio_reconciliation_and_invariants(self, tmp_path):
         """Req 1, 7, 12, 13, 14: Full portfolio with all 5 areas verifying count reconciliation and invariants."""
-        w1 = _make_dummy_canonical_result("wf1", "Claims_Fraud.yxmd", "Claims & Risk", "Claims fraud detection", "Detects suspicious claims")
-        w2 = _make_dummy_canonical_result("wf2", "Legal_Audit.yxmd", "Legal", "Legal audit", "Tracks litigation")
-        w3 = _make_dummy_canonical_result("wf3", "Policy_Rating.yxmd", "Underwriting", "Policy rating", "Calculates policy rating")
-        w4 = _make_dummy_canonical_result("wf4", "Sales_Territory.yxmd", "Sales & Distribution", "Sales analysis", "Tracks territory sales")
-        w5 = _make_dummy_canonical_result("wf5", "BBC_Food.yxmd", "Other / Unclassified", "", "Aggregates food recipes")
-        w6 = _make_dummy_canonical_result("wf6", "Claims_Reserve.yxmd", "Claims & Risk", "Loss reserve", "Calculates claims reserves")
-        w7 = _make_dummy_canonical_result("wf7", "Custom_Script.yxmd", "Other / Unclassified", "", "Runs generic XML parsing")
+        w1 = _make_dummy_canonical_result(
+            "wf1", "Claims_Fraud.yxmd", "Claims & Risk", "Claims fraud detection", "Detects suspicious claims")
+        w2 = _make_dummy_canonical_result(
+            "wf2", "Legal_Audit.yxmd", "Legal", "Legal audit", "Tracks litigation")
+        w3 = _make_dummy_canonical_result(
+            "wf3", "Policy_Rating.yxmd", "Underwriting", "Policy rating", "Calculates policy rating")
+        w4 = _make_dummy_canonical_result(
+            "wf4", "Sales_Territory.yxmd", "Sales & Distribution", "Sales analysis", "Tracks territory sales")
+        w5 = _make_dummy_canonical_result(
+            "wf5", "BBC_Food.yxmd", "Other / Unclassified", "", "Aggregates food recipes")
+        w6 = _make_dummy_canonical_result(
+            "wf6", "Claims_Reserve.yxmd", "Claims & Risk", "Loss reserve", "Calculates claims reserves")
+        w7 = _make_dummy_canonical_result(
+            "wf7", "Custom_Script.yxmd", "Other / Unclassified", "", "Runs generic XML parsing")
 
         raw_list = [
             ("Claims_Fraud.yxmd", "Claims_Fraud.yxmd", w1),
@@ -194,7 +204,8 @@ class TestBusinessAreaReconciliation:
         assert len(portfolio.business_areas) == 6
         group_names = [g.business_area for g in portfolio.business_areas]
         assert set(group_names) == set(ALL_PORTFOLIO_BUSINESS_AREAS)
-        other_group = next(g for g in portfolio.business_areas if g.business_area == "Other / Unclassified")
+        other_group = next(
+            g for g in portfolio.business_areas if g.business_area == "Other / Unclassified")
         assert other_group.workflow_count == 2
         assert len(other_group.workflows) == 2
 
@@ -223,9 +234,12 @@ class TestBusinessAreaReconciliation:
 
     def test_executive_summary_xlsx_columns_and_schema(self, tmp_path):
         """Req 9, 10, 11, 12, 15: Executive Summary table contains exactly 4 columns and excludes % of Portfolio and High Criticality Count."""
-        w1 = _make_dummy_canonical_result("wf1", "Claims_Fraud.yxmd", "Claims & Risk", "Claims fraud detection", "Detects suspicious claims")
-        w2 = _make_dummy_canonical_result("wf2", "Policy_Rating.yxmd", "Underwriting", "Policy rating", "Calculates policy pricing")
-        w3 = _make_dummy_canonical_result("wf3", "BBC_Food.yxmd", "Other / Unclassified", "", "Parses recipe ingredients")
+        w1 = _make_dummy_canonical_result(
+            "wf1", "Claims_Fraud.yxmd", "Claims & Risk", "Claims fraud detection", "Detects suspicious claims")
+        w2 = _make_dummy_canonical_result(
+            "wf2", "Policy_Rating.yxmd", "Underwriting", "Policy rating", "Calculates policy pricing")
+        w3 = _make_dummy_canonical_result(
+            "wf3", "BBC_Food.yxmd", "Other / Unclassified", "", "Parses recipe ingredients")
 
         raw_list = [
             ("Claims_Fraud.yxmd", "Claims_Fraud.yxmd", w1),
@@ -234,17 +248,21 @@ class TestBusinessAreaReconciliation:
         ]
         portfolio = build_portfolio_analysis(raw_list)
         success_dict = {w.analysis_id: w for _, _, w in raw_list}
-        rationalisation = build_rationalisation_analysis(portfolio, success_dict, use_llm=False)
+        rationalisation = build_rationalisation_analysis(
+            portfolio, success_dict, use_llm=False)
 
         export_path = tmp_path / "ETL_Portfolio_Overview.xlsx"
-        generate_portfolio_excel(portfolio, success_dict, rationalisation, export_path)
+        generate_portfolio_excel(
+            portfolio, success_dict, rationalisation, export_path)
 
         wb = openpyxl.load_workbook(export_path)
         ws = wb["Executive Summary"]
 
         # 1. Header row verification (Row 9)
-        headers = [ws.cell(row=9, column=c).value for c in range(1, 10) if ws.cell(row=9, column=c).value is not None]
-        assert headers == ["Business Area", "Workflow Count", "Primary Function Focus", "Description"]
+        headers = [ws.cell(row=9, column=c).value for c in range(
+            1, 10) if ws.cell(row=9, column=c).value is not None]
+        assert headers == ["Business Area", "Workflow Count",
+                           "Primary Function Focus", "Description"]
         assert len(headers) == 4
 
         # 2. Assert removed columns are COMPLETELY absent
@@ -287,7 +305,8 @@ class TestBusinessAreaReconciliation:
 
         and assign Claims & Risk with source='deterministic_fallback'.
         """
-        res = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="test_claims_canon")
+        res = analyze_canonical(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="test_claims_canon")
         assert res.business_area_tag == "Claims & Risk"
         assert res.business_area_tag_source == "deterministic_fallback"
         assert res.business_summary is not None
@@ -298,7 +317,8 @@ class TestBusinessAreaReconciliation:
 
     def test_llm_disabled_analyze_canonical_generic_utility(self):
         """Req 8: When LLM is disabled, a generic utility workflow must resolve to Other / Unclassified."""
-        res = analyze_canonical("BBCFoodAggr.yxmd", analysis_id="test_bbcfood_canon")
+        res = analyze_canonical(
+            "BBCFoodAggr.yxmd", analysis_id="test_bbcfood_canon")
         assert res.business_area_tag == "Other / Unclassified"
         assert res.business_area_tag_source == "deterministic_fallback"
         assert res.business_summary is not None
@@ -367,17 +387,19 @@ class TestBusinessAreaReconciliation:
 
     def test_generate_business_purpose_receives_complete_evidence(self):
         """Req 9: Verify generator builds deterministic baseline from complete available evidence."""
-        from awa.llm import get_default_generator
+        from backend.awa.llm import get_default_generator
         gen = get_default_generator()
         # Build minimal test workflow
-        w = Workflow(metadata=WorkflowMetadata(name="Claims_Loss_Analysis.yxmd", version="2021.4"))
+        w = Workflow(metadata=WorkflowMetadata(
+            name="Claims_Loss_Analysis.yxmd", version="2021.4"))
         bs = WorkflowBusinessSummary(
             business_purpose="",
             one_line_purpose="",
             why_it_matters="",
             business_function="Claims loss reporting",
         )
-        output_ev = [{"dataset": "Claims_Loss_Extract.xlsx", "columns": ["ClaimID", "LossAmount"]}]
+        output_ev = [{"dataset": "Claims_Loss_Extract.xlsx",
+                      "columns": ["ClaimID", "LossAmount"]}]
         input_srcs = ["Policy_Master.xlsx"]
         res = gen.generate_business_purpose(
             w,
@@ -403,7 +425,8 @@ class TestBusinessAreaReconciliation:
         if res.business_summary:
             res.business_summary.business_area_tag_source = "llm"
 
-        portfolio = build_portfolio_analysis([("Custom_ETL_Parser.yxmd", "Custom_ETL_Parser.yxmd", res)])
+        portfolio = build_portfolio_analysis(
+            [("Custom_ETL_Parser.yxmd", "Custom_ETL_Parser.yxmd", res)])
         summary = portfolio.workflows[0]
 
         assert summary.business_area_tag == "Other / Unclassified"
@@ -411,7 +434,7 @@ class TestBusinessAreaReconciliation:
 
     def test_business_purpose_quality_rejects_reasoning_dumps(self):
         """Req 15, 16: Verify _is_clean_business_purpose rejects reasoning dumps and prompt leaks."""
-        from awa.llm.generator import _is_clean_business_purpose
+        from backend.awa.llm.generator import _is_clean_business_purpose
 
         # Disallowed: Tier breakdown / reasoning
         reasoning_sample = (
@@ -442,8 +465,8 @@ class TestBusinessAreaReconciliation:
     def test_llm_reasoning_rejection_falls_back_to_clean_purpose(self):
         """Req 16, 17: When LLM outputs reasoning in business_purpose, generator rejects it and uses clean fallback."""
         from unittest.mock import MagicMock
-        from awa.llm.generator import LLMNarrativeGenerator
-        from awa.llm.client import FakeLLMClient
+        from backend.awa.llm.generator import LLMNarrativeGenerator
+        from backend.awa.llm.client import FakeLLMClient
         import json
 
         fake_client = FakeLLMClient(is_available=True)
@@ -453,10 +476,12 @@ class TestBusinessAreaReconciliation:
             "business_function": "Underwriting Decisioning",
             "business_area_tag": "Underwriting",
         }
-        fake_client.generate = MagicMock(return_value=json.dumps(bad_llm_payload))
+        fake_client.generate = MagicMock(
+            return_value=json.dumps(bad_llm_payload))
 
         gen = LLMNarrativeGenerator(client=fake_client)
-        w = Workflow(metadata=WorkflowMetadata(name="Underwriting_Decision_Engine.yxmd", version="2021.4"))
+        w = Workflow(metadata=WorkflowMetadata(
+            name="Underwriting_Decision_Engine.yxmd", version="2021.4"))
         bs = WorkflowBusinessSummary(
             business_purpose="Evaluates policy risk factors to determine insurance coverage eligibility.",
             one_line_purpose="",
@@ -464,18 +489,22 @@ class TestBusinessAreaReconciliation:
             business_function="Underwriting Risk Assessment",
         )
 
-        res = gen.generate_business_purpose(w, bs, workflow_id="Underwriting_Decision_Engine.yxmd")
+        res = gen.generate_business_purpose(
+            w, bs, workflow_id="Underwriting_Decision_Engine.yxmd")
         # Should reject the dirty LLM purpose and fall back to the clean deterministic purpose
         assert "Tier 1" not in res.business_purpose
         assert "Rejected" not in res.business_purpose
         assert res.source == "deterministic_fallback"
         assert res.business_area_tag == "Underwriting"
-        assert res.business_purpose == bs.business_purpose  # Preserved clean deterministic purpose
+        # Preserved clean deterministic purpose
+        assert res.business_purpose == bs.business_purpose
 
     def test_cross_artifact_business_purpose_consistency(self):
         """Req 19: Portfolio overview, workflow details, and canonical result use the exact same Business Purpose."""
-        res = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="wf_consist_01")
-        portfolio = build_portfolio_analysis([("Demo_Claims.yxmd", "Demo_Claims.yxmd", res)])
+        res = analyze_canonical(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd", analysis_id="wf_consist_01")
+        portfolio = build_portfolio_analysis(
+            [("Demo_Claims.yxmd", "Demo_Claims.yxmd", res)])
 
         port_wf = portfolio.workflows[0]
         # Canonical analysis result and portfolio workflow summary have identical purpose
@@ -491,9 +520,12 @@ class TestBusinessAreaReconciliation:
             workflow_name="Underwriting_Decision_Engine_Application.yxmd",
             business_purpose="Evaluates applicant risk rules to determine coverage eligibility and underwriter approval limits.",
             business_function="Underwriting decisioning and risk assessment",
-            input_sources=["Claims_Submission_History.xlsx", "Applicant_Credit_Master.csv"],
-            tool_configurations=['Formula Field: UnderwritingScore', 'Formula Expr: If [Score] > 700 Then "Approved" Else "Refer" EndIf'],
-            container_titles=["Underwriting Eligibility Rules", "Risk Score Matrix"],
+            input_sources=["Claims_Submission_History.xlsx",
+                           "Applicant_Credit_Master.csv"],
+            tool_configurations=['Formula Field: UnderwritingScore',
+                                 'Formula Expr: If [Score] > 700 Then "Approved" Else "Refer" EndIf'],
+            container_titles=[
+                "Underwriting Eligibility Rules", "Risk Score Matrix"],
         )
         assert r1.business_area == "Underwriting"
         assert r1.confidence == "HIGH"
@@ -514,8 +546,10 @@ class TestBusinessAreaReconciliation:
             workflow_name="Commercial_Policy_Premium_Calculator.yxmd",
             business_purpose="Calculates policyholder commercial premium rates and experience rating factors using prior claims loss history.",
             business_function="Policy pricing and premium rating calculation",
-            input_sources=["Prior_Claims_Loss_History.xlsx", "Policy_Schedule.xlsx"],
-            tool_configurations=['Formula Field: PremiumAmount', 'Formula Expr: [BaseRate] * [ExperienceModifier]'],
+            input_sources=["Prior_Claims_Loss_History.xlsx",
+                           "Policy_Schedule.xlsx"],
+            tool_configurations=['Formula Field: PremiumAmount',
+                                 'Formula Expr: [BaseRate] * [ExperienceModifier]'],
         )
         assert r3.business_area == "Underwriting"
         assert r3.confidence == "HIGH"
@@ -526,8 +560,10 @@ class TestBusinessAreaReconciliation:
             business_purpose="Monitors quarterly distributor sales volume, territory quota attainment, and broker commissions.",
             business_function="Sales territory performance and distribution channel analytics",
             input_sources=["Distributor_Orders.xlsx", "Broker_Master.csv"],
-            tool_configurations=['Formula Field: CommissionAmount', 'Formula Field: QuotaAttainment'],
-            container_titles=["Territory Aggregation", "Broker Commission Engine"],
+            tool_configurations=[
+                'Formula Field: CommissionAmount', 'Formula Field: QuotaAttainment'],
+            container_titles=["Territory Aggregation",
+                              "Broker Commission Engine"],
         )
         assert r4.business_area == "Sales & Distribution"
         assert r4.confidence == "HIGH"
@@ -538,7 +574,8 @@ class TestBusinessAreaReconciliation:
             business_purpose="Generates annual statutory audit filings and compliance disclosure schedules for state insurance commissioners.",
             business_function="Regulatory compliance reporting and statutory filing",
             input_sources=["Statutory_Ledger.xlsx"],
-            container_titles=["Regulatory Filings", "Statutory Compliance Audit"],
+            container_titles=["Regulatory Filings",
+                              "Statutory Compliance Audit"],
         )
         assert r5.business_area == "Legal"
         assert r5.confidence == "HIGH"
@@ -554,23 +591,28 @@ class TestBusinessAreaReconciliation:
 
     def test_deterministic_business_purpose_rich_paragraph_quality(self):
         """Req 7, 9: Deterministic Business Purpose is a polished ~40-75 word paragraph, not generic filler."""
-        from awa.analysis.business_area_classifier import compose_deterministic_business_purpose
-        from awa.model.business_summary import BusinessInput, BusinessOutput, BusinessRule
+        from backend.awa.analysis.business_area_classifier import compose_deterministic_business_purpose
+        from backend.awa.model.business_summary import BusinessInput, BusinessOutput, BusinessRule
 
-        w = Workflow(metadata=WorkflowMetadata(name="Commercial_Policy_Rating.yxmd", version="2021.4"))
+        w = Workflow(metadata=WorkflowMetadata(
+            name="Commercial_Policy_Rating.yxmd", version="2021.4"))
         bs = WorkflowBusinessSummary(
             business_purpose="",
             one_line_purpose="",
             why_it_matters="",
             source_inputs=[
-                BusinessInput(tool_id=1, name="Policy_Master.xlsx", raw_source="Policy_Master.xlsx", source_type="Excel"),
-                BusinessInput(tool_id=2, name="Applicant_Credit.csv", raw_source="Applicant_Credit.csv", source_type="CSV"),
+                BusinessInput(tool_id=1, name="Policy_Master.xlsx",
+                              raw_source="Policy_Master.xlsx", source_type="Excel"),
+                BusinessInput(tool_id=2, name="Applicant_Credit.csv",
+                              raw_source="Applicant_Credit.csv", source_type="CSV"),
             ],
             business_outputs=[
-                BusinessOutput(tool_id=3, name="Premium_Rating_Schedule.xlsx", raw_destination="Premium_Rating_Schedule.xlsx", destination_type="Excel"),
+                BusinessOutput(tool_id=3, name="Premium_Rating_Schedule.xlsx",
+                               raw_destination="Premium_Rating_Schedule.xlsx", destination_type="Excel"),
             ],
             business_rules=[
-                BusinessRule(rule_name="Credit Tier Multiplier", category="Calculation", description="Applies tier multiplier"),
+                BusinessRule(rule_name="Credit Tier Multiplier",
+                             category="Calculation", description="Applies tier multiplier"),
             ],
         )
 
@@ -584,7 +626,8 @@ class TestBusinessAreaReconciliation:
 
         # Word count between 35 and 75
         words = purpose.split()
-        assert 35 <= len(words) <= 75, f"Word count {len(words)} out of expected range: {purpose}"
+        assert 35 <= len(
+            words) <= 75, f"Word count {len(words)} out of expected range: {purpose}"
         # Does not contain rejected generic filler
         assert "Automates policy pricing and premium rating calculation for Commercial_Policy_Rating.yxmd" not in purpose
         # Contains factual context
@@ -594,12 +637,13 @@ class TestBusinessAreaReconciliation:
 
     def test_evidence_hierarchy_extraction_from_workflow_structures(self):
         """Req 4, 6: extract_workflow_classification_evidence extracts containers, formulas, and annotations."""
-        from awa.analysis.business_area_classifier import extract_workflow_classification_evidence
-        from awa.model.container import ToolContainer
-        from awa.model.tool import Tool, ToolConfiguration
+        from backend.awa.analysis.business_area_classifier import extract_workflow_classification_evidence
+        from backend.awa.model.container import ToolContainer
+        from backend.awa.model.tool import Tool, ToolConfiguration
 
         w = Workflow(
-            metadata=WorkflowMetadata(name="Custom_App.yxmd", version="2021.4"),
+            metadata=WorkflowMetadata(
+                name="Custom_App.yxmd", version="2021.4"),
             containers={
                 1: ToolContainer(tool_id=1, caption="Underwriting Eligibility Filter"),
             },
@@ -612,7 +656,8 @@ class TestBusinessAreaReconciliation:
                     position=None,
                     configuration=ToolConfiguration(
                         raw_xml="",
-                        parsed={"formula_fields": [{"field": "UnderwritingScore", "expression": "[Score]*1.2"}]},
+                        parsed={"formula_fields": [
+                            {"field": "UnderwritingScore", "expression": "[Score]*1.2"}]},
                     ),
                     annotation="Compute final underwriting score",
                 ),
@@ -625,8 +670,10 @@ class TestBusinessAreaReconciliation:
 
     def test_other_unclassified_conditional_materialization_zero_count(self):
         """When 0 workflows are unclassified, Other / Unclassified is NOT materialized in business_areas."""
-        w1 = _make_dummy_canonical_result("wf1", "Claims.yxmd", "Claims & Risk", "Claims", "Claims handling")
-        w2 = _make_dummy_canonical_result("wf2", "Actuarial.yxmd", "Actuarial", "Actuarial", "Loss reserving")
+        w1 = _make_dummy_canonical_result(
+            "wf1", "Claims.yxmd", "Claims & Risk", "Claims", "Claims handling")
+        w2 = _make_dummy_canonical_result(
+            "wf2", "Actuarial.yxmd", "Actuarial", "Actuarial", "Loss reserving")
         portfolio = build_portfolio_analysis([
             ("Claims.yxmd", "Claims.yxmd", w1),
             ("Actuarial.yxmd", "Actuarial.yxmd", w2),
@@ -640,9 +687,12 @@ class TestBusinessAreaReconciliation:
 
     def test_other_unclassified_conditional_materialization_positive_count(self):
         """When unclassifiable workflows exist, Other / Unclassified is conditionally materialized."""
-        w1 = _make_dummy_canonical_result("wf1", "Claims.yxmd", "Claims & Risk", "Claims", "Claims handling")
-        w_other1 = _make_dummy_canonical_result("wf_other1", "Generic_XML.yxmd", "Other / Unclassified", "", "Parses XML logs")
-        w_other2 = _make_dummy_canonical_result("wf_other2", "DB_Migration.yxmd", "Other / Unclassified", "", "Test harness")
+        w1 = _make_dummy_canonical_result(
+            "wf1", "Claims.yxmd", "Claims & Risk", "Claims", "Claims handling")
+        w_other1 = _make_dummy_canonical_result(
+            "wf_other1", "Generic_XML.yxmd", "Other / Unclassified", "", "Parses XML logs")
+        w_other2 = _make_dummy_canonical_result(
+            "wf_other2", "DB_Migration.yxmd", "Other / Unclassified", "", "Test harness")
 
         portfolio = build_portfolio_analysis([
             ("Claims.yxmd", "Claims.yxmd", w1),
@@ -654,9 +704,9 @@ class TestBusinessAreaReconciliation:
         assert len(portfolio.business_areas) == 6
         group_names = [g.business_area for g in portfolio.business_areas]
         assert "Other / Unclassified" in group_names
-        other_group = next(g for g in portfolio.business_areas if g.business_area == "Other / Unclassified")
+        other_group = next(
+            g for g in portfolio.business_areas if g.business_area == "Other / Unclassified")
         assert other_group.workflow_count == 2
         assert len(other_group.workflows) == 2
-        assert {w.workflow_id for w in other_group.workflows} == {"wf_other1", "wf_other2"}
-
-
+        assert {w.workflow_id for w in other_group.workflows} == {
+            "wf_other1", "wf_other2"}

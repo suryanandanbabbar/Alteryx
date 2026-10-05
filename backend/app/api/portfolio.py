@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 
-from awa.parser.format_handler import detect_format
+from backend.awa.parser.format_handler import detect_format
 from backend.app.config import settings
 from backend.app.models.schemas import (
     AnalysisOverviewDTO,
@@ -52,7 +52,8 @@ async def upload_portfolio(
     if not files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "FILES_MISSING", "error": "FILES_MISSING", "message": "No files uploaded."},
+            detail={"code": "FILES_MISSING", "error": "FILES_MISSING",
+                    "message": "No files uploaded."},
         )
 
     discovered_workflows: list[tuple[str, str, bytes]] = []
@@ -66,7 +67,8 @@ async def upload_portfolio(
         if filename.startswith(".") or "__MACOSX" in (f.filename or ""):
             continue
 
-        rel_path = (relative_paths[idx] if relative_paths and idx < len(relative_paths) else f.filename) or filename
+        rel_path = (relative_paths[idx] if relative_paths and idx < len(
+            relative_paths) else f.filename) or filename
 
         # Read content with size guard
         content = await f.read()
@@ -76,7 +78,8 @@ async def upload_portfolio(
         # Check if zip/package
         ext = Path(filename).suffix.lower()
         if ext in (".zip", ".yxzp") or (len(content) >= 4 and content[:4] == b"PK\x03\x04"):
-            zip_discovered = extract_workflows_from_zip(content, base_prefix=Path(rel_path).parent.as_posix())
+            zip_discovered = extract_workflows_from_zip(
+                content, base_prefix=Path(rel_path).parent.as_posix())
             discovered_workflows.extend(zip_discovered)
         elif ext in SUPPORTED_WORKFLOW_EXTENSIONS:
             fmt = detect_format(filename, content)
@@ -102,15 +105,16 @@ async def upload_portfolio(
         return to_overview_dto(res)
 
     # Case B/C: Multiple workflows -> Portfolio mode
-    portfolio = process_portfolio_uploads(discovered_workflows, portfolio_name=portfolio_name)
+    portfolio = process_portfolio_uploads(
+        discovered_workflows, portfolio_name=portfolio_name)
     return _to_portfolio_dto(portfolio)
 
 
 @router.get("/evaluation-models", response_model=EvaluationModelsResponseDTO)
 def get_evaluation_models():
     """Return authoritative deterministic Complexity and Criticality evaluation model specifications."""
-    from awa.analysis.workflow_complexity import get_complexity_evaluation_model
-    from awa.analysis.workflow_criticality import get_criticality_evaluation_model
+    from backend.awa.analysis.workflow_complexity import get_complexity_evaluation_model
+    from backend.awa.analysis.workflow_criticality import get_criticality_evaluation_model
 
     return EvaluationModelsResponseDTO(
         complexity=get_complexity_evaluation_model(),
@@ -183,8 +187,8 @@ def get_portfolio_rationalisation(portfolio_id: str, use_llm: bool = True):
             if res:
                 successful_results[wf.workflow_id] = res
 
-    from awa.analysis.rationalisation_analyzer import build_rationalisation_analysis
-    from awa.llm import get_default_generator
+    from backend.awa.analysis.rationalisation_analyzer import build_rationalisation_analysis
+    from backend.awa.llm import get_default_generator
 
     generator = None
     if use_llm:
@@ -193,9 +197,11 @@ def get_portfolio_rationalisation(portfolio_id: str, use_llm: bool = True):
             if getattr(gen, "client", None) and getattr(gen.client, "is_available", False):
                 generator = gen
             else:
-                logger.info("[Rationalisation] LLM client unavailable or disabled — proceeding with deterministic baseline.")
+                logger.info(
+                    "[Rationalisation] LLM client unavailable or disabled — proceeding with deterministic baseline.")
         except Exception as e:
-            logger.warning("[Rationalisation] Could not obtain LLM generator: %s — proceeding with deterministic baseline.", e)
+            logger.warning(
+                "[Rationalisation] Could not obtain LLM generator: %s — proceeding with deterministic baseline.", e)
 
     try:
         analysis = build_rationalisation_analysis(
@@ -205,7 +211,8 @@ def get_portfolio_rationalisation(portfolio_id: str, use_llm: bool = True):
             use_llm=bool(use_llm and generator is not None),
         )
     except Exception as e:
-        logger.exception("[Rationalisation] Unexpected error during rationalisation: %s — falling back to deterministic baseline.", e)
+        logger.exception(
+            "[Rationalisation] Unexpected error during rationalisation: %s — falling back to deterministic baseline.", e)
         analysis = build_rationalisation_analysis(
             portfolio=portfolio,
             successful_results=successful_results,
@@ -236,7 +243,7 @@ def export_portfolio_xlsx(portfolio_id: str, background_tasks: BackgroundTasks):
                 successful_results[wf.workflow_id] = res
 
     # Deterministic rationalisation projection (0 download-time LLM calls)
-    from awa.analysis.rationalisation_analyzer import build_rationalisation_analysis
+    from backend.awa.analysis.rationalisation_analyzer import build_rationalisation_analysis
     try:
         rationalisation = build_rationalisation_analysis(
             portfolio=portfolio,
@@ -245,14 +252,15 @@ def export_portfolio_xlsx(portfolio_id: str, background_tasks: BackgroundTasks):
             use_llm=False,
         )
     except Exception as exc:
-        logger.warning("[Portfolio XLSX] Could not build rationalisation: %s", exc)
+        logger.warning(
+            "[Portfolio XLSX] Could not build rationalisation: %s", exc)
         rationalisation = None
 
     # Safe temporary file lifecycle with BackgroundTasks cleanup
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tf:
         temp_path = Path(tf.name)
 
-    from awa.generators.portfolio_xlsx_generator import generate_portfolio_excel
+    from backend.awa.generators.portfolio_xlsx_generator import generate_portfolio_excel
     generate_portfolio_excel(
         portfolio=portfolio,
         successful_results=successful_results,
@@ -264,11 +272,13 @@ def export_portfolio_xlsx(portfolio_id: str, background_tasks: BackgroundTasks):
         try:
             Path(path).unlink(missing_ok=True)
         except Exception as err:
-            logger.warning("[Portfolio XLSX] Failed to remove temp file %s: %s", path, err)
+            logger.warning(
+                "[Portfolio XLSX] Failed to remove temp file %s: %s", path, err)
 
     background_tasks.add_task(_cleanup_temp_file, str(temp_path))
 
-    safe_name = re.sub(r"[^\w\-.]", "_", portfolio.portfolio_name or "ETL_Portfolio")
+    safe_name = re.sub(
+        r"[^\w\-.]", "_", portfolio.portfolio_name or "ETL_Portfolio")
     filename = f"{safe_name}_Overview.xlsx"
 
     return FileResponse(
@@ -292,7 +302,8 @@ def send_rationalisation_email(request: SendEmailRequestDTO):
     # Validate candidate exists in portfolio and check recommendation category
     matched_candidate = None
     for cand in getattr(portfolio, "rationalisation_candidates", []) or []:
-        cand_id = getattr(cand, "candidate_id", None) or (cand.get("candidate_id") if isinstance(cand, dict) else None)
+        cand_id = getattr(cand, "candidate_id", None) or (
+            cand.get("candidate_id") if isinstance(cand, dict) else None)
         if cand_id == request.candidate_id:
             matched_candidate = cand
             break
@@ -334,10 +345,12 @@ def send_rationalisation_email(request: SendEmailRequestDTO):
             detail={"code": "EMAIL_DELIVERY_FAILED", "message": str(e)},
         ) from e
     except Exception as e:
-        logger.exception("Unexpected error dispatching rationalisation email: %s", e)
+        logger.exception(
+            "Unexpected error dispatching rationalisation email: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"code": "EMAIL_DELIVERY_FAILED", "message": "Failed to send email due to an unexpected server error."},
+            detail={"code": "EMAIL_DELIVERY_FAILED",
+                    "message": "Failed to send email due to an unexpected server error."},
         ) from e
 
     return SendEmailResponseDTO(
@@ -345,8 +358,3 @@ def send_rationalisation_email(request: SendEmailRequestDTO):
         message="Email sent successfully.",
         recipient=request.to_email.strip(),
     )
-
-
-
-
-

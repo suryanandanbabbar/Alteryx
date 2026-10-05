@@ -20,7 +20,7 @@ class Position:
 @dataclass
 class ToolConfiguration:
     """Tool-specific configuration.
-    
+
     Attributes:
         raw_xml: The raw XML string of the <Configuration> element. Always preserved.
         parsed: Tool-specific parsed configuration as a dictionary.
@@ -38,7 +38,7 @@ class ToolConfiguration:
 @dataclass
 class Tool:
     """An Alteryx tool (node) in the workflow.
-    
+
     Attributes:
         tool_id: Unique numeric tool identifier.
         plugin: Full plugin string (e.g., 'AlteryxBasePluginsGui.Filter.Filter').
@@ -66,7 +66,7 @@ class Tool:
     raw_node_xml: str = ""
 
     def to_dict(self) -> dict:
-        from awa.tools.catalog import get_tool_catalog
+        from backend.awa.tools.catalog import get_tool_catalog
         catalog = get_tool_catalog()
         tool_def = catalog.resolve(self.plugin or self.tool_type)
 

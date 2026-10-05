@@ -16,11 +16,11 @@ import pandas as pd
 import openpyxl
 import pytest
 
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.generators.python_generator import generate_python_code
-from awa.model.diagnostic import DiagnosticLevel
-import awa.generators.python_generator as py_gen_module
-import awa.expressions.pandas_emitter as expr_emitter_module
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.generators.python_generator import generate_python_code
+from backend.awa.model.diagnostic import DiagnosticLevel
+import backend.awa.generators.python_generator as py_gen_module
+import backend.awa.expressions.pandas_emitter as expr_emitter_module
 
 
 class TestPythonGeneratorE2E:
@@ -50,8 +50,10 @@ class TestPythonGeneratorE2E:
         expr_src = inspect.getsource(expr_emitter_module)
 
         for term in forbidden_terms:
-            assert term.lower() not in py_gen_src.lower(), f"Hardcoded term '{term}' in python_generator.py!"
-            assert term.lower() not in expr_src.lower(), f"Hardcoded term '{term}' in pandas_emitter.py!"
+            assert term.lower() not in py_gen_src.lower(
+            ), f"Hardcoded term '{term}' in python_generator.py!"
+            assert term.lower() not in expr_src.lower(
+            ), f"Hardcoded term '{term}' in pandas_emitter.py!"
 
     def test_generic_join_same_name(self, tmp_path: Path):
         """TEST 1: Same-name Join generates on=['Customer_ID']."""
@@ -118,7 +120,8 @@ class TestPythonGeneratorE2E:
         assert "left_on=['Customer_ID']" in code
         assert "right_on=['CustomerNumber']" in code
         # Zero unresolved field warnings
-        assert len([d for d in res.translations[3].diagnostics if d.category == "unresolved_field"]) == 0
+        assert len(
+            [d for d in res.translations[3].diagnostics if d.category == "unresolved_field"]) == 0
 
     def test_generic_join_missing_field_diagnostic(self, tmp_path: Path):
         """TEST 3: Missing Join field emits explicit unresolved_field diagnostic and does NOT guess."""
@@ -196,7 +199,8 @@ class TestPythonGeneratorE2E:
         assert "left_on=['OrderDate']" in code
         assert "right_on=['Last Run Date']" in code
         # Zero unresolved field warnings because rename propagated through schema
-        assert len([d for d in res.translations[4].diagnostics if d.category == "unresolved_field"]) == 0
+        assert len(
+            [d for d in res.translations[4].diagnostics if d.category == "unresolved_field"]) == 0
 
     def test_generic_summarize_missing_rename_diagnostic(self, tmp_path: Path):
         """TEST 5: Summarize without rename outputs Max_TxDate; downstream requesting Last Run Date reports diagnostic."""
@@ -274,7 +278,8 @@ class TestPythonGeneratorE2E:
         in_1 = tmp_path / "u1.csv"
         in_2 = tmp_path / "u2.csv"
         pd.DataFrame({"ColA": [1], "ColB": ["x"]}).to_csv(in_1, index=False)
-        pd.DataFrame({"OtherA": [2], "OtherB": ["y"]}).to_csv(in_2, index=False)
+        pd.DataFrame({"OtherA": [2], "OtherB": ["y"]}
+                     ).to_csv(in_2, index=False)
         out_csv = tmp_path / "union_pos_out.csv"
 
         xml = f"""<?xml version="1.0"?>
@@ -297,7 +302,8 @@ class TestPythonGeneratorE2E:
         wf_file.write_text(xml, encoding="utf-8")
 
         res = analyze_canonical(wf_file)
-        code, _, _ = generate_python_code(res.workflow, res.execution_order, res.translations, res.consumed_anchors)
+        code, _, _ = generate_python_code(
+            res.workflow, res.execution_order, res.translations, res.consumed_anchors)
 
         ast.parse(code)
         exec(code, {})
@@ -311,8 +317,10 @@ class TestPythonGeneratorE2E:
         """TEST 8: Union configured by name aligns columns by name."""
         in_1 = tmp_path / "u_name1.csv"
         in_2 = tmp_path / "u_name2.csv"
-        pd.DataFrame({"Region": ["East"], "Revenue": [1000]}).to_csv(in_1, index=False)
-        pd.DataFrame({"Revenue": [1500], "Region": ["West"]}).to_csv(in_2, index=False)
+        pd.DataFrame({"Region": ["East"], "Revenue": [1000]}).to_csv(
+            in_1, index=False)
+        pd.DataFrame({"Revenue": [1500], "Region": ["West"]}).to_csv(
+            in_2, index=False)
         out_csv = tmp_path / "union_name_out.csv"
 
         xml = f"""<?xml version="1.0"?>
@@ -335,7 +343,8 @@ class TestPythonGeneratorE2E:
         wf_file.write_text(xml, encoding="utf-8")
 
         res = analyze_canonical(wf_file)
-        code, _, _ = generate_python_code(res.workflow, res.execution_order, res.translations, res.consumed_anchors)
+        code, _, _ = generate_python_code(
+            res.workflow, res.execution_order, res.translations, res.consumed_anchors)
 
         ast.parse(code)
         exec(code, {})
@@ -381,7 +390,8 @@ class TestPythonGeneratorE2E:
         code = res.translations[4].python_code
 
         assert "on=['Customer Number']" in code
-        assert len([d for d in res.translations[4].diagnostics if d.category == "unresolved_field"]) == 0
+        assert len(
+            [d for d in res.translations[4].diagnostics if d.category == "unresolved_field"]) == 0
 
     def test_schema_source_and_passthrough(self, tmp_path: Path):
         """TEST 1 & 2: Source schema discovery & Pass-through schema preservation (BlockUntilDone)."""
@@ -417,7 +427,8 @@ class TestPythonGeneratorE2E:
 
         # TEST 2: Pass-through preserves A, B (NOT [])
         # Tool 2 is pass-through, so df_1 is passed to downstream
-        assert len([d for d in res.translations[3].diagnostics if d.category == "unresolved_field"]) == 0
+        assert len(
+            [d for d in res.translations[3].diagnostics if d.category == "unresolved_field"]) == 0
 
     def test_schema_select_rename(self, tmp_path: Path):
         """TEST 3: Select rename transforms schema: A, B -> B, C."""
@@ -506,7 +517,8 @@ class TestPythonGeneratorE2E:
         schemas = getattr(res.workflow, "_stream_schemas", {})
 
         # TEST 5: Zero unresolved warnings
-        assert len([d for d in res.translations[3].diagnostics if d.category == "unresolved_field"]) == 0
+        assert len(
+            [d for d in res.translations[3].diagnostics if d.category == "unresolved_field"]) == 0
 
         # TEST 7: J output schema has merged fields (with suffix on right overlap)
         j_var = res.translations[3].output_map["Join"]
@@ -660,7 +672,8 @@ class TestPythonGeneratorE2E:
         assert list(schemas["df_2"]) == ["Customer ID", "B"]
 
         # Tool 3 successfully resolves Customer ID without warnings
-        assert len([d for d in res.translations[3].diagnostics if d.category == "unresolved_field"]) == 0
+        assert len(
+            [d for d in res.translations[3].diagnostics if d.category == "unresolved_field"]) == 0
 
     def test_select_remove_propagation_diagnostic(self, tmp_path: Path):
         """Section 21: Select removal of C causes downstream reference to C to fail with diagnostic."""
@@ -700,7 +713,8 @@ class TestPythonGeneratorE2E:
         assert list(schemas["df_2"]) == ["A", "B"]
 
         # Tool 3 emits unresolved diagnostic for C
-        unresolved = [d for d in res.translations[3].diagnostics if d.category == "unresolved_field"]
+        unresolved = [
+            d for d in res.translations[3].diagnostics if d.category == "unresolved_field"]
         assert len(unresolved) == 1
         assert "C" in unresolved[0].message
 
@@ -802,7 +816,8 @@ class TestPythonGeneratorE2E:
         """TEST 14: Full validation against Demo Claims workflow."""
         wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
         res = analyze_canonical(wf_path)
-        code, trace_map, req_libs = generate_python_code(res.workflow, res.execution_order, res.translations, res.consumed_anchors)
+        code, trace_map, req_libs = generate_python_code(
+            res.workflow, res.execution_order, res.translations, res.consumed_anchors)
 
         # 1. AST Validation
         parsed_ast = ast.parse(code)
@@ -826,16 +841,18 @@ class TestPythonGeneratorE2E:
         assert "on=['Claim Number']" in res.translations[112].python_code
         assert "on=['Claim Number']" in res.translations[115].python_code
 
-        assert len([d for d in res.translations[111].diagnostics if d.category == "unresolved_field"]) == 0
-        assert len([d for d in res.translations[112].diagnostics if d.category == "unresolved_field"]) == 0
-        assert len([d for d in res.translations[115].diagnostics if d.category == "unresolved_field"]) == 0
+        assert len(
+            [d for d in res.translations[111].diagnostics if d.category == "unresolved_field"]) == 0
+        assert len(
+            [d for d in res.translations[112].diagnostics if d.category == "unresolved_field"]) == 0
+        assert len(
+            [d for d in res.translations[115].diagnostics if d.category == "unresolved_field"]) == 0
 
         # 6. Verify Tool #10 is handled faithfully to the .yxmd without guessing
         assert "left_on=['Quarter End Date']" in res.translations[10].python_code
         assert "right_on=['Last Quarter']" in res.translations[10].python_code
-        unresolved = [d for d in res.translations[10].diagnostics if d.category == "unresolved_field"]
+        unresolved = [
+            d for d in res.translations[10].diagnostics if d.category == "unresolved_field"]
         assert len(unresolved) == 1
         assert "Last Quarter" in unresolved[0].message
         assert "Max_Quarter End Date" in unresolved[0].message
-
-

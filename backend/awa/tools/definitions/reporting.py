@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from awa.model.diagnostic import SupportLevel
-from awa.tools.categories import ToolCategory
-from awa.tools.definition import ToolDefinition
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.tools.categories import ToolCategory
+from backend.awa.tools.definition import ToolDefinition
 
 REPORTING_TOOLS: tuple[ToolDefinition, ...] = (
     # 61. Email
@@ -75,7 +75,8 @@ REPORTING_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=("Input",),
         output_anchors=("Output",),
-        aliases=("AlteryxReportPluginsGui.ReportFooter.ReportFooter", "ReportFooter"),
+        aliases=("AlteryxReportPluginsGui.ReportFooter.ReportFooter",
+                 "ReportFooter"),
         description="Appends standardized footer snippets, copyright text, and page numbering to report layouts.",
         visual_category="reporting",
     ),
@@ -93,7 +94,8 @@ REPORTING_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=("Input",),
         output_anchors=("Output",),
-        aliases=("AlteryxReportPluginsGui.ReportHeader.ReportHeader", "ReportHeader"),
+        aliases=("AlteryxReportPluginsGui.ReportHeader.ReportHeader",
+                 "ReportHeader"),
         description="Appends standardized header snippets, title, and organization branding logos to reports.",
         visual_category="reporting",
     ),

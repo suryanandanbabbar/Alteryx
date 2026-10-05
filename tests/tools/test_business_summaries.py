@@ -3,8 +3,8 @@
 from pathlib import Path
 import pytest
 
-from awa.tools.definitions import ALL_TOOLS
-from awa.tools.catalog import get_tool_catalog, get_tool_summary, DEFAULT_CUSTOM_TOOL_SUMMARY
+from backend.awa.tools.definitions import ALL_TOOLS
+from backend.awa.tools.catalog import get_tool_catalog, get_tool_summary, DEFAULT_CUSTOM_TOOL_SUMMARY
 
 
 class TestBusinessSummaries:
@@ -17,7 +17,8 @@ class TestBusinessSummaries:
             assert tool.description, f"Tool '{tool.display_name}' ({tool.xml_name}) missing summary"
             assert len(tool.description.strip()) > 10
             # Must avoid internal support classification labels in business description
-            forbidden = ["FULL", "PARTIAL", "PASS_THROUGH", "EXTERNAL_EXECUTION", "UNSUPPORTED"]
+            forbidden = ["FULL", "PARTIAL", "PASS_THROUGH",
+                         "EXTERNAL_EXECUTION", "UNSUPPORTED"]
             for term in forbidden:
                 assert term not in tool.description, f"Support tag {term} found in description for {tool.display_name}"
 
@@ -26,7 +27,8 @@ class TestBusinessSummaries:
         summary = get_tool_summary("AlteryxBasePluginsGui.Filter.Filter")
         assert "Splits incoming" in summary or "True and False" in summary
 
-        summary_db = get_tool_summary("AlteryxBasePluginsGui.DbFileInput.DbFileInput")
+        summary_db = get_tool_summary(
+            "AlteryxBasePluginsGui.DbFileInput.DbFileInput")
         assert "Reads records" in summary_db or "files" in summary_db
 
     def test_short_name_and_display_name_lookup(self):
@@ -48,7 +50,8 @@ class TestBusinessSummaries:
 
     def test_unknown_custom_tool_fallback(self):
         """Unknown or unregistered tools receive the safe neutral fallback."""
-        summary_unknown = get_tool_summary("CustomCompanyPlugin.SecretTool.SecretTool")
+        summary_unknown = get_tool_summary(
+            "CustomCompanyPlugin.SecretTool.SecretTool")
         assert summary_unknown == DEFAULT_CUSTOM_TOOL_SUMMARY
         assert "Support Level" not in summary_unknown
         assert "UNSUPPORTED" not in summary_unknown
@@ -59,13 +62,17 @@ class TestBusinessSummaries:
         assert matrix_path.exists(), "docs/tool-support-matrix.md must exist"
 
         content = matrix_path.read_text(encoding="utf-8")
-        lines = [line.strip() for line in content.splitlines() if line.strip().startswith("|")]
+        lines = [line.strip() for line in content.splitlines()
+                 if line.strip().startswith("|")]
         # Exclude header and separator rows
-        data_rows = [l for l in lines if not l.startswith("| #") and not l.startswith("|---")]
-        assert len(data_rows) == 100, f"Expected 100 tools in matrix, found {len(data_rows)}"
+        data_rows = [l for l in lines if not l.startswith(
+            "| #") and not l.startswith("|---")]
+        assert len(
+            data_rows) == 100, f"Expected 100 tools in matrix, found {len(data_rows)}"
         for row in data_rows:
             cols = [c.strip() for c in row.split("|")]
             # Format: | # | Category | Tool Name | XML Tool Name | Business Summary | ...
             assert len(cols) >= 6
             summary = cols[5]
-            assert len(summary) > 5, f"Empty or too short summary in row: {row}"
+            assert len(
+                summary) > 5, f"Empty or too short summary in row: {row}"

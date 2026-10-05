@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 
-from awa.parser.format_handler import FormatValidationError
+from backend.awa.parser.format_handler import FormatValidationError
 from backend.app.config import settings
 from backend.app.models.schemas import AnalysisOverviewDTO, PortfolioOverviewDTO
 from backend.app.services.analyzer import process_uploaded_workflow, to_overview_dto
@@ -25,7 +25,8 @@ async def upload_workflow(file: UploadFile = File(...)):
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "FILENAME_MISSING", "error": "FILENAME_MISSING", "message": "Filename is missing from upload."},
+            detail={"code": "FILENAME_MISSING", "error": "FILENAME_MISSING",
+                    "message": "Filename is missing from upload."},
         )
 
     # Read uploaded bytes with size limit guard
@@ -51,7 +52,8 @@ async def upload_workflow(file: UploadFile = File(...)):
     if not content:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"code": "EMPTY_FILE", "error": "EMPTY_FILE", "message": "Uploaded file is empty."},
+            detail={"code": "EMPTY_FILE", "error": "EMPTY_FILE",
+                    "message": "Uploaded file is empty."},
         )
 
     # Check if this is a zip containing multiple workflows
@@ -60,8 +62,10 @@ async def upload_workflow(file: UploadFile = File(...)):
     if ext.endswith(".zip") or ext.endswith(".yxzp") or (len(raw_bytes) >= 4 and raw_bytes[:4] == b"PK\x03\x04"):
         extracted = extract_workflows_from_zip(raw_bytes)
         if len(extracted) > 1:
-            logger.info("Detected multi-workflow package '%s' with %d workflows. Running portfolio analysis.", file.filename, len(extracted))
-            portfolio = process_portfolio_uploads(extracted, portfolio_name=Path(file.filename).stem)
+            logger.info("Detected multi-workflow package '%s' with %d workflows. Running portfolio analysis.",
+                        file.filename, len(extracted))
+            portfolio = process_portfolio_uploads(
+                extracted, portfolio_name=Path(file.filename).stem)
             return PortfolioOverviewDTO(**portfolio.to_dict())
 
     try:
@@ -84,13 +88,15 @@ async def upload_workflow(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except FormatValidationError as e:
-        logger.warning("Format validation failed for '%s': %s (%s)", file.filename, e.message, e.code)
+        logger.warning("Format validation failed for '%s': %s (%s)",
+                       file.filename, e.message, e.code)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"code": e.code, "error": e.code, "message": e.message},
         )
     except Exception:
-        logger.exception("Unexpected error during analysis of '%s'", file.filename)
+        logger.exception(
+            "Unexpected error during analysis of '%s'", file.filename)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={

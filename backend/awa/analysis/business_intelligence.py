@@ -14,9 +14,9 @@ from pathlib import Path
 from typing import Any
 import networkx as nx
 
-from awa.model.workflow import Workflow
-from awa.model.tool import Tool
-from awa.model.business_summary import (
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.tool import Tool
+from backend.awa.model.business_summary import (
     BusinessInput,
     BusinessOutput,
     BusinessStage,
@@ -28,7 +28,7 @@ from awa.model.business_summary import (
     ExecutiveSummaryContent,
     WorkflowBusinessSummary,
 )
-from awa.tools.catalog import get_tool_catalog, get_tool_summary
+from backend.awa.tools.catalog import get_tool_catalog, get_tool_summary
 
 
 def generate_business_summary(workflow: Workflow, graph: nx.DiGraph, exec_order: list[int]) -> WorkflowBusinessSummary:
@@ -51,7 +51,8 @@ def generate_business_summary(workflow: Workflow, graph: nx.DiGraph, exec_order:
     outputs = _detect_outputs(workflow, graph, evidence)
 
     # 3. Detect high-level business stages with progressive disclosure details
-    stages = _detect_stages(workflow, graph, exec_order, inputs, outputs, evidence)
+    stages = _detect_stages(workflow, graph, exec_order,
+                            inputs, outputs, evidence)
 
     # 4. Detect business-level transformations
     transformations = _detect_transformations(workflow, exec_order, evidence)
@@ -60,19 +61,24 @@ def generate_business_summary(workflow: Workflow, graph: nx.DiGraph, exec_order:
     business_rules = _detect_business_rules(workflow, exec_order, evidence)
 
     # 6. Compute source-to-target business lineage
-    lineage = _compute_business_lineage(workflow, graph, inputs, outputs, evidence)
+    lineage = _compute_business_lineage(
+        workflow, graph, inputs, outputs, evidence)
 
     # 7. Compute assessment, complexity, governance facts, and key observations
-    assessment = _compute_assessment(workflow, inputs, outputs, stages, transformations, evidence)
+    assessment = _compute_assessment(
+        workflow, inputs, outputs, stages, transformations, evidence)
 
     # 8. Infer concise business purpose & one-line summary
-    purpose, one_line = _infer_purpose(workflow, inputs, outputs, stages, evidence)
+    purpose, one_line = _infer_purpose(
+        workflow, inputs, outputs, stages, evidence)
 
     # 9. Build structured Executive Summary content following the report writing standard
-    exec_summary = _build_executive_summary(workflow, inputs, outputs, stages, business_rules, assessment, purpose)
+    exec_summary = _build_executive_summary(
+        workflow, inputs, outputs, stages, business_rules, assessment, purpose)
 
     # 10. Information flow sequence
-    info_flow = [s.name for s in stages] if stages else ["Source Ingestion", "Transformation", "Publication"]
+    info_flow = [s.name for s in stages] if stages else [
+        "Source Ingestion", "Transformation", "Publication"]
 
     # 11. Process overview (concise, factual)
     process_overview = f"The workflow ingests {len(inputs)} source datasets, executes {len(stages)} operational processing stages, and publishes {len(outputs)} business reporting deliverables."
@@ -117,7 +123,8 @@ def _humanize_name(raw_name: str) -> str:
     name = Path(filename).stem
 
     # Remove standard demo/system suffixes
-    name = re.sub(r'(?i)[_-]?(?:demo|output|extract|data|summary)[_-]?', ' ', name)
+    name = re.sub(
+        r'(?i)[_-]?(?:demo|output|extract|data|summary)[_-]?', ' ', name)
     name = re.sub(r'[_\-]+', ' ', name).strip()
     name = re.sub(r'([a-z])([A-Z])', r'\1 \2', name)
 
@@ -134,7 +141,8 @@ def _clean_path_and_table(raw_path: str) -> tuple[str, str | None, str]:
     parts = raw_path.split("|||")
     base_raw = parts[0].strip().replace("\\", "/")
     base_filename = base_raw.rsplit("/", 1)[-1]
-    sheet_or_table = parts[1].strip().replace("$", "") if len(parts) > 1 else None
+    sheet_or_table = parts[1].strip().replace(
+        "$", "") if len(parts) > 1 else None
 
     # Determine file/source format
     lower_path = base_filename.lower()
@@ -173,8 +181,10 @@ def _detect_inputs(workflow: Workflow, evidence: list[str]) -> list[BusinessInpu
         if not is_input:
             continue
 
-        raw_file = tool.configuration.parsed.get("file_path", "") or tool.configuration.parsed.get("File", "")
-        base_path, sheet_or_table, source_type = _clean_path_and_table(raw_file)
+        raw_file = tool.configuration.parsed.get(
+            "file_path", "") or tool.configuration.parsed.get("File", "")
+        base_path, sheet_or_table, source_type = _clean_path_and_table(
+            raw_file)
 
         # Derive clean business name
         if base_path:
@@ -255,7 +265,8 @@ def _detect_outputs(workflow: Workflow, graph: nx.DiGraph, evidence: list[str]) 
         if not is_output:
             continue
 
-        raw_dest = tool.configuration.parsed.get("file_path", "") or tool.configuration.parsed.get("File", "")
+        raw_dest = tool.configuration.parsed.get(
+            "file_path", "") or tool.configuration.parsed.get("File", "")
         base_path, sheet_or_table, dest_type = _clean_path_and_table(raw_dest)
 
         # Derive clean business title
@@ -282,7 +293,7 @@ def _detect_outputs(workflow: Workflow, graph: nx.DiGraph, evidence: list[str]) 
             meaning = f"Published deliverable for {business_name}"
         else:
             meaning = f"Exported analytical dataset for {business_name}"
-        
+
         if sheet_or_table:
             likely_use = f"Downstream reporting and analysis ({sheet_or_table})"
         elif base_path:
@@ -297,8 +308,10 @@ def _detect_outputs(workflow: Workflow, graph: nx.DiGraph, evidence: list[str]) 
             for anc_id in ancestors:
                 anc_tool = workflow.tools.get(anc_id)
                 if anc_tool and anc_tool.tool_type in ("DbFileInput", "InputData", "TextInput"):
-                    anc_file = anc_tool.configuration.parsed.get("file_path", "")
-                    upstream_src_names.append(_humanize_name(anc_file) or f"Input #{anc_id}")
+                    anc_file = anc_tool.configuration.parsed.get(
+                        "file_path", "")
+                    upstream_src_names.append(
+                        _humanize_name(anc_file) or f"Input #{anc_id}")
 
         ev = f"Output Tool #{tid} ({tool.tool_type}) -> {raw_dest or 'published deliverable'}"
         evidence.append(ev)
@@ -363,14 +376,19 @@ def _detect_stages(
             caption = cont.caption if cont else "Core Processing"
 
             # Derive concise stage naming
-            name, short_title, summary, purpose, major_trans = _format_stage_info(stage_num, caption, t_ids, workflow)
+            name, short_title, summary, purpose, major_trans = _format_stage_info(
+                stage_num, caption, t_ids, workflow)
 
             # Collect annotations & transformations
-            stage_anns = [workflow.tools[t].annotation for t in t_ids if workflow.tools.get(t) and workflow.tools[t].annotation]
-            stage_trans = [f"{workflow.tools[t].tool_type}: {workflow.tools[t].annotation or 'Processes data'}" for t in t_ids if workflow.tools.get(t)]
+            stage_anns = [workflow.tools[t].annotation for t in t_ids if workflow.tools.get(
+                t) and workflow.tools[t].annotation]
+            stage_trans = [
+                f"{workflow.tools[t].tool_type}: {workflow.tools[t].annotation or 'Processes data'}" for t in t_ids if workflow.tools.get(t)]
 
-            stage_inputs = [inp.tool_id for inp in inputs if inp.tool_id in t_ids]
-            stage_outputs = [out.tool_id for out in outputs if out.tool_id in t_ids]
+            stage_inputs = [
+                inp.tool_id for inp in inputs if inp.tool_id in t_ids]
+            stage_outputs = [
+                out.tool_id for out in outputs if out.tool_id in t_ids]
 
             ev = f"Stage {stage_num}: '{short_title}' ({len(t_ids)} tools)"
             evidence.append(ev)
@@ -402,14 +420,16 @@ def _detect_stages(
             (
                 "DATA INGESTION",
                 "Source Ingestion & Extraction",
-                ("DbFileInput", "InputData", "TextInput", "DynamicInput", "Directory", "DateTimeNow"),
+                ("DbFileInput", "InputData", "TextInput",
+                 "DynamicInput", "Directory", "DateTimeNow"),
                 "Ingests source records from input datasets into the workflow.",
                 "Reads and validates raw input files for downstream processing.",
             ),
             (
                 "DATA PREPARATION",
                 "Data Cleansing & Filtering",
-                ("Filter", "Select", "AlteryxSelect", "AutoField", "DateTime", "Sample", "Unique"),
+                ("Filter", "Select", "AlteryxSelect",
+                 "AutoField", "DateTime", "Sample", "Unique"),
                 "Applies field selection, cleansing, and active record filtering.",
                 "Filters unneeded records and standardizes schemas.",
             ),
@@ -423,14 +443,16 @@ def _detect_stages(
             (
                 "DATA ENRICHMENT",
                 "Relational Enrichment & Joins",
-                ("Join", "JoinMultiple", "FindReplace", "Union", "AppendFields", "FuzzyMatch"),
+                ("Join", "JoinMultiple", "FindReplace",
+                 "Union", "AppendFields", "FuzzyMatch"),
                 "Integrates cross-dataset attributes using relational joins.",
                 "Combines disparate streams into enriched analytical records.",
             ),
             (
                 "METRIC AGGREGATION",
                 "Analytical Summarization & Aggregation",
-                ("Summarize", "CrossTab", "Transpose", "RunningTotal", "CountRecords"),
+                ("Summarize", "CrossTab", "Transpose",
+                 "RunningTotal", "CountRecords"),
                 "Aggregates metrics and pivots data for summary reporting.",
                 "Computes group summary totals and structural pivots.",
             ),
@@ -453,7 +475,8 @@ def _detect_stages(
         assigned: set[int] = set()
         stage_num = 1
         for cat_tag, stage_title, matching_types, default_desc, default_purpose in group_specs:
-            t_ids = [tid for tid in exec_order if tid in workflow.tools and workflow.tools[tid].tool_type in matching_types and tid not in assigned]
+            t_ids = [tid for tid in exec_order if tid in workflow.tools and workflow.tools[tid]
+                     .tool_type in matching_types and tid not in assigned]
             if not t_ids:
                 continue
             assigned.update(t_ids)
@@ -464,7 +487,8 @@ def _detect_stages(
             types_str = ", ".join(tool_types_in_group[:4])
 
             # Check if tools have annotations to make the name even more specific
-            annotations = [workflow.tools[t].annotation.strip() for t in t_ids if workflow.tools.get(t) and workflow.tools[t].annotation and len(workflow.tools[t].annotation.strip()) > 3]
+            annotations = [workflow.tools[t].annotation.strip() for t in t_ids if workflow.tools.get(
+                t) and workflow.tools[t].annotation and len(workflow.tools[t].annotation.strip()) > 3]
             specific_name = stage_title
             if len(t_ids) == 1 and annotations:
                 specific_name = annotations[0]
@@ -474,8 +498,10 @@ def _detect_stages(
             purpose = f"{default_purpose} ({len(t_ids)} step{'s' if len(t_ids) != 1 else ''})"
             major_trans = f"Applies {types_str} operations across {len(t_ids)} step{'s' if len(t_ids) != 1 else ''}."
 
-            stage_inputs = [inp.tool_id for inp in inputs if inp.tool_id in t_ids]
-            stage_outputs = [out.tool_id for out in outputs if out.tool_id in t_ids]
+            stage_inputs = [
+                inp.tool_id for inp in inputs if inp.tool_id in t_ids]
+            stage_outputs = [
+                out.tool_id for out in outputs if out.tool_id in t_ids]
 
             stages.append(
                 BusinessStage(
@@ -492,14 +518,16 @@ def _detect_stages(
                     tool_count=len(t_ids),
                     container_name=None,
                     annotations=annotations[:4],
-                    transformations=[f"{workflow.tools[t].tool_type}: {workflow.tools[t].annotation or 'Processes data'}" for t in t_ids if workflow.tools.get(t)],
+                    transformations=[
+                        f"{workflow.tools[t].tool_type}: {workflow.tools[t].annotation or 'Processes data'}" for t in t_ids if workflow.tools.get(t)],
                     evidence=[f"Topological cluster {stage_num}: {cat_tag}"],
                 )
             )
             stage_num += 1
 
         # Check for any remaining tools not matched
-        remaining = [tid for tid in exec_order if tid in workflow.tools and tid not in assigned]
+        remaining = [
+            tid for tid in exec_order if tid in workflow.tools and tid not in assigned]
         if remaining:
             if stages:
                 stages[-1].tool_ids.extend(remaining)
@@ -529,10 +557,12 @@ def _format_stage_info(stage_num: int, caption: str, tool_ids: list[int], workfl
     name = clean_caption
     clean_cat = re.sub(r"[^a-zA-Z0-9\s]", " ", clean_caption).strip().upper()
     cat_words = clean_cat.split()
-    category = " ".join(cat_words[:4]) if cat_words else f"STAGE {stage_num:02d}"
+    category = " ".join(
+        cat_words[:4]) if cat_words else f"STAGE {stage_num:02d}"
     short_title = f"{stage_num:02d} {category}"
 
-    tools_in_stage = [workflow.tools[tid] for tid in tool_ids if tid in workflow.tools]
+    tools_in_stage = [workflow.tools[tid]
+                      for tid in tool_ids if tid in workflow.tools]
     tool_types = list(dict.fromkeys(t.tool_type for t in tools_in_stage))
     types_str = ", ".join(tool_types[:3]) if tool_types else "processing"
 
@@ -608,7 +638,8 @@ def _detect_business_rules(workflow: Workflow, exec_order: list[int], evidence: 
         elif ttype == "Summarize":
             sfs = cfg.get("summarize_fields", [])
             if sfs:
-                actions = [f"{sf.get('action')}({sf.get('field')})" for sf in sfs if sf.get('field')]
+                actions = [
+                    f"{sf.get('action')}({sf.get('field')})" for sf in sfs if sf.get('field')]
                 acts_str = ", ".join(actions[:3])
                 rule_name = ann or "Data Aggregation"
                 desc = f"Aggregates records by {acts_str}." if acts_str else "Aggregates records."
@@ -636,7 +667,8 @@ def _detect_business_rules(workflow: Workflow, exec_order: list[int], evidence: 
         elif ttype == "Join":
             jfs = cfg.get("join_fields", [])
             if jfs:
-                keys = [f"{jf.get('left')} = {jf.get('right')}" for jf in jfs if jf.get('left')]
+                keys = [
+                    f"{jf.get('left')} = {jf.get('right')}" for jf in jfs if jf.get('left')]
                 keys_str = ", ".join(keys[:2])
                 rule_name = ann or "Data Integration"
                 desc = f"Joins datasets on {keys_str}." if keys_str else "Performs relational join."
@@ -655,7 +687,8 @@ def _detect_business_rules(workflow: Workflow, exec_order: list[int], evidence: 
             h_fld = cfg.get("header_field", "")
             d_fld = cfg.get("data_field", "")
             rule_name = ann or "Matrix Pivot"
-            desc = f"Pivots `{d_fld}` across `{h_fld}` columns." if h_fld and d_fld else (ann or "Pivots records into tabular structure.")
+            desc = f"Pivots `{d_fld}` across `{h_fld}` columns." if h_fld and d_fld else (
+                ann or "Pivots records into tabular structure.")
             rules.append(
                 BusinessRule(
                     rule_name=rule_name,
@@ -690,33 +723,40 @@ def _detect_transformations(workflow: Workflow, exec_order: list[int], evidence:
             desc = ann.rstrip(".")
             if desc not in seen:
                 seen.add(desc)
-                transformations.append(BusinessTransformation(category="Aggregation", description=desc, tool_ids=[tid]))
+                transformations.append(BusinessTransformation(
+                    category="Aggregation", description=desc, tool_ids=[tid]))
         elif ttype == "Join" and ann:
             desc = ann.rstrip(".")
             if desc not in seen:
                 seen.add(desc)
-                transformations.append(BusinessTransformation(category="Join / Enrichment", description=desc, tool_ids=[tid]))
+                transformations.append(BusinessTransformation(
+                    category="Join / Enrichment", description=desc, tool_ids=[tid]))
         elif ttype == "Formula" and ann:
             desc = ann.rstrip(".")
-            cat = "Classification / Aging" if ("aging" in desc.lower() or "bucket" in desc.lower()) else "Calculation / Derivation"
+            cat = "Classification / Aging" if ("aging" in desc.lower(
+            ) or "bucket" in desc.lower()) else "Calculation / Derivation"
             if desc not in seen:
                 seen.add(desc)
-                transformations.append(BusinessTransformation(category=cat, description=desc, tool_ids=[tid]))
+                transformations.append(BusinessTransformation(
+                    category=cat, description=desc, tool_ids=[tid]))
         elif ttype in ("CrossTab", "Transpose") and ann:
             desc = ann.rstrip(".")
             if desc not in seen:
                 seen.add(desc)
-                transformations.append(BusinessTransformation(category="Reshaping / Pivot", description=desc, tool_ids=[tid]))
+                transformations.append(BusinessTransformation(
+                    category="Reshaping / Pivot", description=desc, tool_ids=[tid]))
         elif ttype == "Union" and ann:
             desc = ann.rstrip(".")
             if desc not in seen:
                 seen.add(desc)
-                transformations.append(BusinessTransformation(category="Union / Combination", description=desc, tool_ids=[tid]))
+                transformations.append(BusinessTransformation(
+                    category="Union / Combination", description=desc, tool_ids=[tid]))
         elif ttype == "Sort" and ann and "sort" in ann.lower():
             desc = ann.rstrip(".")
             if desc not in seen:
                 seen.add(desc)
-                transformations.append(BusinessTransformation(category="Ordering / Prioritization", description=desc, tool_ids=[tid]))
+                transformations.append(BusinessTransformation(
+                    category="Ordering / Prioritization", description=desc, tool_ids=[tid]))
 
     return transformations
 
@@ -742,10 +782,12 @@ def _compute_business_lineage(
 
         ancestors = nx.ancestors(graph, out_tid)
         upstream_inputs = [inp for inp in inputs if inp.tool_id in ancestors]
-        src_names = " + ".join([inp.source_filename if inp.source_filename else inp.name for inp in upstream_inputs]) if upstream_inputs else "Source Data Stream"
+        src_names = " + ".join([inp.source_filename if inp.source_filename else inp.name for inp in upstream_inputs]
+                               ) if upstream_inputs else "Source Data Stream"
 
         # Determine concrete transformation operations from ancestors
-        anc_tools = [workflow.tools[a] for a in ancestors if a in workflow.tools]
+        anc_tools = [workflow.tools[a]
+                     for a in ancestors if a in workflow.tools]
         ops = []
         for t in anc_tools:
             if t.tool_type in ("Summarize", "CrossTab") and "Aggregation" not in ops:
@@ -767,7 +809,8 @@ def _compute_business_lineage(
                 source_name=src_names,
                 transformation=trans,
                 target_name=out.name,
-                intermediate_stages=[t.container_name for t in anc_tools if t.container_name],
+                intermediate_stages=[
+                    t.container_name for t in anc_tools if t.container_name],
                 transformation_summary=f"{src_names} → {trans} → {out.name}",
                 source_tool_id=upstream_inputs[0].tool_id if upstream_inputs else 0,
                 target_tool_id=out_tid,
@@ -807,7 +850,8 @@ def _compute_assessment(
 
     factors = [
         f"{len(inputs)} upstream source datasets",
-        "Cross-source joins across policy, payment, and diary domains" if len(inputs) > 2 else "Linear single-source flow",
+        "Cross-source joins across policy, payment, and diary domains" if len(
+            inputs) > 2 else "Linear single-source flow",
         f"Branching analytical paths producing {len(outputs)} published deliverables",
         f"{len(stages)} distinct operational processing stages",
     ]
@@ -815,7 +859,8 @@ def _compute_assessment(
     # Key Observations (3-5 short facts based on actual evidence)
     observations = [
         f"{len(inputs)} upstream data sources ingested",
-        "Multiple cross-source enrichment and aggregation paths" if len(inputs) > 1 else "Direct linear transformation path",
+        "Multiple cross-source enrichment and aggregation paths" if len(
+            inputs) > 1 else "Direct linear transformation path",
         f"{len(outputs)} downstream reporting outputs published",
         "Business ownership not documented" if not workflow.metadata.author else f"Documented author: {workflow.metadata.author}",
         "Workflow schedule not documented",
@@ -824,7 +869,8 @@ def _compute_assessment(
     # Key Activities (4-6 concise bullets)
     activities = [
         f"Ingests {len(inputs)} source operational dataset{'s' if len(inputs) != 1 else ''}",
-        "Cross-source reference data enrichment and joins" if len(inputs) > 1 else "Direct stream data transformation",
+        "Cross-source reference data enrichment and joins" if len(
+            inputs) > 1 else "Direct stream data transformation",
         f"Multi-dimensional analytical processing across {len(stages)} stage{'s' if len(stages) != 1 else ''}",
         f"Publishes {len(outputs)} downstream reporting deliverable{'s' if len(outputs) != 1 else ''}",
     ]
@@ -833,7 +879,8 @@ def _compute_assessment(
     findings = [
         f"The workflow depends on {len(inputs)} upstream source dataset{'s' if len(inputs) != 1 else ''}.",
         f"Produces {len(outputs)} distinct reporting deliverable{'s' if len(outputs) != 1 else ''} from the transformed data.",
-        "Joins reference attributes (policy, financial, and diary records) to primary transaction records." if len(inputs) > 1 else "Executes single-source data preparation and transformation.",
+        "Joins reference attributes (policy, financial, and diary records) to primary transaction records." if len(
+            inputs) > 1 else "Executes single-source data preparation and transformation.",
         "Business ownership is not documented in the workflow metadata." if not workflow.metadata.author else f"Documented workflow author: {workflow.metadata.author}.",
         "Execution schedule and processing frequency are not documented in the workflow definition.",
         "Downstream business consumers and consumption SLAs are not identified in the workflow metadata.",
@@ -848,14 +895,22 @@ def _compute_assessment(
 
     # Assessment Gaps (What cannot be determined from static workflow analysis)
     assessment_gaps = [
-        {"dimension": "Business Owner", "status": "Not documented" if not workflow.metadata.author else workflow.metadata.author, "action": "Confirm designated business owner and operational point of contact"},
-        {"dimension": "Execution Schedule", "status": "Not documented", "action": "Confirm production run frequency (e.g., daily, weekly, monthly, ad-hoc)"},
-        {"dimension": "Operational Criticality", "status": "Not documented", "action": "Establish business criticality tier (Tier 1/2/3) and business outage impact"},
-        {"dimension": "Downstream Consumers", "status": "Not documented", "action": "Identify specific teams, systems, or dashboards consuming output deliverables"},
-        {"dimension": "Current Usage", "status": "Not documented", "action": "Verify if the workflow is actively running in production or legacy/dormant"},
-        {"dimension": "Redundancy / Duplicate Flow", "status": "Not documented", "action": "Confirm if parallel reporting pipelines or modern data warehouse views exist"},
-        {"dimension": "Business Value / Impact", "status": "Not documented", "action": "Quantify operational dependency and financial/regulatory importance"},
-        {"dimension": "Upstream / Downstream SLA", "status": "Not documented", "action": "Document upstream data availability timelines and delivery SLAs"},
+        {"dimension": "Business Owner", "status": "Not documented" if not workflow.metadata.author else workflow.metadata.author,
+            "action": "Confirm designated business owner and operational point of contact"},
+        {"dimension": "Execution Schedule", "status": "Not documented",
+            "action": "Confirm production run frequency (e.g., daily, weekly, monthly, ad-hoc)"},
+        {"dimension": "Operational Criticality", "status": "Not documented",
+            "action": "Establish business criticality tier (Tier 1/2/3) and business outage impact"},
+        {"dimension": "Downstream Consumers", "status": "Not documented",
+            "action": "Identify specific teams, systems, or dashboards consuming output deliverables"},
+        {"dimension": "Current Usage", "status": "Not documented",
+            "action": "Verify if the workflow is actively running in production or legacy/dormant"},
+        {"dimension": "Redundancy / Duplicate Flow", "status": "Not documented",
+            "action": "Confirm if parallel reporting pipelines or modern data warehouse views exist"},
+        {"dimension": "Business Value / Impact", "status": "Not documented",
+            "action": "Quantify operational dependency and financial/regulatory importance"},
+        {"dimension": "Upstream / Downstream SLA", "status": "Not documented",
+            "action": "Document upstream data availability timelines and delivery SLAs"},
     ]
 
     # Preliminary Disposition (Deterministic and non-speculative)
@@ -894,7 +949,8 @@ def _compute_assessment(
         business_owner=workflow.metadata.author or "Not documented",
         schedule="Not documented",
         criticality="Not documented",
-        documentation_quality="Partially documented" if len(workflow.textboxes) > 0 or any(t.annotation for t in workflow.tools.values()) else "Not documented",
+        documentation_quality="Partially documented" if len(workflow.textboxes) > 0 or any(
+            t.annotation for t in workflow.tools.values()) else "Not documented",
         assessment_status="Automated assessment",
         key_observations=observations,
         key_activities=activities,
@@ -921,7 +977,8 @@ def _infer_purpose(
 ) -> tuple[str, str]:
     """Derive a concise 1-3 sentence business purpose statement and a one-line title."""
     meta_desc = workflow.metadata.description or ""
-    textbox_texts = [tb.text.strip() for tb in workflow.textboxes.values() if tb.text and len(tb.text.strip()) > 30]
+    textbox_texts = [tb.text.strip() for tb in workflow.textboxes.values(
+    ) if tb.text and len(tb.text.strip()) > 30]
 
     one_line = f"{workflow.metadata.name or 'Data Processing'} workflow"
 
@@ -929,7 +986,8 @@ def _infer_purpose(
         sentences = [s.strip() for s in meta_desc.split(".") if s.strip()]
         purpose = ". ".join(sentences[:2]) + "."
     elif textbox_texts:
-        sentences = [s.strip() for s in textbox_texts[0].split(".") if s.strip()]
+        sentences = [s.strip()
+                     for s in textbox_texts[0].split(".") if s.strip()]
         purpose = ". ".join(sentences[:2]) + "."
     else:
         inp_str = ", ".join([i.name for i in inputs[:3]])
@@ -1007,22 +1065,26 @@ def _build_executive_summary(
     methods_list: list[str] = []
     if inputs:
         inp_count = len(inputs)
-        methods_list.append(f"multi-source data ingestion ({inp_count} source dataset{'s' if inp_count != 1 else ''})")
+        methods_list.append(
+            f"multi-source data ingestion ({inp_count} source dataset{'s' if inp_count != 1 else ''})")
     if join_keys:
         methods_list.append(f"relational joins and cross-source enrichment")
     if filter_exprs:
         methods_list.append("conditional filtering and record segmentation")
     if formula_fields:
-        methods_list.append("calculated measure derivation via formula expressions")
+        methods_list.append(
+            "calculated measure derivation via formula expressions")
     if summarize_ops:
-        methods_list.append(f"multi-dimensional aggregation ({len(summarize_ops)} aggregation operations)")
+        methods_list.append(
+            f"multi-dimensional aggregation ({len(summarize_ops)} aggregation operations)")
     if crosstab_fields:
         methods_list.append("matrix pivoting and dimensional cross-tabulation")
     if sort_fields:
         methods_list.append("chronological and categorical sorting")
     if outputs:
         out_count = len(outputs)
-        methods_list.append(f"analytical deliverable distribution ({out_count} target export{'s' if out_count != 1 else ''})")
+        methods_list.append(
+            f"analytical deliverable distribution ({out_count} target export{'s' if out_count != 1 else ''})")
 
     if methods_list:
         methods_and_process = (

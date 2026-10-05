@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import os
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel, Dependency
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel, Dependency
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -70,11 +70,13 @@ class OutputDataTranslator(ToolTranslator):
         file_format_code = config.get("file_format", "")
         input_var = input_variables[0] if input_variables else "df_unknown"
 
-        file_path, sheet_name, fmt = _parse_output_path(raw_path, file_format_code)
+        file_path, sheet_name, fmt = _parse_output_path(
+            raw_path, file_format_code)
         diagnostics: list[Diagnostic] = []
 
         is_unc = file_path.startswith(("\\\\", "//"))
-        is_resolved = os.path.exists(os.path.dirname(file_path)) if (os.path.dirname(file_path) and not is_unc) else False
+        is_resolved = os.path.exists(os.path.dirname(file_path)) if (
+            os.path.dirname(file_path) and not is_unc) else False
 
         if is_unc or not is_resolved:
             diagnostics.append(
@@ -136,4 +138,5 @@ class OutputDataTranslator(ToolTranslator):
 register_type("DbFileOutput", OutputDataTranslator)
 register_type("OutputData", OutputDataTranslator)
 register_type("OutputDataTranslator", OutputDataTranslator)
-register_plugin("AlteryxBasePluginsGui.DbFileOutput.DbFileOutput", OutputDataTranslator)
+register_plugin(
+    "AlteryxBasePluginsGui.DbFileOutput.DbFileOutput", OutputDataTranslator)

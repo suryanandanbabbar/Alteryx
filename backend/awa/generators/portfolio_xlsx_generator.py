@@ -14,12 +14,12 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from awa.analysis.business_area_classifier import (
+from backend.awa.analysis.business_area_classifier import (
     ALLOWED_BUSINESS_AREAS,
     BUSINESS_AREA_DESCRIPTIONS,
 )
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.portfolio import (
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.portfolio import (
     PortfolioAnalysis,
     PortfolioWorkflowSummary,
     RationalisationAnalysis,
@@ -46,20 +46,27 @@ COLOR_SUCCESS = "16A34A"     # Green 600
 COLOR_WARNING = "D97706"     # Amber 600
 COLOR_DANGER = "DC2626"      # Red 600
 
-HEADER_FILL = PatternFill(start_color=COLOR_NAVY, end_color=COLOR_NAVY, fill_type="solid")
-SUBHEADER_FILL = PatternFill(start_color=COLOR_NAVY_LIGHT, end_color=COLOR_NAVY_LIGHT, fill_type="solid")
-ZEBRA_FILL = PatternFill(start_color=COLOR_ZEBRA, end_color=COLOR_ZEBRA, fill_type="solid")
-WHITE_FILL = PatternFill(start_color=COLOR_WHITE, end_color=COLOR_WHITE, fill_type="solid")
-CARD_FILL = PatternFill(start_color=COLOR_CARD_BG, end_color=COLOR_CARD_BG, fill_type="solid")
+HEADER_FILL = PatternFill(start_color=COLOR_NAVY,
+                          end_color=COLOR_NAVY, fill_type="solid")
+SUBHEADER_FILL = PatternFill(
+    start_color=COLOR_NAVY_LIGHT, end_color=COLOR_NAVY_LIGHT, fill_type="solid")
+ZEBRA_FILL = PatternFill(start_color=COLOR_ZEBRA,
+                         end_color=COLOR_ZEBRA, fill_type="solid")
+WHITE_FILL = PatternFill(start_color=COLOR_WHITE,
+                         end_color=COLOR_WHITE, fill_type="solid")
+CARD_FILL = PatternFill(start_color=COLOR_CARD_BG,
+                        end_color=COLOR_CARD_BG, fill_type="solid")
 
 HEADER_FONT = Font(name=FONT_FAMILY, size=10, bold=True, color=COLOR_WHITE)
 SUBHEADER_FONT = Font(name=FONT_FAMILY, size=10, bold=True, color=COLOR_WHITE)
 BODY_FONT = Font(name=FONT_FAMILY, size=9.5, bold=False, color=COLOR_TEXT_MAIN)
-BOLD_BODY_FONT = Font(name=FONT_FAMILY, size=9.5, bold=True, color=COLOR_TEXT_BOLD)
+BOLD_BODY_FONT = Font(name=FONT_FAMILY, size=9.5,
+                      bold=True, color=COLOR_TEXT_BOLD)
 MUTED_FONT = Font(name=FONT_FAMILY, size=9, italic=True, color=COLOR_MUTED)
 
 TITLE_FONT = Font(name=FONT_FAMILY, size=14, bold=True, color=COLOR_NAVY)
-SUBTITLE_FONT = Font(name=FONT_FAMILY, size=9.5, italic=True, color=COLOR_MUTED)
+SUBTITLE_FONT = Font(name=FONT_FAMILY, size=9.5,
+                     italic=True, color=COLOR_MUTED)
 KPI_NUM_FONT = Font(name=FONT_FAMILY, size=16, bold=True, color=COLOR_NAVY)
 KPI_LABEL_FONT = Font(name=FONT_FAMILY, size=9, bold=True, color=COLOR_MUTED)
 
@@ -72,7 +79,8 @@ CELL_BORDER = Border(
 )
 
 ALIGN_HEADER = Alignment(horizontal="left", vertical="center", wrap_text=True)
-ALIGN_HEADER_CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
+ALIGN_HEADER_CENTER = Alignment(
+    horizontal="center", vertical="center", wrap_text=True)
 ALIGN_WRAP_TOP = Alignment(horizontal="left", vertical="top", wrap_text=True)
 ALIGN_CENTER_TOP = Alignment(horizontal="center", vertical="top")
 ALIGN_RIGHT_TOP = Alignment(horizontal="right", vertical="top")
@@ -130,7 +138,8 @@ def _derive_key_features(res: CanonicalAnalysisResult | None) -> str:
 
     # 2. Key promoted rules (up to 3)
     for rule in res.business_summary.business_rules[:3]:
-        features.append(f"• {rule.rule_name} ({rule.category}): {rule.description}")
+        features.append(
+            f"• {rule.rule_name} ({rule.category}): {rule.description}")
 
     return "\n".join(features) if features else "Not determined from available evidence"
 
@@ -186,7 +195,8 @@ def _derive_input_data_elements(res: CanonicalAnalysisResult | None, w: Portfoli
 def _derive_primary_outputs(res: CanonicalAnalysisResult | None, w: PortfolioWorkflowSummary) -> str:
     """Derive production deliverables."""
     if res and res.business_summary and res.business_summary.business_outputs:
-        outs = [f"{o.name} ({o.destination_type})" for o in res.business_summary.business_outputs]
+        outs = [
+            f"{o.name} ({o.destination_type})" for o in res.business_summary.business_outputs]
         return "\n".join(outs)
     if w.targets:
         return "\n".join(w.targets)
@@ -199,11 +209,14 @@ def _derive_output_metrics(res: CanonicalAnalysisResult | None) -> str:
         return "Not determined from available evidence"
     lines: list[str] = []
     if getattr(res, "sttm", None) and res.sttm and res.sttm.mappings:
-        target_attrs = sorted({m.target_attribute for m in res.sttm.mappings if m.target_attribute})
+        target_attrs = sorted(
+            {m.target_attribute for m in res.sttm.mappings if m.target_attribute})
         if target_attrs:
             display_attrs = target_attrs[:15]
-            suffix = f" ... (+{len(target_attrs) - 15} more)" if len(target_attrs) > 15 else ""
-            lines.append(f"Target Attributes: {', '.join(display_attrs)}{suffix}")
+            suffix = f" ... (+{len(target_attrs) - 15} more)" if len(
+                target_attrs) > 15 else ""
+            lines.append(
+                f"Target Attributes: {', '.join(display_attrs)}{suffix}")
     if res.business_summary and res.business_summary.business_outputs:
         for out in res.business_summary.business_outputs:
             if out.sheet_or_table:
@@ -265,8 +278,10 @@ def _derive_reusability(w: PortfolioWorkflowSummary, rationalisation: Rationalis
     if rationalisation and rationalisation.candidates:
         for c in rationalisation.candidates:
             if w.workflow_id in c.workflow_ids or w.filename in c.workflow_names:
-                other_names = [name for name in c.workflow_names if name != w.filename]
-                others_str = ", ".join(other_names) if other_names else "other workflows"
+                other_names = [
+                    name for name in c.workflow_names if name != w.filename]
+                others_str = ", ".join(
+                    other_names) if other_names else "other workflows"
                 return f"High reusability: Shared operational logic identified with {others_str} ({c.recommendation_type})"
     return "Standalone workflow"
 
@@ -290,13 +305,19 @@ def _get_technical_facts(w: PortfolioWorkflowSummary, res: CanonicalAnalysisResu
         }
 
     tools = res.workflow.tools.values()
-    formula_count = sum(1 for t in tools if t.tool_type in ("Formula", "MultiRowFormula", "MultiFieldFormula"))
-    join_count = sum(1 for t in tools if t.tool_type in ("Join", "JoinMultiple", "FindReplace", "FuzzyMatch", "AppendFields"))
-    filter_count = sum(1 for t in tools if t.tool_type in ("Filter", "FilterInDB"))
-    summarize_count = sum(1 for t in tools if t.tool_type in ("Summarize", "RunningTotal", "SummarizeInDB"))
+    formula_count = sum(1 for t in tools if t.tool_type in (
+        "Formula", "MultiRowFormula", "MultiFieldFormula"))
+    join_count = sum(1 for t in tools if t.tool_type in (
+        "Join", "JoinMultiple", "FindReplace", "FuzzyMatch", "AppendFields"))
+    filter_count = sum(
+        1 for t in tools if t.tool_type in ("Filter", "FilterInDB"))
+    summarize_count = sum(1 for t in tools if t.tool_type in (
+        "Summarize", "RunningTotal", "SummarizeInDB"))
 
-    has_python = any("python" in (t.tool_type or "").lower() or "jupyter" in (t.tool_type or "").lower() for t in tools)
-    has_macro = any("macro" in (t.tool_type or "").lower() or (t.plugin or "").lower().endswith(".yxmc") for t in tools)
+    has_python = any("python" in (t.tool_type or "").lower()
+                     or "jupyter" in (t.tool_type or "").lower() for t in tools)
+    has_macro = any("macro" in (t.tool_type or "").lower() or (
+        t.plugin or "").lower().endswith(".yxmc") for t in tools)
     has_app = any(
         "question" in (t.tool_type or "").lower()
         or t.tool_type in ("Action", "Condition", "ControlParam", "DropDown", "ListBox", "RadioButton", "TextBox", "NumericUpDown")
@@ -358,7 +379,8 @@ def _get_technical_facts(w: PortfolioWorkflowSummary, res: CanonicalAnalysisResu
         ttype = t.tool_type or "Unknown"
         tool_type_counts[ttype] = tool_type_counts.get(ttype, 0) + 1
 
-    top_tools = sorted(tool_type_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    top_tools = sorted(tool_type_counts.items(),
+                       key=lambda x: x[1], reverse=True)[:5]
     significant_tools = ", ".join(f"{tt} ({cnt})" for tt, cnt in top_tools)
 
     return {
@@ -415,7 +437,8 @@ def _build_executive_summary_sheet(
 
     # Title Banner
     ws.merge_cells("A1:F1")
-    title_cell = ws.cell(row=1, column=1, value=f"ETL Portfolio Intelligence — {portfolio.portfolio_name}")
+    title_cell = ws.cell(
+        row=1, column=1, value=f"ETL Portfolio Intelligence — {portfolio.portfolio_name}")
     title_cell.font = TITLE_FONT
     title_cell.alignment = Alignment(horizontal="left", vertical="center")
     ws.row_dimensions[1].height = 32
@@ -434,13 +457,19 @@ def _build_executive_summary_sheet(
     # ---------------------------------------------------------
     # KPI Section (Row 4-6)
     # ---------------------------------------------------------
-    high_criticality_count = sum(1 for w in portfolio.workflows if w.criticality_level == "HIGH")
-    med_criticality_count = sum(1 for w in portfolio.workflows if w.criticality_level == "MEDIUM")
-    low_criticality_count = sum(1 for w in portfolio.workflows if w.criticality_level == "LOW")
+    high_criticality_count = sum(
+        1 for w in portfolio.workflows if w.criticality_level == "HIGH")
+    med_criticality_count = sum(
+        1 for w in portfolio.workflows if w.criticality_level == "MEDIUM")
+    low_criticality_count = sum(
+        1 for w in portfolio.workflows if w.criticality_level == "LOW")
 
-    high_complexity_count = sum(1 for w in portfolio.workflows if w.complexity_level == "HIGH")
-    med_complexity_count = sum(1 for w in portfolio.workflows if w.complexity_level == "MEDIUM")
-    low_complexity_count = sum(1 for w in portfolio.workflows if w.complexity_level == "LOW")
+    high_complexity_count = sum(
+        1 for w in portfolio.workflows if w.complexity_level == "HIGH")
+    med_complexity_count = sum(
+        1 for w in portfolio.workflows if w.complexity_level == "MEDIUM")
+    low_complexity_count = sum(
+        1 for w in portfolio.workflows if w.complexity_level == "LOW")
 
     total_opportunities = len(portfolio.rationalisation_candidates)
     if rationalisation and rationalisation.candidates:
@@ -448,10 +477,14 @@ def _build_executive_summary_sheet(
 
     kpis = [
         ("TOTAL WORKFLOWS", str(portfolio.metrics.total_workflows), COLOR_NAVY),
-        ("SUCCESSFULLY ANALYSED", str(portfolio.metrics.successful_workflows), COLOR_SUCCESS),
-        ("FAILED / PARTIAL", str(portfolio.metrics.failed_workflows), COLOR_DANGER if portfolio.metrics.failed_workflows > 0 else COLOR_MUTED),
-        ("CRITICALITY PROFILE", f"H:{high_criticality_count} | M:{med_criticality_count} | L:{low_criticality_count}", COLOR_NAVY),
-        ("COMPLEXITY PROFILE", f"H:{high_complexity_count} | M:{med_complexity_count} | L:{low_complexity_count}", COLOR_NAVY),
+        ("SUCCESSFULLY ANALYSED", str(
+            portfolio.metrics.successful_workflows), COLOR_SUCCESS),
+        ("FAILED / PARTIAL", str(portfolio.metrics.failed_workflows),
+         COLOR_DANGER if portfolio.metrics.failed_workflows > 0 else COLOR_MUTED),
+        ("CRITICALITY PROFILE",
+         f"H:{high_criticality_count} | M:{med_criticality_count} | L:{low_criticality_count}", COLOR_NAVY),
+        ("COMPLEXITY PROFILE",
+         f"H:{high_complexity_count} | M:{med_complexity_count} | L:{low_complexity_count}", COLOR_NAVY),
         ("RATIONALISATION CANDIDATES", str(total_opportunities), COLOR_ACCENT),
     ]
 
@@ -476,7 +509,8 @@ def _build_executive_summary_sheet(
     # Business Area Breakdown Table (Row 8 onwards)
     # ---------------------------------------------------------
     table_start_row = 8
-    ws.cell(row=table_start_row, column=1, value="BUSINESS AREA PORTFOLIO DISTRIBUTION").font = Font(name=FONT_FAMILY, size=11, bold=True, color=COLOR_NAVY)
+    ws.cell(row=table_start_row, column=1, value="BUSINESS AREA PORTFOLIO DISTRIBUTION").font = Font(
+        name=FONT_FAMILY, size=11, bold=True, color=COLOR_NAVY)
     ws.row_dimensions[table_start_row].height = 24
 
     headers = [
@@ -515,10 +549,12 @@ def _build_executive_summary_sheet(
         cnt = len(area_wfs)
 
         # Derive primary function focus
-        funcs = [w.business_function for w in area_wfs if w.business_function and w.business_function != "Unassigned"]
+        funcs = [
+            w.business_function for w in area_wfs if w.business_function and w.business_function != "Unassigned"]
         primary_func = funcs[0] if funcs else "No workflows currently mapped"
 
-        desc = BUSINESS_AREA_DESCRIPTIONS.get(area, "Unclassified or custom business area.")
+        desc = BUSINESS_AREA_DESCRIPTIONS.get(
+            area, "Unclassified or custom business area.")
 
         row_fill = ZEBRA_FILL if idx % 2 == 1 else WHITE_FILL
         ws.row_dimensions[current_row].height = 36
@@ -602,7 +638,8 @@ def _build_portfolio_summary_sheet(
         cell = ws.cell(row=1, column=col_idx, value=h)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
-        cell.alignment = ALIGN_HEADER_CENTER if col_idx in (13, 14, 16, 17, 18, 19, 20, 21, 22, 23) else ALIGN_HEADER
+        cell.alignment = ALIGN_HEADER_CENTER if col_idx in (
+            13, 14, 16, 17, 18, 19, 20, 21, 22, 23) else ALIGN_HEADER
         cell.border = CELL_BORDER
 
     current_row = 2
@@ -617,8 +654,10 @@ def _build_portfolio_summary_sheet(
         )
         biz_outcome = _derive_business_outcome(w, res)
         key_features = _derive_key_features(res)
-        primary_inputs = "\n".join(w.sources) if w.sources else "Not determined from available evidence"
-        primary_outputs = "\n".join(w.targets) if w.targets else "Not determined from available evidence"
+        primary_inputs = "\n".join(
+            w.sources) if w.sources else "Not determined from available evidence"
+        primary_outputs = "\n".join(
+            w.targets) if w.targets else "Not determined from available evidence"
         biz_consumers = _derive_business_consumers(w, res)
         cust_impact = _derive_customer_impact(w)
         client_impact = _derive_client_impact(w)
@@ -628,14 +667,17 @@ def _build_portfolio_summary_sheet(
         last_run = getattr(w, "last_run", None)
         if not last_run or last_run == "Not documented":
             if hasattr(w, "factor_assessments") and isinstance(w.factor_assessments, dict):
-                last_run = w.factor_assessments.get("last_run", {}).get("display_value")
+                last_run = w.factor_assessments.get(
+                    "last_run", {}).get("display_value")
         if not last_run or last_run == "Not documented":
             if res and res.business_summary and res.business_summary.factor_assessments:
-                last_run = res.business_summary.factor_assessments.get("last_run", {}).get("display_value")
+                last_run = res.business_summary.factor_assessments.get(
+                    "last_run", {}).get("display_value")
         if not last_run or last_run == "Not documented":
             if res and res.workflow and res.workflow.metadata and res.workflow.metadata.properties:
                 props = res.workflow.metadata.properties
-                meta = props.get("MetaInfo", {}) if isinstance(props.get("MetaInfo"), dict) else {}
+                meta = props.get("MetaInfo", {}) if isinstance(
+                    props.get("MetaInfo"), dict) else {}
                 last_run = (
                     props.get("last_run")
                     or props.get("last_executed")
@@ -653,14 +695,17 @@ def _build_portfolio_summary_sheet(
         freq = getattr(w, "frequency", None)
         if not freq or freq == "Not documented":
             if hasattr(w, "factor_assessments") and isinstance(w.factor_assessments, dict):
-                freq = w.factor_assessments.get("frequency", {}).get("display_value")
+                freq = w.factor_assessments.get(
+                    "frequency", {}).get("display_value")
         if not freq or freq == "Not documented":
             if res and res.business_summary and res.business_summary.factor_assessments:
-                freq = res.business_summary.factor_assessments.get("frequency", {}).get("display_value")
+                freq = res.business_summary.factor_assessments.get(
+                    "frequency", {}).get("display_value")
         if not freq or freq == "Not documented":
             if res and res.workflow and res.workflow.metadata and res.workflow.metadata.properties:
                 props = res.workflow.metadata.properties
-                meta = props.get("MetaInfo", {}) if isinstance(props.get("MetaInfo"), dict) else {}
+                meta = props.get("MetaInfo", {}) if isinstance(
+                    props.get("MetaInfo"), dict) else {}
                 freq = (
                     props.get("frequency")
                     or props.get("schedule")
@@ -688,7 +733,8 @@ def _build_portfolio_summary_sheet(
             (biz_scope, BODY_FONT, ALIGN_WRAP_TOP, None),
             (w.criticality_level, BOLD_BODY_FONT, ALIGN_CENTER_TOP, None),
             (round(w.criticality_score, 1), BODY_FONT, ALIGN_CENTER_TOP, "0.0"),
-            (w.criticality_justification or "Not determined from available evidence", BODY_FONT, ALIGN_WRAP_TOP, None),
+            (w.criticality_justification or "Not determined from available evidence",
+             BODY_FONT, ALIGN_WRAP_TOP, None),
             (w.complexity_level, BOLD_BODY_FONT, ALIGN_CENTER_TOP, None),
             (w.node_count, BODY_FONT, ALIGN_CENTER_TOP, "#,##0"),
             (w.connection_count, BODY_FONT, ALIGN_CENTER_TOP, "#,##0"),
@@ -712,7 +758,8 @@ def _build_portfolio_summary_sheet(
 
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
-    _autofit_columns(ws, {1: 28, 2: 20, 3: 24, 4: 45, 5: 45, 6: 45, 7: 30, 8: 30, 9: 30, 10: 30, 11: 30, 12: 24, 13: 15, 14: 16, 15: 45, 16: 15, 21: 18, 22: 18, 23: 24})
+    _autofit_columns(ws, {1: 28, 2: 20, 3: 24, 4: 45, 5: 45, 6: 45, 7: 30, 8: 30, 9: 30,
+                     10: 30, 11: 30, 12: 24, 13: 15, 14: 16, 15: 45, 16: 15, 21: 18, 22: 18, 23: 24})
 
 
 # ---------------------------------------------------------------------------
@@ -836,7 +883,8 @@ def _build_rationalisation_sheet(
         cell.alignment = ALIGN_HEADER_CENTER if 5 <= col_idx <= 10 else ALIGN_HEADER
         cell.border = CELL_BORDER
 
-    candidates = (rationalisation.candidates if rationalisation else []) or portfolio.rationalisation_candidates
+    candidates = (rationalisation.candidates if rationalisation else [
+    ]) or portfolio.rationalisation_candidates
 
     # Helper to convert normalized 0-1 metrics to standard Excel percentage floats
     def _to_pct_value(val: Any) -> float:
@@ -868,7 +916,8 @@ def _build_rationalisation_sheet(
 
         # Determine directional workflow identities
         dse = getattr(c, "data_subsumption_evidence", None) or (
-            getattr(c.consolidation_decision, "data_subsumption_evidence", None)
+            getattr(c.consolidation_decision,
+                    "data_subsumption_evidence", None)
             if getattr(c, "consolidation_decision", None) else None
         )
 
@@ -888,33 +937,43 @@ def _build_rationalisation_sheet(
                     id_retire = ""
                     id_retained = ""
                 else:
-                    wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (c.workflow_ids[0] if c.workflow_ids else "N/A")
-                    wf_retained = c.workflow_names[1] if len(c.workflow_names) > 1 else (c.workflow_ids[1] if len(c.workflow_ids) > 1 else "N/A")
+                    wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (
+                        c.workflow_ids[0] if c.workflow_ids else "N/A")
+                    wf_retained = c.workflow_names[1] if len(c.workflow_names) > 1 else (
+                        c.workflow_ids[1] if len(c.workflow_ids) > 1 else "N/A")
                     id_retire = c.workflow_ids[0] if c.workflow_ids else ""
-                    id_retained = c.workflow_ids[1] if len(c.workflow_ids) > 1 else ""
+                    id_retained = c.workflow_ids[1] if len(
+                        c.workflow_ids) > 1 else ""
             else:
-                wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (c.workflow_ids[0] if c.workflow_ids else "N/A")
-                wf_retained = c.workflow_names[1] if len(c.workflow_names) > 1 else (c.workflow_ids[1] if len(c.workflow_ids) > 1 else "N/A")
+                wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (
+                    c.workflow_ids[0] if c.workflow_ids else "N/A")
+                wf_retained = c.workflow_names[1] if len(c.workflow_names) > 1 else (
+                    c.workflow_ids[1] if len(c.workflow_ids) > 1 else "N/A")
                 id_retire = c.workflow_ids[0] if c.workflow_ids else ""
-                id_retained = c.workflow_ids[1] if len(c.workflow_ids) > 1 else ""
+                id_retained = c.workflow_ids[1] if len(
+                    c.workflow_ids) > 1 else ""
 
         elif rec_raw in ("RETIRE", "RETIRE_CANDIDATE"):
             rec_type = "RETIRE"
-            wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (c.workflow_ids[0] if c.workflow_ids else "N/A")
+            wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (
+                c.workflow_ids[0] if c.workflow_ids else "N/A")
             wf_retained = "N/A"
             id_retire = c.workflow_ids[0] if c.workflow_ids else ""
             id_retained = ""
 
         else:
             rec_type = c.recommendation_type or "REVIEW"
-            wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (c.workflow_ids[0] if c.workflow_ids else "N/A")
-            wf_retained = c.workflow_names[1] if len(c.workflow_names) > 1 else (c.workflow_ids[1] if len(c.workflow_ids) > 1 else "N/A")
+            wf_retire = c.workflow_names[0] if len(c.workflow_names) > 0 else (
+                c.workflow_ids[0] if c.workflow_ids else "N/A")
+            wf_retained = c.workflow_names[1] if len(c.workflow_names) > 1 else (
+                c.workflow_ids[1] if len(c.workflow_ids) > 1 else "N/A")
             id_retire = c.workflow_ids[0] if c.workflow_ids else ""
             id_retained = c.workflow_ids[1] if len(c.workflow_ids) > 1 else ""
 
         # Lookup business areas aligned with respective workflows
         area_retire = _lookup_business_area(wf_retire, id_retire)
-        area_retained = _lookup_business_area(wf_retained, id_retained) if wf_retained != "N/A" else "N/A"
+        area_retained = _lookup_business_area(
+            wf_retained, id_retained) if wf_retained != "N/A" else "N/A"
 
         # Sourced directly from deterministic_metrics (canonical rationalisation evidence)
         dm = getattr(c, "deterministic_metrics", None)
@@ -922,14 +981,16 @@ def _build_rationalisation_sheet(
             src_overlap = getattr(dm, "source_overlap", 0.0) or 0.0
             tgt_overlap = getattr(dm, "target_overlap", 0.0) or 0.0
             freq_overlap = getattr(dm, "frequency_overlap", 0.0) or 0.0
-            trans_overlap = getattr(dm, "transformation_similarity", 0.0) or 0.0
+            trans_overlap = getattr(
+                dm, "transformation_similarity", 0.0) or 0.0
             dag_overlap = getattr(dm, "dag_similarity", 0.0) or 0.0
         else:
             src_overlap = getattr(c, "source_overlap", 0.0) or 0.0
             tgt_overlap = getattr(c, "target_overlap", 0.0) or 0.0
             freq_overlap = getattr(c, "frequency_overlap", 0.0) or 0.0
             trans_overlap = getattr(c, "transformation_similarity", 0.0) or 0.0
-            dag_overlap = getattr(c, "dag_similarity", getattr(c, "topology_similarity", 0.0)) or 0.0
+            dag_overlap = getattr(c, "dag_similarity", getattr(
+                c, "topology_similarity", 0.0)) or 0.0
 
         src_val = _to_pct_value(src_overlap)
         tgt_val = _to_pct_value(tgt_overlap)
@@ -939,7 +1000,8 @@ def _build_rationalisation_sheet(
 
         # Lossless shared formulae & unique functionality
         shared_logic_items = getattr(c, "shared_logic", []) or []
-        shared_text = "\n".join(shared_logic_items) if shared_logic_items else "No shared formulae identified"
+        shared_text = "\n".join(
+            shared_logic_items) if shared_logic_items else "No shared formulae identified"
 
         unique_dict = getattr(c, "unique_functionality", {}) or {}
         unique_lines: list[str] = []
@@ -948,9 +1010,11 @@ def _build_rationalisation_sheet(
                 unique_lines.append(f"[{wf_name}]:")
                 for op in ops:
                     unique_lines.append(f"  • {op}")
-        unique_text = "\n".join(unique_lines) if unique_lines else "No distinguishing operations recorded"
+        unique_text = "\n".join(
+            unique_lines) if unique_lines else "No distinguishing operations recorded"
 
-        strategy = c.reasoning or getattr(c, "migration_disposition", "Assess for consolidation or shared macro extraction")
+        strategy = c.reasoning or getattr(
+            c, "migration_disposition", "Assess for consolidation or shared macro extraction")
 
         row_fill = ZEBRA_FILL if row_count % 2 == 1 else WHITE_FILL
         ws.row_dimensions[current_row].height = 50
@@ -984,11 +1048,13 @@ def _build_rationalisation_sheet(
         row_count += 1
 
     if row_count == 0:
-        ws.cell(row=2, column=1, value="No rationalisation candidates identified for this portfolio.").font = MUTED_FONT
+        ws.cell(row=2, column=1,
+                value="No rationalisation candidates identified for this portfolio.").font = MUTED_FONT
 
     ws.freeze_panes = "A2"
     ws.auto_filter.ref = ws.dimensions
-    _autofit_columns(ws, {1: 30, 2: 30, 3: 25, 4: 25, 5: 22, 6: 24, 7: 24, 8: 20, 9: 18, 10: 18, 11: 50, 12: 50, 13: 45})
+    _autofit_columns(ws, {1: 30, 2: 30, 3: 25, 4: 25, 5: 22, 6: 24,
+                     7: 24, 8: 20, 9: 18, 10: 18, 11: 50, 12: 50, 13: 45})
 
 
 # ---------------------------------------------------------------------------

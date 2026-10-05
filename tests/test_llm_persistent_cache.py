@@ -9,23 +9,23 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from awa.llm.cache import (
+from backend.awa.llm.cache import (
     LLMNarrativeCache,
     compute_cache_key,
     reset_global_narrative_cache,
 )
-from awa.llm.client import LLMClient
-from awa.llm.config import LLMConfig
-from awa.llm.generator import LLMNarrativeGenerator
-from awa.llm.schemas import (
+from backend.awa.llm.client import LLMClient
+from backend.awa.llm.config import LLMConfig
+from backend.awa.llm.generator import LLMNarrativeGenerator
+from backend.awa.llm.schemas import (
     BusinessPurposeResult,
     CriticalityAssessmentResult,
     FactorAssessment,
     NarrativeResult,
 )
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool
-from awa.model.business_summary import WorkflowBusinessSummary
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.tool import Tool
+from backend.awa.model.business_summary import WorkflowBusinessSummary
 
 
 @pytest.fixture
@@ -74,7 +74,8 @@ class TestLLMPersistentCache:
         summary = _make_summary()
 
         # Execute generation
-        result = generator.generate_business_purpose(workflow, summary, workflow_id="abc123hash")
+        result = generator.generate_business_purpose(
+            workflow, summary, workflow_id="abc123hash")
 
         assert result is not None
         assert result.source == "llm"
@@ -104,21 +105,26 @@ class TestLLMPersistentCache:
         )
 
         # Run 1: Store
-        res1 = generator.generate_business_purpose(workflow, _make_summary(), workflow_id="abc123hash")
+        res1 = generator.generate_business_purpose(
+            workflow, _make_summary(), workflow_id="abc123hash")
         assert mock_llm_client.generate.call_count == 1
 
         # Run 2: HIT
-        res2 = generator.generate_business_purpose(workflow, _make_summary(), workflow_id="abc123hash")
+        res2 = generator.generate_business_purpose(
+            workflow, _make_summary(), workflow_id="abc123hash")
         assert mock_llm_client.generate.call_count == 1  # ZERO additional LLM calls
         assert res2.is_cached is True
         assert res2.business_purpose == res1.business_purpose
         assert res2.business_area_tag == res1.business_area_tag
 
         # Create a brand new cache instance pointing to the same file (simulating new server process)
-        cache_new_process = LLMNarrativeCache(file_path=temp_cache_file, enabled=True)
-        generator_new = LLMNarrativeGenerator(client=mock_llm_client, cache=cache_new_process)
+        cache_new_process = LLMNarrativeCache(
+            file_path=temp_cache_file, enabled=True)
+        generator_new = LLMNarrativeGenerator(
+            client=mock_llm_client, cache=cache_new_process)
 
-        res3 = generator_new.generate_business_purpose(workflow, _make_summary(), workflow_id="abc123hash")
+        res3 = generator_new.generate_business_purpose(
+            workflow, _make_summary(), workflow_id="abc123hash")
         assert mock_llm_client.generate.call_count == 1  # Still zero extra calls
         assert res3.is_cached is True
         assert res3.business_area_tag == "Actuarial"
@@ -130,15 +136,18 @@ class TestLLMPersistentCache:
 
         # Upload 1: Original file
         wf_original = Workflow(
-            metadata=WorkflowMetadata(name="BillingPipeline_v1.yxmd", version="2023.1"),
+            metadata=WorkflowMetadata(
+                name="BillingPipeline_v1.yxmd", version="2023.1"),
             content_hash="identical_content_sha256_hash",
         )
-        res1 = generator.generate_business_purpose(wf_original, _make_summary())
+        res1 = generator.generate_business_purpose(
+            wf_original, _make_summary())
         assert mock_llm_client.generate.call_count == 1
 
         # Upload 2: Renamed file with identical content hash
         wf_renamed = Workflow(
-            metadata=WorkflowMetadata(name="Copy_Of_BillingPipeline_Final.yxmd", version="2023.1"),
+            metadata=WorkflowMetadata(
+                name="Copy_Of_BillingPipeline_Final.yxmd", version="2023.1"),
             content_hash="identical_content_sha256_hash",
         )
         res2 = generator.generate_business_purpose(wf_renamed, _make_summary())
@@ -191,7 +200,8 @@ class TestLLMPersistentCache:
         failing_client = MagicMock(spec=LLMClient)
         failing_client.is_available = True
         failing_client.model_name = "test-model"
-        failing_client.generate.side_effect = RuntimeError("Azure 503 Service Unavailable")
+        failing_client.generate.side_effect = RuntimeError(
+            "Azure 503 Service Unavailable")
 
         cache = LLMNarrativeCache(file_path=temp_cache_file, enabled=True)
         generator = LLMNarrativeGenerator(client=failing_client, cache=cache)
@@ -241,7 +251,8 @@ class TestLLMPersistentCache:
         assert cache.get("corrupt_key") is None
 
         # Store entry that throws on deserialize
-        cache._store["malformed_entry"] = MagicMock(side_effect=Exception("corrupt object"))
+        cache._store["malformed_entry"] = MagicMock(
+            side_effect=Exception("corrupt object"))
         assert cache.get("nonexistent_key") is None
 
     def test_09_atomic_writes_and_concurrent_safety(self, temp_cache_file):
@@ -258,7 +269,8 @@ class TestLLMPersistentCache:
                 )
                 cache.set(f"key_{worker_id}_{i}", res)
 
-        threads = [threading.Thread(target=worker, args=(w,)) for w in range(5)]
+        threads = [threading.Thread(target=worker, args=(w,))
+                   for w in range(5)]
         for t in threads:
             t.start()
         for t in threads:
@@ -267,7 +279,8 @@ class TestLLMPersistentCache:
         assert cache.count() == 50
 
         # Reload from disk into a fresh instance
-        reloaded_cache = LLMNarrativeCache(file_path=temp_cache_file, enabled=True)
+        reloaded_cache = LLMNarrativeCache(
+            file_path=temp_cache_file, enabled=True)
         assert reloaded_cache.count() == 50
 
     def test_10_cache_stats_and_clear(self, temp_cache_file):
@@ -275,7 +288,8 @@ class TestLLMPersistentCache:
         cache = LLMNarrativeCache(file_path=temp_cache_file, enabled=True)
         cache.set(
             "k1",
-            NarrativeResult(text="Text 1", source="llm", model="m", prompt_version="2.0"),
+            NarrativeResult(text="Text 1", source="llm",
+                            model="m", prompt_version="2.0"),
         )
 
         # 1 hit, 1 miss

@@ -11,15 +11,15 @@ import tempfile
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 
-from awa.generators.svg_generator import generate_svg
-from awa.generators.docx_generator import generate_docx
-from awa.generators.doc_builder import build_document_model
-from awa.generators.python_generator import generate_python_code
-from awa.generators.sttm_generator import generate_sttm_excel
-from awa.generators.tool_specifications_generator import generate_tool_specifications_excel
-from awa.model.tool_specifications import build_tool_specifications_document
-from awa.analysis.sttm_extractor import extract_sttm
-from awa.llm.generator import get_default_generator
+from backend.awa.generators.svg_generator import generate_svg
+from backend.awa.generators.docx_generator import generate_docx
+from backend.awa.generators.doc_builder import build_document_model
+from backend.awa.generators.python_generator import generate_python_code
+from backend.awa.generators.sttm_generator import generate_sttm_excel
+from backend.awa.generators.tool_specifications_generator import generate_tool_specifications_excel
+from backend.awa.model.tool_specifications import build_tool_specifications_document
+from backend.awa.analysis.sttm_extractor import extract_sttm
+from backend.awa.llm.generator import get_default_generator
 from backend.app.services.storage import get_storage
 
 router = APIRouter(prefix="/download", tags=["Download"])
@@ -215,7 +215,8 @@ def download_zip(analysis_id: str):
         "diagnostics": [d.to_dict() for d in res.diagnostics],
         "support_summary": res.metrics.support_summary,
     }
-    diags_bytes = json.dumps(diags_data, indent=2, ensure_ascii=False).encode("utf-8")
+    diags_bytes = json.dumps(diags_data, indent=2,
+                             ensure_ascii=False).encode("utf-8")
 
     # 5. Business Report DOCX
     doc_model = build_document_model(
@@ -280,8 +281,10 @@ def download_zip(analysis_id: str):
         zf.writestr(f"{base_name}/workflow.json", json_bytes)
         zf.writestr(f"{base_name}/workflow.py", py_bytes)
         zf.writestr(f"{base_name}/workflow.svg", svg_bytes)
-        zf.writestr(f"{base_name}/{base_name}_Business_Report.docx", biz_docx_bytes)
-        zf.writestr(f"{base_name}/{base_name}_Tool_Specifications.xlsx", tool_spec_bytes)
+        zf.writestr(
+            f"{base_name}/{base_name}_Business_Report.docx", biz_docx_bytes)
+        zf.writestr(
+            f"{base_name}/{base_name}_Tool_Specifications.xlsx", tool_spec_bytes)
         zf.writestr(f"{base_name}/{base_name}_STTM.xlsx", sttm_bytes)
         zf.writestr(f"{base_name}/diagnostics.json", diags_bytes)
 

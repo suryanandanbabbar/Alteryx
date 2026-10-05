@@ -62,7 +62,7 @@ def get_tool_summary_narrative(analysis_id: str, tool_id: int):
             status_code=404,
             detail=f"Tool with ID {tool_id} not found in analysis {analysis_id}",
         )
-    from awa.llm import get_default_generator
+    from backend.awa.llm import get_default_generator
     generator = get_default_generator()
     narrative = generator.generate_tool_summary(
         res.workflow,

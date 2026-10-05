@@ -5,13 +5,13 @@ import xml.parsers.expat
 from pathlib import Path
 from typing import Any
 
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, Position
-from awa.model.container import ToolContainer
-from awa.model.annotation import TextBoxNode
-from awa.model.connection import Connection
-from awa.model.field import Field
-from awa.parser.tool_parser import extract_tool_config, redact_sensitive_xml
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.tool import Tool, Position
+from backend.awa.model.container import ToolContainer
+from backend.awa.model.annotation import TextBoxNode
+from backend.awa.model.connection import Connection
+from backend.awa.model.field import Field
+from backend.awa.parser.tool_parser import extract_tool_config, redact_sensitive_xml
 
 
 def _extract_all_node_source_spans(raw_bytes: bytes) -> dict[str, dict[str, Any]]:
@@ -66,7 +66,8 @@ def _extract_all_node_source_spans(raw_bytes: bytes) -> dict[str, dict[str, Any]
                     end_pos += 1
                 else:
                     end_pos = pos + 7
-                snippet = raw_bytes[start_pos:end_pos].decode("utf-8", errors="replace")
+                snippet = raw_bytes[start_pos:end_pos].decode(
+                    "utf-8", errors="replace")
                 node_data[tool_id_str] = {
                     "raw_xml": snippet,
                     "container_id": info["parent_container"],
@@ -87,7 +88,8 @@ def _extract_node_xml_snippet(raw_xml: str, tool_id: int) -> str:
     """Extract exact source <Node>...</Node> snippet for a ToolID from raw .yxmd text."""
     if not raw_xml:
         return ""
-    pattern = re.compile(rf'<Node\b(?=[^>]*\bToolID\s*=\s*["\']{tool_id}["\'])[^>]*>', re.IGNORECASE | re.DOTALL)
+    pattern = re.compile(
+        rf'<Node\b(?=[^>]*\bToolID\s*=\s*["\']{tool_id}["\'])[^>]*>', re.IGNORECASE | re.DOTALL)
     match = pattern.search(raw_xml)
     if not match:
         return ""
@@ -98,7 +100,8 @@ def _extract_node_xml_snippet(raw_xml: str, tool_id: int) -> str:
 
     pos = match.end()
     depth = 1
-    token_pattern = re.compile(r'<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\s*(/)?\s*Node\b([^>]*)>', re.IGNORECASE | re.DOTALL)
+    token_pattern = re.compile(
+        r'<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\s*(/)?\s*Node\b([^>]*)>', re.IGNORECASE | re.DOTALL)
     for m in token_pattern.finditer(raw_xml, pos):
         full_match = m.group(0)
         if full_match.startswith("<!--") or full_match.startswith("<!["):
@@ -142,7 +145,8 @@ def parse_workflow(path: str | Path) -> Workflow:
     root = tree.getroot()
 
     metadata = _parse_metadata(root, path, content_hash=content_hash)
-    tools, containers, textboxes = _parse_all_nodes(root, raw_xml_text=raw_xml_text, source_spans=source_spans)
+    tools, containers, textboxes = _parse_all_nodes(
+        root, raw_xml_text=raw_xml_text, source_spans=source_spans)
     connections = _parse_connections(root, tools)
 
     return Workflow(
@@ -201,7 +205,8 @@ def _parse_properties(root: ET.Element) -> dict:
         if child.tag == "MetaInfo":
             meta: dict = {}
             for meta_child in child:
-                meta[meta_child.tag] = meta_child.text or meta_child.get("value", "")
+                meta[meta_child.tag] = meta_child.text or meta_child.get(
+                    "value", "")
             props["MetaInfo"] = meta
         else:
             if child.attrib:
@@ -231,7 +236,8 @@ def _parse_all_nodes(root: ET.Element, raw_xml_text: str = "", source_spans: dic
             tool_id = 0
 
         gui_settings = node.find("GuiSettings")
-        plugin = gui_settings.get("Plugin", "") if gui_settings is not None else ""
+        plugin = gui_settings.get(
+            "Plugin", "") if gui_settings is not None else ""
 
         # 1. ToolContainer classification
         if "ToolContainer" in plugin:
@@ -254,7 +260,8 @@ def _parse_all_nodes(root: ET.Element, raw_xml_text: str = "", source_spans: dic
             container_obj = ToolContainer(
                 tool_id=tool_id,
                 caption=caption or f"Container #{tool_id}",
-                disabled=disabled or (parent_container.disabled if parent_container else False),
+                disabled=disabled or (
+                    parent_container.disabled if parent_container else False),
                 folded=folded,
                 parent_container_id=parent_container.tool_id if parent_container else None,
                 position=_extract_position(gui_settings),
@@ -272,7 +279,8 @@ def _parse_all_nodes(root: ET.Element, raw_xml_text: str = "", source_spans: dic
             if child_nodes_el is not None:
                 for child_el in child_nodes_el:
                     if child_el.tag == "Node":
-                        _traverse_node_element(child_el, parent_container=container_obj)
+                        _traverse_node_element(
+                            child_el, parent_container=container_obj)
             return
 
         # 2. TextBox classification
@@ -296,7 +304,8 @@ def _parse_all_nodes(root: ET.Element, raw_xml_text: str = "", source_spans: dic
 
         # 4. Check if disabled (directly or inherited from parent container)
         disabled_el = node.find(".//Properties/Disabled")
-        is_node_disabled = disabled_el is not None and disabled_el.get("value", "False") == "True"
+        is_node_disabled = disabled_el is not None and disabled_el.get(
+            "value", "False") == "True"
         is_parent_disabled = parent_container.disabled if parent_container else False
         if is_node_disabled or is_parent_disabled:
             # If disabled, we still check for any child nodes before returning
@@ -304,7 +313,8 @@ def _parse_all_nodes(root: ET.Element, raw_xml_text: str = "", source_spans: dic
             if child_nodes_el is not None:
                 for child_el in child_nodes_el:
                     if child_el.tag == "Node":
-                        _traverse_node_element(child_el, parent_container=parent_container)
+                        _traverse_node_element(
+                            child_el, parent_container=parent_container)
             return
 
         # 5. Executable Tool Node
@@ -322,10 +332,12 @@ def _parse_all_nodes(root: ET.Element, raw_xml_text: str = "", source_spans: dic
         output_fields = _extract_fields(node)
 
         tool_span_info = spans_map.get(str(tool_id), {})
-        container_id = parent_container.tool_id if parent_container else tool_span_info.get("container_id")
+        container_id = parent_container.tool_id if parent_container else tool_span_info.get(
+            "container_id")
         container_name = parent_container.caption if parent_container else None
 
-        raw_node_snippet = tool_span_info.get("raw_xml") or _extract_node_xml_snippet(raw_xml_text, tool_id)
+        raw_node_snippet = tool_span_info.get(
+            "raw_xml") or _extract_node_xml_snippet(raw_xml_text, tool_id)
         if not raw_node_snippet:
             raw_node_snippet = ET.tostring(node, encoding="unicode").strip()
         raw_node_snippet = redact_sensitive_xml(raw_node_snippet)
@@ -353,7 +365,8 @@ def _parse_all_nodes(root: ET.Element, raw_xml_text: str = "", source_spans: dic
         if child_nodes_el is not None:
             for child_el in child_nodes_el:
                 if child_el.tag == "Node":
-                    _traverse_node_element(child_el, parent_container=parent_container)
+                    _traverse_node_element(
+                        child_el, parent_container=parent_container)
 
     # Begin traversal from top-level Nodes container
     nodes_container = root.find("Nodes")
@@ -385,7 +398,8 @@ def _derive_tool_type(plugin: str, engine_el: ET.Element | None = None) -> str:
             if last and not last.isdigit():
                 return last
             # If last is a digit (e.g. version suffix), find the last non-digit segment
-            parts = [p.strip() for p in cleaned_plugin.split(".") if p.strip() and not p.strip().isdigit()]
+            parts = [p.strip() for p in cleaned_plugin.split(
+                ".") if p.strip() and not p.strip().isdigit()]
             if parts:
                 return parts[-1]
 
@@ -404,7 +418,8 @@ def _derive_tool_type(plugin: str, engine_el: ET.Element | None = None) -> str:
                 return macro_stem
         dll = engine_el.get("EngineDll") or ""
         if dll:
-            dll_stem = Path(dll).stem.replace("AlteryxBasePluginsEngine", "").strip()
+            dll_stem = Path(dll).stem.replace(
+                "AlteryxBasePluginsEngine", "").strip()
             if dll_stem and not dll_stem.isdigit():
                 return dll_stem
 

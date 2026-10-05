@@ -9,8 +9,8 @@ import zipfile
 import pytest
 from starlette.testclient import TestClient
 
-from awa.llm.client import FakeLLMClient, set_default_llm_client
-from awa.llm.generator import LLMNarrativeGenerator, set_default_generator
+from backend.awa.llm.client import FakeLLMClient, set_default_llm_client
+from backend.awa.llm.generator import LLMNarrativeGenerator, set_default_generator
 from backend.app.main import app
 
 
@@ -24,11 +24,13 @@ def sample_portfolio_id(client):
     """Upload a real multi-workflow portfolio and return its ID."""
     zip_buf = io.BytesIO()
     with zipfile.ZipFile(zip_buf, "w") as zf:
-        zf.writestr("Claims.yxmd", Path("Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes())
+        zf.writestr("Claims.yxmd", Path(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes())
         zf.writestr("FTSE.yxmd", Path("FTSE 100.yxmd").read_bytes())
         zf.writestr("Food1.yxmd", Path("BBCFoodAggr.yxmd").read_bytes())
         zf.writestr("Food2.yxmd", Path("BBCFood v2.yxmd").read_bytes())
-        zf.writestr("Filter.yxmd", Path("fixtures/basic/simple_filter.yxmd").read_bytes())
+        zf.writestr("Filter.yxmd", Path(
+            "fixtures/basic/simple_filter.yxmd").read_bytes())
     zip_buf.seek(0)
 
     resp = client.post(
@@ -59,7 +61,8 @@ class TestRationalisationAPI:
         set_default_generator(gen)
 
         try:
-            resp = client.get(f"/api/portfolio/{sample_portfolio_id}/rationalisation?use_llm=true")
+            resp = client.get(
+                f"/api/portfolio/{sample_portfolio_id}/rationalisation?use_llm=true")
             assert resp.status_code == 200, f"Failed with {resp.status_code}: {resp.text}"
 
             data = resp.json()
@@ -75,7 +78,8 @@ class TestRationalisationAPI:
                 assert "candidate_id" in cand
                 assert "workflow_ids" in cand
                 assert "workflow_names" in cand
-                assert cand["recommendation_type"] in ["CONSOLIDATE", "RETIRE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW", "KEEP"]
+                assert cand["recommendation_type"] in [
+                    "CONSOLIDATE", "RETIRE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW", "KEEP"]
                 assert cand["confidence"] in ["HIGH", "MEDIUM", "LOW"]
                 assert 0.0 <= cand["opportunity_score"] <= 100.0
                 assert cand["llm_enrichment_status"] == "DETERMINISTIC_BASELINE"
@@ -88,7 +92,8 @@ class TestRationalisationAPI:
 
     def test_rationalisation_with_use_llm_false(self, client, sample_portfolio_id):
         """When use_llm=false is requested, returns fast-path deterministic baseline."""
-        resp = client.get(f"/api/portfolio/{sample_portfolio_id}/rationalisation?use_llm=false")
+        resp = client.get(
+            f"/api/portfolio/{sample_portfolio_id}/rationalisation?use_llm=false")
         assert resp.status_code == 200
         data = resp.json()
         assert data["portfolio_id"] == sample_portfolio_id
@@ -110,13 +115,16 @@ class TestRationalisationAPI:
         set_default_generator(gen)
 
         try:
-            resp = client.get(f"/api/portfolio/{sample_portfolio_id}/rationalisation?use_llm=true")
+            resp = client.get(
+                f"/api/portfolio/{sample_portfolio_id}/rationalisation?use_llm=true")
             assert resp.status_code == 200
             data = resp.json()
             # If candidates exist that allow CONSOLIDATE, they should be marked ENRICHED
-            consolidate_cands = [c for c in data["candidates"] if "CONSOLIDATE" in c["admissible_recommendations"]]
+            consolidate_cands = [c for c in data["candidates"]
+                                 if "CONSOLIDATE" in c["admissible_recommendations"]]
             if consolidate_cands:
-                enriched = [c for c in consolidate_cands if c["llm_enrichment_status"] == "ENRICHED"]
+                enriched = [
+                    c for c in consolidate_cands if c["llm_enrichment_status"] == "ENRICHED"]
                 assert len(enriched) > 0
                 assert "Mock AI architectural analysis" in enriched[0]["reasoning"]
         finally:
@@ -127,23 +135,27 @@ class TestRationalisationAPI:
         def raise_error(sys_prompt, user_prompt):
             raise ConnectionError("Azure endpoint connection timeout")
 
-        fake_client = FakeLLMClient(model_name="mock-failing", generator_fn=raise_error)
+        fake_client = FakeLLMClient(
+            model_name="mock-failing", generator_fn=raise_error)
         gen = LLMNarrativeGenerator(client=fake_client)
         set_default_generator(gen)
 
         try:
-            resp = client.get(f"/api/portfolio/{sample_portfolio_id}/rationalisation?use_llm=true")
+            resp = client.get(
+                f"/api/portfolio/{sample_portfolio_id}/rationalisation?use_llm=true")
             # Must return 200, never 500!
             assert resp.status_code == 200
             data = resp.json()
             for cand in data["candidates"]:
-                assert cand["llm_enrichment_status"] in ["DETERMINISTIC_BASELINE", "DETERMINISTIC_FALLBACK"]
+                assert cand["llm_enrichment_status"] in [
+                    "DETERMINISTIC_BASELINE", "DETERMINISTIC_FALLBACK"]
         finally:
             set_default_generator(None)
 
     def test_missing_portfolio_returns_404(self, client):
         """Non-existent portfolio ID must return HTTP 404."""
-        resp = client.get("/api/portfolio/non_existent_portfolio_999/rationalisation")
+        resp = client.get(
+            "/api/portfolio/non_existent_portfolio_999/rationalisation")
         assert resp.status_code == 404
 
     def test_default_azure_llm_config_is_disabled_and_rationalisation_succeeds(self, client, sample_portfolio_id):
@@ -152,7 +164,8 @@ class TestRationalisationAPI:
         # Ensure default generator is restored
         set_default_generator(None)
 
-        resp = client.get(f"/api/portfolio/{sample_portfolio_id}/rationalisation?use_llm=true")
+        resp = client.get(
+            f"/api/portfolio/{sample_portfolio_id}/rationalisation?use_llm=true")
         assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
         data = resp.json()
         assert data["portfolio_id"] == sample_portfolio_id
@@ -161,5 +174,5 @@ class TestRationalisationAPI:
         for cand in data["candidates"]:
             assert cand["llm_enrichment_status"] == "DETERMINISTIC_BASELINE"
             assert cand["opportunity_score"] > 0
-            assert cand["recommendation_type"] in ["CONSOLIDATE", "RETIRE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW", "KEEP"]
-
+            assert cand["recommendation_type"] in [
+                "CONSOLIDATE", "RETIRE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW", "KEEP"]

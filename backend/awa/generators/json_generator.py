@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.analysis_result import WorkflowMetrics
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.analysis_result import WorkflowMetrics
 
 
 def generate_json(

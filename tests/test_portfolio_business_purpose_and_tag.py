@@ -24,26 +24,26 @@ from unittest.mock import MagicMock, patch
 import networkx as nx
 import pytest
 
-from awa.analysis.business_area_classifier import (
+from backend.awa.analysis.business_area_classifier import (
     ALLOWED_BUSINESS_AREAS,
     classify_business_area_deterministic,
 )
-from awa.analysis.portfolio_analyzer import build_portfolio_analysis
-from awa.analysis.workflow_criticality import (
+from backend.awa.analysis.portfolio_analyzer import build_portfolio_analysis
+from backend.awa.analysis.workflow_criticality import (
     calculate_workflow_criticality,
     PortfolioDependencyContext,
 )
-from awa.llm.cache import LLMNarrativeCache
-from awa.llm.client import FakeLLMClient
-from awa.llm.generator import LLMNarrativeGenerator
-from awa.llm.schemas import BusinessPurposeResult
-from awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
-from awa.model.business_summary import WorkflowBusinessSummary
-from awa.model.dag_layout import DagLayout
-from awa.model.python_trace import PythonTraceMap
-from awa.model.source_info import SourceInfo
-from awa.model.tool import Tool, ToolConfiguration
-from awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.llm.cache import LLMNarrativeCache
+from backend.awa.llm.client import FakeLLMClient
+from backend.awa.llm.generator import LLMNarrativeGenerator
+from backend.awa.llm.schemas import BusinessPurposeResult
+from backend.awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
+from backend.awa.model.business_summary import WorkflowBusinessSummary
+from backend.awa.model.dag_layout import DagLayout
+from backend.awa.model.python_trace import PythonTraceMap
+from backend.awa.model.source_info import SourceInfo
+from backend.awa.model.tool import Tool, ToolConfiguration
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
 from backend.app.services.analyzer import to_overview_dto
 from backend.app.services.storage import InMemoryStorage
 
@@ -86,7 +86,8 @@ def _create_mock_canonical_result(
 
     res = CanonicalAnalysisResult(
         analysis_id=analysis_id,
-        source=SourceInfo(source_format="yxmd", original_filename=f"{name}.yxmd"),
+        source=SourceInfo(source_format="yxmd",
+                          original_filename=f"{name}.yxmd"),
         workflow=wf,
         graph=nx.DiGraph(),
         execution_order=list(wf.tools.keys()),
@@ -114,7 +115,8 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_generator_produces_structured_json_with_valid_tag(self):
         """Generator produces BusinessPurposeResult with purpose, tag, and source='llm'."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Claims_Process", version="2021.1"))
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Claims_Process", version="2021.1"))
         bs = WorkflowBusinessSummary(
             business_purpose="Processes insurance claim adjustments.",
             one_line_purpose="Claims workflow",
@@ -130,7 +132,8 @@ class TestPortfolioBusinessPurposeAndTag:
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=mock_client, cache=cache)
 
-        result = gen.generate_business_purpose(wf, bs, workflow_id="wf_claims_01")
+        result = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_claims_01")
 
         assert isinstance(result, BusinessPurposeResult)
         assert result.source == "llm"
@@ -140,7 +143,8 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_generator_single_owner_fallback_on_unavailability(self):
         """When LLM client is unavailable, generator returns deterministic fallback directly."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Underwriting_Engine", version="2021.1"))
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Underwriting_Engine", version="2021.1"))
         bs = WorkflowBusinessSummary(
             business_purpose="Automated policy underwriting and rating calculation.",
             one_line_purpose="Underwriting workflow",
@@ -148,7 +152,8 @@ class TestPortfolioBusinessPurposeAndTag:
         )
 
         mock_client = FakeLLMClient(is_available=False)
-        gen = LLMNarrativeGenerator(client=mock_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=mock_client, cache=LLMNarrativeCache())
 
         result = gen.generate_business_purpose(wf, bs, workflow_id="wf_uw_01")
 
@@ -158,7 +163,8 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_generator_single_owner_rejects_invalid_tag(self):
         """Generator rejects hallucinated business-area tag and falls back deterministically."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Sales_Pipeline", version="2021.1"))
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Sales_Pipeline", version="2021.1"))
         bs = WorkflowBusinessSummary(
             business_purpose="Monitors sales pipeline, broker commissions, and agent performance.",
             one_line_purpose="Sales workflow",
@@ -171,9 +177,11 @@ class TestPortfolioBusinessPurposeAndTag:
                 "business_area_tag": "Human Resources & Payroll",  # Invalid tag!
             })
         )
-        gen = LLMNarrativeGenerator(client=mock_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=mock_client, cache=LLMNarrativeCache())
 
-        result = gen.generate_business_purpose(wf, bs, workflow_id="wf_sales_01")
+        result = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_sales_01")
 
         # Invalid tag must be rejected and replaced by deterministic fallback
         assert result.source == "deterministic_fallback"
@@ -181,7 +189,8 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_generator_handles_malformed_json(self):
         """Generator safely falls back when LLM returns invalid JSON or prose."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Legal_Matters", version="2021.1"))
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Legal_Matters", version="2021.1"))
         bs = WorkflowBusinessSummary(
             business_purpose="Extracts legal regulatory compliance filings and contracts.",
             one_line_purpose="Legal workflow",
@@ -189,9 +198,11 @@ class TestPortfolioBusinessPurposeAndTag:
         )
 
         mock_client = FakeLLMClient(default_response="Not valid JSON at all")
-        gen = LLMNarrativeGenerator(client=mock_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=mock_client, cache=LLMNarrativeCache())
 
-        result = gen.generate_business_purpose(wf, bs, workflow_id="wf_legal_01")
+        result = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_legal_01")
 
         assert result.source == "deterministic_fallback"
         assert result.business_area_tag == "Legal"
@@ -310,7 +321,8 @@ class TestPortfolioBusinessPurposeAndTag:
         for area in ALLOWED_BUSINESS_AREAS:
             assert area in areas_present
 
-        groups = {g.business_area: g.workflow_count for g in portfolio.business_areas}
+        groups = {
+            g.business_area: g.workflow_count for g in portfolio.business_areas}
         assert groups["Claims & Risk"] == 1
         assert groups["Underwriting"] == 0
         assert groups["Legal"] == 0
@@ -318,14 +330,19 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_stable_identity_and_count_invariants(self):
         """Sum of card counts strictly equals total workflows and every workflow ID occurs once."""
-        res_a = _create_mock_canonical_result("id_a", "A", "Claims", "Claims & Risk", "llm")
-        res_b = _create_mock_canonical_result("id_b", "B", "Sales", "Sales & Distribution", "llm")
-        res_c = _create_mock_canonical_result("id_c", "C", "Legal", "Legal", "llm")
+        res_a = _create_mock_canonical_result(
+            "id_a", "A", "Claims", "Claims & Risk", "llm")
+        res_b = _create_mock_canonical_result(
+            "id_b", "B", "Sales", "Sales & Distribution", "llm")
+        res_c = _create_mock_canonical_result(
+            "id_c", "C", "Legal", "Legal", "llm")
 
-        raw = [("A.yxmd", "A", res_a), ("B.yxmd", "B", res_b), ("C.yxmd", "C", res_c)]
+        raw = [("A.yxmd", "A", res_a), ("B.yxmd",
+                                        "B", res_b), ("C.yxmd", "C", res_c)]
         portfolio = build_portfolio_analysis(raw)
 
-        total_in_cards = sum(g.workflow_count for g in portfolio.business_areas)
+        total_in_cards = sum(
+            g.workflow_count for g in portfolio.business_areas)
         assert total_in_cards == 3
 
         seen_ids: set[str] = set()
@@ -363,7 +380,8 @@ class TestPortfolioBusinessPurposeAndTag:
             targets=["output.xlsx"],
             inspection_sinks=[],
             context=ctx,
-            operational_metadata={"last_run": "5 months ago", "frequency": "Monthly"},
+            operational_metadata={
+                "last_run": "5 months ago", "frequency": "Monthly"},
         )
 
         assert base.score == 36.0
@@ -415,7 +433,6 @@ class TestPortfolioBusinessPurposeAndTag:
         assert assessment.breakdown["frequency"] == 0.0
         assert assessment.operational_score == 0.0
 
-
     # -----------------------------------------------------------------------
     # Mandatory Adversarial Boundary Tests (7-Tier Functional Hierarchy)
     # -----------------------------------------------------------------------
@@ -423,7 +440,8 @@ class TestPortfolioBusinessPurposeAndTag:
     def test_boundary_underwriting_decision_engine_consuming_claims_data(self):
         """Underwriting Decision Engine consuming Claims data resolves to Underwriting."""
         output_ev = [
-            {"dataset": "Policyholder_Risk_Score_Matrix.xlsx", "columns": ["claim_id", "claim_count", "prior_loss_amt", "risk_score"]}
+            {"dataset": "Policyholder_Risk_Score_Matrix.xlsx", "columns": [
+                "claim_id", "claim_count", "prior_loss_amt", "risk_score"]}
         ]
         purpose = (
             "Supports underwriting decisioning by applying claims submission data, risk rules, and "
@@ -440,7 +458,8 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_boundary_claims_fraud_detection(self):
         """Claims Fraud Detection resolves to Claims & Risk."""
-        output_ev = [{"dataset": "Suspicious_Claims_Investigation.xlsx", "columns": ["claim_id", "fraud_probability"]}]
+        output_ev = [{"dataset": "Suspicious_Claims_Investigation.xlsx", "columns": [
+            "claim_id", "fraud_probability"]}]
         purpose = "Processes claims to identify suspicious claims and prioritise claims fraud investigation."
         res = classify_business_area_deterministic(
             output_ev,
@@ -452,7 +471,8 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_boundary_premium_calculator_using_claims_history(self):
         """Premium Calculator using historical claims experience resolves to Underwriting."""
-        output_ev = [{"dataset": "Premium_Rating_Matrix.xlsx", "columns": ["policy_type", "base_premium", "loss_ratio"]}]
+        output_ev = [{"dataset": "Premium_Rating_Matrix.xlsx",
+                      "columns": ["policy_type", "base_premium", "loss_ratio"]}]
         purpose = "Uses historical claims loss experience to calculate policy pricing and premium rating."
         res = classify_business_area_deterministic(
             output_ev,
@@ -463,7 +483,8 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_boundary_claim_reserve_calculator(self):
         """Claim Reserve Calculator resolves to Claims & Risk."""
-        output_ev = [{"dataset": "Outstanding_Reserves.xlsx", "columns": ["claim_id", "incurred_loss", "reserve_amount"]}]
+        output_ev = [{"dataset": "Outstanding_Reserves.xlsx", "columns": [
+            "claim_id", "incurred_loss", "reserve_amount"]}]
         purpose = "Calculates loss reserves and litigation exposure for active open claims."
         res = classify_business_area_deterministic(
             output_ev,
@@ -474,7 +495,8 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_boundary_sales_territory_analytics(self):
         """Sales Territory Analytics resolves to Sales & Distribution."""
-        output_ev = [{"dataset": "Territory_Commission_Report.xlsx", "columns": ["broker_id", "commission_amt", "sales_volume"]}]
+        output_ev = [{"dataset": "Territory_Commission_Report.xlsx",
+                      "columns": ["broker_id", "commission_amt", "sales_volume"]}]
         purpose = "Analyzes sales territory distribution and calculates broker commissions."
         res = classify_business_area_deterministic(
             output_ev,
@@ -485,7 +507,8 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_boundary_regulatory_compliance_reporting(self):
         """Regulatory Compliance Reporting resolves to Legal."""
-        output_ev = [{"dataset": "Statutory_Compliance_Filing.xlsx", "columns": ["filing_id", "statute_code", "compliance_status"]}]
+        output_ev = [{"dataset": "Statutory_Compliance_Filing.xlsx", "columns": [
+            "filing_id", "statute_code", "compliance_status"]}]
         purpose = "Generates regulatory compliance filings and statutory reports from insurance claims and policy records."
         res = classify_business_area_deterministic(
             output_ev,
@@ -496,7 +519,8 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_boundary_misleading_claims_heavy_filename_with_underwriting_function(self):
         """Misleading filename with claims data resolves to Underwriting when primary function is Underwriting."""
-        output_ev = [{"dataset": "Underwriting_Risk_Matrix.xlsx", "columns": ["policyholder_id", "claims_history_count", "risk_rating"]}]
+        output_ev = [{"dataset": "Underwriting_Risk_Matrix.xlsx", "columns": [
+            "policyholder_id", "claims_history_count", "risk_rating"]}]
         purpose = "Underwriting decision engine that evaluates applicant risk appetite and policy eligibility."
         res = classify_business_area_deterministic(
             output_ev,
@@ -508,8 +532,10 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_semantic_conflict_guard_overrides_distracted_llm_tag(self):
         """When LLM returns an Underwriting function but misclassifies tag as Claims & Risk, guard corrects it."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
-        bs = WorkflowBusinessSummary(business_purpose="Underwriting workflow", one_line_purpose="UW", why_it_matters="UW")
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(
+            business_purpose="Underwriting workflow", one_line_purpose="UW", why_it_matters="UW")
 
         # Fake client returning conflicting JSON: function='Underwriting decisioning' but tag='Claims & Risk'
         conflict_json = json.dumps({
@@ -520,8 +546,10 @@ class TestPortfolioBusinessPurposeAndTag:
         client = FakeLLMClient(response=conflict_json, is_available=True)
         gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
 
-        output_ev = [{"dataset": "Policyholder_Risk_Scores.xlsx", "columns": ["claim_id", "risk_score"]}]
-        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_conflict_test", output_evidence=output_ev)
+        output_ev = [{"dataset": "Policyholder_Risk_Scores.xlsx",
+                      "columns": ["claim_id", "risk_score"]}]
+        res = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_conflict_test", output_evidence=output_ev)
 
         assert res.business_area_tag == "Underwriting"
         assert res.classification_conflict is True
@@ -530,13 +558,17 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_atomic_structured_output_failure_routes_to_deterministic_fallback(self):
         """Malformed JSON or missing fields route completely to deterministic fallback."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Claims Fraud Detection Model", version="2021.1"), tools={}, connections=[])
-        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Claims Fraud Detection Model", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(
+            business_purpose="", one_line_purpose="", why_it_matters="")
 
-        client = FakeLLMClient(response="NOT VALID JSON AT ALL", is_available=True)
+        client = FakeLLMClient(
+            response="NOT VALID JSON AT ALL", is_available=True)
         gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
 
-        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_malformed_test")
+        res = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_malformed_test")
         assert res.source == "deterministic_fallback"
         assert res.business_area_tag == "Claims & Risk"
         assert res.business_function != ""
@@ -548,8 +580,10 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_valid_structured_llm_response_stores_only_business_purpose(self):
         """1. A valid structured LLM response stores only business_purpose in that field."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
-        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(
+            business_purpose="", one_line_purpose="", why_it_matters="")
 
         clean_purpose = "Supports underwriting decisioning by applying claims submission data, risk rules, and policyholder attributes to generate risk scores used to assess policyholder risk and eligibility."
         payload = json.dumps({
@@ -560,7 +594,8 @@ class TestPortfolioBusinessPurposeAndTag:
         client = FakeLLMClient(response=payload, is_available=True)
         gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
 
-        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_clean_purpose_test")
+        res = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_clean_purpose_test")
         assert res.source == "llm"
         assert res.business_purpose == clean_purpose
         # Ensure no accidental concatenation
@@ -568,8 +603,10 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_business_function_stored_separately(self):
         """2. business_function is stored separately and not concatenated into business_purpose."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Policy Rating Calculator", version="2021.1"), tools={}, connections=[])
-        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Policy Rating Calculator", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(
+            business_purpose="", one_line_purpose="", why_it_matters="")
 
         payload = json.dumps({
             "business_purpose": "Calculates commercial property insurance policy pricing and premium ratings based on risk profiles.",
@@ -579,14 +616,17 @@ class TestPortfolioBusinessPurposeAndTag:
         client = FakeLLMClient(response=payload, is_available=True)
         gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
 
-        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_func_sep_test")
+        res = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_func_sep_test")
         assert res.business_function == "Policy pricing and premium rating calculation"
         assert res.business_function not in res.business_purpose
 
     def test_business_area_tag_stored_separately(self):
         """3. business_area_tag is stored separately and not concatenated into business_purpose."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Sales Territory Analytics", version="2021.1"), tools={}, connections=[])
-        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Sales Territory Analytics", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(
+            business_purpose="", one_line_purpose="", why_it_matters="")
 
         payload = json.dumps({
             "business_purpose": "Evaluates commercial distribution channel performance and computes monthly producer commissions.",
@@ -596,14 +636,17 @@ class TestPortfolioBusinessPurposeAndTag:
         client = FakeLLMClient(response=payload, is_available=True)
         gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
 
-        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_tag_sep_test")
+        res = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_tag_sep_test")
         assert res.business_area_tag == "Sales & Distribution"
         assert "Sales & Distribution" not in res.business_purpose
 
     def test_response_containing_extensive_reasoning_does_not_become_business_purpose(self):
         """4. A response containing extensive classification reasoning extracts only the clean JSON purpose."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
-        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(
+            business_purpose="", one_line_purpose="", why_it_matters="")
 
         raw_noisy_llm_response = (
             "To determine the primary business function, business purpose, and business area tag for the given workflow, "
@@ -621,10 +664,12 @@ class TestPortfolioBusinessPurposeAndTag:
             "Therefore, Underwriting is selected."
         )
 
-        client = FakeLLMClient(response=raw_noisy_llm_response, is_available=True)
+        client = FakeLLMClient(
+            response=raw_noisy_llm_response, is_available=True)
         gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
 
-        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_noisy_reasoning_test")
+        res = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_noisy_reasoning_test")
 
         # Crucial invariants:
         expected_clean = "Supports underwriting decisioning by applying claims submission data, risk rules, and policyholder attributes to generate risk scores used to assess policyholder risk and eligibility."
@@ -671,7 +716,8 @@ class TestPortfolioBusinessPurposeAndTag:
         overview_dto = to_overview_dto(res)
 
         # Portfolio representation
-        portfolio = build_portfolio_analysis([("Sales_Commissions.yxmd", "Sales_Commissions.yxmd", res)])
+        portfolio = build_portfolio_analysis(
+            [("Sales_Commissions.yxmd", "Sales_Commissions.yxmd", res)])
         portfolio_wf = portfolio.workflows[0]
 
         assert overview_dto.business_summary is not None
@@ -681,7 +727,8 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_malformed_or_unstructured_llm_output_uses_deterministic_fallback(self):
         """7. Malformed/unstructured LLM output uses deterministic fallback instead of persisting raw response."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Regulatory Compliance Filing", version="2021.1"), tools={}, connections=[])
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Regulatory Compliance Filing", version="2021.1"), tools={}, connections=[])
         bs = WorkflowBusinessSummary(
             business_purpose="Generates regulatory compliance filings and statutory reports.",
             one_line_purpose="Legal compliance",
@@ -694,10 +741,12 @@ class TestPortfolioBusinessPurposeAndTag:
             "Given these observations, the classification is Legal."
         )
 
-        client = FakeLLMClient(response=unstructured_reasoning, is_available=True)
+        client = FakeLLMClient(
+            response=unstructured_reasoning, is_available=True)
         gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
 
-        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_unstructured_fallback_test")
+        res = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_unstructured_fallback_test")
         assert res.source == "deterministic_fallback"
         # Must NEVER store the unstructured reasoning as business purpose
         assert res.business_purpose != unstructured_reasoning
@@ -723,8 +772,10 @@ class TestPortfolioBusinessPurposeAndTag:
 
     def test_underwriting_decision_engine_boundary_case_underwriting_purpose_and_tag(self):
         """9. Underwriting Decision Engine boundary case produces an Underwriting purpose and Underwriting tag."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
-        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Underwriting Decision Engine Application", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(
+            business_purpose="", one_line_purpose="", why_it_matters="")
 
         payload = json.dumps({
             "business_purpose": "Supports underwriting decisioning by applying claims submission data, risk rules, and policyholder attributes to generate risk scores used to assess policyholder risk and eligibility.",
@@ -734,11 +785,12 @@ class TestPortfolioBusinessPurposeAndTag:
         client = FakeLLMClient(response=payload, is_available=True)
         gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
 
-        output_ev = [{"dataset": "Policyholder_Risk_Scores.xlsx", "columns": ["claim_id", "risk_score"]}]
-        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_uw_boundary_test", output_evidence=output_ev)
+        output_ev = [{"dataset": "Policyholder_Risk_Scores.xlsx",
+                      "columns": ["claim_id", "risk_score"]}]
+        res = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_uw_boundary_test", output_evidence=output_ev)
 
         assert res.business_area_tag == "Underwriting"
         assert "underwriting decisioning" in res.business_purpose.lower()
         assert "claims submission data" in res.business_purpose.lower()
         assert "To determine" not in res.business_purpose
-

@@ -4,23 +4,23 @@ from pathlib import Path
 from unittest.mock import MagicMock
 import pytest
 
-from awa.analysis.business_area_classifier import (
+from backend.awa.analysis.business_area_classifier import (
     classify_workflow_business_area,
     classify_business_area_deterministic,
     classify_business_function_deterministic,
     compose_deterministic_business_purpose,
 )
-from awa.analysis.business_area_definitions import (
+from backend.awa.analysis.business_area_definitions import (
     ALLOWED_BUSINESS_AREAS,
     BUSINESS_AREA_DEFINITIONS,
 )
-from awa.analysis.portfolio_analyzer import (
+from backend.awa.analysis.portfolio_analyzer import (
     build_portfolio_analysis,
     CONFIGURED_PORTFOLIO_BUSINESS_AREAS,
 )
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.business_summary import WorkflowBusinessSummary
-from awa.model.tool import Tool, ToolConfiguration
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.business_summary import WorkflowBusinessSummary
+from backend.awa.model.tool import Tool, ToolConfiguration
 from app.models.schemas import PortfolioWorkflowSummaryDTO
 
 
@@ -106,7 +106,8 @@ class TestActuarialClassification:
 
         actuarial_def = BUSINESS_AREA_DEFINITIONS["Actuarial"]
         assert actuarial_def.name == "Actuarial"
-        assert any("reserving" in act.lower() or "triangulation" in act.lower() for act in actuarial_def.included_activities)
+        assert any("reserving" in act.lower() or "triangulation" in act.lower()
+                   for act in actuarial_def.included_activities)
 
     def test_actuarial_classification_loss_reserving(self):
         """Workflow performing loss development triangulation and IBNR estimation classifies as Actuarial."""
@@ -115,11 +116,13 @@ class TestActuarialClassification:
             "Loss_Development_Triangles.yxmd",
             business_purpose="Generates chain ladder loss triangles and estimates IBNR reserves for casualty lines.",
             target_files=["Casualty_IBNR_Reserves.xlsx"],
-            output_columns=["Accident_Year", "Development_Lag", "Cumulative_Losses", "IBNR_Reserve"],
+            output_columns=["Accident_Year", "Development_Lag",
+                            "Cumulative_Losses", "IBNR_Reserve"],
         )
         res = classify_workflow_business_area(result=wf)
         assert res.business_area == "Actuarial"
-        func = classify_business_function_deterministic(business_area="Actuarial", business_purpose=wf.business_summary.business_purpose)
+        func = classify_business_function_deterministic(
+            business_area="Actuarial", business_purpose=wf.business_summary.business_purpose)
         assert "Actuarial" in func or "Reserve" in func or "Valuation" in func
 
     def test_actuarial_classification_rate_indications(self):
@@ -129,7 +132,8 @@ class TestActuarialClassification:
             "Auto_Rate_Indication_Model.yxmd",
             business_purpose="Calculates actuarial indicated rate changes and loss trend selections.",
             target_files=["Rate_Filing_Indications.xlsx"],
-            output_columns=["Coverage_Type", "Indicated_Rate_Change", "Permissible_Loss_Ratio"],
+            output_columns=["Coverage_Type",
+                            "Indicated_Rate_Change", "Permissible_Loss_Ratio"],
         )
         res = classify_workflow_business_area(result=wf)
         assert res.business_area == "Actuarial"
@@ -141,7 +145,8 @@ class TestActuarialClassification:
             "Solvency_II_Capital_Requirement.yxmd",
             business_purpose="Performs solvency II capital modeling and asset liability matching risk margin calculation.",
             target_files=["SCR_Risk_Margin.xlsx"],
-            output_columns=["Solvency_Capital_Requirement", "Risk_Margin", "Best_Estimate_Liability"],
+            output_columns=["Solvency_Capital_Requirement",
+                            "Risk_Margin", "Best_Estimate_Liability"],
         )
         res = classify_workflow_business_area(result=wf)
         assert res.business_area == "Actuarial"
@@ -166,7 +171,8 @@ class TestActuarialClassification:
             "Commercial_Policy_Underwriting.yxmd",
             business_purpose="Evaluates applicant risk scores and determines policy underwriting acceptance.",
             target_files=["Underwriting_Decisions.xlsx"],
-            output_columns=["Policy_Number", "Underwriting_Tier", "Base_Premium"],
+            output_columns=["Policy_Number",
+                            "Underwriting_Tier", "Base_Premium"],
         )
         res = classify_workflow_business_area(result=wf)
         assert res.business_area == "Underwriting"
@@ -215,7 +221,8 @@ class TestPortfolioSegregationAndOperationalData:
         # Exactly 5 configured business areas
         assert len(portfolio.business_areas) == 5
         domain_names = [g.business_area for g in portfolio.business_areas]
-        assert domain_names == ["Claims & Risk", "Legal", "Underwriting", "Sales & Distribution", "Actuarial"]
+        assert domain_names == ["Claims & Risk", "Legal",
+                                "Underwriting", "Sales & Distribution", "Actuarial"]
 
         for group in portfolio.business_areas:
             assert group.workflow_count == 1
@@ -238,7 +245,8 @@ class TestPortfolioSegregationAndOperationalData:
         wf_claims_1 = _make_dummy_canonical(
             "wf_1", "Claims_High.yxmd",
             business_purpose="Processes insurance claim losses and claimant exposure.",
-            target_files=["Claims_Loss.xlsx", "Claims_Audit.xlsx", "Claims_Ledger.xlsx", "Claims_BI.xlsx", "Claims_Extract.xlsx"],
+            target_files=["Claims_Loss.xlsx", "Claims_Audit.xlsx",
+                          "Claims_Ledger.xlsx", "Claims_BI.xlsx", "Claims_Extract.xlsx"],
             output_columns=["Claim_ID", "Loss_Amount"]
         )
         wf_claims_2 = _make_dummy_canonical(
@@ -260,22 +268,28 @@ class TestPortfolioSegregationAndOperationalData:
             ("Actuarial_Valuation.yxmd", "Actuarial_Valuation.yxmd", wf_actuarial),
         ])
 
-        claims_group = next(g for g in portfolio.business_areas if g.business_area == "Claims & Risk")
+        claims_group = next(
+            g for g in portfolio.business_areas if g.business_area == "Claims & Risk")
         assert claims_group.workflow_count == 2
         assert len(claims_group.workflows) == 2
 
-        actuarial_group = next(g for g in portfolio.business_areas if g.business_area == "Actuarial")
+        actuarial_group = next(
+            g for g in portfolio.business_areas if g.business_area == "Actuarial")
         assert actuarial_group.workflow_count == 1
         assert len(actuarial_group.workflows) == 1
 
-        legal_group = next(g for g in portfolio.business_areas if g.business_area == "Legal")
+        legal_group = next(
+            g for g in portfolio.business_areas if g.business_area == "Legal")
         assert legal_group.workflow_count == 0
         assert len(legal_group.workflows) == 0
 
         # Scope verification: Claims workflows do not leak into Actuarial or Legal
-        claims_crit_levels = [w.criticality_level for w in claims_group.workflows]
-        actuarial_crit_levels = [w.criticality_level for w in actuarial_group.workflows]
-        legal_crit_levels = [w.criticality_level for w in legal_group.workflows]
+        claims_crit_levels = [
+            w.criticality_level for w in claims_group.workflows]
+        actuarial_crit_levels = [
+            w.criticality_level for w in actuarial_group.workflows]
+        legal_crit_levels = [
+            w.criticality_level for w in legal_group.workflows]
 
         assert len(claims_crit_levels) == 2
         assert len(actuarial_crit_levels) == 1

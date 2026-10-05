@@ -4,10 +4,10 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from awa.parser.xml_parser import parse_workflow
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.analysis.business_intelligence import generate_business_summary
-from awa.graph.builder import build_graph, execution_order
+from backend.awa.parser.xml_parser import parse_workflow
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.analysis.business_intelligence import generate_business_summary
+from backend.awa.graph.builder import build_graph, execution_order
 from backend.app.main import app
 from backend.app.services.analyzer import to_overview_dto
 
@@ -50,7 +50,8 @@ class TestBusinessIntelligenceEngine:
         # 3. Business Outputs (5 primary deliverables with business meaning & likely use)
         assert len(bs.business_outputs) == 5
         output_names = [out.name for out in bs.business_outputs]
-        assert any("Historical" in name or "Claims" in name for name in output_names)
+        assert any(
+            "Historical" in name or "Claims" in name for name in output_names)
         assert any("Quarter" in name for name in output_names)
         assert any("Product" in name for name in output_names)
         assert any("State" in name for name in output_names)
@@ -121,14 +122,19 @@ class TestBusinessIntelligenceEngine:
         graph = build_graph(demo_claims_workflow)
         exec_order = execution_order(graph)
 
-        bs1 = generate_business_summary(demo_claims_workflow, graph, exec_order)
-        bs2 = generate_business_summary(demo_claims_workflow, graph, exec_order)
+        bs1 = generate_business_summary(
+            demo_claims_workflow, graph, exec_order)
+        bs2 = generate_business_summary(
+            demo_claims_workflow, graph, exec_order)
 
         assert bs1.business_purpose == bs2.business_purpose
         assert bs1.one_line_purpose == bs2.one_line_purpose
-        assert [i.to_dict() for i in bs1.source_inputs] == [i.to_dict() for i in bs2.source_inputs]
-        assert [o.to_dict() for o in bs1.business_outputs] == [o.to_dict() for o in bs2.business_outputs]
-        assert [r.to_dict() for r in bs1.business_rules] == [r.to_dict() for r in bs2.business_rules]
+        assert [i.to_dict() for i in bs1.source_inputs] == [i.to_dict()
+                                                            for i in bs2.source_inputs]
+        assert [o.to_dict() for o in bs1.business_outputs] == [o.to_dict()
+                                                               for o in bs2.business_outputs]
+        assert [r.to_dict() for r in bs1.business_rules] == [r.to_dict()
+                                                             for r in bs2.business_rules]
         assert bs1.assessment.to_dict() == bs2.assessment.to_dict()
 
     def test_synthetic_workflow_without_annotations_or_containers(self, tmp_path: Path):
@@ -187,7 +193,8 @@ class TestBusinessIntelligenceEngine:
 
     def test_canonical_analysis_integration(self):
         """Verify CanonicalAnalysisResult and DTOs contain structured business facts."""
-        canonical = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        canonical = analyze_canonical(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd")
         assert canonical.business_summary is not None
         assert canonical.business_summary.business_purpose != ""
 
@@ -207,7 +214,8 @@ class TestBusinessIntelligenceEngine:
         with open("Demo_Claims_Volume_Extract_reconstructed.yxmd", "rb") as f:
             resp = client.post(
                 "/api/upload",
-                files={"file": ("Demo_Claims_Volume_Extract_reconstructed.yxmd", f, "application/octet-stream")},
+                files={"file": (
+                    "Demo_Claims_Volume_Extract_reconstructed.yxmd", f, "application/octet-stream")},
             )
 
         assert resp.status_code == 200

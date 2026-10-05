@@ -8,9 +8,9 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.portfolio import PortfolioAnalysis
-from awa.analysis.portfolio_analyzer import build_portfolio_analysis, enrich_portfolio_with_llm
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.portfolio import PortfolioAnalysis
+from backend.awa.analysis.portfolio_analyzer import build_portfolio_analysis, enrich_portfolio_with_llm
 from backend.app.services.analyzer import process_uploaded_workflow
 from backend.app.services.storage import get_storage
 
@@ -46,11 +46,13 @@ def extract_workflows_from_zip(
                     try:
                         content = zf.read(zip_info)
                         if content:
-                            prefix_clean = base_prefix.strip("./") if base_prefix else ""
+                            prefix_clean = base_prefix.strip(
+                                "./") if base_prefix else ""
                             rel_path = f"{prefix_clean}/{zip_info.filename}" if prefix_clean else zip_info.filename
                             discovered.append((filename, rel_path, content))
                     except Exception as e:
-                        logger.warning("Failed to extract %s from zip: %s", zip_info.filename, e)
+                        logger.warning(
+                            "Failed to extract %s from zip: %s", zip_info.filename, e)
     except Exception as e:
         logger.warning("Could not read zip archive: %s", e)
 
@@ -71,23 +73,27 @@ def process_portfolio_uploads(
     - LLM rationalisation qualification with safe deterministic fallback
     """
     storage = get_storage()
-    raw_results: list[tuple[str, str, CanonicalAnalysisResult | Exception]] = []
+    raw_results: list[tuple[str, str,
+                            CanonicalAnalysisResult | Exception]] = []
 
     for filename, rel_path, content in uploaded_files:
         try:
-            logger.info("Analyzing portfolio workflow: %s (%s)", filename, rel_path)
+            logger.info("Analyzing portfolio workflow: %s (%s)",
+                        filename, rel_path)
             canonical_res = process_uploaded_workflow(filename, content)
             # Store in global storage so all individual workflow routes/downloads work immediately
             storage.save(canonical_res)
             raw_results.append((filename, rel_path, canonical_res))
         except Exception as exc:
-            logger.warning("Analysis failed for portfolio workflow '%s': %s", filename, exc)
+            logger.warning(
+                "Analysis failed for portfolio workflow '%s': %s", filename, exc)
             raw_results.append((filename, rel_path, exc))
 
     # 1. Build portfolio analysis with business domain classification
-    from awa.llm import get_default_generator
+    from backend.awa.llm import get_default_generator
     generator = get_default_generator()
-    portfolio = build_portfolio_analysis(raw_results, portfolio_name=portfolio_name, generator=generator)
+    portfolio = build_portfolio_analysis(
+        raw_results, portfolio_name=portfolio_name, generator=generator)
 
     # 2. Enrich with portfolio LLM qualification (preserves deterministic baseline on failure)
     enriched_portfolio = enrich_portfolio_with_llm(portfolio)

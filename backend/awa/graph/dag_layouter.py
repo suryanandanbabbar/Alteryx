@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import networkx as nx
 
-from awa.model.workflow import Workflow
-from awa.model.dag_layout import DagLayout, DagNodeLayout, DagEdgeLayout
-from awa.model.visual_category import get_visual_category
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.dag_layout import DagLayout, DagNodeLayout, DagEdgeLayout
+from backend.awa.model.visual_category import get_visual_category
 
 
 # Layout geometry constants
@@ -56,7 +56,7 @@ def compute_dag_layout(
 
     # 1. Compute layer (rank) for each node based on longest path from roots
     layers: dict[int, int] = {}
-    
+
     # Initialize roots with layer 0
     for node in graph.nodes:
         if graph.in_degree(node) == 0:
@@ -76,10 +76,13 @@ def compute_dag_layout(
 
     # Sort layers
     max_layer = max(layers.values()) if layers else 0
-    max_nodes_in_layer = max((len(nodes) for nodes in layer_nodes.values()), default=1)
+    max_nodes_in_layer = max((len(nodes)
+                             for nodes in layer_nodes.values()), default=1)
 
-    total_width = PADDING_X * 2 + (max_layer + 1) * NODE_WIDTH + max_layer * HORIZONTAL_GAP
-    total_height = PADDING_Y * 2 + max_nodes_in_layer * NODE_HEIGHT + (max_nodes_in_layer - 1) * VERTICAL_GAP
+    total_width = PADDING_X * 2 + \
+        (max_layer + 1) * NODE_WIDTH + max_layer * HORIZONTAL_GAP
+    total_height = PADDING_Y * 2 + max_nodes_in_layer * \
+        NODE_HEIGHT + (max_nodes_in_layer - 1) * VERTICAL_GAP
     total_height = max(total_height, 220.0)
 
     # 2. Position nodes
@@ -88,7 +91,8 @@ def compute_dag_layout(
     for lvl, nodes in layer_nodes.items():
         col_x = PADDING_X + lvl * (NODE_WIDTH + HORIZONTAL_GAP)
         col_height = len(nodes) * NODE_HEIGHT + (len(nodes) - 1) * VERTICAL_GAP
-        start_y = (total_height - col_height) / 2.0  # vertically center the column
+        start_y = (total_height - col_height) / \
+            2.0  # vertically center the column
 
         for idx, node_id in enumerate(nodes):
             node_y = start_y + idx * (NODE_HEIGHT + VERTICAL_GAP)
@@ -97,7 +101,8 @@ def compute_dag_layout(
             name = tool.name if (tool and tool.name) else tool_type
             vcat = get_visual_category(tool_type)
 
-            exec_idx = execution_order.index(node_id) if node_id in execution_order else 0
+            exec_idx = execution_order.index(
+                node_id) if node_id in execution_order else 0
 
             layout_node = DagNodeLayout(
                 tool_id=node_id,

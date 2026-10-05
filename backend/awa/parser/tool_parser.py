@@ -6,7 +6,7 @@ import re
 import xml.etree.ElementTree as ET
 from typing import Any, Callable
 
-from awa.model.tool import ToolConfiguration
+from backend.awa.model.tool import ToolConfiguration
 
 # Sensitive key patterns for security redaction
 REDACTED_VALUE = "[REDACTED]"
@@ -275,8 +275,10 @@ def _extract_join_config(config_el: ET.Element) -> dict:
     right_join_info = config_el.find(".//JoinInfo[@connection='Right']")
 
     if left_join_info is not None and right_join_info is not None:
-        left_fields = [f.get("field", "") for f in left_join_info.findall("Field") if f.get("field")]
-        right_fields = [f.get("field", "") for f in right_join_info.findall("Field") if f.get("field")]
+        left_fields = [f.get("field", "")
+                       for f in left_join_info.findall("Field") if f.get("field")]
+        right_fields = [f.get("field", "") for f in right_join_info.findall(
+            "Field") if f.get("field")]
         for l, r in zip(left_fields, right_fields):
             join_fields.append({"left": l, "right": r})
     else:
@@ -295,7 +297,8 @@ def _extract_join_config(config_el: ET.Element) -> dict:
         left_el = config_el.find(".//LeftField")
         right_el = config_el.find(".//RightField")
         if left_el is not None and right_el is not None and left_el.text and right_el.text:
-            join_fields.append({"left": left_el.text.strip(), "right": right_el.text.strip()})
+            join_fields.append(
+                {"left": left_el.text.strip(), "right": right_el.text.strip()})
 
     if join_fields:
         config["join_fields"] = join_fields
@@ -356,11 +359,14 @@ def _extract_summarize_config(config_el: ET.Element) -> dict:
                     continue
                 parts = [p.strip() for p in item.split(":")]
                 if len(parts) == 1:
-                    fields.append({"field": parts[0], "action": "GroupBy", "rename": ""})
+                    fields.append(
+                        {"field": parts[0], "action": "GroupBy", "rename": ""})
                 elif len(parts) == 2:
-                    fields.append({"field": parts[0], "action": parts[1], "rename": ""})
+                    fields.append(
+                        {"field": parts[0], "action": parts[1], "rename": ""})
                 elif len(parts) >= 3:
-                    fields.append({"field": parts[0], "action": parts[1], "rename": parts[2]})
+                    fields.append(
+                        {"field": parts[0], "action": parts[1], "rename": parts[2]})
 
     config: dict = {}
     if fields:
@@ -385,7 +391,8 @@ def _extract_sort_config(config_el: ET.Element) -> dict:
                     continue
                 parts = item.split()
                 if len(parts) >= 2 and parts[-1].lower() in ("ascending", "descending"):
-                    fields.append({"field": " ".join(parts[:-1]), "order": parts[-1].capitalize()})
+                    fields.append(
+                        {"field": " ".join(parts[:-1]), "order": parts[-1].capitalize()})
                 else:
                     fields.append({"field": item, "order": "Ascending"})
 
@@ -418,7 +425,8 @@ def _extract_data_cleansing_config(config_el: ET.Element) -> dict:
 
     modify_case_el = config_el.find("ModifyCase")
     if modify_case_el is not None:
-        config["modify_case"] = modify_case_el.text or modify_case_el.get("value", "")
+        config["modify_case"] = modify_case_el.text or modify_case_el.get(
+            "value", "")
 
     fields: list[str] = []
     fields_el = config_el.find("Fields")
@@ -507,25 +515,29 @@ def _extract_cross_tab_config(config_el: ET.Element) -> dict:
     if not group_fields:
         gf_el = config_el.find("GroupField")
         if gf_el is not None and gf_el.text and gf_el.text.strip():
-            group_fields = [f.strip() for f in gf_el.text.strip().split(";") if f.strip()]
+            group_fields = [f.strip()
+                            for f in gf_el.text.strip().split(";") if f.strip()]
     if group_fields:
         config["group_fields"] = group_fields
 
     header_el = config_el.find("HeaderField")
     if header_el is not None:
-        val = header_el.get("field", "") or (header_el.text.strip() if header_el.text else "")
+        val = header_el.get("field", "") or (
+            header_el.text.strip() if header_el.text else "")
         if val:
             config["header_field"] = val
 
     data_el = config_el.find("DataField")
     if data_el is not None:
-        val = data_el.get("field", "") or (data_el.text.strip() if data_el.text else "")
+        val = data_el.get("field", "") or (
+            data_el.text.strip() if data_el.text else "")
         if val:
             config["data_field"] = val
 
     method_el = config_el.find("Method")
     if method_el is not None:
-        val = method_el.get("method", "") or (method_el.text.strip() if method_el.text else "")
+        val = method_el.get("method", "") or (
+            method_el.text.strip() if method_el.text else "")
         if val:
             config["method"] = val
 

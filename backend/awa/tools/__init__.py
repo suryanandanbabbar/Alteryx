@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from awa.tools.categories import ToolCategory, CATEGORY_TO_VISUAL
-from awa.tools.capabilities import ToolCapabilities
-from awa.tools.definition import ToolDefinition
-from awa.tools.catalog import (
+from backend.awa.tools.categories import ToolCategory, CATEGORY_TO_VISUAL
+from backend.awa.tools.capabilities import ToolCapabilities
+from backend.awa.tools.definition import ToolDefinition
+from backend.awa.tools.catalog import (
     ToolCatalog,
     get_tool_catalog,
     get_tool_definition,
@@ -16,7 +16,7 @@ from awa.tools.catalog import (
     get_all_tool_definitions,
     is_known_tool,
 )
-from awa.tools.humanizer import (
+from backend.awa.tools.humanizer import (
     ALTERYX_FILE_FORMAT_MAP,
     resolve_file_format,
     humanize_config_key,

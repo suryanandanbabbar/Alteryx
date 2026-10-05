@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
-from awa.model.python_trace import ToolExplanation
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.awa.model.python_trace import ToolExplanation
 
 
 class ToolTranslator(ABC):

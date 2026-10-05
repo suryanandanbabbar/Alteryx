@@ -2,14 +2,14 @@ from pathlib import Path
 import docx
 import pytest
 
-from awa.analysis.workflow_analyzer import analyze_workflow, analyze_canonical
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, Position, ToolConfiguration
-from awa.model.connection import Connection
-from awa.graph.builder import build_graph, execution_order
-from awa.analysis.business_intelligence import generate_business_summary
-from awa.generators.doc_builder import build_document_model
-from awa.generators.docx_generator import generate_docx
+from backend.awa.analysis.workflow_analyzer import analyze_workflow, analyze_canonical
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.tool import Tool, Position, ToolConfiguration
+from backend.awa.model.connection import Connection
+from backend.awa.graph.builder import build_graph, execution_order
+from backend.awa.analysis.business_intelligence import generate_business_summary
+from backend.awa.generators.doc_builder import build_document_model
+from backend.awa.generators.docx_generator import generate_docx
 
 
 class TestDocxBusinessReport:
@@ -106,7 +106,8 @@ class TestDocxBusinessReport:
     def test_demo_claims_volume_extract_docx_business_report(self, tmp_path: Path):
         """Test on the full reconstructed Demo Claims regression fixture."""
         out_dir = tmp_path / "claims_report"
-        analyze_workflow("Demo_Claims_Volume_Extract_reconstructed.yxmd", out_dir)
+        analyze_workflow(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd", out_dir)
         docx_file = out_dir / "workflow.docx"
         assert docx_file.exists()
 
@@ -201,7 +202,8 @@ class TestDocxBusinessReport:
         client = TestClient(app)
         wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
         with open(wf_path, "rb") as f:
-            resp = client.post("/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
+            resp = client.post(
+                "/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
 
         assert resp.status_code == 200
         analysis_id = resp.json()["analysis_id"]
@@ -210,7 +212,8 @@ class TestDocxBusinessReport:
         assert docx_resp.status_code == 200
 
         doc = docx.Document(io.BytesIO(docx_resp.content))
-        headings = [p.text for p in doc.paragraphs if p.style.name.startswith("Heading")]
+        headings = [
+            p.text for p in doc.paragraphs if p.style.name.startswith("Heading")]
         assert "1. Executive Summary" in headings
         assert "5. Visual Workflow Graph (DAG Architecture)" not in headings
 
@@ -243,7 +246,8 @@ class TestDocxBusinessReport:
         client = TestClient(app)
         wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
         with open(wf_path, "rb") as f:
-            resp = client.post("/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
+            resp = client.post(
+                "/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
 
         assert resp.status_code == 200
         analysis_id = resp.json()["analysis_id"]
@@ -251,15 +255,19 @@ class TestDocxBusinessReport:
         # 1. Business Report DOCX
         resp_biz = client.get(f"/api/download/{analysis_id}/docx")
         assert resp_biz.status_code == 200
-        assert "Business_Report.docx" in resp_biz.headers.get("Content-Disposition", "")
+        assert "Business_Report.docx" in resp_biz.headers.get(
+            "Content-Disposition", "")
         doc_biz = docx.Document(io.BytesIO(resp_biz.content))
-        biz_headings = [p.text for p in doc_biz.paragraphs if p.style.name.startswith("Heading")]
+        biz_headings = [
+            p.text for p in doc_biz.paragraphs if p.style.name.startswith("Heading")]
         assert "1. Executive Summary" in biz_headings
 
         # 2. Tool Specifications XLSX
-        resp_tool = client.get(f"/api/download/{analysis_id}/tool-specifications")
+        resp_tool = client.get(
+            f"/api/download/{analysis_id}/tool-specifications")
         assert resp_tool.status_code == 200
-        assert "Tool_Specifications.xlsx" in resp_tool.headers.get("Content-Disposition", "")
+        assert "Tool_Specifications.xlsx" in resp_tool.headers.get(
+            "Content-Disposition", "")
         wb_tool = openpyxl.load_workbook(io.BytesIO(resp_tool.content))
         assert "Tool Specifications" in wb_tool.sheetnames
 
@@ -271,7 +279,8 @@ class TestDocxBusinessReport:
         zip_names = zf.namelist()
         assert any("Business_Report.docx" in name for name in zip_names)
         assert any("Tool_Specifications.xlsx" in name for name in zip_names)
-        assert not any("Technical_Specifications.docx" in name for name in zip_names)
+        assert not any(
+            "Technical_Specifications.docx" in name for name in zip_names)
 
     def test_canonical_filename_extraction_windows_and_unix_paths(self, tmp_path: Path):
         """Test 1 & 2: Given Windows or Unix path, canonical filename is extracted without directories."""
@@ -333,7 +342,8 @@ class TestDocxBusinessReport:
         client = TestClient(app)
         wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
         with open(wf_path, "rb") as f:
-            resp = client.post("/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
+            resp = client.post(
+                "/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
 
         assert resp.status_code == 200
         data = resp.json()
@@ -348,10 +358,10 @@ class TestDocxBusinessReport:
     def test_fully_llm_authored_business_report_integration(self, tmp_path: Path):
         """Test full LLM-authored report generation using MockLLMClient."""
         import json
-        from awa.llm.client import MockLLMClient, set_default_llm_client
-        from awa.llm.generator import LLMNarrativeGenerator, set_default_generator
-        from awa.generators.doc_builder import build_document_model
-        from awa.generators.docx_generator import generate_docx
+        from backend.awa.llm.client import MockLLMClient, set_default_llm_client
+        from backend.awa.llm.generator import LLMNarrativeGenerator, set_default_generator
+        from backend.awa.generators.doc_builder import build_document_model
+        from backend.awa.generators.docx_generator import generate_docx
 
         mock_report = {
             "workflow_title": "Automated Customer Sales Reporting Pipeline",
@@ -499,7 +509,8 @@ class TestDocxBusinessReport:
     def test_no_claims_hardcoding_in_generic_uncontainerized_workflow(self, tmp_path: Path):
         """Verify that a generic workflow with no containers does NOT produce claims-demo stage names or descriptions."""
         wf = Workflow(
-            metadata=WorkflowMetadata(name="Sales Inventory Sync", version="2023.2"),
+            metadata=WorkflowMetadata(
+                name="Sales Inventory Sync", version="2023.2"),
             tools={
                 1: Tool(
                     tool_id=1,
@@ -507,7 +518,8 @@ class TestDocxBusinessReport:
                     tool_type="DbFileInput",
                     name="Input Inventory",
                     position=Position(0, 0),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "inventory.csv"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "inventory.csv"}),
                 ),
                 2: Tool(
                     tool_id=2,
@@ -515,7 +527,8 @@ class TestDocxBusinessReport:
                     tool_type="Filter",
                     name="Filter Active",
                     position=Position(100, 0),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"Expression": "[Active] == 1"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"Expression": "[Active] == 1"}),
                 ),
                 3: Tool(
                     tool_id=3,
@@ -523,12 +536,15 @@ class TestDocxBusinessReport:
                     tool_type="DbFileOutput",
                     name="Output Active Inventory",
                     position=Position(200, 0),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "active_inventory.csv"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "active_inventory.csv"}),
                 ),
             },
             connections=[
-                Connection(origin_tool_id=1, origin_anchor="Output", destination_tool_id=2, destination_anchor="Input"),
-                Connection(origin_tool_id=2, origin_anchor="True", destination_tool_id=3, destination_anchor="Input"),
+                Connection(origin_tool_id=1, origin_anchor="Output",
+                           destination_tool_id=2, destination_anchor="Input"),
+                Connection(origin_tool_id=2, origin_anchor="True",
+                           destination_tool_id=3, destination_anchor="Input"),
             ],
         )
 
@@ -569,14 +585,15 @@ class TestDocxBusinessReport:
 
     def test_multi_domain_analytical_differentiation_and_no_leakage(self, tmp_path: Path):
         """Verify that distinct business domains (Banking vs Commercial Sales) produce distinct analytical narratives with zero cross-domain leakage and zero excluded sections."""
-        from awa.llm.client import FakeLLMClient, set_default_llm_client
-        from awa.llm.generator import LLMNarrativeGenerator, set_default_generator
-        from awa.llm.cache import LLMNarrativeCache
+        from backend.awa.llm.client import FakeLLMClient, set_default_llm_client
+        from backend.awa.llm.generator import LLMNarrativeGenerator, set_default_generator
+        from backend.awa.llm.cache import LLMNarrativeCache
         import json
 
         # Domain 1: Banking Transaction Settlement Workflow
         banking_wf = Workflow(
-            metadata=WorkflowMetadata(name="Core Banking Settlement Analysis", version="2024.1"),
+            metadata=WorkflowMetadata(
+                name="Core Banking Settlement Analysis", version="2024.1"),
             tools={
                 101: Tool(
                     tool_id=101,
@@ -584,7 +601,8 @@ class TestDocxBusinessReport:
                     tool_type="DbFileInput",
                     name="Input Wire Transfers",
                     position=Position(0, 0),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "wire_transfers.csv"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "wire_transfers.csv"}),
                 ),
                 102: Tool(
                     tool_id=102,
@@ -594,7 +612,8 @@ class TestDocxBusinessReport:
                     position=Position(100, 0),
                     configuration=ToolConfiguration(
                         raw_xml="<Configuration/>",
-                        parsed={"summarize_fields": [{"field": "Transfer_Amount", "action": "Sum"}, {"field": "Account_ID", "action": "CountDistinct"}]},
+                        parsed={"summarize_fields": [{"field": "Transfer_Amount", "action": "Sum"}, {
+                            "field": "Account_ID", "action": "CountDistinct"}]},
                     ),
                 ),
                 103: Tool(
@@ -603,18 +622,22 @@ class TestDocxBusinessReport:
                     tool_type="DbFileOutput",
                     name="Output Daily Settlement",
                     position=Position(200, 0),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "daily_settlement.xlsx"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "daily_settlement.xlsx"}),
                 ),
             },
             connections=[
-                Connection(origin_tool_id=101, origin_anchor="Output", destination_tool_id=102, destination_anchor="Input"),
-                Connection(origin_tool_id=102, origin_anchor="Output", destination_tool_id=103, destination_anchor="Input"),
+                Connection(origin_tool_id=101, origin_anchor="Output",
+                           destination_tool_id=102, destination_anchor="Input"),
+                Connection(origin_tool_id=102, origin_anchor="Output",
+                           destination_tool_id=103, destination_anchor="Input"),
             ],
         )
 
         # Domain 2: Commercial Sales & Commission Workflow
         sales_wf = Workflow(
-            metadata=WorkflowMetadata(name="Commercial Sales Commission Reconciliation", version="2024.1"),
+            metadata=WorkflowMetadata(
+                name="Commercial Sales Commission Reconciliation", version="2024.1"),
             tools={
                 201: Tool(
                     tool_id=201,
@@ -622,7 +645,8 @@ class TestDocxBusinessReport:
                     tool_type="DbFileInput",
                     name="Input Sales Invoices",
                     position=Position(0, 0),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "sales_invoices.xlsx"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "sales_invoices.xlsx"}),
                 ),
                 202: Tool(
                     tool_id=202,
@@ -632,7 +656,8 @@ class TestDocxBusinessReport:
                     position=Position(100, 0),
                     configuration=ToolConfiguration(
                         raw_xml="<Configuration/>",
-                        parsed={"formula_fields": [{"field": "Commission_Amount", "expression": "[Invoice_Total] * 0.05"}]},
+                        parsed={"formula_fields": [
+                            {"field": "Commission_Amount", "expression": "[Invoice_Total] * 0.05"}]},
                     ),
                 ),
                 203: Tool(
@@ -641,12 +666,15 @@ class TestDocxBusinessReport:
                     tool_type="DbFileOutput",
                     name="Output Sales Ledger",
                     position=Position(200, 0),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "sales_commission_ledger.csv"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "sales_commission_ledger.csv"}),
                 ),
             },
             connections=[
-                Connection(origin_tool_id=201, origin_anchor="Output", destination_tool_id=202, destination_anchor="Input"),
-                Connection(origin_tool_id=202, origin_anchor="Output", destination_tool_id=203, destination_anchor="Input"),
+                Connection(origin_tool_id=201, origin_anchor="Output",
+                           destination_tool_id=202, destination_anchor="Input"),
+                Connection(origin_tool_id=202, origin_anchor="Output",
+                           destination_tool_id=203, destination_anchor="Input"),
             ],
         )
 
@@ -757,7 +785,8 @@ class TestDocxBusinessReport:
 
         # Domain 3: Insurance Claims & Loss Analysis Workflow
         claims_wf = Workflow(
-            metadata=WorkflowMetadata(name="Insurance Claims Loss Frequency Analysis", version="2024.1"),
+            metadata=WorkflowMetadata(
+                name="Insurance Claims Loss Frequency Analysis", version="2024.1"),
             tools={
                 301: Tool(
                     tool_id=301,
@@ -765,7 +794,8 @@ class TestDocxBusinessReport:
                     tool_type="DbFileInput",
                     name="Input Policy Claims",
                     position=Position(0, 0),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "policy_claims_register.xlsx"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "policy_claims_register.xlsx"}),
                 ),
                 302: Tool(
                     tool_id=302,
@@ -775,7 +805,8 @@ class TestDocxBusinessReport:
                     position=Position(100, 0),
                     configuration=ToolConfiguration(
                         raw_xml="<Configuration/>",
-                        parsed={"summarize_fields": [{"field": "Incurred_Loss", "action": "Sum"}, {"field": "Policy_Number", "action": "CountDistinct"}]},
+                        parsed={"summarize_fields": [{"field": "Incurred_Loss", "action": "Sum"}, {
+                            "field": "Policy_Number", "action": "CountDistinct"}]},
                     ),
                 ),
                 303: Tool(
@@ -784,12 +815,15 @@ class TestDocxBusinessReport:
                     tool_type="DbFileOutput",
                     name="Output Loss Ratio Matrix",
                     position=Position(200, 0),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "quarterly_actuarial_losses.xlsx"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "quarterly_actuarial_losses.xlsx"}),
                 ),
             },
             connections=[
-                Connection(origin_tool_id=301, origin_anchor="Output", destination_tool_id=302, destination_anchor="Input"),
-                Connection(origin_tool_id=302, origin_anchor="Output", destination_tool_id=303, destination_anchor="Input"),
+                Connection(origin_tool_id=301, origin_anchor="Output",
+                           destination_tool_id=302, destination_anchor="Input"),
+                Connection(origin_tool_id=302, origin_anchor="Output",
+                           destination_tool_id=303, destination_anchor="Input"),
             ],
         )
 
@@ -959,7 +993,8 @@ class TestDocxBusinessReport:
             b_graph = build_graph(banking_wf)
             b_order = execution_order(b_graph)
             b_bs = generate_business_summary(banking_wf, b_graph, b_order)
-            b_rep = gen.generate_business_report(banking_wf, b_bs, graph=b_graph, workflow_id="banking-1")
+            b_rep = gen.generate_business_report(
+                banking_wf, b_bs, graph=b_graph, workflow_id="banking-1")
             assert b_rep is not None
 
             b_bs.business_purpose = b_rep.executive_summary
@@ -986,7 +1021,8 @@ class TestDocxBusinessReport:
             s_graph = build_graph(sales_wf)
             s_order = execution_order(s_graph)
             s_bs = generate_business_summary(sales_wf, s_graph, s_order)
-            s_rep = gen.generate_business_report(sales_wf, s_bs, graph=s_graph, workflow_id="sales-1")
+            s_rep = gen.generate_business_report(
+                sales_wf, s_bs, graph=s_graph, workflow_id="sales-1")
             assert s_rep is not None
 
             s_bs.business_purpose = s_rep.executive_summary
@@ -1013,7 +1049,8 @@ class TestDocxBusinessReport:
             c_graph = build_graph(claims_wf)
             c_order = execution_order(c_graph)
             c_bs = generate_business_summary(claims_wf, c_graph, c_order)
-            c_rep = gen.generate_business_report(claims_wf, c_bs, graph=c_graph, workflow_id="claims-1")
+            c_rep = gen.generate_business_report(
+                claims_wf, c_bs, graph=c_graph, workflow_id="claims-1")
             assert c_rep is not None
 
             c_bs.business_purpose = c_rep.executive_summary
@@ -1096,7 +1133,8 @@ class TestBusinessReportCanonicalPurposeAndPhysicalFilenames:
                     tool_type="DbFileInput",
                     name="Input",
                     position=Position(x=10, y=10),
-                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Claims_Volume_Extract_Demo.xlsx"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="", parsed={"file_path": "Claims_Volume_Extract_Demo.xlsx"}),
                 ),
                 2: Tool(
                     tool_id=2,
@@ -1104,11 +1142,13 @@ class TestBusinessReportCanonicalPurposeAndPhysicalFilenames:
                     tool_type="DbFileOutput",
                     name="Output",
                     position=Position(x=200, y=10),
-                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Claims_Output_Demo.xlsx"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="", parsed={"file_path": "Claims_Output_Demo.xlsx"}),
                 ),
             },
             connections=[
-                Connection(origin_tool_id=1, origin_anchor="Output", destination_tool_id=2, destination_anchor="Input"),
+                Connection(origin_tool_id=1, origin_anchor="Output",
+                           destination_tool_id=2, destination_anchor="Input"),
             ],
         )
         g = build_graph(wf)
@@ -1151,7 +1191,8 @@ class TestBusinessReportCanonicalPurposeAndPhysicalFilenames:
     def test_lineage_section_uses_real_physical_source_filename(self, tmp_path: Path):
         """Section 4 Source Dataset(s) must use actual physical filename (e.g. Claims_Volume_Extract_Demo.xlsx), not humanized name."""
         wf = Workflow(
-            metadata=WorkflowMetadata(name="Claims_Processing.yxmd", version="2024.1"),
+            metadata=WorkflowMetadata(
+                name="Claims_Processing.yxmd", version="2024.1"),
             tools={
                 1: Tool(
                     tool_id=1,
@@ -1159,7 +1200,8 @@ class TestBusinessReportCanonicalPurposeAndPhysicalFilenames:
                     tool_type="DbFileInput",
                     name="Input 1",
                     position=Position(x=10, y=10),
-                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "C:\\Data\\Claims_Volume_Extract_Demo.xlsx|||`Claims`"}),
+                    configuration=ToolConfiguration(raw_xml="", parsed={
+                                                    "file_path": "C:\\Data\\Claims_Volume_Extract_Demo.xlsx|||`Claims`"}),
                 ),
                 2: Tool(
                     tool_id=2,
@@ -1167,7 +1209,8 @@ class TestBusinessReportCanonicalPurposeAndPhysicalFilenames:
                     tool_type="DbFileInput",
                     name="Input 2",
                     position=Position(x=10, y=100),
-                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Policy_Master_Demo.xlsx"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="", parsed={"file_path": "Policy_Master_Demo.xlsx"}),
                 ),
                 3: Tool(
                     tool_id=3,
@@ -1183,13 +1226,17 @@ class TestBusinessReportCanonicalPurposeAndPhysicalFilenames:
                     tool_type="DbFileOutput",
                     name="Output",
                     position=Position(x=200, y=50),
-                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Final_Quarterly_Loss_Extract.xlsx"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="", parsed={"file_path": "Final_Quarterly_Loss_Extract.xlsx"}),
                 ),
             },
             connections=[
-                Connection(origin_tool_id=1, origin_anchor="Output", destination_tool_id=3, destination_anchor="Left"),
-                Connection(origin_tool_id=2, origin_anchor="Output", destination_tool_id=3, destination_anchor="Right"),
-                Connection(origin_tool_id=3, origin_anchor="Join", destination_tool_id=4, destination_anchor="Input"),
+                Connection(origin_tool_id=1, origin_anchor="Output",
+                           destination_tool_id=3, destination_anchor="Left"),
+                Connection(origin_tool_id=2, origin_anchor="Output",
+                           destination_tool_id=3, destination_anchor="Right"),
+                Connection(origin_tool_id=3, origin_anchor="Join",
+                           destination_tool_id=4, destination_anchor="Input"),
             ],
         )
         g = build_graph(wf)
@@ -1231,7 +1278,8 @@ class TestBusinessReportCanonicalPurposeAndPhysicalFilenames:
     def test_dynamic_lineage_filename_change(self, tmp_path: Path):
         """Modifying the input filename in the workflow configuration dynamically changes Section 4 Source Dataset(s)."""
         wf = Workflow(
-            metadata=WorkflowMetadata(name="Custom_Source.yxmd", version="2024.1"),
+            metadata=WorkflowMetadata(
+                name="Custom_Source.yxmd", version="2024.1"),
             tools={
                 1: Tool(
                     tool_id=1,
@@ -1239,7 +1287,8 @@ class TestBusinessReportCanonicalPurposeAndPhysicalFilenames:
                     tool_type="DbFileInput",
                     name="Input",
                     position=Position(x=10, y=10),
-                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Actuarial_Triangles_2026.csv"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="", parsed={"file_path": "Actuarial_Triangles_2026.csv"}),
                 ),
                 2: Tool(
                     tool_id=2,
@@ -1247,11 +1296,13 @@ class TestBusinessReportCanonicalPurposeAndPhysicalFilenames:
                     tool_type="DbFileOutput",
                     name="Output",
                     position=Position(x=200, y=10),
-                    configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "IBNR_Reserve_Report.xlsx"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="", parsed={"file_path": "IBNR_Reserve_Report.xlsx"}),
                 ),
             },
             connections=[
-                Connection(origin_tool_id=1, origin_anchor="Output", destination_tool_id=2, destination_anchor="Input"),
+                Connection(origin_tool_id=1, origin_anchor="Output",
+                           destination_tool_id=2, destination_anchor="Input"),
             ],
         )
         g = build_graph(wf)
@@ -1277,7 +1328,3 @@ class TestBusinessReportCanonicalPurposeAndPhysicalFilenames:
             if "Source Dataset(s)" in hdr_cells:
                 source_col = t.rows[1].cells[0].text
                 assert "Actuarial_Triangles_2026.csv" in source_col
-
-
-
-

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 import networkx as nx
 from typing import Any, Literal
 
-from awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
 
 # ---------------------------------------------------------------------------
 # Central Configuration (No magic constants scattered in code)
@@ -79,6 +79,7 @@ def get_complexity_evaluation_model() -> dict[str, Any]:
         "total_weight_pct": sum(f["weight_pct"] for f in COMPLEXITY_EVALUATION_FACTORS),
         "factors": list(COMPLEXITY_EVALUATION_FACTORS),
     }
+
 
 COMPLEXITY_LOW_MAX: float = 34.0
 COMPLEXITY_MEDIUM_MAX: float = 69.0
@@ -171,11 +172,13 @@ def calculate_workflow_complexity(result: Any) -> ComplexityAssessment:
     wf = getattr(result, "workflow", None)
     tools = wf.tools if wf and hasattr(wf, "tools") else {}
     connections = wf.connections if wf and hasattr(wf, "connections") else []
-    graph = result.graph if isinstance(getattr(result, "graph", None), nx.DiGraph) else nx.DiGraph()
+    graph = result.graph if isinstance(
+        getattr(result, "graph", None), nx.DiGraph) else nx.DiGraph()
 
     total_tools = len(tools)
     metrics = getattr(result, "metrics", None)
-    total_connections = metrics.total_connections if metrics and hasattr(metrics, "total_connections") else len(connections)
+    total_connections = metrics.total_connections if metrics and hasattr(
+        metrics, "total_connections") else len(connections)
     factors: list[str] = []
 
     if total_tools == 0:
@@ -183,7 +186,8 @@ def calculate_workflow_complexity(result: Any) -> ComplexityAssessment:
             score=0.0,
             level="LOW",
             factors=["Empty workflow (0 tools)"],
-            breakdown={"size": 0.0, "transformation": 0.0, "topology": 0.0, "expression": 0.0, "runtime": 0.0},
+            breakdown={"size": 0.0, "transformation": 0.0,
+                       "topology": 0.0, "expression": 0.0, "runtime": 0.0},
         )
 
     # -----------------------------------------------------------------------
@@ -204,25 +208,32 @@ def calculate_workflow_complexity(result: Any) -> ComplexityAssessment:
     # -----------------------------------------------------------------------
     # 2. Transformation Complexity (25%)
     # -----------------------------------------------------------------------
-    raw_weights = [TOOL_COMPLEXITY_WEIGHTS.get(t.tool_type, DEFAULT_TOOL_WEIGHT) for t in tools.values()]
+    raw_weights = [TOOL_COMPLEXITY_WEIGHTS.get(
+        t.tool_type, DEFAULT_TOOL_WEIGHT) for t in tools.values()]
     total_weight_sum = sum(raw_weights)
     high_order_count = sum(1 for w in raw_weights if w >= 3)
     joins_count = sum(1 for t in tools.values() if "Join" in t.tool_type)
     unions_count = sum(1 for t in tools.values() if t.tool_type == "Union")
-    pivots_count = sum(1 for t in tools.values() if t.tool_type in ("CrossTab", "Transpose"))
-    multi_formula_count = sum(1 for t in tools.values() if "Multi" in t.tool_type)
+    pivots_count = sum(1 for t in tools.values()
+                       if t.tool_type in ("CrossTab", "Transpose"))
+    multi_formula_count = sum(1 for t in tools.values()
+                              if "Multi" in t.tool_type)
 
-    weight_score = min(100.0, (total_weight_sum / 35.0) * 75.0 + (high_order_count * 5.0))
+    weight_score = min(100.0, (total_weight_sum / 35.0)
+                       * 75.0 + (high_order_count * 5.0))
     transformation_score = round(min(100.0, weight_score), 1)
 
     if joins_count > 0:
         factors.append(f"{joins_count} join{'s' if joins_count > 1 else ''}")
     if unions_count > 0:
-        factors.append(f"{unions_count} union{'s' if unions_count > 1 else ''}")
+        factors.append(
+            f"{unions_count} union{'s' if unions_count > 1 else ''}")
     if pivots_count > 0:
-        factors.append(f"{pivots_count} pivoting operation{'s' if pivots_count > 1 else ''}")
+        factors.append(
+            f"{pivots_count} pivoting operation{'s' if pivots_count > 1 else ''}")
     if multi_formula_count > 0:
-        factors.append(f"{multi_formula_count} multi-row/field transformation{'s' if multi_formula_count > 1 else ''}")
+        factors.append(
+            f"{multi_formula_count} multi-row/field transformation{'s' if multi_formula_count > 1 else ''}")
 
     # -----------------------------------------------------------------------
     # 3. DAG Topology Complexity (25%)
@@ -261,9 +272,11 @@ def calculate_workflow_complexity(result: Any) -> ComplexityAssessment:
     topology_score = round(min(100.0, branch_pts + merge_pts + depth_pts), 1)
 
     if branch_points > 0:
-        factors.append(f"{branch_points} branch point{'s' if branch_points > 1 else ''}")
+        factors.append(
+            f"{branch_points} branch point{'s' if branch_points > 1 else ''}")
     if merge_points > 0:
-        factors.append(f"{merge_points} merge point{'s' if merge_points > 1 else ''}")
+        factors.append(
+            f"{merge_points} merge point{'s' if merge_points > 1 else ''}")
     if dag_depth >= 6:
         factors.append(f"DAG depth of {dag_depth}")
 
@@ -299,12 +312,15 @@ def calculate_workflow_complexity(result: Any) -> ComplexityAssessment:
     expr_cond_pts = min(30.0, complex_conditional_count * 15.0)
     expr_len_pts = min(20.0, (expression_char_len / 200.0) * 20.0)
 
-    expression_score = round(min(100.0, expr_count_pts + expr_cond_pts + expr_len_pts), 1)
+    expression_score = round(
+        min(100.0, expr_count_pts + expr_cond_pts + expr_len_pts), 1)
 
     if total_expressions > 0:
-        factors.append(f"{total_expressions} formula/filter expression{'s' if total_expressions > 1 else ''}")
+        factors.append(
+            f"{total_expressions} formula/filter expression{'s' if total_expressions > 1 else ''}")
     if complex_conditional_count > 0:
-        factors.append(f"{complex_conditional_count} conditional logic block{'s' if complex_conditional_count > 1 else ''}")
+        factors.append(
+            f"{complex_conditional_count} conditional logic block{'s' if complex_conditional_count > 1 else ''}")
 
     # -----------------------------------------------------------------------
     # 5. Runtime / Integration Complexity (15%)
@@ -313,7 +329,8 @@ def calculate_workflow_complexity(result: Any) -> ComplexityAssessment:
 
     python_count = sum(1 for t in tools.values() if t.tool_type == "Python")
     r_count = sum(1 for t in tools.values() if t.tool_type == "R")
-    macro_count = sum(1 for t in tools.values() if t.tool_type == "Macro" or "Macro" in getattr(t, "plugin", ""))
+    macro_count = sum(1 for t in tools.values() if t.tool_type ==
+                      "Macro" or "Macro" in getattr(t, "plugin", ""))
     dynamic_count = sum(1 for t in tools.values() if "Dynamic" in t.tool_type)
     db_conn_count = 0
 
@@ -325,19 +342,24 @@ def calculate_workflow_complexity(result: Any) -> ComplexityAssessment:
 
     if python_count > 0:
         runtime_score_accum += min(100.0, 45.0 + (python_count - 1) * 15.0)
-        factors.append(f"{python_count} Python script execution{'s' if python_count > 1 else ''} detected")
+        factors.append(
+            f"{python_count} Python script execution{'s' if python_count > 1 else ''} detected")
     if r_count > 0:
         runtime_score_accum += min(100.0, 45.0 + (r_count - 1) * 15.0)
-        factors.append(f"{r_count} R script execution{'s' if r_count > 1 else ''} detected")
+        factors.append(
+            f"{r_count} R script execution{'s' if r_count > 1 else ''} detected")
     if macro_count > 0:
         runtime_score_accum += min(50.0, macro_count * 20.0)
-        factors.append(f"{macro_count} macro dependency{'ies' if macro_count > 1 else ''}")
+        factors.append(
+            f"{macro_count} macro dependency{'ies' if macro_count > 1 else ''}")
     if dynamic_count > 0:
         runtime_score_accum += min(45.0, dynamic_count * 20.0)
-        factors.append(f"{dynamic_count} dynamic data connector{'s' if dynamic_count > 1 else ''}")
+        factors.append(
+            f"{dynamic_count} dynamic data connector{'s' if dynamic_count > 1 else ''}")
     if db_conn_count > 0:
         runtime_score_accum += min(35.0, db_conn_count * 15.0)
-        factors.append(f"{db_conn_count} database connection{'s' if db_conn_count > 1 else ''}")
+        factors.append(
+            f"{db_conn_count} database connection{'s' if db_conn_count > 1 else ''}")
 
     runtime_score = round(min(100.0, runtime_score_accum), 1)
 

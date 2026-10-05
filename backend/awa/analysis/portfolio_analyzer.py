@@ -17,8 +17,8 @@ import logging
 import uuid
 from typing import Any
 
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.portfolio import (
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.portfolio import (
     BusinessAreaClassification,
     BusinessAreaGroup,
     DeterministicSignals,
@@ -29,8 +29,8 @@ from awa.model.portfolio import (
     SharedDataset,
     WorkflowRelationship,
 )
-from awa.analysis.sttm_extractor import _clean_table_name
-from awa.analysis.business_area_classifier import (
+from backend.awa.analysis.sttm_extractor import _clean_table_name
+from backend.awa.analysis.business_area_classifier import (
     classify_workflow_business_area,
     classify_portfolio_business_areas,
     classify_business_area_deterministic,
@@ -39,8 +39,8 @@ from awa.analysis.business_area_classifier import (
     BUSINESS_AREA_DESCRIPTIONS,
     ALLOWED_BUSINESS_AREAS,
 )
-from awa.analysis.workflow_complexity import calculate_workflow_complexity
-from awa.analysis.workflow_criticality import (
+from backend.awa.analysis.workflow_complexity import calculate_workflow_complexity
+from backend.awa.analysis.workflow_criticality import (
     calculate_workflow_criticality,
     build_criticality_evidence_package,
     PortfolioDependencyContext,
@@ -93,11 +93,13 @@ def _extract_workflow_sources(result: CanonicalAnalysisResult) -> list[str]:
 
     sources: list[str] = []
     seen: set[str] = set()
-    biz_inputs = {inp.tool_id: inp for inp in (result.business_summary.source_inputs if result.business_summary else [])}
+    biz_inputs = {inp.tool_id: inp for inp in (
+        result.business_summary.source_inputs if result.business_summary else [])}
 
     for tid, tool in sorted(result.workflow.tools.items()):
         is_input = (
-            tool.tool_type in ("DbFileInput", "FileInput", "TextInput", "Directory", "DynamicInput", "InputData", "DateTimeNow")
+            tool.tool_type in ("DbFileInput", "FileInput", "TextInput",
+                               "Directory", "DynamicInput", "InputData", "DateTimeNow")
             or (result.graph and result.graph.has_node(tid) and result.graph.in_degree(tid) == 0)
         )
         if not is_input:
@@ -181,14 +183,16 @@ def _extract_workflow_targets_and_sinks(
         return production_targets, inspection_sinks, sink_classifications
 
     # Fallback when business_summary is absent
-    biz_outputs = {out.tool_id: out for out in (result.business_summary.business_outputs if result.business_summary else [])}
+    biz_outputs = {out.tool_id: out for out in (
+        result.business_summary.business_outputs if result.business_summary else [])}
 
     for tid, tool in sorted(result.workflow.tools.items()):
         if tool.tool_type in ("BrowseV2", "Browse"):
             continue
 
         # Production Sinks (DbFileOutput, OutputData, Render, or non-browse leaf)
-        is_explicit_output = tool.tool_type in ("DbFileOutput", "OutputData", "Render")
+        is_explicit_output = tool.tool_type in (
+            "DbFileOutput", "OutputData", "Render")
         is_leaf = (
             result.graph
             and result.graph.has_node(tid)
@@ -267,9 +271,12 @@ def _calculate_graph_topology_similarity(res_a: CanonicalAnalysisResult, res_b: 
 
 def _calculate_transformation_overlap(res_a: CanonicalAnalysisResult, res_b: CanonicalAnalysisResult) -> float:
     """Calculate overlap of transformation signatures (formulas, aggregations, joins, filters)."""
-    transform_types = {"Filter", "Formula", "Join", "Summarize", "Union", "AlteryxSelect", "CrossTab", "Unique", "Sort"}
-    set_a = {t.tool_type for t in res_a.workflow.tools.values() if t.tool_type in transform_types}
-    set_b = {t.tool_type for t in res_b.workflow.tools.values() if t.tool_type in transform_types}
+    transform_types = {"Filter", "Formula", "Join", "Summarize",
+                       "Union", "AlteryxSelect", "CrossTab", "Unique", "Sort"}
+    set_a = {t.tool_type for t in res_a.workflow.tools.values()
+             if t.tool_type in transform_types}
+    set_b = {t.tool_type for t in res_b.workflow.tools.values()
+             if t.tool_type in transform_types}
 
     if not set_a and not set_b:
         return 0.0
@@ -341,10 +348,13 @@ def compute_multi_signal_relationship(
     shared_srcs = sorted(list(set(wf_a.sources) & set(wf_b.sources)))
     shared_tgts = sorted(list(set(wf_a.targets) & set(wf_b.targets)))
 
-    src_overlap = len(shared_srcs) / max(len(set(wf_a.sources) | set(wf_b.sources)), 1)
-    tgt_overlap = len(shared_tgts) / max(len(set(wf_a.targets) | set(wf_b.targets)), 1) if (wf_a.targets or wf_b.targets) else 0.0
+    src_overlap = len(shared_srcs) / \
+        max(len(set(wf_a.sources) | set(wf_b.sources)), 1)
+    tgt_overlap = len(shared_tgts) / max(len(set(wf_a.targets) |
+                                             set(wf_b.targets)), 1) if (wf_a.targets or wf_b.targets) else 0.0
 
-    tool_seq_sim = _calculate_tool_sequence_similarity(wf_a.tool_types, wf_b.tool_types)
+    tool_seq_sim = _calculate_tool_sequence_similarity(
+        wf_a.tool_types, wf_b.tool_types)
     graph_sim = _calculate_graph_topology_similarity(res_a, res_b)
     transform_sim = _calculate_transformation_overlap(res_a, res_b)
     field_sim, lineage_sim = _calculate_field_and_lineage_overlap(res_a, res_b)
@@ -375,15 +385,20 @@ def compute_multi_signal_relationship(
     confidence = "LOW"
 
     if shared_srcs:
-        evidence.append(f"Shares {len(shared_srcs)} configured source dataset(s): {', '.join(shared_srcs)}")
+        evidence.append(
+            f"Shares {len(shared_srcs)} configured source dataset(s): {', '.join(shared_srcs)}")
     if shared_tgts:
-        evidence.append(f"Shares {len(shared_tgts)} production deliverable(s): {', '.join(shared_tgts)}")
+        evidence.append(
+            f"Shares {len(shared_tgts)} production deliverable(s): {', '.join(shared_tgts)}")
     if tool_seq_sim >= 0.65:
-        evidence.append(f"{round(tool_seq_sim * 100)}% tool sequence alignment")
+        evidence.append(
+            f"{round(tool_seq_sim * 100)}% tool sequence alignment")
     if transform_sim >= 0.70:
-        evidence.append(f"{round(transform_sim * 100)}% transformation signature overlap")
+        evidence.append(
+            f"{round(transform_sim * 100)}% transformation signature overlap")
     if lineage_sim >= 0.50:
-        evidence.append(f"{round(lineage_sim * 100)}% field lineage path match")
+        evidence.append(
+            f"{round(lineage_sim * 100)}% field lineage path match")
 
     # Decision tree for relationship classification
     if shared_srcs and shared_tgts and composite >= 0.70:
@@ -468,11 +483,13 @@ def build_portfolio_analysis(
         tgts, sinks, classifications = _extract_workflow_targets_and_sinks(res)
 
         tool_seq = [
-            (res.workflow.tools[t].tool_type if res.workflow.tools[t].tool_type and not res.workflow.tools[t].tool_type.isdigit() else "Unknown")
+            (res.workflow.tools[t].tool_type if res.workflow.tools[t]
+             .tool_type and not res.workflow.tools[t].tool_type.isdigit() else "Unknown")
             for t in res.execution_order if t in res.workflow.tools
         ]
         for ttype in tool_seq:
-            clean_type = ttype.strip() if isinstance(ttype, str) and ttype.strip() and not ttype.strip().isdigit() else "Unknown"
+            clean_type = ttype.strip() if isinstance(
+                ttype, str) and ttype.strip() and not ttype.strip().isdigit() else "Unknown"
             tool_counter[clean_type] = tool_counter.get(clean_type, 0) + 1
 
         for s in srcs:
@@ -494,7 +511,8 @@ def build_portfolio_analysis(
         raw_tag = getattr(res, "business_area_tag", "")
         tag = raw_tag.strip() if isinstance(raw_tag, str) else ""
         raw_source = getattr(res, "business_area_tag_source", "")
-        tag_source = raw_source if isinstance(raw_source, str) else "deterministic_fallback"
+        tag_source = raw_source if isinstance(
+            raw_source, str) else "deterministic_fallback"
 
         valid_buckets = set(ALLOWED_BUSINESS_AREAS) | {"Other / Unclassified"}
 
@@ -542,7 +560,8 @@ def build_portfolio_analysis(
 
         wf_stages: list[dict[str, Any]] = []
         if hasattr(res, "business_summary") and res.business_summary and getattr(res.business_summary, "processing_stages", None):
-            wf_stages = [stg.to_dict() if hasattr(stg, "to_dict") else stg for stg in res.business_summary.processing_stages]
+            wf_stages = [stg.to_dict() if hasattr(
+                stg, "to_dict") else stg for stg in res.business_summary.processing_stages]
 
         summaries.append(
             PortfolioWorkflowSummary(
@@ -552,7 +571,8 @@ def build_portfolio_analysis(
                 relative_path=rel_path,
                 status="SUCCESS",
                 node_count=len(res.workflow.tools),
-                connection_count=res.metrics.total_connections if res.metrics else len(res.workflow.connections),
+                connection_count=res.metrics.total_connections if res.metrics else len(
+                    res.workflow.connections),
                 source_count=len(srcs),
                 target_count=len(tgts),
                 sources=srcs,
@@ -599,8 +619,10 @@ def build_portfolio_analysis(
 
     # 2b. Deterministic Workflow Criticality Assessment (using portfolio dependency context)
     dep_context = PortfolioDependencyContext(
-        target_to_producers={t: [(w, f) for w, f in items] for t, items in target_to_wfs.items()},
-        source_to_consumers={s: [(w, f) for w, f in items] for s, items in source_to_wfs.items()},
+        target_to_producers={t: [(w, f) for w, f in items]
+                             for t, items in target_to_wfs.items()},
+        source_to_consumers={s: [(w, f) for w, f in items]
+                             for s, items in source_to_wfs.items()},
         shared_targets={s.dataset_name for s in shared_targets},
         shared_sources={s.dataset_name for s in shared_sources},
     )
@@ -636,8 +658,10 @@ def build_portfolio_analysis(
             wf.criticality_confidence = crit_res.confidence
             wf.criticality_source = "deterministic"
             wf.factor_assessments = crit_res.factor_breakdown
-            wf.last_run = crit_res.factor_breakdown.get("last_run", {}).get("display_value") or "Not documented"
-            wf.frequency = crit_res.factor_breakdown.get("frequency", {}).get("display_value") or "Not documented"
+            wf.last_run = crit_res.factor_breakdown.get(
+                "last_run", {}).get("display_value") or "Not documented"
+            wf.frequency = crit_res.factor_breakdown.get(
+                "frequency", {}).get("display_value") or "Not documented"
 
     # 3. Compute Multi-Signal Relationships between all pairs of successful workflows
     relationships: list[WorkflowRelationship] = []
@@ -691,7 +715,8 @@ def build_portfolio_analysis(
                     workflow_names=[wf.filename],
                     recommendation_type="REVIEW",
                     reasoning=f"Workflow produces no production deliverables and terminates only in inspection sink(s) ({', '.join(wf.inspection_sinks)}). Potential development or inspection asset.",
-                    evidence=[f"Terminal inspection sinks: {', '.join(wf.inspection_sinks)}", "Zero production deliverables configured"],
+                    evidence=[
+                        f"Terminal inspection sinks: {', '.join(wf.inspection_sinks)}", "Zero production deliverables configured"],
                     confidence="HIGH",
                 )
             )
@@ -708,7 +733,8 @@ def build_portfolio_analysis(
         unique_targets=len(target_to_wfs),
         shared_sources_count=len(shared_sources),
         shared_targets_count=len(shared_targets),
-        inspection_sinks_count=sum(len(s.inspection_sinks) for s in success_summaries),
+        inspection_sinks_count=sum(len(s.inspection_sinks)
+                                   for s in success_summaries),
         tool_distribution=tool_counter,
     )
 
@@ -763,15 +789,19 @@ def build_portfolio_analysis(
                 business_area="Other / Unclassified",
                 workflow_count=len(other_wfs),
                 workflows=other_wfs,
-                description=BUSINESS_AREA_DESCRIPTIONS.get("Other / Unclassified", ""),
+                description=BUSINESS_AREA_DESCRIPTIONS.get(
+                    "Other / Unclassified", ""),
             )
         )
 
     total_wf = len(summaries)
     attempted_wf = len(success_summaries)
-    structured_success = sum(1 for s in success_summaries if s.business_area_tag_source == "llm")
-    fallback_count = sum(1 for s in success_summaries if s.business_area_tag_source != "llm")
-    conflict_count = sum(1 for s in success_summaries if getattr(s.business_area, "classification_conflict", False))
+    structured_success = sum(
+        1 for s in success_summaries if s.business_area_tag_source == "llm")
+    fallback_count = sum(
+        1 for s in success_summaries if s.business_area_tag_source != "llm")
+    conflict_count = sum(1 for s in success_summaries if getattr(
+        s.business_area, "classification_conflict", False))
     unclassified_count = len(workflows_by_area["Other / Unclassified"])
     valid_tags_count = total_wf - unclassified_count
     criticality_impacted = sum(
@@ -826,9 +856,9 @@ def enrich_portfolio_with_llm(portfolio: PortfolioAnalysis) -> PortfolioAnalysis
     if not portfolio.relationships and not portfolio.rationalisation_candidates:
         return portfolio
 
-    from awa.llm import get_default_generator
-    from awa.llm.cache import compute_cache_key, NarrativeResult
-    from awa.llm.prompts import (
+    from backend.awa.llm import get_default_generator
+    from backend.awa.llm.cache import compute_cache_key, NarrativeResult
+    from backend.awa.llm.prompts import (
         PORTFOLIO_RATIONALISATION_PROMPT_VERSION,
         PORTFOLIO_RATIONALISATION_SYSTEM_PROMPT,
         build_portfolio_rationalisation_user_prompt,
@@ -836,11 +866,13 @@ def enrich_portfolio_with_llm(portfolio: PortfolioAnalysis) -> PortfolioAnalysis
 
     generator = get_default_generator()
     if not generator.client.is_available:
-        logger.info("[Portfolio LLM] LLM client unavailable/disabled — preserving deterministic facts.")
+        logger.info(
+            "[Portfolio LLM] LLM client unavailable/disabled — preserving deterministic facts.")
         return portfolio
 
     # 1. Build compact structured evidence payload
-    valid_wf_ids = {w.workflow_id for w in portfolio.workflows if w.status == "SUCCESS"}
+    valid_wf_ids = {
+        w.workflow_id for w in portfolio.workflows if w.status == "SUCCESS"}
     evidence_payload = {
         "portfolio_name": portfolio.portfolio_name,
         "workflow_count": portfolio.metrics.successful_workflows,
@@ -883,18 +915,22 @@ def enrich_portfolio_with_llm(portfolio: PortfolioAnalysis) -> PortfolioAnalysis
     )
 
     raw_response: str | None = None
-    cached = generator._cache.get(cache_key) if getattr(generator, "_cache", None) else None
+    cached = generator._cache.get(cache_key) if getattr(
+        generator, "_cache", None) else None
     if isinstance(cached, NarrativeResult) and isinstance(cached.text, str):
         logger.info("[Portfolio LLM CACHE] status=HIT")
         raw_response = cached.text
     else:
         logger.info("[Portfolio LLM CACHE] status=MISS")
         system_prompt = PORTFOLIO_RATIONALISATION_SYSTEM_PROMPT
-        user_prompt = build_portfolio_rationalisation_user_prompt(evidence_payload)
+        user_prompt = build_portfolio_rationalisation_user_prompt(
+            evidence_payload)
         try:
-            raw_response = generator.client.generate(system_prompt, user_prompt, max_tokens=2500)
+            raw_response = generator.client.generate(
+                system_prompt, user_prompt, max_tokens=2500)
         except Exception as e:
-            logger.warning("[Portfolio LLM] Client error: %s — using deterministic baseline.", e)
+            logger.warning(
+                "[Portfolio LLM] Client error: %s — using deterministic baseline.", e)
             return portfolio
 
     if not raw_response or not raw_response.strip():
@@ -928,7 +964,8 @@ def enrich_portfolio_with_llm(portfolio: PortfolioAnalysis) -> PortfolioAnalysis
 
         # Invariant 16: Guard against hallucinated workflow IDs
         if wa_id not in valid_wf_ids or wb_id not in valid_wf_ids:
-            logger.warning("[Portfolio LLM] Discarded hallucinated relationship: %s <-> %s", wa_id, wb_id)
+            logger.warning(
+                "[Portfolio LLM] Discarded hallucinated relationship: %s <-> %s", wa_id, wb_id)
             continue
 
         pair_key = (wa_id, wb_id)
@@ -949,7 +986,8 @@ def enrich_portfolio_with_llm(portfolio: PortfolioAnalysis) -> PortfolioAnalysis
 
         # Guard: all referenced workflow IDs must exist
         if not all(wid in valid_wf_ids for wid in rec_wf_ids):
-            logger.warning("[Portfolio LLM] Discarded hallucinated recommendation with invalid IDs: %s", rec_wf_ids)
+            logger.warning(
+                "[Portfolio LLM] Discarded hallucinated recommendation with invalid IDs: %s", rec_wf_ids)
             continue
 
         if not rec_wf_ids or not reasoning:
@@ -969,15 +1007,19 @@ def enrich_portfolio_with_llm(portfolio: PortfolioAnalysis) -> PortfolioAnalysis
             if conf in ("HIGH", "MEDIUM", "LOW"):
                 matched_cand.confidence = conf
         else:
-            cand_names = [w.filename for w in portfolio.workflows if w.workflow_id in rec_wf_ids]
+            cand_names = [
+                w.filename for w in portfolio.workflows if w.workflow_id in rec_wf_ids]
             portfolio.rationalisation_candidates.append(
                 RationalisationCandidate(
                     workflow_ids=rec_wf_ids,
                     workflow_names=cand_names,
-                    recommendation_type=rec_type if rec_type in ("CONSOLIDATE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW") else "REVIEW",
+                    recommendation_type=rec_type if rec_type in (
+                        "CONSOLIDATE", "RETIRE_CANDIDATE", "SHARED_LOGIC", "REVIEW") else "REVIEW",
                     reasoning=reasoning.strip(),
-                    evidence=[f"Identified through semantic qualification across {len(rec_wf_ids)} workflows"],
-                    confidence=conf if conf in ("HIGH", "MEDIUM", "LOW") else "MEDIUM",
+                    evidence=[
+                        f"Identified through semantic qualification across {len(rec_wf_ids)} workflows"],
+                    confidence=conf if conf in (
+                        "HIGH", "MEDIUM", "LOW") else "MEDIUM",
                 )
             )
 
@@ -993,4 +1035,3 @@ def enrich_portfolio_with_llm(portfolio: PortfolioAnalysis) -> PortfolioAnalysis
     )
 
     return portfolio
-

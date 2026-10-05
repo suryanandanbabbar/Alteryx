@@ -8,16 +8,16 @@ from __future__ import annotations
 
 import networkx as nx
 
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.dag_layout import DagLayout
-from awa.model.doc_model import DocumentModel, NodeDocEntry, ExecutionStepDocEntry
-from awa.model.visual_category import get_visual_category
-from awa.graph.lineage import LineagePath
-from awa.tools import get_tool_summary, humanize_tool_configuration
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.dag_layout import DagLayout
+from backend.awa.model.doc_model import DocumentModel, NodeDocEntry, ExecutionStepDocEntry
+from backend.awa.model.visual_category import get_visual_category
+from backend.awa.graph.lineage import LineagePath
+from backend.awa.tools import get_tool_summary, humanize_tool_configuration
 
 
-from awa.model.business_summary import WorkflowBusinessSummary
+from backend.awa.model.business_summary import WorkflowBusinessSummary
 
 
 def build_document_model(
@@ -72,7 +72,7 @@ def build_document_model(
     }
 
     # Use analysis_id for consistent cache keys across the pipeline
-    from awa.llm import get_default_generator
+    from backend.awa.llm import get_default_generator
     generator = get_default_generator()
     wf_key = analysis_id or workflow.metadata.name or "default_workflow"
 
@@ -84,7 +84,8 @@ def build_document_model(
         name = (tool.name if tool and tool.name else tool_type)
         vcat = get_visual_category(tool_type)
         summary = (
-            generator.generate_tool_summary(workflow, tool, graph=graph, workflow_id=wf_key).text
+            generator.generate_tool_summary(
+                workflow, tool, graph=graph, workflow_id=wf_key).text
             if tool
             else get_tool_summary(tool_type)
         )
@@ -111,7 +112,8 @@ def build_document_model(
         description = tr.description if tr else ""
         input_vars = tr.input_variables if tr else []
         output_vars = tr.output_map if tr else {}
-        summary = generator.generate_tool_summary(workflow, tool, graph=graph, workflow_id=wf_key).text
+        summary = generator.generate_tool_summary(
+            workflow, tool, graph=graph, workflow_id=wf_key).text
 
         node_entries.append(
             NodeDocEntry(
@@ -122,7 +124,8 @@ def build_document_model(
                 annotation=tool.annotation,
                 description=description,
                 summary=summary,
-                configuration=humanize_tool_configuration(tool.tool_type, tool.configuration.parsed),
+                configuration=humanize_tool_configuration(
+                    tool.tool_type, tool.configuration.parsed),
                 input_variables=input_vars,
                 output_variables=output_vars,
                 container_id=tool.container_id,

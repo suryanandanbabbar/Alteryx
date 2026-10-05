@@ -9,17 +9,17 @@ import re
 from typing import Any
 import networkx as nx
 
-from awa.model.workflow import Workflow
-from awa.model.tool import Tool
-from awa.model.business_summary import WorkflowBusinessSummary
-from awa.model.visual_category import get_visual_category
-from awa.tools.catalog import get_tool_summary
-from awa.tools import humanize_tool_configuration
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.tool import Tool
+from backend.awa.model.business_summary import WorkflowBusinessSummary
+from backend.awa.model.visual_category import get_visual_category
+from backend.awa.tools.catalog import get_tool_summary
+from backend.awa.tools import humanize_tool_configuration
 
-from awa.model.tool_specifications import format_input_tools, format_output_tools
-from awa.model.sttm import STTMDocument, STTMMapping
-from awa.analysis.sttm_extractor import extract_sttm, build_sttm_evidence_context
-from awa.analysis.sttm_validator import STTMValidator
+from backend.awa.model.tool_specifications import format_input_tools, format_output_tools
+from backend.awa.model.sttm import STTMDocument, STTMMapping
+from backend.awa.analysis.sttm_extractor import extract_sttm, build_sttm_evidence_context
+from backend.awa.analysis.sttm_validator import STTMValidator
 
 from .client import LLMClient, get_default_llm_client
 from .schemas import (
@@ -284,11 +284,13 @@ def extract_workflow_facts(workflow: Workflow, business_summary: WorkflowBusines
                     f_name = ff.get("field")
                     f_expr = ff.get("expression")
                     if f_name:
-                        desc = f"Calculates '{f_name}'" + (f" using formula: {f_expr[:80]}" if f_expr else "")
+                        desc = f"Calculates '{f_name}'" + \
+                            (f" using formula: {f_expr[:80]}" if f_expr else "")
                         if desc not in key_calculations:
                             key_calculations.append(desc)
             elif tool.tool_type == "Filter":
-                expr = cfg.get("expression") or cfg.get("Expression") or cfg.get("filter_predicate") or ""
+                expr = cfg.get("expression") or cfg.get(
+                    "Expression") or cfg.get("filter_predicate") or ""
                 if expr and len(str(expr)) > 2:
                     desc = f"Filters records where: {str(expr)[:100]}"
                     if desc not in filtering_criteria:
@@ -339,8 +341,8 @@ def extract_comprehensive_workflow_context(
         business_summary = None
 
     if business_summary is None:
-        from awa.analysis.business_intelligence import generate_business_summary
-        from awa.graph.builder import execution_order
+        from backend.awa.analysis.business_intelligence import generate_business_summary
+        from backend.awa.graph.builder import execution_order
         g = graph or nx.DiGraph()
         try:
             steps = execution_order(g)
@@ -373,7 +375,8 @@ def extract_comprehensive_workflow_context(
 
     containers_list = []
     for cid, cont in sorted(workflow.containers.items()):
-        c_tools = [t.tool_id for t in workflow.tools.values() if t.container_id == cid]
+        c_tools = [t.tool_id for t in workflow.tools.values()
+                   if t.container_id == cid]
         containers_list.append({
             "container_id": cid,
             "caption": cont.caption,
@@ -777,7 +780,8 @@ def _normalize_criticality_dict(d: dict[str, Any]) -> dict[str, Any]:
     raw_score = normalized.get("criticality_score")
     if isinstance(raw_score, str):
         try:
-            normalized["criticality_score"] = float(raw_score.split("/")[0].strip())
+            normalized["criticality_score"] = float(
+                raw_score.split("/")[0].strip())
         except (ValueError, TypeError):
             pass
 
@@ -814,7 +818,7 @@ def _find_balanced_json_candidates(text: str) -> list[str]:
             if brace_depth > 0:
                 brace_depth -= 1
                 if brace_depth == 0 and start_idx != -1:
-                    candidates.append(text[start_idx : i + 1])
+                    candidates.append(text[start_idx: i + 1])
                     start_idx = -1
 
     return candidates
@@ -845,7 +849,8 @@ def _extract_and_normalize_criticality(raw_response: Any) -> tuple[dict[str, Any
 
     # Strip <think> tags if emitted by reasoning models
     if "<think>" in text.lower() and "</think>" in text.lower():
-        text = re.sub(r"^[\s\S]*?</think>\s*", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"^[\s\S]*?</think>\s*", "",
+                      text, flags=re.IGNORECASE).strip()
         if not text:
             return None, "client_content", "empty_text_after_think"
 
@@ -857,7 +862,8 @@ def _extract_and_normalize_criticality(raw_response: Any) -> tuple[dict[str, Any
         candidates.append(text)
 
     # 2. Code blocks
-    code_blocks = re.findall(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+    code_blocks = re.findall(
+        r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
     for block in code_blocks:
         b = block.strip()
         if b and b not in candidates:
@@ -934,7 +940,8 @@ def _validate_criticality_assessment(
         return False, "schema_validation", f"invalid_level:{level}"
 
     # Score-level calibration brackets (0-34: LOW, 35-69: MEDIUM, 70-100: HIGH)
-    expected_level = "LOW" if score <= 34.0 else ("MEDIUM" if score <= 69.0 else "HIGH")
+    expected_level = "LOW" if score <= 34.0 else (
+        "MEDIUM" if score <= 69.0 else "HIGH")
     if level != expected_level:
         return (
             False,
@@ -1005,7 +1012,8 @@ def _validate_criticality_assessment(
             "customer" in s.lower() or "claimant" in s.lower() or "policyholder" in s.lower()
             for s in evidence.semantic_impact_signals
         ) and not any(
-            w in (evidence.business_purpose or "").lower() or w in (evidence.business_function or "").lower()
+            w in (evidence.business_purpose or "").lower() or w in (
+                evidence.business_function or "").lower()
             for w in ("customer", "claimant", "policyholder")
         ):
             return (
@@ -1021,7 +1029,8 @@ def _validate_criticality_assessment(
             "client" in s.lower() or "broker" in s.lower() or "agent" in s.lower()
             for s in evidence.semantic_impact_signals
         ) and not any(
-            w in (evidence.business_purpose or "").lower() or w in (evidence.business_function or "").lower()
+            w in (evidence.business_purpose or "").lower() or w in (
+                evidence.business_function or "").lower()
             for w in ("client", "broker", "agent", "producer", "distributor")
         ):
             return (
@@ -1041,9 +1050,10 @@ def compose_deterministic_criticality_fallback(
 
     if evidence.deterministic_reference_score is not None:
         score = float(evidence.deterministic_reference_score)
-        level = evidence.deterministic_reference_level or ("LOW" if score <= 34.0 else ("MEDIUM" if score <= 69.0 else "HIGH"))
+        level = evidence.deterministic_reference_level or (
+            "LOW" if score <= 34.0 else ("MEDIUM" if score <= 69.0 else "HIGH"))
     else:
-        from awa.analysis.workflow_criticality import calculate_workflow_criticality
+        from backend.awa.analysis.workflow_criticality import calculate_workflow_criticality
         crit = calculate_workflow_criticality(
             workflow_id=evidence.workflow_id,
             workflow_filename=evidence.workflow_filename,
@@ -1068,7 +1078,8 @@ def compose_deterministic_criticality_fallback(
         rating = "LOW"
         ev_str = "Zero production deliverables configured (inspection sinks only or non-persisted flow)"
         rat_str = "Does not publish persisted enterprise deliverables."
-    factor_assessments["production_outputs"] = FactorAssessment("production_outputs", rating, ev_str, rat_str)
+    factor_assessments["production_outputs"] = FactorAssessment(
+        "production_outputs", rating, ev_str, rat_str)
 
     # 2. downstream_dependency
     if evidence.downstream_consumers:
@@ -1080,7 +1091,8 @@ def compose_deterministic_criticality_fallback(
         rating = "LOW"
         ev_str = "No downstream workflow consumers detected"
         rat_str = "Operational impact is confined to this workflow."
-    factor_assessments["downstream_dependency"] = FactorAssessment("downstream_dependency", rating, ev_str, rat_str)
+    factor_assessments["downstream_dependency"] = FactorAssessment(
+        "downstream_dependency", rating, ev_str, rat_str)
 
     # 3. output_consumers
     if evidence.shared_targets:
@@ -1095,7 +1107,8 @@ def compose_deterministic_criticality_fallback(
         rating = "NOT_ESTABLISHED"
         ev_str = "No shared enterprise outputs detected"
         rat_str = "No cross-workflow sharing evidence."
-    factor_assessments["output_consumers"] = FactorAssessment("output_consumers", rating, ev_str, rat_str)
+    factor_assessments["output_consumers"] = FactorAssessment(
+        "output_consumers", rating, ev_str, rat_str)
 
     # 4. dependency_position
     pos = evidence.dependency_position
@@ -1111,7 +1124,8 @@ def compose_deterministic_criticality_fallback(
     else:
         rating = "LOW"
         rat_str = "Standalone process without detected portfolio pipeline links."
-    factor_assessments["dependency_position"] = FactorAssessment("dependency_position", rating, pos, rat_str)
+    factor_assessments["dependency_position"] = FactorAssessment(
+        "dependency_position", rating, pos, rat_str)
 
     # 5. shared_sources
     if evidence.shared_sources:
@@ -1122,10 +1136,12 @@ def compose_deterministic_criticality_fallback(
         rating = "NOT_ESTABLISHED"
         ev_str = "No shared portfolio sources detected"
         rat_str = "Uses independent or isolated source data."
-    factor_assessments["shared_sources"] = FactorAssessment("shared_sources", rating, ev_str, rat_str)
+    factor_assessments["shared_sources"] = FactorAssessment(
+        "shared_sources", rating, ev_str, rat_str)
 
     # 6. business_deliverables
-    has_mandatory = any("reporting" in s.lower() or "statutory" in s.lower() or "compliance" in s.lower() or "financial" in s.lower() for s in evidence.semantic_impact_signals)
+    has_mandatory = any("reporting" in s.lower() or "statutory" in s.lower() or "compliance" in s.lower(
+    ) or "financial" in s.lower() for s in evidence.semantic_impact_signals)
     if has_mandatory:
         rating = "HIGH"
         ev_str = "Statutory, regulatory, or financial deliverable signal detected in business purpose"
@@ -1138,10 +1154,12 @@ def compose_deterministic_criticality_fallback(
         rating = "LOW"
         ev_str = "Informational outputs only"
         rat_str = "No formal business deliverable signals."
-    factor_assessments["business_deliverables"] = FactorAssessment("business_deliverables", rating, ev_str, rat_str)
+    factor_assessments["business_deliverables"] = FactorAssessment(
+        "business_deliverables", rating, ev_str, rat_str)
 
     # 7. business_scope
-    has_enterprise = any("enterprise-wide" in s.lower() for s in evidence.semantic_impact_signals)
+    has_enterprise = any("enterprise-wide" in s.lower()
+                         for s in evidence.semantic_impact_signals)
     if has_enterprise:
         rating = "HIGH"
         ev_str = "Enterprise-wide operational scope signal detected"
@@ -1150,10 +1168,12 @@ def compose_deterministic_criticality_fallback(
         rating = "NOT_ESTABLISHED"
         ev_str = "Specific enterprise breadth not documented in metadata"
         rat_str = "Localized or departmental operational scope."
-    factor_assessments["business_scope"] = FactorAssessment("business_scope", rating, ev_str, rat_str)
+    factor_assessments["business_scope"] = FactorAssessment(
+        "business_scope", rating, ev_str, rat_str)
 
     # 8. customer_impact
-    has_customer = any("customer" in s.lower() or "claimant" in s.lower() or "policyholder" in s.lower() for s in evidence.semantic_impact_signals)
+    has_customer = any("customer" in s.lower() or "claimant" in s.lower(
+    ) or "policyholder" in s.lower() for s in evidence.semantic_impact_signals)
     if has_customer:
         rating = "HIGH"
         ev_str = "Customer/claimant/policyholder coverage or adjudication signal detected"
@@ -1162,10 +1182,12 @@ def compose_deterministic_criticality_fallback(
         rating = "NOT_ESTABLISHED"
         ev_str = "No customer-facing transactions or benefit calculations documented"
         rat_str = "No direct customer impact established by evidence."
-    factor_assessments["customer_impact"] = FactorAssessment("customer_impact", rating, ev_str, rat_str)
+    factor_assessments["customer_impact"] = FactorAssessment(
+        "customer_impact", rating, ev_str, rat_str)
 
     # 9. client_impact
-    has_client = any("client" in s.lower() or "broker" in s.lower() or "agent" in s.lower() for s in evidence.semantic_impact_signals)
+    has_client = any("client" in s.lower() or "broker" in s.lower(
+    ) or "agent" in s.lower() for s in evidence.semantic_impact_signals)
     if has_client:
         rating = "HIGH"
         ev_str = "Client/broker/agent deliverable signal detected"
@@ -1174,7 +1196,8 @@ def compose_deterministic_criticality_fallback(
         rating = "NOT_ESTABLISHED"
         ev_str = "No external partner or broker deliverables configured"
         rat_str = "Internal operational processing."
-    factor_assessments["client_impact"] = FactorAssessment("client_impact", rating, ev_str, rat_str)
+    factor_assessments["client_impact"] = FactorAssessment(
+        "client_impact", rating, ev_str, rat_str)
 
     # 10. operational_context
     if evidence.operational_metadata:
@@ -1185,11 +1208,14 @@ def compose_deterministic_criticality_fallback(
         rating = "NOT_ESTABLISHED"
         ev_str = "Operational metadata not documented in workflow configuration"
         rat_str = "SLA, schedule, and ownership are not established."
-    factor_assessments["operational_context"] = FactorAssessment("operational_context", rating, ev_str, rat_str)
+    factor_assessments["operational_context"] = FactorAssessment(
+        "operational_context", rating, ev_str, rat_str)
 
     # Synthesize concise, evidence-grounded business prose (NO blast radius boilerplate)
-    targets_desc = ", ".join(evidence.production_targets[:2]) if evidence.production_targets else ""
-    consumers_desc = ", ".join(evidence.downstream_consumers[:2]) if evidence.downstream_consumers else ""
+    targets_desc = ", ".join(
+        evidence.production_targets[:2]) if evidence.production_targets else ""
+    consumers_desc = ", ".join(
+        evidence.downstream_consumers[:2]) if evidence.downstream_consumers else ""
     func_desc = evidence.business_function or "data transformation"
 
     if level == "HIGH":
@@ -1276,9 +1302,11 @@ def compose_deterministic_criticality_fallback(
 
     factors_list: list[str] = []
     if evidence.production_targets:
-        factors_list.append(f"{len(evidence.production_targets)} production deliverable(s)")
+        factors_list.append(
+            f"{len(evidence.production_targets)} production deliverable(s)")
     if evidence.downstream_consumers:
-        factors_list.append(f"{len(evidence.downstream_consumers)} downstream consumer(s)")
+        factors_list.append(
+            f"{len(evidence.downstream_consumers)} downstream consumer(s)")
     if evidence.dependency_position != "Isolated":
         factors_list.append(evidence.dependency_position)
     factors_list.extend(evidence.semantic_impact_signals[:2])
@@ -1428,7 +1456,7 @@ class LLMNarrativeGenerator:
         - Semantic coherence & conflict resolution between function and tag
         - Guaranteed fallback to deterministic 7-tier classification on failure/unavailability
         """
-        from awa.analysis.business_area_classifier import (
+        from backend.awa.analysis.business_area_classifier import (
             ALLOWED_BUSINESS_AREAS,
             classify_business_area_deterministic,
             classify_business_function_deterministic,
@@ -1438,7 +1466,8 @@ class LLMNarrativeGenerator:
             BUSINESS_AREA_TAXONOMY_VERSION,
         )
 
-        evidence_dict = extract_workflow_classification_evidence(workflow, business_summary)
+        evidence_dict = extract_workflow_classification_evidence(
+            workflow, business_summary)
         if output_evidence:
             evidence_dict["output_evidence"] = output_evidence
         if input_sources:
@@ -1452,7 +1481,8 @@ class LLMNarrativeGenerator:
             or (workflow_id if (workflow_id and not workflow_id.startswith("wf_") and not workflow_id.startswith("analysis_")) else "")
         )
 
-        existing_func = getattr(business_summary, "business_function", "") or ""
+        existing_func = getattr(
+            business_summary, "business_function", "") or ""
 
         det_class = classify_business_area_deterministic(
             output_evidence=evidence_dict.get("output_evidence"),
@@ -1469,7 +1499,8 @@ class LLMNarrativeGenerator:
             container_titles=evidence_dict.get("container_titles"),
             tool_configurations=evidence_dict.get("tool_configurations"),
         )
-        fallback_tag = "Other / Unclassified" if det_class.business_area in ("UNCLASSIFIED", "Other / Unclassified") else det_class.business_area
+        fallback_tag = "Other / Unclassified" if det_class.business_area in (
+            "UNCLASSIFIED", "Other / Unclassified") else det_class.business_area
         fallback_func = existing_func or classify_business_function_deterministic(
             fallback_tag,
             workflow_name=wf_name,
@@ -1508,7 +1539,8 @@ class LLMNarrativeGenerator:
             )
 
         facts = extract_workflow_facts(workflow, business_summary)
-        wf_key = _resolve_workflow_cache_id(workflow, workflow_id, default_name=wf_name)
+        wf_key = _resolve_workflow_cache_id(
+            workflow, workflow_id, default_name=wf_name)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
             scope_key="business_purpose",
@@ -1523,11 +1555,13 @@ class LLMNarrativeGenerator:
             if _is_clean_business_purpose(cached.business_purpose):
                 logger.info("[LLM CACHE] type=business_purpose status=HIT")
                 return cached
-            logger.info("[LLM CACHE] type=business_purpose status=DIRTY_INVALIDATED")
+            logger.info(
+                "[LLM CACHE] type=business_purpose status=DIRTY_INVALIDATED")
 
         logger.info("[LLM CACHE] type=business_purpose status=MISS")
 
-        system_prompt = build_workflow_purpose_system_prompt(BUSINESS_AREA_DESCRIPTIONS)
+        system_prompt = build_workflow_purpose_system_prompt(
+            BUSINESS_AREA_DESCRIPTIONS)
         user_prompt = build_workflow_purpose_user_prompt(facts)
 
         try:
@@ -1545,7 +1579,8 @@ class LLMNarrativeGenerator:
                 ):
                     llm_purpose = llm_purpose[1:-1].strip()
 
-                valid_areas = set(ALLOWED_BUSINESS_AREAS) | {"Other / Unclassified", "UNCLASSIFIED"}
+                valid_areas = set(ALLOWED_BUSINESS_AREAS) | {
+                    "Other / Unclassified", "UNCLASSIFIED"}
 
                 # Strictly validate that business_purpose is clean/concise and business_area_tag is allowed
                 if _is_clean_business_purpose(llm_purpose, facts) and llm_tag in valid_areas:
@@ -1568,12 +1603,14 @@ class LLMNarrativeGenerator:
                         input_sources=evidence_dict.get("input_sources"),
                         description=evidence_dict.get("description", ""),
                         why_it_matters=evidence_dict.get("why_it_matters", ""),
-                        processing_stages=evidence_dict.get("processing_stages"),
+                        processing_stages=evidence_dict.get(
+                            "processing_stages"),
                         business_rules=evidence_dict.get("business_rules"),
                         transformations=evidence_dict.get("transformations"),
                         tool_annotations=evidence_dict.get("tool_annotations"),
                         container_titles=evidence_dict.get("container_titles"),
-                        tool_configurations=evidence_dict.get("tool_configurations"),
+                        tool_configurations=evidence_dict.get(
+                            "tool_configurations"),
                     )
                     strong_functional_domain = det_check.business_area
 
@@ -1597,7 +1634,8 @@ class LLMNarrativeGenerator:
                         ] + det_check.evidence
                     else:
                         normalized_tag = "Other / Unclassified" if llm_tag == "UNCLASSIFIED" else llm_tag
-                        conflict_evidence = [f"LLM classified as {normalized_tag}"]
+                        conflict_evidence = [
+                            f"LLM classified as {normalized_tag}"]
 
                     result = BusinessPurposeResult(
                         business_purpose=llm_purpose,
@@ -1626,9 +1664,11 @@ class LLMNarrativeGenerator:
                         llm_tag in valid_areas,
                     )
             else:
-                logger.warning("[LLM] Output did not contain valid structured JSON. Using deterministic fallback.")
+                logger.warning(
+                    "[LLM] Output did not contain valid structured JSON. Using deterministic fallback.")
         except Exception as exc:
-            logger.warning("[LLM] generate_business_purpose failed: %s. Using deterministic fallback.", exc)
+            logger.warning(
+                "[LLM] generate_business_purpose failed: %s. Using deterministic fallback.", exc)
 
         fallback_result = BusinessPurposeResult(
             business_purpose=fallback_purpose,
@@ -1649,7 +1689,6 @@ class LLMNarrativeGenerator:
     ) -> CriticalityAssessmentResult:
         """Generate a purely deterministic 5-factor criticality assessment without LLM calls."""
         return compose_deterministic_criticality_fallback(evidence)
-
 
     def generate_executive_summary(
         self,
@@ -1683,7 +1722,8 @@ class LLMNarrativeGenerator:
 
         system_prompt = EXECUTIVE_SUMMARY_SYSTEM_PROMPT
         user_prompt = build_executive_summary_user_prompt(facts)
-        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=600)
+        raw_response = self.client.generate(
+            system_prompt, user_prompt, max_tokens=600)
         cleaned = _clean_narrative_text(raw_response)
 
         if cleaned and len(cleaned.split()) >= 20 and len(cleaned) <= 1500:
@@ -1694,7 +1734,8 @@ class LLMNarrativeGenerator:
                 prompt_version=EXEC_SUMMARY_PROMPT_VERSION,
             )
             self._cache.set(cache_key, result)
-            logger.info("[LLM] executive_summary stored in cache text_len=%d", len(cleaned))
+            logger.info(
+                "[LLM] executive_summary stored in cache text_len=%d", len(cleaned))
             return result
 
         fallback_result = NarrativeResult(
@@ -1737,7 +1778,8 @@ class LLMNarrativeGenerator:
 
         system_prompt = METHODS_OF_ANALYSIS_SYSTEM_PROMPT
         user_prompt = build_methods_of_analysis_user_prompt(facts)
-        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=500)
+        raw_response = self.client.generate(
+            system_prompt, user_prompt, max_tokens=500)
         cleaned = _clean_narrative_text(raw_response)
 
         if cleaned and len(cleaned.split()) >= 15 and len(cleaned) <= 1200:
@@ -1748,7 +1790,8 @@ class LLMNarrativeGenerator:
                 prompt_version=METHODS_OF_ANALYSIS_PROMPT_VERSION,
             )
             self._cache.set(cache_key, result)
-            logger.info("[LLM] methods_of_analysis stored in cache text_len=%d", len(cleaned))
+            logger.info(
+                "[LLM] methods_of_analysis stored in cache text_len=%d", len(cleaned))
             return result
 
         fallback_result = NarrativeResult(
@@ -1796,7 +1839,8 @@ class LLMNarrativeGenerator:
 
         system_prompt = FINDINGS_SYSTEM_PROMPT
         user_prompt = build_findings_user_prompt(facts)
-        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=700)
+        raw_response = self.client.generate(
+            system_prompt, user_prompt, max_tokens=700)
         cleaned = _clean_narrative_text(raw_response)
 
         # Parse bullet points from response
@@ -1822,10 +1866,12 @@ class LLMNarrativeGenerator:
                 prompt_version=FINDINGS_PROMPT_VERSION,
             )
             self._cache.set(cache_key, result)
-            logger.info("[LLM] findings stored in cache items_count=%d", len(bullet_items))
+            logger.info(
+                "[LLM] findings stored in cache items_count=%d", len(bullet_items))
             return bullet_items
 
-        logger.info("[LLM] findings fallback to deterministic items_count=%d", len(fallback_findings))
+        logger.info("[LLM] findings fallback to deterministic items_count=%d", len(
+            fallback_findings))
         return fallback_findings
 
     def generate_conclusions(
@@ -1860,7 +1906,8 @@ class LLMNarrativeGenerator:
 
         system_prompt = CONCLUSIONS_SYSTEM_PROMPT
         user_prompt = build_methods_conclusions_user_prompt(facts)
-        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=400)
+        raw_response = self.client.generate(
+            system_prompt, user_prompt, max_tokens=400)
         cleaned = _clean_narrative_text(raw_response)
 
         if cleaned and len(cleaned.split()) >= 10 and len(cleaned) <= 800:
@@ -1871,7 +1918,8 @@ class LLMNarrativeGenerator:
                 prompt_version=CONCLUSIONS_PROMPT_VERSION,
             )
             self._cache.set(cache_key, result)
-            logger.info("[LLM] conclusions stored in cache text_len=%d", len(cleaned))
+            logger.info(
+                "[LLM] conclusions stored in cache text_len=%d", len(cleaned))
             return result
 
         fallback_result = NarrativeResult(
@@ -1882,8 +1930,6 @@ class LLMNarrativeGenerator:
         )
         return fallback_result
 
-
-
     def generate_business_report(
         self,
         workflow: Workflow,
@@ -1892,7 +1938,8 @@ class LLMNarrativeGenerator:
         workflow_id: str = "",
     ) -> BusinessReportContent | None:
         """Generate full, structured, LLM-authored Business Report content."""
-        context = extract_comprehensive_workflow_context(workflow, business_summary, graph=graph)
+        context = extract_comprehensive_workflow_context(
+            workflow, business_summary, graph=graph)
         wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
@@ -1906,31 +1953,39 @@ class LLMNarrativeGenerator:
         if cached is not None:
             logger.info("[LLM CACHE] type=business_report_full status=HIT")
             try:
-                data, _, _ = extract_and_parse_json(cached.text, expected_type=dict)
+                data, _, _ = extract_and_parse_json(
+                    cached.text, expected_type=dict)
                 if isinstance(data, dict):
                     report = self._parse_business_report_json(data)
                     if report:
                         return report
             except Exception as e:
-                logger.warning("[LLM CACHE] Failed to deserialize cached business report: %s", e)
+                logger.warning(
+                    "[LLM CACHE] Failed to deserialize cached business report: %s", e)
 
         logger.info("[LLM CACHE] type=business_report_full status=MISS")
 
         system_prompt = BUSINESS_REPORT_SYSTEM_PROMPT
         user_prompt = build_business_report_user_prompt(context.to_dict())
-        timeout = getattr(getattr(self.client, "config", None), "business_report_timeout", 60.0)
-        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=2500, timeout=timeout)
+        timeout = getattr(getattr(self.client, "config", None),
+                          "business_report_timeout", 60.0)
+        raw_response = self.client.generate(
+            system_prompt, user_prompt, max_tokens=2500, timeout=timeout)
 
         if not raw_response:
-            logger.warning("[LLM JSON] operation=business_report_full extraction=FAILED error=empty_response")
+            logger.warning(
+                "[LLM JSON] operation=business_report_full extraction=FAILED error=empty_response")
             return None
 
-        data, mode, error = extract_and_parse_json(raw_response, expected_type=dict)
+        data, mode, error = extract_and_parse_json(
+            raw_response, expected_type=dict)
         if data is None or not isinstance(data, dict):
-            logger.warning("[LLM JSON] operation=business_report_full extraction=FAILED error=%s", error)
+            logger.warning(
+                "[LLM JSON] operation=business_report_full extraction=FAILED error=%s", error)
             return None
 
-        logger.info("[LLM JSON] operation=business_report_full extraction=%s status=OK", mode)
+        logger.info(
+            "[LLM JSON] operation=business_report_full extraction=%s status=OK", mode)
         report = self._parse_business_report_json(data)
         if report:
             result = NarrativeResult(
@@ -1940,10 +1995,12 @@ class LLMNarrativeGenerator:
                 prompt_version=BUSINESS_REPORT_PROMPT_VERSION,
             )
             self._cache.set(cache_key, result)
-            logger.info("[LLM JSON] operation=business_report_full validation=OK status=CACHED")
+            logger.info(
+                "[LLM JSON] operation=business_report_full validation=OK status=CACHED")
             return report
         else:
-            logger.warning("[LLM JSON] operation=business_report_full validation=FAILED")
+            logger.warning(
+                "[LLM JSON] operation=business_report_full validation=FAILED")
 
         return None
 
@@ -1952,7 +2009,8 @@ class LLMNarrativeGenerator:
         try:
             # 1. Reject prohibited keys
             if "recommendations" in data or "limitations" in data or "visual_dag" in data or "section_5" in data:
-                logger.warning("[LLM] Business report JSON contained permanently excluded keys; stripping them")
+                logger.warning(
+                    "[LLM] Business report JSON contained permanently excluded keys; stripping them")
 
             exec_summary = str(data.get("executive_summary", "")).strip()
             methods_analysis = str(data.get("methods_of_analysis", "")).strip()
@@ -1960,13 +2018,16 @@ class LLMNarrativeGenerator:
 
             # Reject empty or trivial core analytical sections
             if not exec_summary or len(exec_summary) < 40:
-                logger.warning("[LLM] Validation failed: executive_summary is too short (< 40 chars) or empty")
+                logger.warning(
+                    "[LLM] Validation failed: executive_summary is too short (< 40 chars) or empty")
                 return None
             if not methods_analysis or len(methods_analysis) < 30:
-                logger.warning("[LLM] Validation failed: methods_of_analysis is too short (< 30 chars) or empty")
+                logger.warning(
+                    "[LLM] Validation failed: methods_of_analysis is too short (< 30 chars) or empty")
                 return None
             if not conclusions or len(conclusions) < 20:
-                logger.warning("[LLM] Validation failed: conclusions is too short (< 20 chars) or empty")
+                logger.warning(
+                    "[LLM] Validation failed: conclusions is too short (< 20 chars) or empty")
                 return None
 
             # Check for prohibited generic AI filler in executive summary & conclusions
@@ -1982,23 +2043,28 @@ class LLMNarrativeGenerator:
                 "facilitates informed decisions",
                 "produces useful outputs",
             ]
-            all_text_lower = f"{exec_summary} {methods_analysis} {conclusions}".lower()
+            all_text_lower = f"{exec_summary} {methods_analysis} {conclusions}".lower(
+            )
             for cliche in prohibited_cliches:
                 if cliche in all_text_lower:
-                    logger.warning("[LLM] Validation warning: found generic AI cliché '%s' in report narrative", cliche)
+                    logger.warning(
+                        "[LLM] Validation warning: found generic AI cliché '%s' in report narrative", cliche)
 
             # Check that recommendations/action directives are NOT present in executive summary
-            forbidden_phrases = ["we recommend", "the business should", "recommended action", "recommendation:"]
+            forbidden_phrases = [
+                "we recommend", "the business should", "recommended action", "recommendation:"]
             for fp in forbidden_phrases:
                 if fp in all_text_lower:
-                    logger.warning("[LLM] Validation failed: found forbidden recommendation phrasing '%s'", fp)
+                    logger.warning(
+                        "[LLM] Validation failed: found forbidden recommendation phrasing '%s'", fp)
                     return None
 
             # 2. Parse and validate findings (3 to 7 items expected, minimum 1)
             raw_findings = data.get("findings", [])
             findings = [str(f).strip() for f in raw_findings if str(f).strip()]
             if not findings:
-                logger.warning("[LLM] Validation failed: findings list is empty")
+                logger.warning(
+                    "[LLM] Validation failed: findings list is empty")
                 return None
 
             # 3. Parse and validate inputs
@@ -2007,7 +2073,8 @@ class LLMNarrativeGenerator:
                     source_dataset=str(i.get("source_dataset", "")).strip(),
                     business_role=str(i.get("business_role", "")).strip(),
                     source_format=str(i.get("source_format", "")).strip(),
-                    dependency_significance=str(i.get("dependency_significance", "")).strip(),
+                    dependency_significance=str(
+                        i.get("dependency_significance", "")).strip(),
                 )
                 for i in data.get("inputs", [])
                 if str(i.get("source_dataset", "")).strip()
@@ -2016,10 +2083,14 @@ class LLMNarrativeGenerator:
             # 4. Parse and validate outputs (must have business_use)
             outputs = [
                 BusinessReportOutputItem(
-                    output_deliverable=str(o.get("output_deliverable", "")).strip(),
-                    what_it_represents=str(o.get("what_it_represents", "")).strip(),
-                    business_use=str(o.get("business_use", "")).strip() or str(o.get("what_it_represents", "")).strip(),
-                    destination_format=str(o.get("destination_format", "")).strip(),
+                    output_deliverable=str(
+                        o.get("output_deliverable", "")).strip(),
+                    what_it_represents=str(
+                        o.get("what_it_represents", "")).strip(),
+                    business_use=str(o.get("business_use", "")).strip() or str(
+                        o.get("what_it_represents", "")).strip(),
+                    destination_format=str(
+                        o.get("destination_format", "")).strip(),
                 )
                 for o in data.get("outputs", [])
                 if str(o.get("output_deliverable", "")).strip()
@@ -2031,7 +2102,8 @@ class LLMNarrativeGenerator:
                     stage_number=int(s.get("stage_number", idx)),
                     stage_name=str(s.get("stage_name", "")).strip(),
                     description=str(s.get("description", "")).strip(),
-                    operational_explanation=str(s.get("operational_explanation", "")).strip(),
+                    operational_explanation=str(
+                        s.get("operational_explanation", "")).strip(),
                 )
                 for idx, s in enumerate(data.get("sequential_stages", []), start=1)
                 if str(s.get("stage_name", "")).strip()
@@ -2042,7 +2114,8 @@ class LLMNarrativeGenerator:
                 BusinessReportRuleItem(
                     business_rule=str(r.get("business_rule", "")).strip(),
                     category=str(r.get("category", "")).strip(),
-                    evidence_configuration=str(r.get("evidence_configuration", "")).strip(),
+                    evidence_configuration=str(
+                        r.get("evidence_configuration", "")).strip(),
                 )
                 for r in data.get("business_rules", [])
                 if str(r.get("business_rule", "")).strip()
@@ -2052,8 +2125,10 @@ class LLMNarrativeGenerator:
             lineage = [
                 BusinessReportLineageItem(
                     source_datasets=l.get("source_datasets", ""),
-                    major_business_transformation=str(l.get("major_business_transformation", "")).strip(),
-                    target_deliverable=str(l.get("target_deliverable", "")).strip(),
+                    major_business_transformation=str(
+                        l.get("major_business_transformation", "")).strip(),
+                    target_deliverable=str(
+                        l.get("target_deliverable", "")).strip(),
                 )
                 for l in data.get("lineage", [])
                 if str(l.get("target_deliverable", "")).strip()
@@ -2061,7 +2136,8 @@ class LLMNarrativeGenerator:
 
             return BusinessReportContent(
                 workflow_title=str(data.get("workflow_title", "")).strip(),
-                workflow_description=str(data.get("workflow_description", "")).strip(),
+                workflow_description=str(
+                    data.get("workflow_description", "")).strip(),
                 executive_summary=exec_summary,
                 methods_of_analysis=methods_analysis,
                 findings=findings[:7],
@@ -2073,7 +2149,8 @@ class LLMNarrativeGenerator:
                 lineage=lineage,
             )
         except Exception as e:
-            logger.warning("[LLM] Validation failed while parsing BusinessReportContent: %s", e)
+            logger.warning(
+                "[LLM] Validation failed while parsing BusinessReportContent: %s", e)
             return None
 
     def generate_all_tool_summaries(
@@ -2085,7 +2162,8 @@ class LLMNarrativeGenerator:
         """Pre-generate summaries for all tools in a workflow."""
         results: dict[int, NarrativeResult] = {}
         for tool_id, tool in workflow.tools.items():
-            results[tool_id] = self.generate_tool_summary(workflow, tool, graph, workflow_id=workflow_id)
+            results[tool_id] = self.generate_tool_summary(
+                workflow, tool, graph, workflow_id=workflow_id)
         return results
 
     def generate_tool_specification(
@@ -2122,7 +2200,8 @@ class LLMNarrativeGenerator:
 
         cached = self._cache.get(cache_key)
         if cached is not None:
-            logger.info("[LLM CACHE] type=tool_spec tool_id=%d status=HIT", tool.tool_id)
+            logger.info(
+                "[LLM CACHE] type=tool_spec tool_id=%d status=HIT", tool.tool_id)
             try:
                 import json
                 cached_data = json.loads(cached.text)
@@ -2133,27 +2212,34 @@ class LLMNarrativeGenerator:
             except Exception:
                 pass
 
-        logger.info("[LLM CACHE] type=tool_spec tool_id=%d status=MISS", tool.tool_id)
+        logger.info(
+            "[LLM CACHE] type=tool_spec tool_id=%d status=MISS", tool.tool_id)
 
         system_prompt = TOOL_SPECIFICATIONS_SYSTEM_PROMPT
         user_prompt = build_tool_specifications_user_prompt(facts)
-        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=400)
+        raw_response = self.client.generate(
+            system_prompt, user_prompt, max_tokens=400)
 
         parsed_role = ""
         parsed_data_flow = ""
         if raw_response and isinstance(raw_response, str) and raw_response.strip():
-            data, _, _ = extract_and_parse_json(raw_response, expected_type=dict)
+            data, _, _ = extract_and_parse_json(
+                raw_response, expected_type=dict)
             if isinstance(data, dict):
                 parsed_role = str(data.get("role", "")).strip()
-                parsed_data_flow = str(data.get("data_flow_explanation", "")).strip()
+                parsed_data_flow = str(
+                    data.get("data_flow_explanation", "")).strip()
 
-        role_final = parsed_role if (parsed_role and len(parsed_role) >= 15) else fallback_role
-        data_flow_final = parsed_data_flow if (parsed_data_flow and len(parsed_data_flow) >= 15) else fallback_data_flow
+        role_final = parsed_role if (parsed_role and len(
+            parsed_role) >= 15) else fallback_role
+        data_flow_final = parsed_data_flow if (parsed_data_flow and len(
+            parsed_data_flow) >= 15) else fallback_data_flow
 
         if parsed_role and parsed_data_flow and len(parsed_role) >= 15 and len(parsed_data_flow) >= 15:
             import json
             result = NarrativeResult(
-                text=json.dumps({"role": role_final, "data_flow_explanation": data_flow_final}),
+                text=json.dumps(
+                    {"role": role_final, "data_flow_explanation": data_flow_final}),
                 source="llm",
                 model=self.client.model_name,
                 prompt_version=TOOL_SPECIFICATIONS_PROMPT_VERSION,
@@ -2174,7 +2260,8 @@ class LLMNarrativeGenerator:
         """Generate tool specifications for all tools in a workflow."""
         results: dict[int, dict[str, str]] = {}
         for tool_id, tool in workflow.tools.items():
-            results[tool_id] = self.generate_tool_specification(workflow, tool, graph, workflow_id=workflow_id)
+            results[tool_id] = self.generate_tool_specification(
+                workflow, tool, graph, workflow_id=workflow_id)
         return results
 
     def generate_process_stages(
@@ -2185,9 +2272,10 @@ class LLMNarrativeGenerator:
         workflow_id: str = "",
     ) -> list[BusinessStage]:
         """Generate structured business process stages for the Overview page."""
-        from awa.model.business_summary import BusinessStage
+        from backend.awa.model.business_summary import BusinessStage
 
-        context = extract_comprehensive_workflow_context(workflow, business_summary=business_summary, graph=graph)
+        context = extract_comprehensive_workflow_context(
+            workflow, business_summary=business_summary, graph=graph)
         wf_key = _resolve_workflow_cache_id(workflow, workflow_id)
         cache_key = compute_cache_key(
             workflow_id=wf_key,
@@ -2200,7 +2288,8 @@ class LLMNarrativeGenerator:
         cached = self._cache.get(cache_key)
         if cached is not None:
             logger.info("[LLM CACHE] type=process_stages status=HIT")
-            stages = self._parse_process_stages_json(cached.text, workflow, graph)
+            stages = self._parse_process_stages_json(
+                cached.text, workflow, graph)
             if stages:
                 return stages
 
@@ -2208,12 +2297,15 @@ class LLMNarrativeGenerator:
 
         system_prompt = PROCESS_STAGES_SYSTEM_PROMPT
         user_prompt = build_process_stages_user_prompt(context.to_dict())
-        raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=1500)
+        raw_response = self.client.generate(
+            system_prompt, user_prompt, max_tokens=1500)
 
         stages = self._parse_process_stages_json(raw_response, workflow, graph)
         if not stages:
-            logger.warning("[LLM] Process stages generation failed validation, using generic deterministic fallback.")
-            stages = self._generate_fallback_process_stages(workflow, graph, business_summary)
+            logger.warning(
+                "[LLM] Process stages generation failed validation, using generic deterministic fallback.")
+            stages = self._generate_fallback_process_stages(
+                workflow, graph, business_summary)
             return stages
 
         cache_payload = {
@@ -2247,21 +2339,27 @@ class LLMNarrativeGenerator:
         graph: nx.DiGraph | None = None,
     ) -> list[BusinessStage] | None:
         """Parse, validate, and enforce 100% tool coverage for LLM process stages."""
-        from awa.model.business_summary import BusinessStage
+        from backend.awa.model.business_summary import BusinessStage
         if not raw_json or not isinstance(raw_json, str) or not raw_json.strip():
-            logger.warning("[LLM JSON] operation=process_stages extraction=FAILED error=empty_input")
+            logger.warning(
+                "[LLM JSON] operation=process_stages extraction=FAILED error=empty_input")
             return None
 
-        data, mode, error = extract_and_parse_json(raw_json, expected_type=dict)
+        data, mode, error = extract_and_parse_json(
+            raw_json, expected_type=dict)
         if data is None or not isinstance(data, dict):
-            logger.warning("[LLM JSON] operation=process_stages extraction=FAILED error=%s", error)
+            logger.warning(
+                "[LLM JSON] operation=process_stages extraction=FAILED error=%s", error)
             return None
 
-        logger.info("[LLM JSON] operation=process_stages extraction=%s status=OK", mode)
+        logger.info(
+            "[LLM JSON] operation=process_stages extraction=%s status=OK", mode)
         try:
-            raw_stages = data.get("stages") or data.get("sequential_stages", [])
+            raw_stages = data.get("stages") or data.get(
+                "sequential_stages", [])
             if not isinstance(raw_stages, list) or not raw_stages:
-                logger.warning("[LLM JSON] operation=process_stages validation=FAILED reason=no_stages_list")
+                logger.warning(
+                    "[LLM JSON] operation=process_stages validation=FAILED reason=no_stages_list")
                 return None
 
             all_wf_tool_ids = set(workflow.tools.keys())
@@ -2274,13 +2372,16 @@ class LLMNarrativeGenerator:
                 s_name = str(item.get("stage_name", "")).strip()
                 if not s_name:
                     continue
-                s_cat = str(item.get("category", "")).strip().upper() or "PROCESS"
+                s_cat = str(item.get("category", "")
+                            ).strip().upper() or "PROCESS"
                 s_cat = re.sub(r"[^A-Z0-9_ -]", " ", s_cat).strip()
                 s_cat = " ".join(s_cat.split())[:35] or "PROCESS"
                 s_desc = str(item.get("description", "")).strip()
                 s_purpose = str(item.get("purpose", "")).strip() or s_desc
-                s_trans = str(item.get("transformation") or item.get("operational_explanation", "")).strip()
-                s_actions = [str(a).strip() for a in item.get("key_actions", []) if str(a).strip()]
+                s_trans = str(item.get("transformation") or item.get(
+                    "operational_explanation", "")).strip()
+                s_actions = [str(a).strip() for a in item.get(
+                    "key_actions", []) if str(a).strip()]
 
                 raw_tids = item.get("tool_ids", [])
                 valid_tids: list[int] = []
@@ -2312,7 +2413,8 @@ class LLMNarrativeGenerator:
                 parsed_stages.append(stage_obj)
 
             if not parsed_stages:
-                logger.warning("[LLM JSON] operation=process_stages validation=FAILED reason=no_valid_stages_parsed")
+                logger.warning(
+                    "[LLM JSON] operation=process_stages validation=FAILED reason=no_valid_stages_parsed")
                 return None
 
             # Tool Coverage Guarantee: ensure every workflow tool is assigned to a stage
@@ -2321,8 +2423,10 @@ class LLMNarrativeGenerator:
                 for tid in sorted(unassigned_tids):
                     assigned = False
                     if graph is not None:
-                        preds = set(graph.predecessors(tid)) if graph.has_node(tid) else set()
-                        succs = set(graph.successors(tid)) if graph.has_node(tid) else set()
+                        preds = set(graph.predecessors(
+                            tid)) if graph.has_node(tid) else set()
+                        succs = set(graph.successors(
+                            tid)) if graph.has_node(tid) else set()
                         for stg in parsed_stages:
                             if set(stg.tool_ids) & (preds | succs):
                                 stg.tool_ids.append(tid)
@@ -2332,7 +2436,8 @@ class LLMNarrativeGenerator:
                     if not assigned:
                         closest_stage = min(
                             parsed_stages,
-                            key=lambda stg: min([abs(tid - t) for t in stg.tool_ids] or [999]),
+                            key=lambda stg: min([abs(tid - t)
+                                                for t in stg.tool_ids] or [999]),
                         )
                         closest_stage.tool_ids.append(tid)
                         closest_stage.tool_count = len(closest_stage.tool_ids)
@@ -2342,10 +2447,12 @@ class LLMNarrativeGenerator:
                 stg.tool_ids.sort()
                 stg.tool_count = len(stg.tool_ids)
 
-            logger.info("[LLM JSON] operation=process_stages validation=OK stages_count=%d assigned_tools=%d", len(parsed_stages), len(all_wf_tool_ids))
+            logger.info("[LLM JSON] operation=process_stages validation=OK stages_count=%d assigned_tools=%d", len(
+                parsed_stages), len(all_wf_tool_ids))
             return parsed_stages
         except Exception as e:
-            logger.warning("[LLM JSON] operation=process_stages validation=FAILED error=%s", e)
+            logger.warning(
+                "[LLM JSON] operation=process_stages validation=FAILED error=%s", e)
             return None
 
     def _generate_fallback_process_stages(
@@ -2355,14 +2462,15 @@ class LLMNarrativeGenerator:
         business_summary: WorkflowBusinessSummary | None,
     ) -> list[BusinessStage]:
         """Derive generic factual process stages based on graph topology and container structures."""
-        from awa.model.business_summary import BusinessStage
-        from awa.graph.builder import execution_order
+        from backend.awa.model.business_summary import BusinessStage
+        from backend.awa.graph.builder import execution_order
 
         ordered_tids: list[int] = []
         if graph is not None:
             try:
                 exec_steps = execution_order(graph)
-                ordered_tids = [s.tool_id for s in exec_steps if s.tool_id in workflow.tools]
+                ordered_tids = [
+                    s.tool_id for s in exec_steps if s.tool_id in workflow.tools]
             except Exception:
                 ordered_tids = sorted(list(workflow.tools.keys()))
         else:
@@ -2389,15 +2497,21 @@ class LLMNarrativeGenerator:
                 if not t_ids:
                     continue
                 cont = workflow.containers.get(cid)
-                caption = cont.caption.strip() if cont and cont.caption else f"Processing Phase {stage_num:02d}"
-                clean_cat = re.sub(r"[^a-zA-Z0-9\s]", " ", caption).strip().upper()
+                caption = cont.caption.strip(
+                ) if cont and cont.caption else f"Processing Phase {stage_num:02d}"
+                clean_cat = re.sub(r"[^a-zA-Z0-9\s]", " ",
+                                   caption).strip().upper()
                 cat_words = clean_cat.split()
-                category = " ".join(cat_words[:4]) if cat_words else f"STAGE {stage_num:02d}"
+                category = " ".join(
+                    cat_words[:4]) if cat_words else f"STAGE {stage_num:02d}"
                 short_title = f"{stage_num:02d} {category}"
 
-                tools_in_stage = [workflow.tools[t] for t in t_ids if t in workflow.tools]
-                tool_types = list(dict.fromkeys(t.tool_type for t in tools_in_stage))
-                types_str = ", ".join(tool_types[:3]) if tool_types else "processing"
+                tools_in_stage = [workflow.tools[t]
+                                  for t in t_ids if t in workflow.tools]
+                tool_types = list(dict.fromkeys(
+                    t.tool_type for t in tools_in_stage))
+                types_str = ", ".join(
+                    tool_types[:3]) if tool_types else "processing"
 
                 actions = [
                     workflow.tools[t].annotation.strip()
@@ -2428,14 +2542,16 @@ class LLMNarrativeGenerator:
             (
                 "DATA INGESTION",
                 "Source Ingestion & Extraction",
-                ("DbFileInput", "InputData", "TextInput", "DynamicInput", "Directory", "DateTimeNow"),
+                ("DbFileInput", "InputData", "TextInput",
+                 "DynamicInput", "Directory", "DateTimeNow"),
                 "Ingests source records from input datasets into the workflow.",
                 "Reads and validates raw input files for downstream processing.",
             ),
             (
                 "DATA PREPARATION",
                 "Data Cleansing & Filtering",
-                ("Filter", "Select", "AlteryxSelect", "AutoField", "DateTime", "Sample", "Unique"),
+                ("Filter", "Select", "AlteryxSelect",
+                 "AutoField", "DateTime", "Sample", "Unique"),
                 "Applies field selection, cleansing, and active record filtering.",
                 "Filters unneeded records and standardizes schemas.",
             ),
@@ -2449,14 +2565,16 @@ class LLMNarrativeGenerator:
             (
                 "DATA ENRICHMENT",
                 "Relational Enrichment & Joins",
-                ("Join", "JoinMultiple", "FindReplace", "Union", "AppendFields", "FuzzyMatch"),
+                ("Join", "JoinMultiple", "FindReplace",
+                 "Union", "AppendFields", "FuzzyMatch"),
                 "Integrates cross-dataset attributes using relational joins.",
                 "Combines disparate streams into enriched analytical records.",
             ),
             (
                 "METRIC AGGREGATION",
                 "Analytical Summarization & Aggregation",
-                ("Summarize", "CrossTab", "Transpose", "RunningTotal", "CountRecords"),
+                ("Summarize", "CrossTab", "Transpose",
+                 "RunningTotal", "CountRecords"),
                 "Aggregates metrics and pivots data for summary reporting.",
                 "Computes group summary totals and structural pivots.",
             ),
@@ -2480,7 +2598,8 @@ class LLMNarrativeGenerator:
         stages: list[BusinessStage] = []
         stage_num = 1
         for cat_tag, stage_title, matching_types, default_desc, default_purpose in group_specs:
-            t_ids = [tid for tid in ordered_tids if tid in workflow.tools and workflow.tools[tid].tool_type in matching_types and tid not in assigned]
+            t_ids = [tid for tid in ordered_tids if tid in workflow.tools and workflow.tools[tid]
+                     .tool_type in matching_types and tid not in assigned]
             if not t_ids:
                 continue
             assigned.update(t_ids)
@@ -2489,7 +2608,8 @@ class LLMNarrativeGenerator:
                 workflow.tools[t].tool_type for t in t_ids if t in workflow.tools
             ))
             types_str = ", ".join(tool_types_in_group[:4])
-            annotations = [workflow.tools[t].annotation.strip() for t in t_ids if workflow.tools.get(t) and workflow.tools[t].annotation and len(workflow.tools[t].annotation.strip()) > 3]
+            annotations = [workflow.tools[t].annotation.strip() for t in t_ids if workflow.tools.get(
+                t) and workflow.tools[t].annotation and len(workflow.tools[t].annotation.strip()) > 3]
             specific_name = stage_title
             if len(t_ids) == 1 and annotations:
                 specific_name = annotations[0]
@@ -2511,12 +2631,14 @@ class LLMNarrativeGenerator:
                     tool_ids=t_ids,
                     tool_count=len(t_ids),
                     annotations=annotations[:4],
-                    transformations=[f"{workflow.tools[t].tool_type}: {workflow.tools[t].annotation or 'Processes data'}" for t in t_ids if workflow.tools.get(t)],
+                    transformations=[
+                        f"{workflow.tools[t].tool_type}: {workflow.tools[t].annotation or 'Processes data'}" for t in t_ids if workflow.tools.get(t)],
                 )
             )
             stage_num += 1
 
-        remaining = [tid for tid in ordered_tids if tid in workflow.tools and tid not in assigned]
+        remaining = [
+            tid for tid in ordered_tids if tid in workflow.tools and tid not in assigned]
         if remaining:
             if stages:
                 stages[-1].tool_ids.extend(remaining)
@@ -2547,7 +2669,7 @@ class LLMNarrativeGenerator:
         workflow_id: str = "",
     ) -> STTMDocument:
         """Generate structured, validated Source-to-Target Mapping (STTM).
-        
+
         Enforces Mapping Authority Invariant:
         1. Builds comprehensive deterministic evidence context from canonical workflow & DAG.
         2. Checks LLM cache.
@@ -2558,16 +2680,18 @@ class LLMNarrativeGenerator:
         7. Falls back to deterministic extraction if LLM times out, fails, or produces invalid output.
         """
         if graph is None:
-            from awa.graph.builder import build_graph
+            from backend.awa.graph.builder import build_graph
             graph = build_graph(workflow)
 
         # 1. Deterministic evidence context & baseline
-        evidence_context = build_sttm_evidence_context(workflow, graph, business_summary)
+        evidence_context = build_sttm_evidence_context(
+            workflow, graph, business_summary)
         deterministic_baseline: STTMDocument = evidence_context["deterministic_baseline"]
 
         # If LLM client is unavailable or disabled, immediately return deterministic baseline
         if not self.client.is_available:
-            logger.info("[LLM STTM] Client unavailable or disabled — using deterministic baseline.")
+            logger.info(
+                "[LLM STTM] Client unavailable or disabled — using deterministic baseline.")
             return deterministic_baseline
 
         validator = STTMValidator(evidence_context, graph)
@@ -2600,25 +2724,30 @@ class LLMNarrativeGenerator:
         system_prompt = STTM_SYSTEM_PROMPT
         user_prompt = build_sttm_user_prompt(evidence_context)
         try:
-            raw_response = self.client.generate(system_prompt, user_prompt, max_tokens=2500)
+            raw_response = self.client.generate(
+                system_prompt, user_prompt, max_tokens=2500)
         except Exception as e:
-            logger.warning("[LLM STTM] Client exception: %s — falling back to deterministic baseline.", e)
+            logger.warning(
+                "[LLM STTM] Client exception: %s — falling back to deterministic baseline.", e)
             return deterministic_baseline
 
         llm_items = self._parse_sttm_json(raw_response)
         if llm_items is None:
-            logger.warning("[LLM STTM] Generation failed or malformed JSON — falling back to deterministic baseline.")
+            logger.warning(
+                "[LLM STTM] Generation failed or malformed JSON — falling back to deterministic baseline.")
             return deterministic_baseline
 
         # 4. Validate & Reconcile
-        sttm_doc = validator.reconcile_and_build_document(llm_items, workflow.metadata.name or "Workflow")
+        sttm_doc = validator.reconcile_and_build_document(
+            llm_items, workflow.metadata.name or "Workflow")
 
         # 5. Store in cache on success
         import json
         self._cache.set(
             cache_key,
             NarrativeResult(
-                text=json.dumps({"workflow_name": sttm_doc.workflow_name, "mappings": [m.to_dict() for m in sttm_doc.mappings]}),
+                text=json.dumps({"workflow_name": sttm_doc.workflow_name, "mappings": [
+                                m.to_dict() for m in sttm_doc.mappings]}),
                 source="llm",
                 model=self.client.model_name,
                 prompt_version=STTM_PROMPT_VERSION,
@@ -2632,7 +2761,8 @@ class LLMNarrativeGenerator:
         if not raw_text or not raw_text.strip():
             return None
 
-        data, mode, error = extract_and_parse_json(raw_text, expected_type=(dict, list))
+        data, mode, error = extract_and_parse_json(
+            raw_text, expected_type=(dict, list))
         if data is None:
             logger.warning("[LLM STTM] Failed to extract JSON: %s", error)
             return None
@@ -2645,7 +2775,6 @@ class LLMNarrativeGenerator:
             return [m for m in data if isinstance(m, dict)]
 
         return None
-
 
 
 _global_generator: LLMNarrativeGenerator | None = None

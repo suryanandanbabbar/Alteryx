@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from awa.model.diagnostic import SupportLevel
-from awa.tools.categories import ToolCategory
-from awa.tools.definition import ToolDefinition
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.tools.categories import ToolCategory
+from backend.awa.tools.definition import ToolDefinition
 
 PREPARATION_TOOLS: tuple[ToolDefinition, ...] = (
     # 7. Auto Field
@@ -57,7 +57,8 @@ PREPARATION_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name="extract_data_cleansing_config",
         input_anchors=("Input",),
         output_anchors=("Output",),
-        aliases=("DataCleansing", "AlteryxBasePluginsGui.DataCleansing.DataCleansing"),
+        aliases=("DataCleansing",
+                 "AlteryxBasePluginsGui.DataCleansing.DataCleansing"),
         description="Cleanses fields by removing null values, leading/trailing whitespace, and modifying text casing.",
         visual_category="cleansing",
     ),
@@ -309,7 +310,8 @@ PREPARATION_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=("Input",),
         output_anchors=("Output",),
-        aliases=("AlteryxBasePluginsGui.RandomSampleSize.RandomSampleSize", "RandomSampleSize"),
+        aliases=(
+            "AlteryxBasePluginsGui.RandomSampleSize.RandomSampleSize", "RandomSampleSize"),
         description="Draws an unbiased pseudo-random percentage sample of rows from the data stream.",
         visual_category="reshape",
     ),
@@ -327,7 +329,8 @@ PREPARATION_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=("Input",),
         output_anchors=("Estimation", "Validation", "Holdout"),
-        aliases=("AlteryxBasePluginsGui.CreateSamples.CreateSamples", "CreateSamples"),
+        aliases=("AlteryxBasePluginsGui.CreateSamples.CreateSamples",
+                 "CreateSamples"),
         description="Partitions data stream into Estimation, Validation, and Holdout samples for modeling.",
         visual_category="reshape",
     ),
@@ -345,7 +348,8 @@ PREPARATION_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=("Input",),
         output_anchors=("Output",),
-        aliases=("AlteryxBasePluginsGui.MultiFieldBinning.MultiFieldBinning", "MultiFieldBinning"),
+        aliases=("AlteryxBasePluginsGui.MultiFieldBinning.MultiFieldBinning",
+                 "MultiFieldBinning"),
         description="Groups continuous numerical columns into discrete bins or quantiles.",
         visual_category="transform",
     ),

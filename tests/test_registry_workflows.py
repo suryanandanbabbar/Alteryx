@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 import pytest
 
-from awa.analysis.workflow_analyzer import analyze_workflow, analyze_canonical
-from awa.model.diagnostic import SupportLevel
+from backend.awa.analysis.workflow_analyzer import analyze_workflow, analyze_canonical
+from backend.awa.model.diagnostic import SupportLevel
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
@@ -69,7 +69,8 @@ class TestRegistryWorkflows:
 
         assert len(res.workflow.tools) == 5
         # Verify BrowseV2 and BlockUntilDone are PASS_THROUGH
-        browse_tr = [tr for tr in res.translations.values() if tr.tool_type in ("Browse", "BrowseV2")][0]
+        browse_tr = [tr for tr in res.translations.values(
+        ) if tr.tool_type in ("Browse", "BrowseV2")][0]
         assert browse_tr.support_level == SupportLevel.PASS_THROUGH
 
         with open(out_dir / "workflow.py") as f:

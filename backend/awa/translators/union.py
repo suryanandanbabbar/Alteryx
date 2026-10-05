@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import SupportLevel
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import SupportLevel
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin

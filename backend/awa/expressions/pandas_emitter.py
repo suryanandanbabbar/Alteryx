@@ -332,7 +332,8 @@ class PandasEmitter(Transformer):
             return "pd.Timestamp.now()"
         if func_lower == "datetimediff":
             self._imports.add("import pandas as pd")
-            unit = str(args[2]).strip("\"'").lower() if len(args) > 2 else "days"
+            unit = str(args[2]).strip(
+                "\"'").lower() if len(args) > 2 else "days"
             d1 = f"pd.to_datetime({args[0]})"
             d2 = f"pd.to_datetime({args[1]})"
             if unit in ("days", "d", "day"):
@@ -352,8 +353,10 @@ class PandasEmitter(Transformer):
         if func_lower == "datetimeadd":
             self._imports.add("import pandas as pd")
             amt = args[1] if len(args) > 1 else "0"
-            unit = str(args[2]).strip("\"'").lower() if len(args) > 2 else "days"
-            unit_map = {"days": "D", "hours": "h", "minutes": "m", "seconds": "s"}
+            unit = str(args[2]).strip(
+                "\"'").lower() if len(args) > 2 else "days"
+            unit_map = {"days": "D", "hours": "h",
+                        "minutes": "m", "seconds": "s"}
             pd_unit = unit_map.get(unit, "D")
             return f"(pd.to_datetime({args[0]}) + pd.to_timedelta({amt}, unit='{pd_unit}'))"
         if func_lower == "datetimeformat":
@@ -367,7 +370,8 @@ class PandasEmitter(Transformer):
 
         # Unknown function — safe valid Python fallback without inline comments that break syntax inside expressions
         args_str = ", ".join(str(a) for a in args)
-        self._diagnostics.append(f"Unsupported Alteryx function: {func_name}({args_str})")
+        self._diagnostics.append(
+            f"Unsupported Alteryx function: {func_name}({args_str})")
         return "None"
 
     def func_args(self, children):
@@ -390,7 +394,7 @@ def emit_pandas(expression: str, df_var: str = "df") -> tuple[str, set[str]]:
     Raises:
         lark.exceptions.LarkError: If the expression cannot be parsed.
     """
-    from awa.expressions.parser import parse_expression
+    from backend.awa.expressions.parser import parse_expression
 
     tree = parse_expression(expression)
     emitter = PandasEmitter(df_var=df_var)

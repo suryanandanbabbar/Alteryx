@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from awa.model.diagnostic import SupportLevel
-from awa.tools.categories import ToolCategory
-from awa.tools.definition import ToolDefinition
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.tools.categories import ToolCategory
+from backend.awa.tools.definition import ToolDefinition
 
 TRANSFORM_TOOLS: tuple[ToolDefinition, ...] = (
     # 37. Arrange
@@ -39,7 +39,8 @@ TRANSFORM_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=("Input",),
         output_anchors=("Output",),
-        aliases=("AlteryxBasePluginsGui.CountRecords.CountRecords", "CountRecords"),
+        aliases=("AlteryxBasePluginsGui.CountRecords.CountRecords",
+                 "CountRecords"),
         description="Returns a single row with the exact count of records passing through the stream.",
         visual_category="aggregate",
     ),

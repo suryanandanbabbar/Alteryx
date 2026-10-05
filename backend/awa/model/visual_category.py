@@ -87,9 +87,10 @@ def get_visual_category(tool_type: str) -> str:
         return TOOL_VISUAL_CATEGORIES[tool_type]
 
     try:
-        from awa.tools.catalog import get_tool_catalog
+        from backend.awa.tools.catalog import get_tool_catalog
         catalog = get_tool_catalog()
-        tool_def = catalog.get(tool_type) or catalog.get_by_display_name(tool_type)
+        tool_def = catalog.get(
+            tool_type) or catalog.get_by_display_name(tool_type)
         if tool_def:
             return tool_def.get_visual_category()
     except Exception:

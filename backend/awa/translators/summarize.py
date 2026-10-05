@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -47,7 +47,8 @@ class SummarizeTranslator(ToolTranslator):
         group_by_renames: dict[str, str] = {}
         agg_specs: list[tuple[str, str, str]] = []
 
-        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+        upstream_schema = getattr(
+            workflow, "_stream_schemas", {}).get(input_var)
         if upstream_schema is not None:
             for sf in summarize_fields:
                 field = sf.get("field", "")
@@ -83,7 +84,8 @@ class SummarizeTranslator(ToolTranslator):
             code = f"{output_var} = {input_var}.copy()"
             desc = "Summarize (empty)"
         elif group_by_cols and agg_specs:
-            agg_entries = ", ".join(f'{repr(out_col)}: ({repr(in_col)}, {repr(func)})' for out_col, in_col, func in agg_specs)
+            agg_entries = ", ".join(
+                f'{repr(out_col)}: ({repr(in_col)}, {repr(func)})' for out_col, in_col, func in agg_specs)
             grp_repr = repr(group_by_cols)
             code = f"{output_var} = {input_var}.groupby({grp_repr}, as_index=False).agg(**{{{agg_entries}}}){rename_suffix}"
             desc = f"Summarize: Group by {group_by_cols} with {len(agg_specs)} aggregation(s)"
@@ -92,7 +94,8 @@ class SummarizeTranslator(ToolTranslator):
             code = f"{output_var} = {input_var}[{grp_repr}].drop_duplicates().reset_index(drop=True){rename_suffix}"
             desc = f"Summarize: Distinct on {group_by_cols}"
         elif not group_by_cols and agg_specs:
-            dict_entries = ", ".join(f'{repr(out_col)}: [{input_var}[{repr(in_col)}].{func}()]' for out_col, in_col, func in agg_specs)
+            dict_entries = ", ".join(
+                f'{repr(out_col)}: [{input_var}[{repr(in_col)}].{func}()]' for out_col, in_col, func in agg_specs)
             code = f"{output_var} = pd.DataFrame({{{dict_entries}}})"
             desc = f"Summarize: Global aggregation ({len(agg_specs)} metric(s))"
         else:
@@ -155,14 +158,18 @@ class RunningTotalTranslator(ToolTranslator):
 # Registrations
 register_type("Summarize", SummarizeTranslator)
 register_type("SummarizeTranslator", SummarizeTranslator)
-register_plugin("AlteryxSpatialPluginsGui.Summarize.Summarize", SummarizeTranslator)
-register_plugin("AlteryxBasePluginsGui.Summarize.Summarize", SummarizeTranslator)
+register_plugin("AlteryxSpatialPluginsGui.Summarize.Summarize",
+                SummarizeTranslator)
+register_plugin("AlteryxBasePluginsGui.Summarize.Summarize",
+                SummarizeTranslator)
 
 register_type("CountRecords", CountRecordsTranslator)
 register_type("CountRecordsTranslator", CountRecordsTranslator)
 register_plugin("CountRecords.yxmc", CountRecordsTranslator)
-register_plugin("AlteryxBasePluginsGui.CountRecords.CountRecords", CountRecordsTranslator)
+register_plugin("AlteryxBasePluginsGui.CountRecords.CountRecords",
+                CountRecordsTranslator)
 
 register_type("RunningTotal", RunningTotalTranslator)
 register_type("RunningTotalTranslator", RunningTotalTranslator)
-register_plugin("AlteryxBasePluginsGui.RunningTotal.RunningTotal", RunningTotalTranslator)
+register_plugin("AlteryxBasePluginsGui.RunningTotal.RunningTotal",
+                RunningTotalTranslator)

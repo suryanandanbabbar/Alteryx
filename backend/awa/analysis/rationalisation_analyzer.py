@@ -27,8 +27,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.portfolio import (
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.portfolio import (
     ColumnEvidence,
     ConsolidationDecision,
     DataSubsumptionEvidence,
@@ -43,9 +43,9 @@ from awa.model.portfolio import (
     WorkflowComparisonEvidence,
     WorkflowFingerprint,
 )
-from awa.llm.cache import compute_cache_key
-from awa.llm.generator import LLMNarrativeGenerator, get_default_generator
-from awa.llm.schemas import NarrativeResult
+from backend.awa.llm.cache import compute_cache_key
+from backend.awa.llm.generator import LLMNarrativeGenerator, get_default_generator
+from backend.awa.llm.schemas import NarrativeResult
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,8 @@ def normalize_name(name: str) -> str:
     clean = str(name).replace("\\", "/").strip()
     clean = Path(clean).name.strip().lower()
     # Remove file extension and extraneous symbols
-    clean = re.sub(r"\.(xlsx|xls|csv|yxdb|tde|hyper|avro|parquet|json)$", "", clean)
+    clean = re.sub(
+        r"\.(xlsx|xls|csv|yxdb|tde|hyper|avro|parquet|json)$", "", clean)
     clean = re.sub(r"[^a-z0-9_]", "_", clean)
     return re.sub(r"_+", "_", clean).strip("_")
 
@@ -242,8 +243,10 @@ def extract_workflow_column_and_data_evidence(
     for tid, tool in sorted(wf.tools.items(), key=lambda x: str(x[0])):
         ttype = tool.tool_type
         cfg = tool.configuration
-        raw_xml = cfg.raw_xml if (cfg and hasattr(cfg, "raw_xml") and isinstance(cfg.raw_xml, str)) else ""
-        parsed_dict = cfg.parsed if (cfg and hasattr(cfg, "parsed") and isinstance(cfg.parsed, dict)) else {}
+        raw_xml = cfg.raw_xml if (cfg and hasattr(
+            cfg, "raw_xml") and isinstance(cfg.raw_xml, str)) else ""
+        parsed_dict = cfg.parsed if (cfg and hasattr(
+            cfg, "parsed") and isinstance(cfg.parsed, dict)) else {}
 
         root = None
         if raw_xml:
@@ -263,7 +266,8 @@ def extract_workflow_column_and_data_evidence(
                         canonical_columns[norm] = ColumnEvidence(
                             original_name=fname,
                             normalized_name=norm,
-                            source_dataset=biz_inp_map.get(str(tid), tool.name or f"{ttype} (Tool #{tid})"),
+                            source_dataset=biz_inp_map.get(
+                                str(tid), tool.name or f"{ttype} (Tool #{tid})"),
                             source_tool_id=str(tid),
                             source_tool_type=ttype,
                             provenance=f"RecordInfo: {ttype} (Tool #{tid})",
@@ -274,7 +278,8 @@ def extract_workflow_column_and_data_evidence(
         if ttype == "TextInput":
             declared_fields = []
             if root is not None:
-                declared_fields = [f.get("name") for f in root.findall(".//Fields/Field") if f.get("name")]
+                declared_fields = [f.get("name") for f in root.findall(
+                    ".//Fields/Field") if f.get("name")]
             if not declared_fields:
                 declared_fields = parsed_dict.get("fields", [])
 
@@ -301,12 +306,14 @@ def extract_workflow_column_and_data_evidence(
                         best_count = cnt
                         best_delim = d
                 if best_delim and best_count >= 1:
-                    tokens = [t.strip() for t in r0_text.split(best_delim) if t.strip()]
+                    tokens = [t.strip()
+                              for t in r0_text.split(best_delim) if t.strip()]
                     if len(tokens) > 1 and all(re.match(r'^[A-Za-z0-9_\s\.\-]+$', t) and not re.match(r'^\d+(\.\d+)?$', t) for t in tokens):
                         effective_field_names = tokens
                         for r in rows[1:]:
                             if r and r[0]:
-                                data_rows.append([c.strip() for c in r[0].split(best_delim)])
+                                data_rows.append([c.strip()
+                                                 for c in r[0].split(best_delim)])
 
             # Check if multi-column rows where declared fields are generic (Field_1) and row 0 has header names
             if not effective_field_names and rows and len(rows[0]) > 1:
@@ -321,7 +328,8 @@ def extract_workflow_column_and_data_evidence(
 
             # Standard declared fields
             if not effective_field_names:
-                effective_field_names = [f for f in declared_fields if f and f != "*Unknown"]
+                effective_field_names = [
+                    f for f in declared_fields if f and f != "*Unknown"]
                 data_rows = rows
 
             for idx, f_name in enumerate(effective_field_names):
@@ -344,7 +352,8 @@ def extract_workflow_column_and_data_evidence(
                 col_ev = ColumnEvidence(
                     original_name=f_name,
                     normalized_name=norm,
-                    source_dataset=biz_inp_map.get(str(tid), tool.name or f"Source Input #{tid}"),
+                    source_dataset=biz_inp_map.get(
+                        str(tid), tool.name or f"Source Input #{tid}"),
                     source_tool_id=str(tid),
                     source_tool_type=ttype,
                     provenance=f"TextInput #{tid} embedded data",
@@ -364,7 +373,8 @@ def extract_workflow_column_and_data_evidence(
                     col_ev = ColumnEvidence(
                         original_name=f_name,
                         normalized_name=norm,
-                        source_dataset=biz_inp_map.get(str(tid), tool.name or f"Source Input #{tid}"),
+                        source_dataset=biz_inp_map.get(
+                            str(tid), tool.name or f"Source Input #{tid}"),
                         source_tool_id=str(tid),
                         source_tool_type=ttype,
                         provenance=f"RecordInfo: {f_source or tool.name or 'Configured Stream'} (Tool #{tid})",
@@ -384,12 +394,14 @@ def extract_workflow_column_and_data_evidence(
                     if sf_sel.lower() != "false":
                         available_columns.add(norm_fld)
                         if sf_fld.startswith("Left_") or sf_fld.startswith("Right_"):
-                            available_columns.add(normalize_field_name(sf_fld[5:]))
+                            available_columns.add(
+                                normalize_field_name(sf_fld[5:]))
                         if sf_ren and sf_ren != "*Unknown":
                             norm_ren = normalize_field_name(sf_ren)
                             available_columns.add(norm_ren)
                             if sf_ren.startswith("Left_") or sf_ren.startswith("Right_"):
-                                available_columns.add(normalize_field_name(sf_ren[5:]))
+                                available_columns.add(
+                                    normalize_field_name(sf_ren[5:]))
                             col_ev = ColumnEvidence(
                                 original_name=sf_ren,
                                 normalized_name=norm_ren,
@@ -405,10 +417,13 @@ def extract_workflow_column_and_data_evidence(
         formula_fields = parsed_dict.get("formula_fields", [])
         if not formula_fields and root is not None:
             for ff in root.findall(".//FormulaField"):
-                formula_fields.append({"field": ff.get("field"), "expression": ff.get("expression")})
+                formula_fields.append(
+                    {"field": ff.get("field"), "expression": ff.get("expression")})
         for ff in formula_fields:
-            fn = ff.get("field") if isinstance(ff, dict) else getattr(ff, "field_name", "")
-            expr = ff.get("expression") if isinstance(ff, dict) else getattr(ff, "expression", "")
+            fn = ff.get("field") if isinstance(
+                ff, dict) else getattr(ff, "field_name", "")
+            expr = ff.get("expression") if isinstance(
+                ff, dict) else getattr(ff, "expression", "")
             if fn and fn != "*Unknown":
                 norm = normalize_field_name(fn)
                 col_ev = ColumnEvidence(
@@ -450,7 +465,8 @@ def extract_workflow_column_and_data_evidence(
         # E. Unique (<UniqueFields><Field field="..." /></UniqueFields>)
         unique_fields = parsed_dict.get("unique_fields", [])
         if not unique_fields and root is not None:
-            unique_fields = [f.get("field") for f in root.findall(".//UniqueFields/Field") if f.get("field")]
+            unique_fields = [f.get("field") for f in root.findall(
+                ".//UniqueFields/Field") if f.get("field")]
         if unique_fields:
             for uf in unique_fields:
                 norm = normalize_field_name(uf)
@@ -486,15 +502,19 @@ def extract_workflow_column_and_data_evidence(
         # G. Join
         join_fields = parsed_dict.get("join_fields", [])
         if not join_fields and root is not None:
-            left_flds = [f.get("field") for f in root.findall(".//JoinInfo[@connection='Left']/Field") if f.get("field")]
-            right_flds = [f.get("field") for f in root.findall(".//JoinInfo[@connection='Right']/Field") if f.get("field")]
+            left_flds = [f.get("field") for f in root.findall(
+                ".//JoinInfo[@connection='Left']/Field") if f.get("field")]
+            right_flds = [f.get("field") for f in root.findall(
+                ".//JoinInfo[@connection='Right']/Field") if f.get("field")]
             for lf, rf in zip(left_flds, right_flds):
                 join_fields.append({"left": lf, "right": rf})
         if join_fields:
             jk_desc = []
             for jf in join_fields:
-                l = jf.get("left") if isinstance(jf, dict) else getattr(jf, "left", "")
-                r = jf.get("right") if isinstance(jf, dict) else getattr(jf, "right", "")
+                l = jf.get("left") if isinstance(
+                    jf, dict) else getattr(jf, "left", "")
+                r = jf.get("right") if isinstance(
+                    jf, dict) else getattr(jf, "right", "")
                 if l:
                     norm_l = normalize_field_name(l)
                     required_columns.add(norm_l)
@@ -521,7 +541,8 @@ def extract_workflow_column_and_data_evidence(
                             provenance=f"Join key Right: {r} (Tool #{tid})",
                             is_required=True,
                         )
-                if l and r: jk_desc.append(f"{l}={r}")
+                if l and r:
+                    jk_desc.append(f"{l}={r}")
             jk_str = ", ".join(jk_desc)
             operations_summary.append({
                 "tool_id": str(tid),
@@ -534,11 +555,13 @@ def extract_workflow_column_and_data_evidence(
         sum_fields = parsed_dict.get("summarize_fields", [])
         if sum_fields:
             for sf in sum_fields:
-                fld = sf.get("field") if isinstance(sf, dict) else getattr(sf, "field", "")
+                fld = sf.get("field") if isinstance(
+                    sf, dict) else getattr(sf, "field", "")
                 if fld:
                     norm = normalize_field_name(fld)
                     required_columns.add(norm)
-                ren = sf.get("rename") if isinstance(sf, dict) else getattr(sf, "rename", "")
+                ren = sf.get("rename") if isinstance(
+                    sf, dict) else getattr(sf, "rename", "")
                 if ren:
                     available_columns.add(normalize_field_name(ren))
             operations_summary.append({
@@ -553,7 +576,8 @@ def extract_workflow_column_and_data_evidence(
             expr = parsed_dict.get("expression") or ""
             if root is not None and not expr:
                 expr = root.findtext(".//Expression") or ""
-            simple_fld = root.findtext(".//Simple/Field") if root is not None else None
+            simple_fld = root.findtext(
+                ".//Simple/Field") if root is not None else None
             if simple_fld:
                 norm_sf = normalize_field_name(simple_fld)
                 required_columns.add(norm_sf)
@@ -593,7 +617,8 @@ def extract_workflow_column_and_data_evidence(
         # J. Sort
         sort_fields = parsed_dict.get("sort_fields", [])
         if sort_fields:
-            sf_names = [sf.get("field") for sf in sort_fields if isinstance(sf, dict) and sf.get("field")]
+            sf_names = [sf.get("field") for sf in sort_fields if isinstance(
+                sf, dict) and sf.get("field")]
             for sfn in sf_names:
                 required_columns.add(normalize_field_name(sfn))
             operations_summary.append({
@@ -658,7 +683,8 @@ def build_workflow_fingerprint(
     if lineage_attr and hasattr(lineage_attr, "source_fields"):
         for src, fields in lineage_attr.source_fields.items():
             norm_src = normalize_name(src)
-            clean_flds = [getattr(f, "name", str(f)) for f in fields if getattr(f, "name", str(f)) and getattr(f, "name", str(f)) != "*Unknown"]
+            clean_flds = [getattr(f, "name", str(f)) for f in fields if getattr(
+                f, "name", str(f)) and getattr(f, "name", str(f)) != "*Unknown"]
             if clean_flds:
                 source_fields[norm_src] = sorted(clean_flds)
 
@@ -675,13 +701,15 @@ def build_workflow_fingerprint(
 
     clean_sinks = [normalize_name(s) for s in summary.inspection_sinks if s]
 
-    target_keys = list(set(clean_targets + raw_targets_list)) if (clean_targets or raw_targets_list) else (clean_sinks if clean_sinks else ["outputs"])
+    target_keys = list(set(clean_targets + raw_targets_list)) if (
+        clean_targets or raw_targets_list) else (clean_sinks if clean_sinks else ["outputs"])
 
     # Output schemas & fields from STTM, lineage_paths, or output_schema
     output_schemas: dict[str, list[str]] = {}
     schema_attr = getattr(canonical_res, "output_schema", None)
     if schema_attr and hasattr(schema_attr, "fields"):
-        fnames = [getattr(f, "name", str(f)) for f in schema_attr.fields if getattr(f, "name", str(f)) and getattr(f, "name", str(f)) != "*Unknown"]
+        fnames = [getattr(f, "name", str(f)) for f in schema_attr.fields if getattr(
+            f, "name", str(f)) and getattr(f, "name", str(f)) != "*Unknown"]
         for t in target_keys:
             output_schemas[t] = sorted(list(set(fnames)))
 
@@ -726,9 +754,11 @@ def build_workflow_fingerprint(
     output_grain: list[str] = []
     for tool in wf.tools.values():
         if tool.tool_type == "Summarize" and tool.configuration:
-            cfg_xml = tool.configuration.raw_xml if hasattr(tool.configuration, "raw_xml") else ""
+            cfg_xml = tool.configuration.raw_xml if hasattr(
+                tool.configuration, "raw_xml") else ""
             if "action=\"groupby\"" in cfg_xml.lower():
-                matches = re.findall(r'field=["\']([^"\']+)["\']\s+action=["\']GroupBy["\']', cfg_xml, re.IGNORECASE)
+                matches = re.findall(
+                    r'field=["\']([^"\']+)["\']\s+action=["\']GroupBy["\']', cfg_xml, re.IGNORECASE)
                 for m in matches:
                     if m and m not in output_grain and m != "*Unknown":
                         output_grain.append(m.lower())
@@ -750,13 +780,16 @@ def build_workflow_fingerprint(
     for tool in wf.tools.values():
         ttype = tool.tool_type
         cfg = tool.configuration
-        parsed_dict = cfg.parsed if (cfg and hasattr(cfg, "parsed") and isinstance(cfg.parsed, dict)) else {}
-        raw_xml_str = cfg.raw_xml if (cfg and hasattr(cfg, "raw_xml") and isinstance(cfg.raw_xml, str)) else ""
+        parsed_dict = cfg.parsed if (cfg and hasattr(
+            cfg, "parsed") and isinstance(cfg.parsed, dict)) else {}
+        raw_xml_str = cfg.raw_xml if (cfg and hasattr(
+            cfg, "raw_xml") and isinstance(cfg.raw_xml, str)) else ""
 
         if ttype == "Filter":
             expr = str(parsed_dict.get("expression", "") or "")
             if not expr and "<expression>" in raw_xml_str.lower():
-                m_exp = re.search(r"<Expression[^>]*>(.*?)</Expression>", raw_xml_str, re.DOTALL | re.IGNORECASE)
+                m_exp = re.search(
+                    r"<Expression[^>]*>(.*?)</Expression>", raw_xml_str, re.DOTALL | re.IGNORECASE)
                 if m_exp:
                     expr = m_exp.group(1).strip()
             if expr:
@@ -767,25 +800,32 @@ def build_workflow_fingerprint(
                 transformation_signatures.append("Filter operation")
 
         elif ttype == "Join":
-            join_fields = getattr(cfg, "join_fields", []) or parsed_dict.get("join_fields", []) or []
+            join_fields = getattr(cfg, "join_fields", []) or parsed_dict.get(
+                "join_fields", []) or []
             jk = []
             if join_fields:
                 for jf in join_fields:
                     left = ""
                     right = ""
                     if isinstance(jf, dict):
-                        left = str(jf.get("left") or jf.get("left_field") or "").strip()
-                        right = str(jf.get("right") or jf.get("right_field") or "").strip()
+                        left = str(jf.get("left") or jf.get(
+                            "left_field") or "").strip()
+                        right = str(jf.get("right") or jf.get(
+                            "right_field") or "").strip()
                     elif hasattr(jf, "left") or hasattr(jf, "left_field"):
-                        left = str(getattr(jf, "left", "") or getattr(jf, "left_field", "")).strip()
-                        right = str(getattr(jf, "right", "") or getattr(jf, "right_field", "")).strip()
+                        left = str(getattr(jf, "left", "") or getattr(
+                            jf, "left_field", "")).strip()
+                        right = str(getattr(jf, "right", "") or getattr(
+                            jf, "right_field", "")).strip()
                     if left and right:
                         jk.append(f"{left}={right}")
                     elif left or right:
                         jk.append(left or right)
             elif "<joininfo" in raw_xml_str.lower():
-                lefts = re.findall(r'<JoinInfo\s+connection=["\']Left["\']>\s*<Field\s+field=["\']([^"\']+)["\']', raw_xml_str, re.IGNORECASE)
-                rights = re.findall(r'<JoinInfo\s+connection=["\']Right["\']>\s*<Field\s+field=["\']([^"\']+)["\']', raw_xml_str, re.IGNORECASE)
+                lefts = re.findall(
+                    r'<JoinInfo\s+connection=["\']Left["\']>\s*<Field\s+field=["\']([^"\']+)["\']', raw_xml_str, re.IGNORECASE)
+                rights = re.findall(
+                    r'<JoinInfo\s+connection=["\']Right["\']>\s*<Field\s+field=["\']([^"\']+)["\']', raw_xml_str, re.IGNORECASE)
                 for l, r in zip(lefts, rights):
                     l_clean = l.strip()
                     r_clean = r.strip()
@@ -799,12 +839,14 @@ def build_workflow_fingerprint(
             if valid_jk:
                 unique_jk = sorted(list(set(valid_jk)))
                 join_keys.extend(unique_jk)
-                transformation_signatures.append(f"Join on: {', '.join(unique_jk)}")
+                transformation_signatures.append(
+                    f"Join on: {', '.join(unique_jk)}")
             else:
                 transformation_signatures.append("Join operation")
 
         elif ttype == "Summarize":
-            sum_fields = getattr(cfg, "summarize_fields", []) or parsed_dict.get("summarize_fields", []) or []
+            sum_fields = getattr(cfg, "summarize_fields", []) or parsed_dict.get(
+                "summarize_fields", []) or []
             if not sum_fields and "<summarizefield" in raw_xml_str.lower():
                 matches = re.findall(
                     r'<SummarizeField\s+field=["\']([^"\']+)["\']\s+action=["\']([^"\']+)["\'](?:\s+rename=["\']([^"\']*)["\'])?',
@@ -812,9 +854,11 @@ def build_workflow_fingerprint(
                     re.IGNORECASE,
                 )
                 for fld, act, ren in matches:
-                    sum_fields.append({"field": fld, "action": act, "rename": ren or ""})
+                    sum_fields.append(
+                        {"field": fld, "action": act, "rename": ren or ""})
 
-            formatted_sum = format_summarize_fields(sum_fields) if sum_fields else ""
+            formatted_sum = format_summarize_fields(
+                sum_fields) if sum_fields else ""
             if formatted_sum:
                 aggregations.append(formatted_sum)
                 transformation_signatures.append(f"Summarize: {formatted_sum}")
@@ -822,11 +866,14 @@ def build_workflow_fingerprint(
                 transformation_signatures.append("Summarize operation")
 
         elif ttype in ("Formula", "MultiRowFormula"):
-            formula_fields = getattr(cfg, "formula_fields", []) or parsed_dict.get("formula_fields", []) or []
+            formula_fields = getattr(cfg, "formula_fields", []) or parsed_dict.get(
+                "formula_fields", []) or []
             found_f = False
             for ff in formula_fields:
-                f_name = getattr(ff, "field_name", "") or (ff.get("field_name", "") if isinstance(ff, dict) else "")
-                f_expr = getattr(ff, "expression", "") or (ff.get("expression", "") if isinstance(ff, dict) else "")
+                f_name = getattr(ff, "field_name", "") or (
+                    ff.get("field_name", "") if isinstance(ff, dict) else "")
+                f_expr = getattr(ff, "expression", "") or (
+                    ff.get("expression", "") if isinstance(ff, dict) else "")
                 f_name = str(f_name).strip()
                 f_expr = str(f_expr).strip()
                 if f_name or f_expr:
@@ -875,10 +922,12 @@ def build_workflow_fingerprint(
     # 5. DAG Topology
     import networkx as nx
     dag_attr = getattr(canonical_res, "dag", None)
-    g = getattr(canonical_res, "graph", None) or (getattr(dag_attr, "graph", None) if dag_attr else None) or nx.DiGraph()
+    g = getattr(canonical_res, "graph", None) or (
+        getattr(dag_attr, "graph", None) if dag_attr else None) or nx.DiGraph()
     node_count = g.number_of_nodes()
     edge_count = g.number_of_edges()
-    dag_depth = nx.dag_longest_path_length(g) if nx.is_directed_acyclic_graph(g) and len(g) > 0 else 0
+    dag_depth = nx.dag_longest_path_length(
+        g) if nx.is_directed_acyclic_graph(g) and len(g) > 0 else 0
     branch_points = sum(1 for n in g.nodes() if g.out_degree(n) > 1)
     merge_points = sum(1 for n in g.nodes() if g.in_degree(n) > 1)
 
@@ -900,7 +949,8 @@ def build_workflow_fingerprint(
     tool_id_to_fields: dict[str, list[str]] = {}
     for col_ev in canonical_columns.values():
         if col_ev.source_tool_id:
-            tool_id_to_fields.setdefault(str(col_ev.source_tool_id), []).append(col_ev.original_name)
+            tool_id_to_fields.setdefault(
+                str(col_ev.source_tool_id), []).append(col_ev.original_name)
         ds = col_ev.source_dataset or "sources"
         norm_ds = normalize_name(ds) or ds
         source_fields.setdefault(norm_ds, []).append(col_ev.original_name)
@@ -915,7 +965,8 @@ def build_workflow_fingerprint(
             tid = str(getattr(tool, "tool_id", ""))
             ttype = getattr(tool, "tool_type", "")
             is_input = (
-                ttype in ("DbFileInput", "FileInput", "TextInput", "Directory", "DynamicInput")
+                ttype in ("DbFileInput", "FileInput", "TextInput",
+                          "Directory", "DynamicInput")
                 or "input" in getattr(tool, "plugin", "").lower()
             )
             if is_input:
@@ -926,14 +977,16 @@ def build_workflow_fingerprint(
                         if fname and fname != "*Unknown" and fname not in flds_for_tool:
                             flds_for_tool.append(fname)
                 cfg = getattr(tool, "configuration", None)
-                parsed_dict = cfg.parsed if (cfg and hasattr(cfg, "parsed") and isinstance(cfg.parsed, dict)) else {}
+                parsed_dict = cfg.parsed if (cfg and hasattr(
+                    cfg, "parsed") and isinstance(cfg.parsed, dict)) else {}
                 for f in (parsed_dict.get("fields", []) + parsed_dict.get("clean_fields", [])):
                     if f and f != "*Unknown" and f not in flds_for_tool:
                         flds_for_tool.append(f)
                 tool_id_to_fields[tid] = flds_for_tool
 
     # Map tool fields to summary sources
-    raw_sources_list = [s for s in summary.sources if s and s != "*Unknown" and "unknown" not in s.lower()]
+    raw_sources_list = [s for s in summary.sources if s and s !=
+                        "*Unknown" and "unknown" not in s.lower()]
     for src_raw in raw_sources_list:
         norm_s = normalize_name(src_raw)
         src_fields_found: list[str] = []
@@ -968,7 +1021,8 @@ def build_workflow_fingerprint(
         s0 = raw_sources_list[0]
         norm_s0 = normalize_name(s0)
         if not source_fields.get(s0) and not source_fields.get(norm_s0):
-            all_canonical = [c.original_name for c in canonical_columns.values()]
+            all_canonical = [
+                c.original_name for c in canonical_columns.values()]
             if all_canonical:
                 source_fields[s0] = sorted(list(set(all_canonical)))
                 source_fields[norm_s0] = sorted(list(set(all_canonical)))
@@ -1012,7 +1066,8 @@ def build_workflow_fingerprint(
         criticality_level=summary.criticality_level or "LOW",
         criticality_score=summary.criticality_score or 0.0,
         frequency=summary.frequency or (
-            summary.factor_assessments.get("frequency", {}).get("display_value")
+            summary.factor_assessments.get(
+                "frequency", {}).get("display_value")
             if hasattr(summary, "factor_assessments") and isinstance(summary.factor_assessments, dict)
             else "Not documented"
         ) or "Not documented",
@@ -1046,8 +1101,10 @@ def compare_workflows(
 ) -> WorkflowComparisonEvidence:
     """Deterministically compare two workflow fingerprints across all evidence dimensions."""
     # 1. Exact Source Identity match
-    src_a = {normalize_name(s) for s in fp_a.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
-    src_b = {normalize_name(s) for s in fp_b.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
+    src_a = {normalize_name(s) for s in fp_a.sources if s and s !=
+             "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
+    src_b = {normalize_name(s) for s in fp_b.sources if s and s !=
+             "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
     shared_sources = sorted(list(src_a & src_b))
 
     # Field-level Source Metadata match (from canonical columns, available columns, required columns, and source fields)
@@ -1093,8 +1150,10 @@ def compare_workflows(
         source_overlap = _jaccard_similarity(src_a, src_b)
 
     # 2. Production Target overlap
-    tgt_a = {normalize_name(t) for t in fp_a.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
-    tgt_b = {normalize_name(t) for t in fp_b.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
+    tgt_a = {normalize_name(t) for t in fp_a.production_targets if t and t !=
+             "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
+    tgt_b = {normalize_name(t) for t in fp_b.production_targets if t and t !=
+             "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
     target_id_overlap = _jaccard_similarity(tgt_a, tgt_b)
     shared_targets = sorted(list(tgt_a & tgt_b))
     distinct_targets_a = sorted(list(tgt_a - tgt_b))
@@ -1116,7 +1175,8 @@ def compare_workflows(
 
     if all_cols_a and all_cols_b:
         schema_similarity = _jaccard_similarity(all_cols_a, all_cols_b)
-        schema_diffs = sorted(list((all_cols_a - all_cols_b) | (all_cols_b - all_cols_a)))
+        schema_diffs = sorted(
+            list((all_cols_a - all_cols_b) | (all_cols_b - all_cols_a)))
         target_overlap = max(target_id_overlap, schema_similarity)
     elif not all_cols_a and not all_cols_b:
         if target_id_overlap > 0.0:
@@ -1125,7 +1185,8 @@ def compare_workflows(
             target_overlap = target_id_overlap
         else:
             schema_similarity = 0.0
-            schema_diffs = ["Output schema metadata not determinable from workflow definitions"]
+            schema_diffs = [
+                "Output schema metadata not determinable from workflow definitions"]
             target_overlap = 0.0
     else:
         if target_id_overlap > 0.0:
@@ -1151,7 +1212,8 @@ def compare_workflows(
         grain_diffs = sorted(list((grain_a - grain_b) | (grain_b - grain_a)))
 
     # 5. Tool type similarity
-    tool_type_similarity = _jaccard_similarity(set(fp_a.tool_types), set(fp_b.tool_types))
+    tool_type_similarity = _jaccard_similarity(
+        set(fp_a.tool_types), set(fp_b.tool_types))
 
     # 6. Transformation similarity
     sig_a = set(fp_a.transformation_signatures)
@@ -1159,9 +1221,12 @@ def compare_workflows(
     transformation_similarity = _jaccard_similarity(sig_a, sig_b)
 
     # Exclude generic tool-presence markers from shared logic and unique functionality
-    shared_logic = sorted([s for s in (sig_a & sig_b) if is_meaningful_evidence(s)])
-    unique_a = sorted([s for s in (sig_a - sig_b) if is_meaningful_evidence(s)])
-    unique_b = sorted([s for s in (sig_b - sig_a) if is_meaningful_evidence(s)])
+    shared_logic = sorted(
+        [s for s in (sig_a & sig_b) if is_meaningful_evidence(s)])
+    unique_a = sorted([s for s in (sig_a - sig_b)
+                      if is_meaningful_evidence(s)])
+    unique_b = sorted([s for s in (sig_b - sig_a)
+                      if is_meaningful_evidence(s)])
 
     # Check join keys: deduplicate when join condition already represents the join key
     shared_joins = set(fp_a.join_keys) & set(fp_b.join_keys)
@@ -1216,9 +1281,11 @@ def compare_workflows(
         dep_status = "KNOWN"
         notes = []
         if consumers_a:
-            notes.append(f"{fp_a.workflow_name} consumed by: {', '.join(consumers_a)}")
+            notes.append(
+                f"{fp_a.workflow_name} consumed by: {', '.join(consumers_a)}")
         if consumers_b:
-            notes.append(f"{fp_b.workflow_name} consumed by: {', '.join(consumers_b)}")
+            notes.append(
+                f"{fp_b.workflow_name} consumed by: {', '.join(consumers_b)}")
         dep_notes = "; ".join(notes)
 
     dependency_evidence = DependencyEvidence(
@@ -1234,9 +1301,12 @@ def compare_workflows(
         dependency_notes=dep_notes,
     )
 
-    freq_a = (getattr(fp_a, "frequency", "Not documented") or "Not documented").strip()
-    freq_b = (getattr(fp_b, "frequency", "Not documented") or "Not documented").strip()
-    is_same_freq = bool(freq_a and freq_b and freq_a.lower() == freq_b.lower() and freq_a.lower() != "not documented")
+    freq_a = (getattr(fp_a, "frequency", "Not documented")
+              or "Not documented").strip()
+    freq_b = (getattr(fp_b, "frequency", "Not documented")
+              or "Not documented").strip()
+    is_same_freq = bool(freq_a and freq_b and freq_a.lower(
+    ) == freq_b.lower() and freq_a.lower() != "not documented")
     frequency_overlap = 1.0 if is_same_freq else 0.0
 
     metrics = DeterministicMetrics(
@@ -1331,7 +1401,8 @@ def evaluate_directional_data_subsumption(
             req_a_expanded.add(f[5:])
     req_a = req_a_expanded
 
-    avail_b = set(target_fp.available_columns) | set(target_fp.canonical_columns.keys())
+    avail_b = set(target_fp.available_columns) | set(
+        target_fp.canonical_columns.keys())
     for sf_list in target_fp.source_fields.values():
         for sf in sf_list:
             norm_sf = normalize_field_name(sf)
@@ -1351,11 +1422,15 @@ def evaluate_directional_data_subsumption(
     avail_b = avail_b_expanded
 
     # Check if target produces datasets consumed by source
-    norm_source_inputs = {normalize_name(s) for s in source_fp.sources if s and s != "*Unknown"}
-    norm_target_outputs = {normalize_name(t) for t in target_fp.production_targets if t and t != "*Unknown"}
-    norm_target_inputs = {normalize_name(s) for s in target_fp.sources if s and s != "*Unknown"}
+    norm_source_inputs = {normalize_name(
+        s) for s in source_fp.sources if s and s != "*Unknown"}
+    norm_target_outputs = {normalize_name(
+        t) for t in target_fp.production_targets if t and t != "*Unknown"}
+    norm_target_inputs = {normalize_name(
+        s) for s in target_fp.sources if s and s != "*Unknown"}
 
-    is_target_producing_source_inputs = bool(norm_source_inputs & norm_target_outputs)
+    is_target_producing_source_inputs = bool(
+        norm_source_inputs & norm_target_outputs)
 
     shared_required = sorted(list(req_a & avail_b))
     missing_fields = sorted(list(req_a - avail_b))
@@ -1583,11 +1658,14 @@ def evaluate_directional_data_subsumption(
     # 5. Unique Functionality Check
     unresolved_unique_details: list[str] = []
     if source_fp.has_python and not target_fp.has_python:
-        unresolved_unique_details.append(f"{source_fp.workflow_name} contains custom Python code not present in {target_fp.workflow_name}")
+        unresolved_unique_details.append(
+            f"{source_fp.workflow_name} contains custom Python code not present in {target_fp.workflow_name}")
     if source_fp.has_r and not target_fp.has_r:
-        unresolved_unique_details.append(f"{source_fp.workflow_name} contains R statistical scripts not present in {target_fp.workflow_name}")
+        unresolved_unique_details.append(
+            f"{source_fp.workflow_name} contains R statistical scripts not present in {target_fp.workflow_name}")
     if source_fp.has_macros and not target_fp.has_macros:
-        unresolved_unique_details.append(f"{source_fp.workflow_name} contains macro assets not present in {target_fp.workflow_name}")
+        unresolved_unique_details.append(
+            f"{source_fp.workflow_name} contains macro assets not present in {target_fp.workflow_name}")
 
     has_unresolved_unique = len(unresolved_unique_details) > 0
 
@@ -1657,13 +1735,17 @@ def evaluate_consolidation_rules(
     source_overlap_pct = comp.metrics.source_overlap
 
     # 1. Physical normalized sources (exclude *Unknown and empty)
-    src_a = {normalize_name(s) for s in fp_a.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
-    src_b = {normalize_name(s) for s in fp_b.sources if s and s != "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
+    src_a = {normalize_name(s) for s in fp_a.sources if s and s !=
+             "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
+    src_b = {normalize_name(s) for s in fp_b.sources if s and s !=
+             "*Unknown" and "unknown" not in s.lower() and normalize_name(s)}
     is_source_100_pct = bool(src_a and src_b and src_a == src_b)
 
     # 2. Physical normalized targets (exclude *Unknown and empty)
-    tgt_a = {normalize_name(t) for t in fp_a.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
-    tgt_b = {normalize_name(t) for t in fp_b.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
+    tgt_a = {normalize_name(t) for t in fp_a.production_targets if t and t !=
+             "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
+    tgt_b = {normalize_name(t) for t in fp_b.production_targets if t and t !=
+             "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
     different_outputs = bool((tgt_a != tgt_b) and (tgt_a or tgt_b))
     if tgt_a and tgt_b and tgt_a == tgt_b:
         output_rel = "IDENTICAL"
@@ -1678,12 +1760,16 @@ def evaluate_consolidation_rules(
     comp_a = (getattr(fp_a, "complexity_level", "LOW") or "LOW").upper()
     comp_b = (getattr(fp_b, "complexity_level", "LOW") or "LOW").upper()
     has_low_complexity = (comp_a == "LOW" or comp_b == "LOW")
-    both_medium_or_high = (comp_a in ("MEDIUM", "HIGH") and comp_b in ("MEDIUM", "HIGH"))
+    both_medium_or_high = (comp_a in ("MEDIUM", "HIGH")
+                           and comp_b in ("MEDIUM", "HIGH"))
 
     # 4. Frequency
-    freq_a = (getattr(fp_a, "frequency", "Not documented") or "Not documented").strip()
-    freq_b = (getattr(fp_b, "frequency", "Not documented") or "Not documented").strip()
-    is_same_frequency = bool(freq_a and freq_b and freq_a.lower() == freq_b.lower())
+    freq_a = (getattr(fp_a, "frequency", "Not documented")
+              or "Not documented").strip()
+    freq_b = (getattr(fp_b, "frequency", "Not documented")
+              or "Not documented").strip()
+    is_same_frequency = bool(
+        freq_a and freq_b and freq_a.lower() == freq_b.lower())
 
     # Build concise auditable evidence
     if is_source_100_pct:
@@ -1732,7 +1818,8 @@ def evaluate_consolidation_rules(
         )
 
     # STEP 3: Directional Data Subsumption Gates (>60% source overlap already verified)
-    subsumes_a_in_b, ev_a_in_b = evaluate_directional_data_subsumption(fp_a, fp_b, comp)
+    subsumes_a_in_b, ev_a_in_b = evaluate_directional_data_subsumption(
+        fp_a, fp_b, comp)
     if subsumes_a_in_b and ev_a_in_b is not None:
         subsumption_evidence = [
             f"Data Sufficiency: 100% field coverage ({len(ev_a_in_b.shared_required_fields)} shared required fields, 0 missing in {fp_b.workflow_name})",
@@ -1752,13 +1839,15 @@ def evaluate_consolidation_rules(
             complexity_b=(fp_b.complexity_level or "LOW").upper(),
             frequency_a=fp_a.frequency,
             frequency_b=fp_b.frequency,
-            is_same_frequency=bool(fp_a.frequency and fp_b.frequency and fp_a.frequency.lower() == fp_b.frequency.lower()),
+            is_same_frequency=bool(
+                fp_a.frequency and fp_b.frequency and fp_a.frequency.lower() == fp_b.frequency.lower()),
             logic_preservable=True,
             merge_direction=ev_a_in_b.direction_statement,
             data_subsumption_evidence=ev_a_in_b,
         )
 
-    subsumes_b_in_a, ev_b_in_a = evaluate_directional_data_subsumption(fp_b, fp_a, comp)
+    subsumes_b_in_a, ev_b_in_a = evaluate_directional_data_subsumption(
+        fp_b, fp_a, comp)
     if subsumes_b_in_a and ev_b_in_a is not None:
         subsumption_evidence = [
             f"Data Sufficiency: 100% field coverage ({len(ev_b_in_a.shared_required_fields)} shared required fields, 0 missing in {fp_a.workflow_name})",
@@ -1778,15 +1867,18 @@ def evaluate_consolidation_rules(
             complexity_b=(fp_b.complexity_level or "LOW").upper(),
             frequency_a=fp_a.frequency,
             frequency_b=fp_b.frequency,
-            is_same_frequency=bool(fp_a.frequency and fp_b.frequency and fp_a.frequency.lower() == fp_b.frequency.lower()),
+            is_same_frequency=bool(
+                fp_a.frequency and fp_b.frequency and fp_a.frequency.lower() == fp_b.frequency.lower()),
             logic_preservable=True,
             merge_direction=ev_b_in_a.direction_statement,
             data_subsumption_evidence=ev_b_in_a,
         )
 
     # 5. Logic / Result Preservation (Rule D)
-    sig_a = {s for s in fp_a.transformation_signatures if is_meaningful_evidence(s)}
-    sig_b = {s for s in fp_b.transformation_signatures if is_meaningful_evidence(s)}
+    sig_a = {
+        s for s in fp_a.transformation_signatures if is_meaningful_evidence(s)}
+    sig_b = {
+        s for s in fp_b.transformation_signatures if is_meaningful_evidence(s)}
 
     logic_preservable = False
     preservation_reason = ""
@@ -1936,7 +2028,6 @@ def detect_candidate_from_comparison(
         risk_level = "HIGH"
     elif fp_a.criticality_level == "MEDIUM" or fp_b.criticality_level == "MEDIUM":
         risk_level = "MEDIUM"
-    
 
     risk_context = RiskContext(
         complexity_by_workflow={
@@ -1962,15 +2053,18 @@ def detect_candidate_from_comparison(
     # 4. Schema and grain compatibility
     # 5. Minimal unique logic (<= 1 unique tool/logic)
     # 6. Dependency safety (no known consumers)
-    tgt_a_norm = {normalize_name(t) for t in fp_a.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
-    tgt_b_norm = {normalize_name(t) for t in fp_b.production_targets if t and t != "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
+    tgt_a_norm = {normalize_name(t) for t in fp_a.production_targets if t and t !=
+                  "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
+    tgt_b_norm = {normalize_name(t) for t in fp_b.production_targets if t and t !=
+                  "*Unknown" and "unknown" not in t.lower() and normalize_name(t)}
     is_equivalent_target_destination = (
         (_jaccard_similarity(tgt_a_norm, tgt_b_norm) >= t.RETIRE_TARGET_OVERLAP_MIN)
         if (tgt_a_norm and tgt_b_norm)
         else (not tgt_a_norm and not tgt_b_norm)
     )
 
-    has_known_consumers = bool(fp_a.downstream_consumers or fp_b.downstream_consumers)
+    has_known_consumers = bool(
+        fp_a.downstream_consumers or fp_b.downstream_consumers)
     can_retire = (
         is_equivalent_target_destination
         and m.transformation_similarity >= t.RETIRE_LOGIC_SIMILARITY_MIN
@@ -2248,7 +2342,8 @@ def validate_llm_rationalisation_response(
 
     Returns (is_valid, failure_reason).
     """
-    rec = parsed_json.get("recommendation") or parsed_json.get("recommendation_type")
+    rec = parsed_json.get("recommendation") or parsed_json.get(
+        "recommendation_type")
     if rec not in candidate.admissible_recommendations:
         return False, f"Recommendation '{rec}' violates deterministic admissibility boundary: {candidate.admissible_recommendations}"
 
@@ -2306,7 +2401,8 @@ def enrich_candidate_with_llm(
     if getattr(generator, "_cache", None) is not None:
         try:
             cache_key = compute_cache_key(
-                workflow_id=candidate.candidate_id or "_".join(candidate.workflow_ids),
+                workflow_id=candidate.candidate_id or "_".join(
+                    candidate.workflow_ids),
                 scope_key="candidate_rationalisation",
                 prompt_version="v1",
                 model_name=getattr(generator.client, "model_name", "unknown"),
@@ -2314,7 +2410,8 @@ def enrich_candidate_with_llm(
             )
             cached = generator._cache.get(cache_key)
             if isinstance(cached, NarrativeResult) and isinstance(cached.text, str):
-                logger.info("[Rationalisation LLM CACHE] status=HIT for candidate %s", candidate.candidate_id)
+                logger.info(
+                    "[Rationalisation LLM CACHE] status=HIT for candidate %s", candidate.candidate_id)
                 raw_response = cached.text
         except Exception:
             cache_key = None
@@ -2345,9 +2442,11 @@ def enrich_candidate_with_llm(
 
     if raw_response is None:
         try:
-            raw_response = generator.client.generate(system_prompt, user_prompt, max_tokens=1500)
+            raw_response = generator.client.generate(
+                system_prompt, user_prompt, max_tokens=1500)
         except Exception as e:
-            logger.warning("[Rationalisation LLM] Error calling LLM: %s — falling back to deterministic baseline.", e)
+            logger.warning(
+                "[Rationalisation LLM] Error calling LLM: %s — falling back to deterministic baseline.", e)
             candidate.llm_enrichment_status = "DETERMINISTIC_FALLBACK"
             return candidate
 
@@ -2369,7 +2468,8 @@ def enrich_candidate_with_llm(
         )
 
         if is_valid:
-            rec = parsed.get("recommendation") or parsed.get("recommendation_type")
+            rec = parsed.get("recommendation") or parsed.get(
+                "recommendation_type")
             if candidate.recommendation_type == "CONSOLIDATE" and (
                 (candidate.consolidation_decision and candidate.consolidation_decision.recommendation == "MERGE")
                 or candidate.data_subsumption_evidence is not None
@@ -2378,9 +2478,11 @@ def enrich_candidate_with_llm(
                 candidate.recommendation_type = "CONSOLIDATE"
             elif rec in candidate.admissible_recommendations:
                 candidate.recommendation_type = rec
-            candidate.reasoning = parsed.get("reasoning", candidate.reasoning).strip()
+            candidate.reasoning = parsed.get(
+                "reasoning", candidate.reasoning).strip()
             if parsed.get("proposed_strategy"):
-                candidate.proposed_strategy = parsed.get("proposed_strategy").strip()
+                candidate.proposed_strategy = parsed.get(
+                    "proposed_strategy").strip()
             if parsed.get("validation_requirements") and isinstance(parsed.get("validation_requirements"), list):
                 candidate.validation_requirements = [
                     str(vr).strip() for vr in parsed.get("validation_requirements") if str(vr).strip()
@@ -2396,11 +2498,13 @@ def enrich_candidate_with_llm(
                     source="LLM",
                 ))
         else:
-            logger.warning("[Rationalisation LLM Validation Failed] %s — falling back to deterministic baseline.", fail_reason)
+            logger.warning(
+                "[Rationalisation LLM Validation Failed] %s — falling back to deterministic baseline.", fail_reason)
             candidate.llm_enrichment_status = "VALIDATION_FAILED"
 
     except Exception as e:
-        logger.warning("[Rationalisation LLM] Error processing response: %s — falling back to deterministic baseline.", e)
+        logger.warning(
+            "[Rationalisation LLM] Error processing response: %s — falling back to deterministic baseline.", e)
         candidate.llm_enrichment_status = "DETERMINISTIC_FALLBACK"
 
     return candidate
@@ -2424,14 +2528,16 @@ def build_rationalisation_analysis(
                 generator = gen
         except Exception:
             generator = None
-    success_summaries = [w for w in portfolio.workflows if w.status == "SUCCESS" and w.workflow_id in successful_results]
+    success_summaries = [w for w in portfolio.workflows if w.status ==
+                         "SUCCESS" and w.workflow_id in successful_results]
 
     if len(success_summaries) < 1:
         return RationalisationAnalysis(
             portfolio_id=portfolio.portfolio_id,
             candidates=[],
             total_opportunities=0,
-            recommendation_counts={"CONSOLIDATE": 0, "RETIRE_CANDIDATE": 0, "SHARED_LOGIC": 0, "REVIEW": 0},
+            recommendation_counts={
+                "CONSOLIDATE": 0, "RETIRE_CANDIDATE": 0, "SHARED_LOGIC": 0, "REVIEW": 0},
             analysed_workflow_count=len(portfolio.workflows),
         )
 
@@ -2447,7 +2553,8 @@ def build_rationalisation_analysis(
                     continue
                 other_sources = [normalize_name(s) for s in other.sources]
                 if norm_tgt in other_sources:
-                    target_to_consumers.setdefault(norm_tgt, []).append(other.filename)
+                    target_to_consumers.setdefault(
+                        norm_tgt, []).append(other.filename)
 
     # 2. Build fingerprints ONCE per workflow (O(N) operation to preserve performance)
     fingerprints: dict[str, WorkflowFingerprint] = {}
@@ -2463,7 +2570,8 @@ def build_rationalisation_analysis(
                 consumers.extend(target_to_consumers[norm_t])
         consumers = sorted(list(set(consumers)))
 
-        fp = build_workflow_fingerprint(summary, res, downstream_consumers=consumers)
+        fp = build_workflow_fingerprint(
+            summary, res, downstream_consumers=consumers)
         fingerprints[summary.workflow_id] = fp
         valid_wf_ids.add(summary.workflow_id)
         valid_dataset_names.update(fp.sources)
@@ -2490,7 +2598,8 @@ def build_rationalisation_analysis(
 
             if cand is not None:
                 if use_llm and generator:
-                    cand = enrich_candidate_with_llm(cand, generator, valid_wf_ids, valid_dataset_names)
+                    cand = enrich_candidate_with_llm(
+                        cand, generator, valid_wf_ids, valid_dataset_names)
                 candidates.append(cand)
 
     # 4. Check single-workflow inspection-sink-only workflows (zero production targets)
@@ -2518,20 +2627,27 @@ def build_rationalisation_analysis(
                             f"{fp.node_count} tools, {fp.edge_count} connections",
                         ],
                         shared_logic=[],
-                        unique_functionality={fp.workflow_name: ["Inspection/Browse sink only"]},
+                        unique_functionality={fp.workflow_name: [
+                            "Inspection/Browse sink only"]},
                         proposed_strategy="Confirm whether this workflow is intended for production deployment or can be retired as a temporary exploratory asset.",
                         validation_requirements=[
                             "Confirm with data team if this workflow is actively used for manual diagnostics",
                             "Verify no external schedule triggers this workflow in production",
                         ],
-                        admissible_recommendations=["RETIRE", "RETIRE_CANDIDATE"],
+                        admissible_recommendations=[
+                            "RETIRE", "RETIRE_CANDIDATE"],
                         llm_enrichment_status="DETERMINISTIC_BASELINE",
                         sources_by_workflow={fp.workflow_name: fp.sources},
-                        source_fields_by_workflow={fp.workflow_name: fp.source_fields},
-                        targets_by_workflow={fp.workflow_name: fp.production_targets},
-                        target_fields_by_workflow={fp.workflow_name: fp.output_schemas},
-                        transformations_by_workflow={fp.workflow_name: [s for s in fp.transformation_signatures if is_meaningful_evidence(s)]},
-                        frequencies_by_workflow={fp.workflow_name: fp.frequency},
+                        source_fields_by_workflow={
+                            fp.workflow_name: fp.source_fields},
+                        targets_by_workflow={
+                            fp.workflow_name: fp.production_targets},
+                        target_fields_by_workflow={
+                            fp.workflow_name: fp.output_schemas},
+                        transformations_by_workflow={fp.workflow_name: [
+                            s for s in fp.transformation_signatures if is_meaningful_evidence(s)]},
+                        frequencies_by_workflow={
+                            fp.workflow_name: fp.frequency},
                         original_recommendation_type="RETIRE",
                     )
                 )
@@ -2558,14 +2674,16 @@ def build_rationalisation_analysis(
         wid = summary.workflow_id
 
         # 1. Consolidate priority
-        is_consolidated = any(wid in cand.workflow_ids for cand in consolidate_candidates)
+        is_consolidated = any(
+            wid in cand.workflow_ids for cand in consolidate_candidates)
         if is_consolidated:
             workflow_classifications[wid] = "CONSOLIDATE"
             summary.rationalisation_status = "CONSOLIDATE"
             continue
 
         # 2. Retire priority
-        is_retired = any(wid in cand.workflow_ids for cand in retire_candidates)
+        is_retired = any(
+            wid in cand.workflow_ids for cand in retire_candidates)
         if is_retired:
             workflow_classifications[wid] = "RETIRE"
             summary.rationalisation_status = "RETIRE"
@@ -2575,9 +2693,12 @@ def build_rationalisation_analysis(
         workflow_classifications[wid] = "KEEP"
         summary.rationalisation_status = "KEEP"
 
-    retire_count = sum(1 for s in workflow_classifications.values() if s == "RETIRE")
-    consolidate_count = sum(1 for s in workflow_classifications.values() if s == "CONSOLIDATE")
-    keep_count = sum(1 for s in workflow_classifications.values() if s == "KEEP")
+    retire_count = sum(
+        1 for s in workflow_classifications.values() if s == "RETIRE")
+    consolidate_count = sum(
+        1 for s in workflow_classifications.values() if s == "CONSOLIDATE")
+    keep_count = sum(
+        1 for s in workflow_classifications.values() if s == "KEEP")
 
     workflow_counts = {
         "RETIRE": retire_count,

@@ -27,7 +27,7 @@ def analyze(workflow: Path, output: Path | None):
 
     Produces: workflow.json, workflow.py, workflow.svg, workflow.docx, diagnostics.json
     """
-    from awa.analysis.workflow_analyzer import analyze_workflow
+    from backend.awa.analysis.workflow_analyzer import analyze_workflow
 
     click.echo(f"Analyzing: {workflow}")
 
@@ -53,8 +53,8 @@ def analyze(workflow: Path, output: Path | None):
 @click.argument("workflow", type=click.Path(exists=True, path_type=Path))
 def inspect(workflow: Path):
     """Inspect a workflow and print its structure without generating files."""
-    from awa.parser.xml_parser import parse_workflow as parse_wf
-    from awa.graph.builder import build_graph, execution_order as exec_order
+    from backend.awa.parser.xml_parser import parse_workflow as parse_wf
+    from backend.awa.graph.builder import build_graph, execution_order as exec_order
 
     wf = parse_wf(workflow)
     g = build_graph(wf)

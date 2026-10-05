@@ -7,8 +7,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict
 
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.portfolio import PortfolioAnalysis
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.portfolio import PortfolioAnalysis
 
 
 @dataclass

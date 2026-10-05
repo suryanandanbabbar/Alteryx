@@ -1,21 +1,22 @@
 """Tests for catalog lookup APIs by XML name, alias, and display name."""
 
 import pytest
-from awa.tools import (
+from backend.awa.tools import (
     get_tool_catalog,
     get_tool_definition,
     get_tool_definition_by_display_name,
     resolve_tool_definition,
     is_known_tool,
 )
-from awa.model.diagnostic import SupportLevel
+from backend.awa.model.diagnostic import SupportLevel
 
 
 class TestToolLookup:
     """Test lookup mechanisms."""
 
     def test_lookup_by_exact_xml_name(self):
-        tool = get_tool_definition("AlteryxBasePluginsGui.DbFileInput.DbFileInput")
+        tool = get_tool_definition(
+            "AlteryxBasePluginsGui.DbFileInput.DbFileInput")
         assert tool is not None
         assert tool.display_name == "Input Data"
 

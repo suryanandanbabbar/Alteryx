@@ -10,8 +10,8 @@ from __future__ import annotations
 import html
 import xml.etree.ElementTree as ET
 
-from awa.model.dag_layout import DagLayout
-from awa.model.visual_category import get_category_colors, CATEGORY_COLORS
+from backend.awa.model.dag_layout import DagLayout
+from backend.awa.model.visual_category import get_category_colors, CATEGORY_COLORS
 
 
 def generate_svg(layout: DagLayout, custom_colors: dict[str, dict[str, str]] | None = None) -> str:
@@ -90,7 +90,8 @@ def generate_svg(layout: DagLayout, custom_colors: dict[str, dict[str, str]] | N
     )
 
     # 2. Header / Title Bar
-    header_g = ET.SubElement(svg, "g", {"id": "header", "transform": "translate(20, 28)"})
+    header_g = ET.SubElement(
+        svg, "g", {"id": "header", "transform": "translate(20, 28)"})
     title_text = ET.SubElement(
         header_g,
         "text",
@@ -119,7 +120,8 @@ def generate_svg(layout: DagLayout, custom_colors: dict[str, dict[str, str]] | N
     subtitle_text.text = f"{len(layout.nodes)} nodes · {len(layout.edges)} connections"
 
     # Main graph content group (offset by title bar height)
-    graph_g = ET.SubElement(svg, "g", {"id": "graph", "transform": "translate(0, 45)"})
+    graph_g = ET.SubElement(
+        svg, "g", {"id": "graph", "transform": "translate(0, 45)"})
 
     # 3. Render Edges
     edges_g = ET.SubElement(graph_g, "g", {"id": "edges"})
@@ -134,7 +136,8 @@ def generate_svg(layout: DagLayout, custom_colors: dict[str, dict[str, str]] | N
         else:
             d = f"M {pts[0][0]:.1f} {pts[0][1]:.1f} L {pts[-1][0]:.1f} {pts[-1][1]:.1f}"
 
-        has_label = bool(edge.source_anchor and edge.source_anchor not in ("Output", "0", "#1"))
+        has_label = bool(
+            edge.source_anchor and edge.source_anchor not in ("Output", "0", "#1"))
         edge_color = "#38bdf8" if has_label else "#475569"
         marker_id = "url(#arrow-active)" if has_label else "url(#arrow)"
 
@@ -255,7 +258,8 @@ def generate_svg(layout: DagLayout, custom_colors: dict[str, dict[str, str]] | N
             },
         )
         # Truncate type if too long
-        type_display = node.tool_type if len(node.tool_type) <= 16 else node.tool_type[:14] + ".."
+        type_display = node.tool_type if len(
+            node.tool_type) <= 16 else node.tool_type[:14] + ".."
         type_text.text = type_display
 
         # Tool Name / Annotation Subtitle
@@ -270,7 +274,8 @@ def generate_svg(layout: DagLayout, custom_colors: dict[str, dict[str, str]] | N
                 "font-weight": "400",
             },
         )
-        label_display = node.label if len(node.label) <= 18 else node.label[:16] + ".."
+        label_display = node.label if len(
+            node.label) <= 18 else node.label[:16] + ".."
         name_text.text = label_display
 
     return ET.tostring(svg, encoding="unicode")

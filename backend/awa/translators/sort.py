@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -26,14 +26,17 @@ class SortTranslator(ToolTranslator):
         output_var = f"df_{tool.tool_id}"
 
         diagnostics: list[Diagnostic] = []
-        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+        upstream_schema = getattr(
+            workflow, "_stream_schemas", {}).get(input_var)
 
         if not sort_fields:
             code = f"{output_var} = {input_var}.copy()"
             desc = "Sort: passthrough"
         else:
-            by_cols = [sf.get("field", "") for sf in sort_fields if sf.get("field")]
-            ascending = [sf.get("order", "Ascending").lower() != "descending" for sf in sort_fields if sf.get("field")]
+            by_cols = [sf.get("field", "")
+                       for sf in sort_fields if sf.get("field")]
+            ascending = [sf.get("order", "Ascending").lower(
+            ) != "descending" for sf in sort_fields if sf.get("field")]
 
             if upstream_schema is not None:
                 for col in by_cols:
@@ -49,7 +52,8 @@ class SortTranslator(ToolTranslator):
                         )
 
             by_repr = repr(by_cols) if len(by_cols) > 1 else repr(by_cols[0])
-            asc_repr = repr(ascending) if len(ascending) > 1 else repr(ascending[0])
+            asc_repr = repr(ascending) if len(
+                ascending) > 1 else repr(ascending[0])
 
             code = f"{output_var} = {input_var}.sort_values(by={by_repr}, ascending={asc_repr}).reset_index(drop=True)"
             desc = f"Sort by {by_cols} (ascending={ascending})"

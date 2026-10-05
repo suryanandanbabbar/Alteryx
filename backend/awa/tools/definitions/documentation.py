@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from awa.model.diagnostic import SupportLevel
-from awa.tools.categories import ToolCategory
-from awa.tools.definition import ToolDefinition
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.tools.categories import ToolCategory
+from backend.awa.tools.definition import ToolDefinition
 
 DOCUMENTATION_TOOLS: tuple[ToolDefinition, ...] = (
     # 59. Comment

@@ -17,7 +17,7 @@ import logging
 from typing import Any
 import networkx as nx
 
-from awa.model.sttm import STTMMapping, STTMDocument
+from backend.awa.model.sttm import STTMMapping, STTMDocument
 
 logger = logging.getLogger("awa.sttm.validator")
 
@@ -58,7 +58,8 @@ class STTMValidator:
 
         # Candidate mapping index for fast fallback per target attribute:
         # (target_table, target_attribute) -> list[STTMMapping]
-        baseline: STTMDocument | None = self.evidence.get("deterministic_baseline")
+        baseline: STTMDocument | None = self.evidence.get(
+            "deterministic_baseline")
         self.baseline_by_target: dict[tuple[str, str], list[STTMMapping]] = {}
         if baseline:
             for m in baseline.mappings:
@@ -130,7 +131,8 @@ class STTMValidator:
         for item in llm_mappings:
             is_valid, reason = self.validate_mapping(item)
             if not is_valid:
-                logger.warning("[STTM Validator] Rejected invalid LLM mapping: %s | reason: %s", item, reason)
+                logger.warning(
+                    "[STTM Validator] Rejected invalid LLM mapping: %s | reason: %s", item, reason)
                 continue
 
             trans = item.get("transformation", "Direct")
@@ -141,7 +143,8 @@ class STTMValidator:
                 source_table=item["source_table"],
                 source_attribute=item["source_attribute"],
                 transformation=trans,
-                transformation_logic=item.get("transformation_logic", "").strip()
+                transformation_logic=item.get(
+                    "transformation_logic", "").strip()
                 or f"Populates [{item['target_attribute']}] from [{item['source_table']}].[{item['source_attribute']}].",
                 target_table=item["target_table"],
                 target_attribute=item["target_attribute"],
@@ -162,7 +165,8 @@ class STTMValidator:
                 final_mappings.extend(valid_llm_by_target[target_key])
             else:
                 # LLM omitted or failed this target attribute -> deterministic fallback
-                logger.info("[STTM Validator] Reconciling target %s using deterministic fallback", target_key)
+                logger.info(
+                    "[STTM Validator] Reconciling target %s using deterministic fallback", target_key)
                 for bm in baseline_maps:
                     bm.source = "deterministic_fallback"
                     final_mappings.append(bm)
@@ -171,10 +175,12 @@ class STTMValidator:
         seen = set()
         deduped: list[STTMMapping] = []
         for m in final_mappings:
-            key = (m.target_table, m.target_attribute, m.source_table, m.source_attribute, m.transformation)
+            key = (m.target_table, m.target_attribute, m.source_table,
+                   m.source_attribute, m.transformation)
             if key not in seen:
                 seen.add(key)
                 deduped.append(m)
 
-        deduped.sort(key=lambda x: (x.target_table, x.target_attribute, x.source_table, x.source_attribute))
+        deduped.sort(key=lambda x: (x.target_table,
+                     x.target_attribute, x.source_table, x.source_attribute))
         return STTMDocument(workflow_name=workflow_name, mappings=deduped)

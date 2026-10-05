@@ -26,7 +26,7 @@ from types import SimpleNamespace
 import networkx as nx
 import pytest
 
-from awa.analysis.rationalisation_analyzer import (
+from backend.awa.analysis.rationalisation_analyzer import (
     build_workflow_fingerprint,
     compare_workflows,
     detect_candidate_from_comparison,
@@ -34,11 +34,11 @@ from awa.analysis.rationalisation_analyzer import (
     is_meaningful_evidence,
     normalize_expression,
 )
-from awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
-from awa.model.connection import Connection
-from awa.model.portfolio import PortfolioWorkflowSummary, WorkflowFingerprint
-from awa.model.tool import Tool, ToolConfiguration, Position
-from awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
+from backend.awa.model.connection import Connection
+from backend.awa.model.portfolio import PortfolioWorkflowSummary, WorkflowFingerprint
+from backend.awa.model.tool import Tool, ToolConfiguration, Position
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
 from backend.app.models.schemas import RationalisationCandidateDTO
 
 
@@ -47,7 +47,8 @@ def _make_test_workflow(
     filename: str,
     sources: list[str],
     targets: list[str],
-    tools_spec: list[tuple[int, str, dict, str]],  # (id, type, parsed_dict, raw_xml)
+    # (id, type, parsed_dict, raw_xml)
+    tools_spec: list[tuple[int, str, dict, str]],
 ) -> tuple[PortfolioWorkflowSummary, CanonicalAnalysisResult]:
     """Helper to assemble a workflow and summary for fingerprinting."""
     tool_dict: dict[int, Tool] = {}
@@ -153,9 +154,11 @@ class TestRationalisationEvidenceIntegrity:
         # Accepts valid operational evidence
         assert is_meaningful_evidence("Join on: Claim_ID=Claim_ID")
         assert is_meaningful_evidence("Shared join key: Claim_ID=Claim_ID")
-        assert is_meaningful_evidence("Formula: Net_Amount=[Gross_Amount] - [Tax_Amount]")
+        assert is_meaningful_evidence(
+            "Formula: Net_Amount=[Gross_Amount] - [Tax_Amount]")
         assert is_meaningful_evidence("Filter: [Status] == 'ACTIVE'")
-        assert is_meaningful_evidence("Summarize: GroupBy(Region), Sum(Sales) as TotalSales")
+        assert is_meaningful_evidence(
+            "Summarize: GroupBy(Region), Sum(Sales) as TotalSales")
         assert is_meaningful_evidence("Python script execution")
 
     def test_missing_join_fields_never_create_equals_or_join_on_equals(self):
@@ -165,13 +168,16 @@ class TestRationalisationEvidenceIntegrity:
             (2, "Join", {}, "<Configuration></Configuration>"),
             (3, "DbFileOutput", {"file": "out.yxdb"}, ""),
         ]
-        s, res = _make_test_workflow("wf_join_empty", "Empty_Join.yxmd", ["claims.csv"], ["out.yxdb"], tools)
+        s, res = _make_test_workflow("wf_join_empty", "Empty_Join.yxmd", [
+                                     "claims.csv"], ["out.yxdb"], tools)
         fp = build_workflow_fingerprint(s, res)
 
         assert "=" not in fp.join_keys
         assert not any("=" in k and len(k.strip()) == 1 for k in fp.join_keys)
-        assert not any("Join on =" in sig for sig in fp.transformation_signatures)
-        assert not any("Join on :" in sig for sig in fp.transformation_signatures)
+        assert not any(
+            "Join on =" in sig for sig in fp.transformation_signatures)
+        assert not any(
+            "Join on :" in sig for sig in fp.transformation_signatures)
         # Should record tool presence as "Join operation"
         assert "Join operation" in fp.transformation_signatures
 
@@ -187,13 +193,15 @@ class TestRationalisationEvidenceIntegrity:
             }, ""),
             (3, "DbFileOutput", {"file": "out.yxdb"}, ""),
         ]
-        s, res = _make_test_workflow("wf_join_valid", "Valid_Join.yxmd", ["in.csv"], ["out.yxdb"], tools)
+        s, res = _make_test_workflow("wf_join_valid", "Valid_Join.yxmd", [
+                                     "in.csv"], ["out.yxdb"], tools)
         fp = build_workflow_fingerprint(s, res)
 
         assert "Claim_ID=Claim_ID" in fp.join_keys
         assert "Policy_Num=Policy_Num" in fp.join_keys
         assert "=" not in fp.join_keys
-        assert any("Join on: Claim_ID=Claim_ID, Policy_Num=Policy_Num" in sig for sig in fp.transformation_signatures)
+        assert any(
+            "Join on: Claim_ID=Claim_ID, Policy_Num=Policy_Num" in sig for sig in fp.transformation_signatures)
 
     def test_xml_joininfo_parsed_correctly(self):
         """When join fields are in raw XML <JoinInfo>, parse correctly without '=' artifacts."""
@@ -208,11 +216,13 @@ class TestRationalisationEvidenceIntegrity:
             (2, "Join", {}, xml),
             (3, "DbFileOutput", {"file": "out.yxdb"}, ""),
         ]
-        s, res = _make_test_workflow("wf_join_xml", "XML_Join.yxmd", ["in.csv"], ["out.yxdb"], tools)
+        s, res = _make_test_workflow("wf_join_xml", "XML_Join.yxmd", [
+                                     "in.csv"], ["out.yxdb"], tools)
         fp = build_workflow_fingerprint(s, res)
 
         assert "Account_ID=Account_ID" in fp.join_keys
-        assert any("Join on: Account_ID=Account_ID" in sig for sig in fp.transformation_signatures)
+        assert any(
+            "Join on: Account_ID=Account_ID" in sig for sig in fp.transformation_signatures)
 
     def test_long_formula_survives_without_truncation(self):
         """Formulas exceeding 40 characters must not be sliced with [:40]."""
@@ -226,16 +236,19 @@ class TestRationalisationEvidenceIntegrity:
             (1, "DbFileInput", {"file": "in.csv"}, ""),
             (2, "Formula", {
                 "formula_fields": [
-                    {"field_name": "Adjusted_Loss_Calculation", "expression": long_expr}
+                    {"field_name": "Adjusted_Loss_Calculation",
+                        "expression": long_expr}
                 ]
             }, ""),
             (3, "DbFileOutput", {"file": "out.yxdb"}, ""),
         ]
-        s, res = _make_test_workflow("wf_formula_long", "Long_Formula.yxmd", ["in.csv"], ["out.yxdb"], tools)
+        s, res = _make_test_workflow("wf_formula_long", "Long_Formula.yxmd", [
+                                     "in.csv"], ["out.yxdb"], tools)
         fp = build_workflow_fingerprint(s, res)
 
         norm_expected = normalize_expression(long_expr)
-        matched = [f for f in fp.formulas if "adjusted_loss_calculation" in f.lower()]
+        matched = [
+            f for f in fp.formulas if "adjusted_loss_calculation" in f.lower()]
         assert len(matched) == 1
         # Crucial invariant: Must contain the entire expression without [:40] cutoffs
         assert norm_expected in matched[0]
@@ -255,7 +268,8 @@ class TestRationalisationEvidenceIntegrity:
             (2, "Filter", {"expression": long_filter}, ""),
             (3, "DbFileOutput", {"file": "out.yxdb"}, ""),
         ]
-        s, res = _make_test_workflow("wf_filter_long", "Long_Filter.yxmd", ["in.csv"], ["out.yxdb"], tools)
+        s, res = _make_test_workflow("wf_filter_long", "Long_Filter.yxmd", [
+                                     "in.csv"], ["out.yxdb"], tools)
         fp = build_workflow_fingerprint(s, res)
 
         norm_expected = normalize_expression(long_filter)
@@ -271,12 +285,14 @@ class TestRationalisationEvidenceIntegrity:
                     {"field": "Region", "action": "GroupBy", "rename": "Region"},
                     {"field": "Quarter", "action": "GroupBy", "rename": "Quarter"},
                     {"field": "Revenue", "action": "Sum", "rename": "TotalRevenue"},
-                    {"field": "TransactionID", "action": "CountDistinct", "rename": "TxCount"},
+                    {"field": "TransactionID",
+                        "action": "CountDistinct", "rename": "TxCount"},
                 ]
             }, ""),
             (3, "DbFileOutput", {"file": "out.yxdb"}, ""),
         ]
-        s, res = _make_test_workflow("wf_sum", "Sum_Test.yxmd", ["in.csv"], ["out.yxdb"], tools)
+        s, res = _make_test_workflow("wf_sum", "Sum_Test.yxmd", [
+                                     "in.csv"], ["out.yxdb"], tools)
         fp = build_workflow_fingerprint(s, res)
 
         assert len(fp.aggregations) == 1
@@ -294,16 +310,20 @@ class TestRationalisationEvidenceIntegrity:
         """Two workflows that both have Join tools with different keys must NOT produce shared join logic."""
         tools_a = [
             (1, "DbFileInput", {"file": "in.csv"}, ""),
-            (2, "Join", {"join_fields": [{"left": "Claim_ID", "right": "Claim_ID"}]}, ""),
+            (2, "Join", {"join_fields": [
+             {"left": "Claim_ID", "right": "Claim_ID"}]}, ""),
             (3, "DbFileOutput", {"file": "claims.yxdb"}, ""),
         ]
         tools_b = [
             (1, "DbFileInput", {"file": "in.csv"}, ""),
-            (2, "Join", {"join_fields": [{"left": "Policy_ID", "right": "Policy_ID"}]}, ""),
+            (2, "Join", {"join_fields": [
+             {"left": "Policy_ID", "right": "Policy_ID"}]}, ""),
             (3, "DbFileOutput", {"file": "policies.yxdb"}, ""),
         ]
-        s_a, res_a = _make_test_workflow("wf_a", "A.yxmd", ["in.csv"], ["claims.yxdb"], tools_a)
-        s_b, res_b = _make_test_workflow("wf_b", "B.yxmd", ["in.csv"], ["policies.yxdb"], tools_b)
+        s_a, res_a = _make_test_workflow(
+            "wf_a", "A.yxmd", ["in.csv"], ["claims.yxdb"], tools_a)
+        s_b, res_b = _make_test_workflow("wf_b", "B.yxmd", ["in.csv"], [
+                                         "policies.yxdb"], tools_b)
         fp_a = build_workflow_fingerprint(s_a, res_a)
         fp_b = build_workflow_fingerprint(s_b, res_b)
 
@@ -311,7 +331,8 @@ class TestRationalisationEvidenceIntegrity:
 
         # No shared join logic!
         assert not any("join" in item.lower() for item in comp.shared_logic)
-        assert not any("Shared join key:" in item for item in comp.shared_logic)
+        assert not any(
+            "Shared join key:" in item for item in comp.shared_logic)
         assert not any("Join on =" in item for item in comp.shared_logic)
 
     def test_generic_tool_presence_excluded_from_shared_logic(self):
@@ -328,8 +349,10 @@ class TestRationalisationEvidenceIntegrity:
             (3, "Join", {}, ""),
             (4, "DbFileOutput", {"file": "out_b.yxdb"}, ""),
         ]
-        s_a, res_a = _make_test_workflow("wf_a", "A.yxmd", ["in_a.csv"], ["out_a.yxdb"], tools_a)
-        s_b, res_b = _make_test_workflow("wf_b", "B.yxmd", ["in_b.csv"], ["out_b.yxdb"], tools_b)
+        s_a, res_a = _make_test_workflow(
+            "wf_a", "A.yxmd", ["in_a.csv"], ["out_a.yxdb"], tools_a)
+        s_b, res_b = _make_test_workflow(
+            "wf_b", "B.yxmd", ["in_b.csv"], ["out_b.yxdb"], tools_b)
         fp_a = build_workflow_fingerprint(s_a, res_a)
         fp_b = build_workflow_fingerprint(s_b, res_b)
 
@@ -344,16 +367,20 @@ class TestRationalisationEvidenceIntegrity:
         """When two workflows share a real join condition, it appears in shared_logic without redundant join-key duplicates."""
         tools_a = [
             (1, "DbFileInput", {"file": "in.csv"}, ""),
-            (2, "Join", {"join_fields": [{"left": "CustomerID", "right": "CustomerID"}]}, ""),
+            (2, "Join", {"join_fields": [
+             {"left": "CustomerID", "right": "CustomerID"}]}, ""),
             (3, "DbFileOutput", {"file": "out.yxdb"}, ""),
         ]
         tools_b = [
             (1, "DbFileInput", {"file": "in.csv"}, ""),
-            (2, "Join", {"join_fields": [{"left": "CustomerID", "right": "CustomerID"}]}, ""),
+            (2, "Join", {"join_fields": [
+             {"left": "CustomerID", "right": "CustomerID"}]}, ""),
             (3, "DbFileOutput", {"file": "out.yxdb"}, ""),
         ]
-        s_a, res_a = _make_test_workflow("wf_a", "A.yxmd", ["in.csv"], ["out.yxdb"], tools_a)
-        s_b, res_b = _make_test_workflow("wf_b", "B.yxmd", ["in.csv"], ["out.yxdb"], tools_b)
+        s_a, res_a = _make_test_workflow(
+            "wf_a", "A.yxmd", ["in.csv"], ["out.yxdb"], tools_a)
+        s_b, res_b = _make_test_workflow(
+            "wf_b", "B.yxmd", ["in.csv"], ["out.yxdb"], tools_b)
         fp_a = build_workflow_fingerprint(s_a, res_a)
         fp_b = build_workflow_fingerprint(s_b, res_b)
 
@@ -388,8 +415,10 @@ class TestRationalisationEvidenceIntegrity:
             (3, "DbFileOutput", {"file": "out.yxdb"}, ""),
         ]
 
-        s_a, res_a = _make_test_workflow("wf_a", "A.yxmd", ["in.csv"], ["out.yxdb"], tools_a)
-        s_b, res_b = _make_test_workflow("wf_b", "B.yxmd", ["in.csv"], ["out.yxdb"], tools_b)
+        s_a, res_a = _make_test_workflow(
+            "wf_a", "A.yxmd", ["in.csv"], ["out.yxdb"], tools_a)
+        s_b, res_b = _make_test_workflow(
+            "wf_b", "B.yxmd", ["in.csv"], ["out.yxdb"], tools_b)
         fp_a = build_workflow_fingerprint(s_a, res_a)
         fp_b = build_workflow_fingerprint(s_b, res_b)
 
@@ -446,5 +475,6 @@ class TestRationalisationEvidenceIntegrity:
             "Filter: [Status] == 'Active'",
         ]
         # Unique functionality cleaned up; empty lists removed
-        assert dto.unique_functionality["Legacy1.yxmd"] == ["Formula: Total=[Amount]*1.1"]
+        assert dto.unique_functionality["Legacy1.yxmd"] == [
+            "Formula: Total=[Amount]*1.1"]
         assert "Legacy2.yxmd" not in dto.unique_functionality

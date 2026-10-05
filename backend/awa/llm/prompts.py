@@ -43,9 +43,12 @@ CRITICAL RULES:
 
 def build_tool_specifications_user_prompt(facts: ToolFacts) -> str:
     """Format deterministic tool facts for Tool Specifications (Role + Data Flow) prompt."""
-    cfg_str = json.dumps(facts.configuration_summary, indent=2) if facts.configuration_summary else "None"
-    in_fields_str = ", ".join(facts.input_fields) if facts.input_fields else "Not specified"
-    out_fields_str = ", ".join(facts.output_fields) if facts.output_fields else "Not specified"
+    cfg_str = json.dumps(facts.configuration_summary,
+                         indent=2) if facts.configuration_summary else "None"
+    in_fields_str = ", ".join(
+        facts.input_fields) if facts.input_fields else "Not specified"
+    out_fields_str = ", ".join(
+        facts.output_fields) if facts.output_fields else "Not specified"
 
     upstream_str = (
         json.dumps(facts.upstream_tools, indent=2)
@@ -85,6 +88,7 @@ IMMEDIATE DOWNSTREAM TOOLS:
 
 Based ONLY on these facts, generate the workflow-specific Role and Data Flow Explanation JSON:"""
 
+
 TOOL_SYSTEM_PROMPT = """You are an enterprise ETL workflow analyst.
 
 Your task is to explain the role of ONE specific tool instance inside a larger ETL workflow.
@@ -122,9 +126,12 @@ The answer must be workflow-specific."""
 
 def build_tool_user_prompt(facts: ToolFacts) -> str:
     """Format deterministic tool facts for workflow-specific purpose prompt."""
-    cfg_str = json.dumps(facts.configuration_summary, indent=2) if facts.configuration_summary else "None"
-    in_fields_str = ", ".join(facts.input_fields) if facts.input_fields else "Not specified"
-    out_fields_str = ", ".join(facts.output_fields) if facts.output_fields else "Not specified"
+    cfg_str = json.dumps(facts.configuration_summary,
+                         indent=2) if facts.configuration_summary else "None"
+    in_fields_str = ", ".join(
+        facts.input_fields) if facts.input_fields else "Not specified"
+    out_fields_str = ", ".join(
+        facts.output_fields) if facts.output_fields else "Not specified"
 
     upstream_str = (
         json.dumps(facts.upstream_tools, indent=2)
@@ -211,7 +218,7 @@ DEFAULT_BUSINESS_AREA_DEFINITIONS = {
 
 def build_business_area_definitions_block(descriptions: dict[str, str] | None = None) -> str:
     """Format configured business areas and their rich business definitions into a prompt block."""
-    from awa.analysis.business_area_definitions import BUSINESS_AREA_DEFINITIONS
+    from backend.awa.analysis.business_area_definitions import BUSINESS_AREA_DEFINITIONS
 
     lines: list[str] = []
     idx = 1
@@ -917,9 +924,11 @@ def build_business_area_classification_user_prompt(
     if workflow_name:
         parts.append(f"Workflow Name: {workflow_name}")
     if business_purpose:
-        parts.append(f"Workflow Business Purpose (Primary Signal):\n{business_purpose}")
+        parts.append(
+            f"Workflow Business Purpose (Primary Signal):\n{business_purpose}")
     else:
-        parts.append("Workflow Business Purpose: [Not Documented / Baseline Extraction]")
+        parts.append(
+            "Workflow Business Purpose: [Not Documented / Baseline Extraction]")
 
     parts.extend([
         "",
@@ -943,7 +952,8 @@ def build_portfolio_business_area_classification_user_prompt(
     for idx, wf in enumerate(workflows_data, 1):
         wid = wf.get("workflow_id", f"wf_{idx}")
         wname = wf.get("workflow_name", f"Workflow_{idx}")
-        bpurpose = wf.get("business_purpose", "").strip() or "[Not Documented / Baseline Extraction]"
+        bpurpose = wf.get("business_purpose", "").strip(
+        ) or "[Not Documented / Baseline Extraction]"
         outputs = wf.get("output_evidence", [])
         outputs_str = json.dumps(outputs, indent=2)
 
@@ -1036,14 +1046,22 @@ def build_criticality_assessment_system_prompt() -> str:
 
 def build_criticality_assessment_user_prompt(evidence: Any) -> str:
     """Format deterministic evidence package into user prompt with calibration anchors."""
-    targets_str = ", ".join(evidence.production_targets) if evidence.production_targets else "None (No production deliverables)"
-    sinks_str = ", ".join(evidence.inspection_sinks) if evidence.inspection_sinks else "None"
-    downstream_str = ", ".join(evidence.downstream_consumers) if evidence.downstream_consumers else "None (No downstream workflow consumers detected)"
-    upstream_str = ", ".join(evidence.upstream_producers) if evidence.upstream_producers else "None (Consumes external inputs only)"
-    shared_targets_str = ", ".join(evidence.shared_targets) if evidence.shared_targets else "None"
-    shared_sources_str = ", ".join(evidence.shared_sources) if evidence.shared_sources else "None"
-    signals_str = "; ".join(evidence.semantic_impact_signals) if evidence.semantic_impact_signals else "None detected from business purpose/function"
-    op_str = json.dumps(evidence.operational_metadata) if evidence.operational_metadata else "Not documented in workflow"
+    targets_str = ", ".join(
+        evidence.production_targets) if evidence.production_targets else "None (No production deliverables)"
+    sinks_str = ", ".join(
+        evidence.inspection_sinks) if evidence.inspection_sinks else "None"
+    downstream_str = ", ".join(
+        evidence.downstream_consumers) if evidence.downstream_consumers else "None (No downstream workflow consumers detected)"
+    upstream_str = ", ".join(
+        evidence.upstream_producers) if evidence.upstream_producers else "None (Consumes external inputs only)"
+    shared_targets_str = ", ".join(
+        evidence.shared_targets) if evidence.shared_targets else "None"
+    shared_sources_str = ", ".join(
+        evidence.shared_sources) if evidence.shared_sources else "None"
+    signals_str = "; ".join(
+        evidence.semantic_impact_signals) if evidence.semantic_impact_signals else "None detected from business purpose/function"
+    op_str = json.dumps(
+        evidence.operational_metadata) if evidence.operational_metadata else "Not documented in workflow"
 
     ref_str = ""
     if evidence.deterministic_reference_score is not None:
@@ -1081,7 +1099,3 @@ OPERATIONAL METADATA:
 
 {ref_str}
 Evaluate the business significance of this workflow across all 10 dimensions. Decide the final score and level using business judgment over the evidence, and return ONLY the single raw JSON object without code fences or surrounding text."""
-
-
-
-

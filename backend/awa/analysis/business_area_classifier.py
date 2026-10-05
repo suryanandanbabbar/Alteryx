@@ -15,6 +15,13 @@ Core Architectural Invariants:
 """
 
 from __future__ import annotations
+from backend.awa.analysis.business_area_definitions import (
+    BUSINESS_AREA_DEFINITIONS,
+    BUSINESS_AREA_TAXONOMY_VERSION,
+    BusinessAreaDefinition,
+    ALLOWED_BUSINESS_AREAS,
+    BUSINESS_AREA_DESCRIPTIONS,
+)
 
 import hashlib
 import json
@@ -23,30 +30,23 @@ import re
 from pathlib import Path
 from typing import Any
 
-from awa.analysis.sttm_extractor import _clean_table_name
-from awa.llm.generator import LLMNarrativeGenerator, get_default_generator
-from awa.llm.prompts import (
+from backend.awa.analysis.sttm_extractor import _clean_table_name
+from backend.awa.llm.generator import LLMNarrativeGenerator, get_default_generator
+from backend.awa.llm.prompts import (
     BUSINESS_AREA_CLASSIFICATION_PROMPT_VERSION,
     BUSINESS_AREA_CLASSIFICATION_SYSTEM_PROMPT,
     PORTFOLIO_BUSINESS_AREA_CLASSIFICATION_SYSTEM_PROMPT,
     build_business_area_classification_user_prompt,
     build_portfolio_business_area_classification_user_prompt,
 )
-from awa.llm.schemas import NarrativeResult
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.portfolio import BusinessAreaClassification
+from backend.awa.llm.schemas import NarrativeResult
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.portfolio import BusinessAreaClassification
 
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-from awa.analysis.business_area_definitions import (
-    BUSINESS_AREA_DEFINITIONS,
-    BUSINESS_AREA_TAXONOMY_VERSION,
-    BusinessAreaDefinition,
-    ALLOWED_BUSINESS_AREAS,
-    BUSINESS_AREA_DESCRIPTIONS,
-)
 
 # ---------------------------------------------------------------------------
 # Domain Taxonomies for Deterministic Fallback
@@ -94,7 +94,8 @@ def _tokenize_text(text: Any) -> list[str]:
     # Strip file extensions (e.g. .xlsx, .csv, .tde, .yxdb)
     clean = re.sub(r"\.[a-zA-Z0-9]+$", "", text)
     # Split on non-alphanumeric chars and camelCase boundaries
-    tokens = re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\d|\W|$)|[0-9]+", clean)
+    tokens = re.findall(
+        r"[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\d|\W|$)|[0-9]+", clean)
     return [t.lower() for t in tokens if len(t) > 1]
 
 
@@ -113,7 +114,8 @@ def extract_output_evidence_for_workflow(result: CanonicalAnalysisResult) -> lis
             continue
 
         # 2. Check if explicit output tool or non-browse leaf
-        is_explicit_output = tool.tool_type in ("DbFileOutput", "OutputData", "Render")
+        is_explicit_output = tool.tool_type in (
+            "DbFileOutput", "OutputData", "Render")
         is_leaf = (
             result.graph.has_node(tid)
             and result.graph.out_degree(tid) == 0
@@ -143,7 +145,8 @@ def extract_output_evidence_for_workflow(result: CanonicalAnalysisResult) -> lis
             else:
                 target_name = _clean_table_name(raw_path)
         elif result.business_summary:
-            biz_outputs = {out.tool_id: out for out in result.business_summary.business_outputs}
+            biz_outputs = {
+                out.tool_id: out for out in result.business_summary.business_outputs}
             if tid in biz_outputs and (biz_outputs[tid].raw_destination or biz_outputs[tid].name):
                 raw = biz_outputs[tid].raw_destination or biz_outputs[tid].name
                 if raw and raw.lower() not in ("standard output stream", "in-memory destination"):
@@ -171,7 +174,8 @@ def extract_output_evidence_for_workflow(result: CanonicalAnalysisResult) -> lis
         # A. Columns from STTM mappings for this target dataset
         if result.sttm:
             for m in result.sttm.mappings:
-                tgt = getattr(m, "target_table", None) or getattr(m, "target_dataset", None)
+                tgt = getattr(m, "target_table", None) or getattr(
+                    m, "target_dataset", None)
                 if tgt and (tgt == target_name or tgt.lower() == target_name.lower()):
                     add_col(m.target_attribute)
 
@@ -207,122 +211,179 @@ def extract_output_evidence_for_workflow(result: CanonicalAnalysisResult) -> lis
 TIER1_FUNCTIONAL_PATTERNS: dict[str, list[re.Pattern]] = {
     "Underwriting": [
         re.compile(r"\bunderwrit(ing|e|er|ers)?\b", re.IGNORECASE),
-        re.compile(r"\b(policy|policyholder|applicant)[\s_]+(eligibility|rating|risk[\s_]+score|pricing|decision|scoring|acceptance|rejection)\b", re.IGNORECASE),
-        re.compile(r"\b(premium|rate|pricing)[\s_]+(calculator|calc|model|engine|matrix|algorithm|summary|schedule|rating)\b", re.IGNORECASE),
-        re.compile(r"\b(decision[\s_]+engine|rating[\s_]+engine|pricing[\s_]+engine)\b", re.IGNORECASE),
-        re.compile(r"\b(coverage|binder)[\s_]+(acceptance|rejection|evaluation|determination)\b", re.IGNORECASE),
-        re.compile(r"\b(risk[\s_]+appetite|risk[\s_]+assessment|risk[\s_]+evaluation|risk[\s_]+class|risk[\s_]+tier)\b", re.IGNORECASE),
-        re.compile(r"\b(experience[\s_]+rating|manual[\s_]+rating)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(policy|policyholder|applicant)[\s_]+(eligibility|rating|risk[\s_]+score|pricing|decision|scoring|acceptance|rejection)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(premium|rate|pricing)[\s_]+(calculator|calc|model|engine|matrix|algorithm|summary|schedule|rating)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(decision[\s_]+engine|rating[\s_]+engine|pricing[\s_]+engine)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(coverage|binder)[\s_]+(acceptance|rejection|evaluation|determination)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(risk[\s_]+appetite|risk[\s_]+assessment|risk[\s_]+evaluation|risk[\s_]+class|risk[\s_]+tier)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(experience[\s_]+rating|manual[\s_]+rating)\b", re.IGNORECASE),
         re.compile(r"\bpolicy[\s_]+pricing\b", re.IGNORECASE),
     ],
     "Claims & Risk": [
         re.compile(r"\b(claim|claims)[\s_]+(intake|triage|adjudication|processing|settlement|fraud|investigation|reserves?|aging|severity|litigation|volume|extract|summary|loss|reporting|audit|payment|diary|history|closure|adjuster)\b", re.IGNORECASE),
-        re.compile(r"\b(claim[\s_]+reserve|loss[\s_]+reserve|claims?[\s_]+loss|incurred[\s_]+loss)\b", re.IGNORECASE),
-        re.compile(r"\b(claims?[\s_]+fraud|suspicious[\s_]+claims?|fraud[\s_]+detection)\b", re.IGNORECASE),
-        re.compile(r"\b(subrogation|salvage[\s_]+recovery|indemnity[\s_]+payment)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(claim[\s_]+reserve|loss[\s_]+reserve|claims?[\s_]+loss|incurred[\s_]+loss)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(claims?[\s_]+fraud|suspicious[\s_]+claims?|fraud[\s_]+detection)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(subrogation|salvage[\s_]+recovery|indemnity[\s_]+payment)\b", re.IGNORECASE),
         re.compile(r"\bclaims?[\s_]+volume\b", re.IGNORECASE),
-        re.compile(r"\b(open[\s_]+claims?|closed[\s_]+claims?|claims?[\s_]+exposure|claims?[\s_]+duration)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(open[\s_]+claims?|closed[\s_]+claims?|claims?[\s_]+exposure|claims?[\s_]+duration)\b", re.IGNORECASE),
     ],
     "Sales & Distribution": [
-        re.compile(r"\b(sales|territory)[\s_]+(analytics|performance|quota|distribution|pipeline|forecast|report|reporting|summary|revenue|commission|target)\b", re.IGNORECASE),
-        re.compile(r"\b(broker|agent|producer|distributor)[\s_]+(commission|compensation|incentive|performance|quota|payout|statement|remittance)\b", re.IGNORECASE),
-        re.compile(r"\b(distribution[\s_]+channel|sales[\s_]+channel|intermediary[\s_]+network)\b", re.IGNORECASE),
-        re.compile(r"\b(sales[\s_]+pipeline|opportunity[\s_]+tracking|deal[\s_]+conversion)\b", re.IGNORECASE),
-        re.compile(r"\b(gross[\s_]+sales|net[\s_]+sales|sales[\s_]+volume|revenue[\s_]+growth)\b", re.IGNORECASE),
-        re.compile(r"\b(client[\s_]+acquisition|lead[\s_]+generation|cross[\s_]+sell|upsell)\b", re.IGNORECASE),
-        re.compile(r"\b(distributor[\s_]+sales|channel[\s_]+partner)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(sales|territory)[\s_]+(analytics|performance|quota|distribution|pipeline|forecast|report|reporting|summary|revenue|commission|target)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(broker|agent|producer|distributor)[\s_]+(commission|compensation|incentive|performance|quota|payout|statement|remittance)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(distribution[\s_]+channel|sales[\s_]+channel|intermediary[\s_]+network)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(sales[\s_]+pipeline|opportunity[\s_]+tracking|deal[\s_]+conversion)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(gross[\s_]+sales|net[\s_]+sales|sales[\s_]+volume|revenue[\s_]+growth)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(client[\s_]+acquisition|lead[\s_]+generation|cross[\s_]+sell|upsell)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(distributor[\s_]+sales|channel[\s_]+partner)\b", re.IGNORECASE),
     ],
     "Legal": [
         re.compile(r"\blegal\b", re.IGNORECASE),
-        re.compile(r"\b(regulatory|statutory|compliance)[\s_]+(reporting|report|filing|submission|audit|disclosure|extract|monitoring|standard)\b", re.IGNORECASE),
-        re.compile(r"\b(legal[\s_]+matter|court[\s_]+docket|litigation[\s_]+tracking|subpoena|case[\s_]+filing|matter[\s_]+management)\b", re.IGNORECASE),
-        re.compile(r"\bcontract[\s_]+(compliance|review|clause|analytics|management|obligation|expiration)\b", re.IGNORECASE),
-        re.compile(r"\b(insurance[\s_]+commissioner|naic[\s_]+reporting|gdpr[\s_]+compliance|data[\s_]+privacy[\s_]+audit)\b", re.IGNORECASE),
-        re.compile(r"\b(attorney[\s_]+fees?|outside[\s_]+counsel|legal[\s_]+hold|ediscovery)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(regulatory|statutory|compliance)[\s_]+(reporting|report|filing|submission|audit|disclosure|extract|monitoring|standard)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(legal[\s_]+matter|court[\s_]+docket|litigation[\s_]+tracking|subpoena|case[\s_]+filing|matter[\s_]+management)\b", re.IGNORECASE),
+        re.compile(
+            r"\bcontract[\s_]+(compliance|review|clause|analytics|management|obligation|expiration)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(insurance[\s_]+commissioner|naic[\s_]+reporting|gdpr[\s_]+compliance|data[\s_]+privacy[\s_]+audit)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(attorney[\s_]+fees?|outside[\s_]+counsel|legal[\s_]+hold|ediscovery)\b", re.IGNORECASE),
     ],
     "Actuarial": [
         re.compile(r"\bactuar(ial|y|ies)\b", re.IGNORECASE),
-        re.compile(r"\b(loss[\s_]+development|triangulation|chain[\s_]+ladder|bornhuetter[\s_]+ferguson|ibnr)\b", re.IGNORECASE),
-        re.compile(r"\b(experience[\s_]+stud(y|ies)|mortality[\s_]+table|morbidity[\s_]+table|lapse[\s_]+rate)\b", re.IGNORECASE),
-        re.compile(r"\b(rate[\s_]+filing|loss[\s_]+cost[\s_]+trend|actuarial[\s_]+indication)\b", re.IGNORECASE),
-        re.compile(r"\b(capital[\s_]+adequacy|solvency[\s_]+ii|risk[\s_]+based[\s_]+capital|rbc[\s_]+model)\b", re.IGNORECASE),
-        re.compile(r"\b(asset[\s_]+liability[\s_]+matching|alm[\s_]+model|cash[\s_]+flow[\s_]+projection)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(loss[\s_]+development|triangulation|chain[\s_]+ladder|bornhuetter[\s_]+ferguson|ibnr)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(experience[\s_]+stud(y|ies)|mortality[\s_]+table|morbidity[\s_]+table|lapse[\s_]+rate)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(rate[\s_]+filing|loss[\s_]+cost[\s_]+trend|actuarial[\s_]+indication)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(capital[\s_]+adequacy|solvency[\s_]+ii|risk[\s_]+based[\s_]+capital|rbc[\s_]+model)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(asset[\s_]+liability[\s_]+matching|alm[\s_]+model|cash[\s_]+flow[\s_]+projection)\b", re.IGNORECASE),
     ],
 }
 
 TIER2_PURPOSE_PATTERNS: dict[str, list[re.Pattern]] = {
     "Underwriting": [
-        re.compile(r"\b(supports?|performs?|automates?|executes?)[\s_]+underwriting\b", re.IGNORECASE),
+        re.compile(
+            r"\b(supports?|performs?|automates?|executes?)[\s_]+underwriting\b", re.IGNORECASE),
         re.compile(r"\bunderwriting[\s_]+decisioning\b", re.IGNORECASE),
-        re.compile(r"\b(calculat(e|es|ing|ed)|determin(e|es|ing|ed)|evaluat(e|es|ing|ed)|assess(es|ing|ed)?)[\s_]+(policyholder[\s_]+risk|policy[\s_]+eligibility|premiums?|rating|pricing)\b", re.IGNORECASE),
-        re.compile(r"\bassess(es|ing|ed)?[\s_]+policyholder[\s_]+risk\b", re.IGNORECASE),
-        re.compile(r"\brisk[\s_]+scores?[\s_]+for[\s_]+policyholder\b", re.IGNORECASE),
-        re.compile(r"\bcalculat(e|es|ing|ed)[\s_]+policy[\s_]+pricing\b", re.IGNORECASE),
+        re.compile(
+            r"\b(calculat(e|es|ing|ed)|determin(e|es|ing|ed)|evaluat(e|es|ing|ed)|assess(es|ing|ed)?)[\s_]+(policyholder[\s_]+risk|policy[\s_]+eligibility|premiums?|rating|pricing)\b", re.IGNORECASE),
+        re.compile(
+            r"\bassess(es|ing|ed)?[\s_]+policyholder[\s_]+risk\b", re.IGNORECASE),
+        re.compile(
+            r"\brisk[\s_]+scores?[\s_]+for[\s_]+policyholder\b", re.IGNORECASE),
+        re.compile(
+            r"\bcalculat(e|es|ing|ed)[\s_]+policy[\s_]+pricing\b", re.IGNORECASE),
     ],
     "Claims & Risk": [
-        re.compile(r"\b(adjudicat(e|es|ing|ed)|process(es|ing|ed)|settl(e|es|ing|ed)|investigat(e|es|ing|ed)|manag(e|es|ing|ed))[\s_]+(insurance[\s_]+)?claims?\b", re.IGNORECASE),
-        re.compile(r"\b(detect(s|ing|ed)?|identif(y|ies|ying|ied))[\s_]+(suspicious[\s_]+claims?|claims?[\s_]+fraud)\b", re.IGNORECASE),
-        re.compile(r"\bcalculat(e|es|ing|ed)[\s_]+(claims?|loss)[\s_]+reserves?\b", re.IGNORECASE),
-        re.compile(r"\bclaims?[\s_]+performance[\s_]+and[\s_]+loss\b", re.IGNORECASE),
+        re.compile(
+            r"\b(adjudicat(e|es|ing|ed)|process(es|ing|ed)|settl(e|es|ing|ed)|investigat(e|es|ing|ed)|manag(e|es|ing|ed))[\s_]+(insurance[\s_]+)?claims?\b", re.IGNORECASE),
+        re.compile(
+            r"\b(detect(s|ing|ed)?|identif(y|ies|ying|ied))[\s_]+(suspicious[\s_]+claims?|claims?[\s_]+fraud)\b", re.IGNORECASE),
+        re.compile(
+            r"\bcalculat(e|es|ing|ed)[\s_]+(claims?|loss)[\s_]+reserves?\b", re.IGNORECASE),
+        re.compile(
+            r"\bclaims?[\s_]+performance[\s_]+and[\s_]+loss\b", re.IGNORECASE),
         re.compile(r"\bmanage(s)?[\s_]+auto[\s_]+claims\b", re.IGNORECASE),
     ],
     "Sales & Distribution": [
-        re.compile(r"\b(track(s|ing|ed)?|analyz(e|es|ing|ed)|measur(e|es|ing|ed)|aggregat(e|es|ing|ed))[\s_]+(sales[\s_]+territory|sales[\s_]+pipeline|broker[\s_]+commissions?|agent[\s_]+performance|sales[\s_]+volume)\b", re.IGNORECASE),
-        re.compile(r"\bcommercial[\s_]+client[\s_]+acquisition\b", re.IGNORECASE),
+        re.compile(
+            r"\b(track(s|ing|ed)?|analyz(e|es|ing|ed)|measur(e|es|ing|ed)|aggregat(e|es|ing|ed))[\s_]+(sales[\s_]+territory|sales[\s_]+pipeline|broker[\s_]+commissions?|agent[\s_]+performance|sales[\s_]+volume)\b", re.IGNORECASE),
+        re.compile(
+            r"\bcommercial[\s_]+client[\s_]+acquisition\b", re.IGNORECASE),
     ],
     "Legal": [
-        re.compile(r"\b(generat(e|es|ing|ed)|produc(e|es|ing|ed)|submit(s|ting|ted)?|extract(s|ing|ed)?)[\s_]+(regulatory[\s_]+compliance|statutory[\s_]+filing|legal[\s_]+audit|compliance[\s_]+reporting)\b", re.IGNORECASE),
-        re.compile(r"\btrack(s|ing|ed)?[\s_]+(litigation|court[\s_]+cases?|legal[\s_]+matters?)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(generat(e|es|ing|ed)|produc(e|es|ing|ed)|submit(s|ting|ted)?|extract(s|ing|ed)?)[\s_]+(regulatory[\s_]+compliance|statutory[\s_]+filing|legal[\s_]+audit|compliance[\s_]+reporting)\b", re.IGNORECASE),
+        re.compile(
+            r"\btrack(s|ing|ed)?[\s_]+(litigation|court[\s_]+cases?|legal[\s_]+matters?)\b", re.IGNORECASE),
         re.compile(r"\blegal[\s_]+regulatory\b", re.IGNORECASE),
         re.compile(r"\bregulatory[\s_]+compliance\b", re.IGNORECASE),
     ],
     "Actuarial": [
-        re.compile(r"\b(perform(s|ing|ed)?|calculat(e|es|ing|ed)|model(s|ing|ed)?)[\s_]+(actuarial|loss[\s_]+triangulation|ibnr|loss[\s_]+development|rate[\s_]+indications?)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(perform(s|ing|ed)?|calculat(e|es|ing|ed)|model(s|ing|ed)?)[\s_]+(actuarial|loss[\s_]+triangulation|ibnr|loss[\s_]+development|rate[\s_]+indications?)\b", re.IGNORECASE),
         re.compile(r"\bactuarial[\s_]+valuation\b", re.IGNORECASE),
-        re.compile(r"\b(loss[\s_]+cost[\s_]+trend|mortality[\s_]+experience|capital[\s_]+adequacy)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(loss[\s_]+cost[\s_]+trend|mortality[\s_]+experience|capital[\s_]+adequacy)\b", re.IGNORECASE),
     ],
 }
 
 TIER3_DECISION_PATTERNS: dict[str, list[re.Pattern]] = {
     "Underwriting": [
-        re.compile(r"\b(underwriting[\s_]+rule|risk[\s_]+threshold|approval[\s_]+limit|eligibility[\s_]+rule|pricing[\s_]+factor|premium[\s_]+multiplier|rating[\s_]+matrix|rating[\s_]+factor)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(underwriting[\s_]+rule|risk[\s_]+threshold|approval[\s_]+limit|eligibility[\s_]+rule|pricing[\s_]+factor|premium[\s_]+multiplier|rating[\s_]+matrix|rating[\s_]+factor)\b", re.IGNORECASE),
         re.compile(r"\b(decline|refer|accept)[\s_]+decision\b", re.IGNORECASE),
     ],
     "Claims & Risk": [
         re.compile(r"\b(loss[\s_]+reserve[\s_]+calc|reserve[\s_]+calculation|fraud[\s_]+scoring|aging[\s_]+threshold|settlement[\s_]+authority|claim[\s_]+adjudication)\b", re.IGNORECASE),
-        re.compile(r"\b(litigation[\s_]+risk|claim[\s_]+aging[\s_]+band)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(litigation[\s_]+risk|claim[\s_]+aging[\s_]+band)\b", re.IGNORECASE),
     ],
     "Sales & Distribution": [
-        re.compile(r"\b(commission[\s_]+tier|quota[\s_]+attainment|bonus[\s_]+calc|split[\s_]+commission|override[\s_]+rate|commission[\s_]+payout)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(commission[\s_]+tier|quota[\s_]+attainment|bonus[\s_]+calc|split[\s_]+commission|override[\s_]+rate|commission[\s_]+payout)\b", re.IGNORECASE),
     ],
     "Legal": [
-        re.compile(r"\b(compliance[\s_]+check|statutory[\s_]+threshold|retention[\s_]+rule|disclosure[\s_]+rule|regulatory[\s_]+deadline|legal[\s_]+hold[\s_]+rule)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(compliance[\s_]+check|statutory[\s_]+threshold|retention[\s_]+rule|disclosure[\s_]+rule|regulatory[\s_]+deadline|legal[\s_]+hold[\s_]+rule)\b", re.IGNORECASE),
     ],
     "Actuarial": [
-        re.compile(r"\b(development[\s_]+factor|link[\s_]+ratio|tail[\s_]+factor|actuarial[\s_]+assumption|trend[\s_]+factor|discount[\s_]+rate)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(development[\s_]+factor|link[\s_]+ratio|tail[\s_]+factor|actuarial[\s_]+assumption|trend[\s_]+factor|discount[\s_]+rate)\b", re.IGNORECASE),
     ],
 }
 
 TIER6_PROCESS_PATTERNS: dict[str, list[re.Pattern]] = {
     "Underwriting": [
-        re.compile(r"\b(underwriting|policyholder[\s_]+risk|premium[\s_]+calc|rating[\s_]+engine|eligibility[\s_]+rules?|risk[\s_]+scoring)\b", re.IGNORECASE),
-        re.compile(r"\b(UnderwritingScore|RiskScore|RatingTier|PremiumAmount|EligibilityStatus)\b"),
+        re.compile(
+            r"\b(underwriting|policyholder[\s_]+risk|premium[\s_]+calc|rating[\s_]+engine|eligibility[\s_]+rules?|risk[\s_]+scoring)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(UnderwritingScore|RiskScore|RatingTier|PremiumAmount|EligibilityStatus)\b"),
     ],
     "Claims & Risk": [
-        re.compile(r"\b(claims?[\s_]+processing|loss[\s_]+reserves?|fraud[\s_]+scoring|claims?[\s_]+aging|claims?[\s_]+summary)\b", re.IGNORECASE),
-        re.compile(r"\b(ClaimID|LossReserve|FraudScore|PaidLoss|IncurredLoss|ClaimStatus)\b"),
+        re.compile(
+            r"\b(claims?[\s_]+processing|loss[\s_]+reserves?|fraud[\s_]+scoring|claims?[\s_]+aging|claims?[\s_]+summary)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(ClaimID|LossReserve|FraudScore|PaidLoss|IncurredLoss|ClaimStatus)\b"),
     ],
     "Sales & Distribution": [
-        re.compile(r"\b(commission[\s_]+calculation|territory[\s_]+aggregation|sales[\s_]+pipeline|broker[\s_]+payouts?|quota[\s_]+tracking)\b", re.IGNORECASE),
-        re.compile(r"\b(CommissionAmount|QuotaAttainment|BrokerID|TerritoryCode|SalesRevenue)\b"),
+        re.compile(
+            r"\b(commission[\s_]+calculation|territory[\s_]+aggregation|sales[\s_]+pipeline|broker[\s_]+payouts?|quota[\s_]+tracking)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(CommissionAmount|QuotaAttainment|BrokerID|TerritoryCode|SalesRevenue)\b"),
     ],
     "Legal": [
-        re.compile(r"\b(regulatory[\s_]+filings?|compliance[\s_]+audit|litigation[\s_]+tracking|contract[\s_]+review|legal[\s_]+hold)\b", re.IGNORECASE),
-        re.compile(r"\b(MatterID|FilingDate|ComplianceStatus|StatutoryCode|CounselFees)\b"),
+        re.compile(
+            r"\b(regulatory[\s_]+filings?|compliance[\s_]+audit|litigation[\s_]+tracking|contract[\s_]+review|legal[\s_]+hold)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(MatterID|FilingDate|ComplianceStatus|StatutoryCode|CounselFees)\b"),
     ],
     "Actuarial": [
-        re.compile(r"\b(actuarial[\s_]+model|loss[\s_]+development|triangulation|ibnr[\s_]+reserve|experience[\s_]+study)\b", re.IGNORECASE),
-        re.compile(r"\b(IBNRAmount|DevelopmentFactor|LinkRatio|LossCostTrend|SolvencyRatio)\b"),
+        re.compile(
+            r"\b(actuarial[\s_]+model|loss[\s_]+development|triangulation|ibnr[\s_]+reserve|experience[\s_]+study)\b", re.IGNORECASE),
+        re.compile(
+            r"\b(IBNRAmount|DevelopmentFactor|LinkRatio|LossCostTrend|SolvencyRatio)\b"),
     ],
 }
 
@@ -411,22 +472,27 @@ def compose_deterministic_business_purpose(
         or classify_business_function_deterministic(business_area, workflow_name=workflow_name)
     )
     if func == "General technical data transformation" and business_area and business_area != "Other / Unclassified":
-        func = classify_business_function_deterministic(business_area, workflow_name=workflow_name)
+        func = classify_business_function_deterministic(
+            business_area, workflow_name=workflow_name)
 
     # Ingested inputs
     inp_names: list[str] = []
     if business_summary and getattr(business_summary, "source_inputs", None):
         for i in business_summary.source_inputs:
             nm = getattr(i, "name", "") or getattr(i, "source_filename", "")
-            nm_clean = re.sub(r"\.[a-zA-Z0-9]+$", "", nm).replace("_", " ").strip()
+            nm_clean = re.sub(r"\.[a-zA-Z0-9]+$", "",
+                              nm).replace("_", " ").strip()
             if nm_clean and not nm_clean.lower().startswith("source input") and nm_clean not in inp_names:
                 inp_names.append(nm_clean)
     if not inp_names and workflow and hasattr(workflow, "tools") and workflow.tools:
         for t in workflow.tools.values():
             if t.tool_type in ("DbFileInput", "FileInput", "TextInput"):
-                cfg = t.configuration.parsed if hasattr(t.configuration, "parsed") else {}
-                fp = str(cfg.get("file_path") or cfg.get("File") or cfg.get("table_name") or "")
-                fp_clean = Path(fp.split("|||")[0]).stem.replace("_", " ").strip()
+                cfg = t.configuration.parsed if hasattr(
+                    t.configuration, "parsed") else {}
+                fp = str(cfg.get("file_path") or cfg.get(
+                    "File") or cfg.get("table_name") or "")
+                fp_clean = Path(fp.split("|||")[0]).stem.replace(
+                    "_", " ").strip()
                 if fp_clean and len(fp_clean) > 2 and fp_clean not in inp_names:
                     inp_names.append(fp_clean)
 
@@ -452,15 +518,19 @@ def compose_deterministic_business_purpose(
     if business_summary and getattr(business_summary, "business_outputs", None):
         for o in business_summary.business_outputs:
             nm = getattr(o, "name", "") or getattr(o, "raw_destination", "")
-            nm_clean = re.sub(r"\.[a-zA-Z0-9]+$", "", nm).replace("_", " ").strip()
+            nm_clean = re.sub(r"\.[a-zA-Z0-9]+$", "",
+                              nm).replace("_", " ").strip()
             if nm_clean and not nm_clean.lower().startswith("output #") and not nm_clean.lower().startswith("deliverable #") and nm_clean not in out_names:
                 out_names.append(nm_clean)
     if not out_names and workflow and hasattr(workflow, "tools") and workflow.tools:
         for t in workflow.tools.values():
             if t.tool_type in ("DbFileOutput", "OutputData", "Render"):
-                cfg = t.configuration.parsed if hasattr(t.configuration, "parsed") else {}
-                fp = str(cfg.get("file_path") or cfg.get("File") or cfg.get("destination_file") or "")
-                fp_clean = Path(fp.split("|||")[0]).stem.replace("_", " ").strip()
+                cfg = t.configuration.parsed if hasattr(
+                    t.configuration, "parsed") else {}
+                fp = str(cfg.get("file_path") or cfg.get("File")
+                         or cfg.get("destination_file") or "")
+                fp_clean = Path(fp.split("|||")[0]).stem.replace(
+                    "_", " ").strip()
                 if fp_clean and len(fp_clean) > 2 and fp_clean not in out_names:
                     out_names.append(fp_clean)
 
@@ -469,7 +539,8 @@ def compose_deterministic_business_purpose(
     # Concrete processing actions from transformations
     trans_actions: list[str] = []
     if business_summary and getattr(business_summary, "transformations", None):
-        cats = {t.category.lower() for t in business_summary.transformations if getattr(t, "category", None)}
+        cats = {t.category.lower() for t in business_summary.transformations if getattr(
+            t, "category", None)}
         if any("join" in c or "enrich" in c for c in cats):
             trans_actions.append("combines multi-source records")
         if any("filter" in c or "select" in c for c in cats):
@@ -610,7 +681,8 @@ def extract_workflow_classification_evidence(
     if workflow and hasattr(workflow, "tools") and workflow.tools:
         for t in workflow.tools.values():
             if t.tool_type in ("Formula", "MultiFieldFormula"):
-                cfg = t.configuration.parsed if hasattr(t.configuration, "parsed") else {}
+                cfg = t.configuration.parsed if hasattr(
+                    t.configuration, "parsed") else {}
                 for ff in cfg.get("formula_fields", []):
                     f_name = ff.get("field", "")
                     f_expr = ff.get("expression", "")
@@ -619,7 +691,8 @@ def extract_workflow_classification_evidence(
                     if f_expr and len(f_expr) < 100:
                         tool_configs.append(f"Formula Expr: {f_expr}")
             elif t.tool_type == "Filter":
-                cfg = t.configuration.parsed if hasattr(t.configuration, "parsed") else {}
+                cfg = t.configuration.parsed if hasattr(
+                    t.configuration, "parsed") else {}
                 expr = cfg.get("expression", "")
                 if expr and len(expr) < 100:
                     tool_configs.append(f"Filter Expr: {expr}")
@@ -632,7 +705,7 @@ def extract_workflow_classification_evidence(
             if nm:
                 out_ev.append({"dataset": nm, "columns": []})
 
-    from awa.analysis.portfolio_analyzer import _extract_workflow_sources
+    from backend.awa.analysis.portfolio_analyzer import _extract_workflow_sources
     input_srcs = _extract_workflow_sources(result) if result else []
     if not input_srcs and business_summary and getattr(business_summary, "source_inputs", None):
         for i in business_summary.source_inputs:
@@ -719,21 +792,25 @@ def classify_business_area_deterministic(
             secondary_business_areas=[],
         )
 
-    evidence_log: dict[str, list[str]] = {domain: [] for domain in ALLOWED_BUSINESS_AREAS}
-    domain_scores: dict[str, int] = {domain: 0 for domain in ALLOWED_BUSINESS_AREAS}
+    evidence_log: dict[str, list[str]] = {
+        domain: [] for domain in ALLOWED_BUSINESS_AREAS}
+    domain_scores: dict[str, int] = {
+        domain: 0 for domain in ALLOWED_BUSINESS_AREAS}
 
     # -----------------------------------------------------------------------
     # Tier 1: Explicit primary business-function phrase in workflow name/title or metadata (+100)
     # -----------------------------------------------------------------------
     if workflow_name:
-        clean_wf_name = re.sub(r"\.[a-zA-Z0-9]+$", "", workflow_name).replace("_", " ")
+        clean_wf_name = re.sub(
+            r"\.[a-zA-Z0-9]+$", "", workflow_name).replace("_", " ")
         clean_wf_name = re.sub(r"([a-z])([A-Z])", r"\1 \2", clean_wf_name)
         for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
             for pat in patterns:
                 m = pat.search(clean_wf_name)
                 if m:
                     domain_scores[domain] += 100
-                    evidence_log[domain].append(f"Tier 1 Workflow Name: matches '{m.group(0)}'")
+                    evidence_log[domain].append(
+                        f"Tier 1 Workflow Name: matches '{m.group(0)}'")
 
     if description:
         clean_desc = description.replace("_", " ")
@@ -744,12 +821,14 @@ def classify_business_area_deterministic(
                     # Give +100 if domain not yet scored, or +50 if already scored from name
                     pts = 100 if domain_scores[domain] == 0 else 50
                     domain_scores[domain] += pts
-                    evidence_log[domain].append(f"Tier 1 Metadata Description: matches '{m.group(0)}'")
+                    evidence_log[domain].append(
+                        f"Tier 1 Metadata Description: matches '{m.group(0)}'")
 
     # -----------------------------------------------------------------------
     # Tier 2: Primary business function in business_purpose / business_function (+80)
     # -----------------------------------------------------------------------
-    combined_purpose_function = f"{business_function} {business_purpose}".strip()
+    combined_purpose_function = f"{business_function} {business_purpose}".strip(
+    )
     if combined_purpose_function:
         clean_pf = combined_purpose_function.replace("_", " ")
         for domain, patterns in TIER2_PURPOSE_PATTERNS.items():
@@ -757,7 +836,8 @@ def classify_business_area_deterministic(
                 m = pat.search(clean_pf)
                 if m:
                     domain_scores[domain] += 80
-                    evidence_log[domain].append(f"Tier 2 Business Purpose/Function: '{m.group(0)}'")
+                    evidence_log[domain].append(
+                        f"Tier 2 Business Purpose/Function: '{m.group(0)}'")
 
         # Also check Tier 1 patterns in purpose/function (+40 if not already logged)
         for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
@@ -765,7 +845,8 @@ def classify_business_area_deterministic(
                 m = pat.search(clean_pf)
                 if m and not any(m.group(0).lower() in e.lower() for e in evidence_log[domain]):
                     domain_scores[domain] += 40
-                    evidence_log[domain].append(f"Tier 2 Functional Keyword in Purpose: '{m.group(0)}'")
+                    evidence_log[domain].append(
+                        f"Tier 2 Functional Keyword in Purpose: '{m.group(0)}'")
 
         # Evaluate domain taxonomy tokens in business purpose (supporting Tier 2 tokens, +5 per token, max 25)
         bp_tokens = _tokenize_text(clean_pf)
@@ -773,7 +854,8 @@ def classify_business_area_deterministic(
             matching_bp = [t for t in bp_tokens if t in keywords]
             if matching_bp:
                 domain_scores[domain] += min(25, len(matching_bp) * 5)
-                evidence_log[domain].append(f"Tier 2 Purpose Taxonomy tokens: {matching_bp[:4]}")
+                evidence_log[domain].append(
+                    f"Tier 2 Purpose Taxonomy tokens: {matching_bp[:4]}")
 
     # -----------------------------------------------------------------------
     # Tier 3: Business decision or operational process (rules & transformations, +50)
@@ -786,13 +868,15 @@ def classify_business_area_deterministic(
                 m = pat.search(clean_dt)
                 if m:
                     domain_scores[domain] += 50
-                    evidence_log[domain].append(f"Tier 3 Business Rule/Decision: '{m.group(0)}'")
+                    evidence_log[domain].append(
+                        f"Tier 3 Business Rule/Decision: '{m.group(0)}'")
         for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
             for pat in patterns:
                 m = pat.search(clean_dt)
                 if m and not any(m.group(0).lower() in e.lower() for e in evidence_log[domain]):
                     domain_scores[domain] += 40
-                    evidence_log[domain].append(f"Tier 3 Functional Rule: '{m.group(0)}'")
+                    evidence_log[domain].append(
+                        f"Tier 3 Functional Rule: '{m.group(0)}'")
 
     # -----------------------------------------------------------------------
     # Tier 4: Business outcome or deliverable produced (Output target dataset names, +30)
@@ -806,7 +890,8 @@ def classify_business_area_deterministic(
                     m = pat.search(clean_ds)
                     if m:
                         domain_scores[domain] += 30
-                        evidence_log[domain].append(f"Tier 4 Output Deliverable: '{dataset_name}'")
+                        evidence_log[domain].append(
+                            f"Tier 4 Output Deliverable: '{dataset_name}'")
 
     # -----------------------------------------------------------------------
     # Tier 5: Downstream business consumer / table or sheet name (+15)
@@ -820,13 +905,16 @@ def classify_business_area_deterministic(
                     m = pat.search(clean_tbl)
                     if m:
                         domain_scores[domain] += 15
-                        evidence_log[domain].append(f"Tier 5 Target Sheet/Table: '{table_or_sheet}'")
+                        evidence_log[domain].append(
+                            f"Tier 5 Target Sheet/Table: '{table_or_sheet}'")
 
     # -----------------------------------------------------------------------
     # Tier 6: Process evidence / Container titles / Tool Annotations / Formulas (+10 each, max 30 per domain)
     # -----------------------------------------------------------------------
-    process_items = container_titles + tool_annotations + tool_configurations + processing_stages
-    tier6_awarded: dict[str, int] = {domain: 0 for domain in ALLOWED_BUSINESS_AREAS}
+    process_items = container_titles + tool_annotations + \
+        tool_configurations + processing_stages
+    tier6_awarded: dict[str, int] = {
+        domain: 0 for domain in ALLOWED_BUSINESS_AREAS}
     for item in process_items:
         clean_item = item.replace("_", " ")
         for domain, patterns in TIER6_PROCESS_PATTERNS.items():
@@ -835,19 +923,22 @@ def classify_business_area_deterministic(
                 if m and tier6_awarded[domain] < 30:
                     tier6_awarded[domain] += 10
                     domain_scores[domain] += 10
-                    evidence_log[domain].append(f"Tier 6 Process/Configuration: '{m.group(0)}'")
+                    evidence_log[domain].append(
+                        f"Tier 6 Process/Configuration: '{m.group(0)}'")
         for domain, patterns in TIER1_FUNCTIONAL_PATTERNS.items():
             for pat in patterns:
                 m = pat.search(clean_item)
                 if m and tier6_awarded[domain] < 30 and not any(m.group(0).lower() in e.lower() for e in evidence_log[domain]):
                     tier6_awarded[domain] += 10
                     domain_scores[domain] += 10
-                    evidence_log[domain].append(f"Tier 6 Tool/Container: '{m.group(0)}'")
+                    evidence_log[domain].append(
+                        f"Tier 6 Tool/Container: '{m.group(0)}'")
 
     # -----------------------------------------------------------------------
     # Tier 7: Input/output data domain tokens (+1 per token, strictly capped at +15)
     # -----------------------------------------------------------------------
-    data_domain_scores: dict[str, int] = {domain: 0 for domain in ALLOWED_BUSINESS_AREAS}
+    data_domain_scores: dict[str, int] = {
+        domain: 0 for domain in ALLOWED_BUSINESS_AREAS}
     for output in output_evidence:
         dataset_name = output.get("dataset", "")
         table_or_sheet = output.get("table_or_sheet", "")
@@ -955,7 +1046,8 @@ def classify_workflow_business_area(
             secondary_business_areas=[],
         )
 
-    input_srcs = [str(s) for s in getattr(result, "sources", [])] if hasattr(result, "sources") else []
+    input_srcs = [str(s) for s in getattr(result, "sources", [])
+                  ] if hasattr(result, "sources") else []
     deterministic_baseline = classify_business_area_deterministic(
         output_evidence,
         business_purpose=biz_purpose,
@@ -992,12 +1084,15 @@ def classify_workflow_business_area(
         "taxonomy_version": BUSINESS_AREA_CLASSIFICATION_PROMPT_VERSION,
     }
     cache_key = hashlib.sha256(
-        f"business_area_classification:{json.dumps(cache_payload, sort_keys=True)}".encode("utf-8")
+        f"business_area_classification:{json.dumps(cache_payload, sort_keys=True)}".encode(
+            "utf-8")
     ).hexdigest()
 
-    cached = generator._cache.get(cache_key) if getattr(generator, "_cache", None) else None
+    cached = generator._cache.get(cache_key) if getattr(
+        generator, "_cache", None) else None
     if isinstance(cached, NarrativeResult) and isinstance(cached.text, str):
-        validated = _validate_llm_classification_response(cached.text, allowed_evidence_strings, biz_purpose)
+        validated = _validate_llm_classification_response(
+            cached.text, allowed_evidence_strings, biz_purpose)
         if validated:
             return validated
 
@@ -1017,7 +1112,8 @@ def classify_workflow_business_area(
             max_tokens=400,
         )
 
-        validated = _validate_llm_classification_response(raw_response, allowed_evidence_strings, biz_purpose)
+        validated = _validate_llm_classification_response(
+            raw_response, allowed_evidence_strings, biz_purpose)
         if validated:
             generator._cache.set(
                 cache_key,
@@ -1030,11 +1126,13 @@ def classify_workflow_business_area(
             )
             return validated
         else:
-            logger.warning("[Business Area Classifier] LLM response failed deterministic validation. Falling back.")
+            logger.warning(
+                "[Business Area Classifier] LLM response failed deterministic validation. Falling back.")
             return deterministic_baseline
 
     except Exception as e:
-        logger.warning("[Business Area Classifier] LLM invocation failed: %s. Using deterministic fallback.", e)
+        logger.warning(
+            "[Business Area Classifier] LLM invocation failed: %s. Using deterministic fallback.", e)
         return deterministic_baseline
 
 
@@ -1070,7 +1168,8 @@ def classify_portfolio_business_areas(
     purpose_by_wid: dict[str, str] = {}
 
     for res in results:
-        wid = str(res.analysis_id) if hasattr(res, "analysis_id") else f"wf_{len(workflows_data)}"
+        wid = str(res.analysis_id) if hasattr(
+            res, "analysis_id") else f"wf_{len(workflows_data)}"
         wname = "Workflow"
         if getattr(res, "source", None) and getattr(res.source, "original_filename", None):
             wname = str(res.source.original_filename)
@@ -1082,7 +1181,8 @@ def classify_portfolio_business_areas(
             bpurpose = res.business_summary.business_purpose.strip()
         out_evidence = extract_output_evidence_for_workflow(res)
 
-        det = classify_business_area_deterministic(out_evidence, business_purpose=bpurpose)
+        det = classify_business_area_deterministic(
+            out_evidence, business_purpose=bpurpose)
         deterministic_baselines[wid] = det
         purpose_by_wid[wid] = bpurpose
 
@@ -1132,11 +1232,13 @@ def classify_portfolio_business_areas(
         "taxonomy_version": BUSINESS_AREA_CLASSIFICATION_PROMPT_VERSION,
     }
     cache_key = hashlib.sha256(
-        f"portfolio_business_area_classification:{json.dumps(cache_payload, sort_keys=True)}".encode("utf-8")
+        f"portfolio_business_area_classification:{json.dumps(cache_payload, sort_keys=True)}".encode(
+            "utf-8")
     ).hexdigest()
 
     raw_response: str | None = None
-    cached = generator._cache.get(cache_key) if getattr(generator, "_cache", None) else None
+    cached = generator._cache.get(cache_key) if getattr(
+        generator, "_cache", None) else None
     if isinstance(cached, NarrativeResult) and isinstance(cached.text, str):
         raw_response = cached.text
     else:
@@ -1241,12 +1343,14 @@ def _validate_portfolio_llm_classification_response(
             continue
         wf_id = str(item.get("workflow_id", "")).strip()
         if not wf_id or wf_id not in expected_wids:
-            logger.warning("Rejected unknown workflow ID from LLM response: '%s'", wf_id)
+            logger.warning(
+                "Rejected unknown workflow ID from LLM response: '%s'", wf_id)
             continue
 
         area = item.get("business_area", "")
         if area not in ALLOWED_BUSINESS_AREAS and area not in ("UNCLASSIFIED", "Other / Unclassified"):
-            logger.warning("Rejected invalid business area from LLM for workflow '%s': '%s'", wf_id, area)
+            logger.warning(
+                "Rejected invalid business area from LLM for workflow '%s': '%s'", wf_id, area)
             continue
         if area == "UNCLASSIFIED":
             area = "Other / Unclassified"
@@ -1269,7 +1373,8 @@ def _validate_portfolio_llm_classification_response(
                 if ev_str in allowed_ev or (b_purpose and ev_str.lower() in b_purpose.lower()):
                     validated_ev.append(ev_str)
                 else:
-                    logger.warning("Rejected hallucinated evidence token '%s' for workflow '%s'", ev_str, wf_id)
+                    logger.warning(
+                        "Rejected hallucinated evidence token '%s' for workflow '%s'", ev_str, wf_id)
                     has_hallucination = True
                     break
             if has_hallucination:
@@ -1339,7 +1444,8 @@ def _validate_llm_classification_response(
         if ev_str in allowed_evidence or (business_purpose and ev_str.lower() in business_purpose.lower()):
             validated_evidence.append(ev_str)
         else:
-            logger.warning("Rejected hallucinated evidence token '%s'.", ev_str)
+            logger.warning(
+                "Rejected hallucinated evidence token '%s'.", ev_str)
             return None
 
     secondaries = [
@@ -1355,4 +1461,3 @@ def _validate_llm_classification_response(
         classification_source="llm",
         secondary_business_areas=secondaries,
     )
-

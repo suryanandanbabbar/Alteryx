@@ -6,12 +6,12 @@ import pytest
 
 def test_awa_package_imports():
     """Verify top-level 'awa' package is discovered and importable."""
-    import awa
+    import backend.awa
     assert awa.__file__ is not None
-    from awa.parser.format_handler import FormatValidationError
-    from awa.analysis.workflow_analyzer import analyze_canonical
-    from awa.generators.svg_generator import generate_svg
-    from awa.translators.registry import get_translator
+    from backend.awa.parser.format_handler import FormatValidationError
+    from backend.awa.analysis.workflow_analyzer import analyze_canonical
+    from backend.awa.generators.svg_generator import generate_svg
+    from backend.awa.translators.registry import get_translator
     assert FormatValidationError is not None
     assert analyze_canonical is not None
     assert generate_svg is not None

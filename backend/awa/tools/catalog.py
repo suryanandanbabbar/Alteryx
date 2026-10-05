@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
-from awa.model.diagnostic import SupportLevel
-from awa.tools.categories import ToolCategory
-from awa.tools.definition import ToolDefinition
-from awa.tools.definitions import ALL_TOOLS
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.tools.categories import ToolCategory
+from backend.awa.tools.definition import ToolDefinition
+from backend.awa.tools.definitions import ALL_TOOLS
 
 DEFAULT_CUSTOM_TOOL_SUMMARY = "Custom or unregistered Alteryx tool preserved for workflow analysis."
 
@@ -34,7 +34,8 @@ class ToolCatalog:
 
             # Display name index
             self._by_display_name[tool.display_name] = tool
-            self._by_normalized_name[self._normalize_name(tool.display_name)] = tool
+            self._by_normalized_name[self._normalize_name(
+                tool.display_name)] = tool
 
             # Short XML name (e.g., 'DbFileInput' from 'AlteryxBasePluginsGui.DbFileInput.DbFileInput')
             short_name = tool.xml_name.rsplit(".", 1)[-1]
@@ -50,7 +51,8 @@ class ToolCatalog:
         """Load business summaries from docs/tool-support-matrix.md if present."""
         # Check potential candidate locations for the markdown matrix
         candidates = [
-            Path(__file__).resolve().parents[3] / "docs" / "tool-support-matrix.md",
+            Path(__file__).resolve().parents[3] /
+            "docs" / "tool-support-matrix.md",
             Path.cwd() / "docs" / "tool-support-matrix.md",
         ]
         matrix_file: Path | None = None
@@ -76,10 +78,12 @@ class ToolCatalog:
                         summary = parts[5].strip()
                         if xml_name and summary:
                             self._matrix_summaries[xml_name] = summary
-                            self._matrix_summaries[self._normalize_name(xml_name)] = summary
+                            self._matrix_summaries[self._normalize_name(
+                                xml_name)] = summary
                         if tool_name and summary:
                             self._matrix_summaries[tool_name] = summary
-                            self._matrix_summaries[self._normalize_name(tool_name)] = summary
+                            self._matrix_summaries[self._normalize_name(
+                                tool_name)] = summary
         except Exception:
             # Fall back gracefully to ToolDefinition.description
             pass
@@ -169,7 +173,8 @@ class ToolCatalog:
 
     def get_by_category(self, category: ToolCategory | str) -> list[ToolDefinition]:
         """Filter tools by category."""
-        cat_val = category.value if isinstance(category, ToolCategory) else category
+        cat_val = category.value if isinstance(
+            category, ToolCategory) else category
         return [t for t in self._primary_tools if (t.category.value if isinstance(t.category, ToolCategory) else str(t.category)) == cat_val]
 
     def get_by_support_level(self, support_level: SupportLevel) -> list[ToolDefinition]:

@@ -13,13 +13,13 @@ import ast
 from pathlib import Path
 import pytest
 
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.expressions.pandas_emitter import emit_pandas
-from awa.generators.python_generator import append_multiline_comment, generate_python_code
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
-from awa.model.tool import Tool, ToolConfiguration
-from awa.model.translation import TranslationResult
-from awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.expressions.pandas_emitter import emit_pandas
+from backend.awa.generators.python_generator import append_multiline_comment, generate_python_code
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.awa.model.tool import Tool, ToolConfiguration
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
 from backend.app.services.analyzer import process_uploaded_workflow, to_overview_dto
 
 
@@ -59,7 +59,8 @@ def test_append_multiline_comment_arbitrary_content():
 
     # Verify every appended line starts with '#' or is a clean comment
     for line in lines:
-        assert line.startswith("#"), f"Line does not start with '#': {repr(line)}"
+        assert line.startswith(
+            "#"), f"Line does not start with '#': {repr(line)}"
 
     # When embedded in valid Python, AST parsing must succeed
     code = "\n".join(lines) + "\nx = 1\n"
@@ -174,8 +175,10 @@ def test_unknown_external_schema_propagation():
         d for d in res.diagnostics
         if d.tool_id == 37 and d.category == "unresolved_field"
     ]
-    assert len(tool9_diags) == 0, f"False missing field warnings in Tool #9: {tool9_diags}"
-    assert len(tool37_diags) == 0, f"False missing field warnings in Tool #37: {tool37_diags}"
+    assert len(
+        tool9_diags) == 0, f"False missing field warnings in Tool #9: {tool9_diags}"
+    assert len(
+        tool37_diags) == 0, f"False missing field warnings in Tool #37: {tool37_diags}"
 
 
 def test_known_missing_field_validation():
@@ -204,10 +207,11 @@ def test_known_missing_field_validation():
     workflow._stream_schemas = {"df_input": ["KnownCol1", "KnownCol2"]}
     workflow._unknown_schema_streams = set()
 
-    from awa.translators.select import SelectTranslator
+    from backend.awa.translators.select import SelectTranslator
     tr = SelectTranslator().translate(tool_select, ["df_input"], workflow)
 
-    unresolved = [d for d in tr.diagnostics if d.category == "unresolved_field"]
+    unresolved = [
+        d for d in tr.diagnostics if d.category == "unresolved_field"]
     assert len(unresolved) >= 1
     assert "NonExistentColumn" in unresolved[0].message
 

@@ -6,18 +6,20 @@ graph structure, metrics, or translation outputs.
 """
 
 from __future__ import annotations
+from backend.awa.model.sttm import STTMDocument
+from backend.awa.model.business_summary import WorkflowBusinessSummary
 
 from dataclasses import dataclass, field as dc_field
 from typing import Any
 import networkx as nx
 
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic
-from awa.model.source_info import SourceInfo
-from awa.model.dag_layout import DagLayout
-from awa.model.python_trace import PythonTraceMap, ToolExplanation
-from awa.graph.lineage import LineagePath
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic
+from backend.awa.model.source_info import SourceInfo
+from backend.awa.model.dag_layout import DagLayout
+from backend.awa.model.python_trace import PythonTraceMap, ToolExplanation
+from backend.awa.graph.lineage import LineagePath
 
 
 @dataclass
@@ -53,10 +55,6 @@ class WorkflowMetrics:
             "output_node_ids": self.output_node_ids,
             "support_summary": self.support_summary,
         }
-
-
-from awa.model.business_summary import WorkflowBusinessSummary
-from awa.model.sttm import STTMDocument
 
 
 @dataclass
@@ -198,4 +196,3 @@ class CanonicalAnalysisResult:
         if self.sttm is not None:
             d["sttm"] = self.sttm.to_dict()
         return d
-

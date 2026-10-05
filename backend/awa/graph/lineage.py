@@ -10,7 +10,7 @@ from dataclasses import dataclass, field as dc_field
 
 import networkx as nx
 
-from awa.model.workflow import Workflow
+from backend.awa.model.workflow import Workflow
 
 
 @dataclass

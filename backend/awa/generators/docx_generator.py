@@ -27,9 +27,9 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import qn, nsdecls
 
-from awa.model.doc_model import DocumentModel
-from awa.model.dag_layout import DagLayout
-from awa.model.visual_category import get_category_colors
+from backend.awa.model.doc_model import DocumentModel
+from backend.awa.model.dag_layout import DagLayout
+from backend.awa.model.visual_category import get_category_colors
 
 
 # Brand Color Palette (Corporate Consulting Style)
@@ -50,7 +50,8 @@ RGB_WHITE = RGBColor(255, 255, 255)
 def set_cell_background(cell: Any, fill_hex: str) -> None:
     """Set background color of a table cell."""
     tcPr = cell._tc.get_or_add_tcPr()
-    shd = parse_xml(f'<w:shd {nsdecls("w")} w:val="clear" w:color="auto" w:fill="{fill_hex}"/>')
+    shd = parse_xml(
+        f'<w:shd {nsdecls("w")} w:val="clear" w:color="auto" w:fill="{fill_hex}"/>')
     tcPr.append(shd)
 
 
@@ -92,12 +93,15 @@ def render_dag_to_png(layout: DagLayout, scale: float = 1.0) -> bytes:
     for edge in layout.edges:
         if not edge.path_points or len(edge.path_points) < 2:
             continue
-        pts = [(int(p[0] * scale), int(p[1] * scale + y_offset)) for p in edge.path_points]
-        has_label = bool(edge.source_anchor and edge.source_anchor not in ("Output", "0", "#1"))
+        pts = [(int(p[0] * scale), int(p[1] * scale + y_offset))
+               for p in edge.path_points]
+        has_label = bool(
+            edge.source_anchor and edge.source_anchor not in ("Output", "0", "#1"))
         edge_color = "#38bdf8" if has_label else "#64748b"
 
         for i in range(len(pts) - 1):
-            draw.line([pts[i], pts[i + 1]], fill=edge_color, width=max(1, int(1.5 * scale)))
+            draw.line([pts[i], pts[i + 1]], fill=edge_color,
+                      width=max(1, int(1.5 * scale)))
 
     # Draw Nodes
     for node in layout.nodes:
@@ -231,7 +235,8 @@ def generate_docx(
     p_brand = doc.add_paragraph()
     p_brand.paragraph_format.space_before = Pt(0)
     p_brand.paragraph_format.space_after = Pt(2)
-    run_brand = p_brand.add_run("ETL Discovery, Intelligence, Rationalisation &amp; Migration - Alteryx Workflows")
+    run_brand = p_brand.add_run(
+        "ETL Discovery, Intelligence, Rationalisation &amp; Migration - Alteryx Workflows")
     run_brand.font.size = Pt(9)
     run_brand.font.bold = True
     run_brand.font.color.rgb = RGB_PRIMARY
@@ -259,9 +264,11 @@ def generate_docx(
     # =============================================================
     # SECTION 2: BUSINESS PROCESS & OPERATIONAL DELIVERABLES
     # =============================================================
-    has_process_section = bool(bs and (bs.source_inputs or bs.business_outputs or bs.processing_stages))
+    has_process_section = bool(
+        bs and (bs.source_inputs or bs.business_outputs or bs.processing_stages))
     if has_process_section:
-        h2 = doc.add_heading("2. Business Process & Operational Deliverables", level=1)
+        h2 = doc.add_heading(
+            "2. Business Process & Operational Deliverables", level=1)
         h2.paragraph_format.space_before = Pt(16)
         h2.paragraph_format.space_after = Pt(6)
 
@@ -296,12 +303,14 @@ def generate_docx(
                     set_cell_margins(c, top=50, bottom=50, left=80, right=80)
 
                 p0 = row[0].paragraphs[0]
-                display_source_name = getattr(inp, "source_filename", None) or inp.name
+                display_source_name = getattr(
+                    inp, "source_filename", None) or inp.name
                 p0.add_run(display_source_name).bold = True
                 p0.runs[0].font.size = Pt(8.0)
 
                 p1 = row[1].paragraphs[0]
-                p1.add_run(inp.business_role or inp.description or "Source input stream")
+                p1.add_run(
+                    inp.business_role or inp.description or "Source input stream")
                 p1.runs[0].font.size = Pt(8.0)
 
                 p2 = row[2].paragraphs[0]
@@ -318,7 +327,8 @@ def generate_docx(
         if bs and bs.business_outputs:
             p_out_tbl_hdr = doc.add_paragraph()
             p_out_tbl_hdr.paragraph_format.space_after = Pt(3)
-            r_oth = p_out_tbl_hdr.add_run("2.2 Outputs & Business Reporting Deliverables")
+            r_oth = p_out_tbl_hdr.add_run(
+                "2.2 Outputs & Business Reporting Deliverables")
             r_oth.bold = True
             r_oth.font.color.rgb = RGB_NAVY
             r_oth.font.size = Pt(10)
@@ -376,7 +386,8 @@ def generate_docx(
                 p_stg = doc.add_paragraph()
                 p_stg.paragraph_format.left_indent = Inches(0.2)
                 p_stg.paragraph_format.space_after = Pt(3)
-                r_num = p_stg.add_run(f"Stage {stg.stage_number:02d} — {stg.name}: ")
+                r_num = p_stg.add_run(
+                    f"Stage {stg.stage_number:02d} — {stg.name}: ")
                 r_num.bold = True
                 r_num.font.size = Pt(8.5)
                 r_num.font.color.rgb = RGB_NAVY
@@ -396,7 +407,8 @@ def generate_docx(
     # SECTION 3: KEY BUSINESS RULES & TRANSFORMATIONS
     # =============================================================
     if bs and bs.business_rules:
-        h3 = doc.add_heading("3. Key Business Rules & Transformations", level=1)
+        h3 = doc.add_heading(
+            "3. Key Business Rules & Transformations", level=1)
         h3.paragraph_format.space_before = Pt(16)
         h3.paragraph_format.space_after = Pt(6)
 
@@ -485,6 +497,3 @@ def generate_docx(
         doc.add_paragraph().paragraph_format.space_after = Pt(16)
 
     doc.save(str(output_path))
-
-
-

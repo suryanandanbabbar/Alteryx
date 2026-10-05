@@ -1,8 +1,8 @@
 """Tests for SupportLevel capabilities across tool tiers."""
 
 import pytest
-from awa.tools import get_tool_catalog
-from awa.model.diagnostic import SupportLevel
+from backend.awa.tools import get_tool_catalog
+from backend.awa.model.diagnostic import SupportLevel
 
 
 class TestSupportLevels:
@@ -38,7 +38,8 @@ class TestSupportLevels:
 
     def test_documentation_only_tools(self):
         catalog = get_tool_catalog()
-        doc_tools = catalog.get_by_support_level(SupportLevel.DOCUMENTATION_ONLY)
+        doc_tools = catalog.get_by_support_level(
+            SupportLevel.DOCUMENTATION_ONLY)
         names = {t.display_name for t in doc_tools}
         assert "Comment" in names
         assert "Tool Container" in names
@@ -48,7 +49,8 @@ class TestSupportLevels:
 
     def test_external_execution_tools(self):
         catalog = get_tool_catalog()
-        ext_tools = catalog.get_by_support_level(SupportLevel.EXTERNAL_EXECUTION)
+        ext_tools = catalog.get_by_support_level(
+            SupportLevel.EXTERNAL_EXECUTION)
         names = {t.display_name for t in ext_tools}
         assert "Python" in names
         assert "R" in names

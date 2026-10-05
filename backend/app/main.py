@@ -39,10 +39,11 @@ async def lifespan(app: FastAPI):
     storage = get_storage()
     # Initialize LLM subsystem — reads runtime environment for Azure credentials
     try:
-        from awa.llm.config import initialize_llm
+        from backend.awa.llm.config import initialize_llm
         initialize_llm()
     except Exception as e:
-        logger.warning("LLM initialization skipped: %s — %s", type(e).__name__, str(e)[:200])
+        logger.warning("LLM initialization skipped: %s — %s",
+                       type(e).__name__, str(e)[:200])
     yield
     # ── Shutdown ─────────────────────────────────────────────────────
     await license_mgr.stop_renewal_loop()
@@ -73,7 +74,6 @@ app.include_router(upload_router, prefix="/api")
 app.include_router(analysis_router, prefix="/api")
 app.include_router(download_router, prefix="/api")
 app.include_router(portfolio_router, prefix="/api")
-
 
 
 @app.get("/")

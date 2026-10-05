@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -31,7 +31,8 @@ class DataCleansingTranslator(ToolTranslator):
         output_var = f"df_{tool.tool_id}"
 
         diagnostics: list[Diagnostic] = []
-        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+        upstream_schema = getattr(
+            workflow, "_stream_schemas", {}).get(input_var)
 
         lines = [f"{output_var} = {input_var}.copy()"]
 
@@ -54,27 +55,40 @@ class DataCleansingTranslator(ToolTranslator):
             for col in target_cols:
                 col_repr = repr(col)
                 if trim_ws:
-                    lines.append(f'if {col_repr} in {output_var}.columns and {output_var}[{col_repr}].dtype == "object":')
-                    lines.append(f'    {output_var}[{col_repr}] = {output_var}[{col_repr}].str.strip()')
+                    lines.append(
+                        f'if {col_repr} in {output_var}.columns and {output_var}[{col_repr}].dtype == "object":')
+                    lines.append(
+                        f'    {output_var}[{col_repr}] = {output_var}[{col_repr}].str.strip()')
                 if remove_ws:
-                    lines.append(f'if {col_repr} in {output_var}.columns and {output_var}[{col_repr}].dtype == "object":')
-                    lines.append(f'    {output_var}[{col_repr}] = {output_var}[{col_repr}].str.replace(r"\\s+", "", regex=True)')
+                    lines.append(
+                        f'if {col_repr} in {output_var}.columns and {output_var}[{col_repr}].dtype == "object":')
+                    lines.append(
+                        f'    {output_var}[{col_repr}] = {output_var}[{col_repr}].str.replace(r"\\s+", "", regex=True)')
                 if modify_case == "upper":
-                    lines.append(f'if {col_repr} in {output_var}.columns and {output_var}[{col_repr}].dtype == "object":')
-                    lines.append(f'    {output_var}[{col_repr}] = {output_var}[{col_repr}].str.upper()')
+                    lines.append(
+                        f'if {col_repr} in {output_var}.columns and {output_var}[{col_repr}].dtype == "object":')
+                    lines.append(
+                        f'    {output_var}[{col_repr}] = {output_var}[{col_repr}].str.upper()')
                 elif modify_case == "lower":
-                    lines.append(f'if {col_repr} in {output_var}.columns and {output_var}[{col_repr}].dtype == "object":')
-                    lines.append(f'    {output_var}[{col_repr}] = {output_var}[{col_repr}].str.lower()')
+                    lines.append(
+                        f'if {col_repr} in {output_var}.columns and {output_var}[{col_repr}].dtype == "object":')
+                    lines.append(
+                        f'    {output_var}[{col_repr}] = {output_var}[{col_repr}].str.lower()')
                 elif modify_case == "title":
-                    lines.append(f'if {col_repr} in {output_var}.columns and {output_var}[{col_repr}].dtype == "object":')
-                    lines.append(f'    {output_var}[{col_repr}] = {output_var}[{col_repr}].str.title()')
+                    lines.append(
+                        f'if {col_repr} in {output_var}.columns and {output_var}[{col_repr}].dtype == "object":')
+                    lines.append(
+                        f'    {output_var}[{col_repr}] = {output_var}[{col_repr}].str.title()')
                 if remove_null:
                     lines.append(f'if {col_repr} in {output_var}.columns:')
-                    lines.append(f'    {output_var} = {output_var}[{output_var}[{col_repr}].notna()]')
+                    lines.append(
+                        f'    {output_var} = {output_var}[{output_var}[{col_repr}].notna()]')
         else:
             if trim_ws:
-                lines.append(f'for _c in {output_var}.select_dtypes(include=["object"]).columns:')
-                lines.append(f'    {output_var}[_c] = {output_var}[_c].str.strip()')
+                lines.append(
+                    f'for _c in {output_var}.select_dtypes(include=["object"]).columns:')
+                lines.append(
+                    f'    {output_var}[_c] = {output_var}[_c].str.strip()')
             if remove_null:
                 lines.append(f'{output_var} = {output_var}.dropna()')
 
@@ -96,4 +110,5 @@ class DataCleansingTranslator(ToolTranslator):
 register_type("DataCleansing", DataCleansingTranslator)
 register_type("DataCleansingTranslator", DataCleansingTranslator)
 register_plugin("Cleanse.yxmc", DataCleansingTranslator)
-register_plugin("AlteryxBasePluginsGui.DataCleansing.DataCleansing", DataCleansingTranslator)
+register_plugin(
+    "AlteryxBasePluginsGui.DataCleansing.DataCleansing", DataCleansingTranslator)

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from awa.model.diagnostic import SupportLevel
-from awa.tools.categories import ToolCategory
-from awa.tools.definition import ToolDefinition
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.tools.categories import ToolCategory
+from backend.awa.tools.definition import ToolDefinition
 
 IN_OUT_TOOLS: tuple[ToolDefinition, ...] = (
     # 1. Input Data
@@ -21,7 +21,8 @@ IN_OUT_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name="extract_file_input_config",
         input_anchors=(),
         output_anchors=("Output",),
-        aliases=("DbFileInput", "InputData", "AlteryxBasePluginsEngine.DbFileInput"),
+        aliases=("DbFileInput", "InputData",
+                 "AlteryxBasePluginsEngine.DbFileInput"),
         description="Reads records from supported files, databases, or cloud stores into a workflow.",
         visual_category="input",
     ),
@@ -39,7 +40,8 @@ IN_OUT_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name="extract_file_output_config",
         input_anchors=("Input",),
         output_anchors=(),
-        aliases=("DbFileOutput", "OutputData", "AlteryxBasePluginsEngine.DbFileOutput"),
+        aliases=("DbFileOutput", "OutputData",
+                 "AlteryxBasePluginsEngine.DbFileOutput"),
         description="Writes workflow data to files, relational tables, or cloud destinations.",
         visual_category="output",
     ),
@@ -111,7 +113,8 @@ IN_OUT_TOOLS: tuple[ToolDefinition, ...] = (
         parser_name=None,
         input_anchors=(),
         output_anchors=("Output",),
-        aliases=("DateTimeNow.yxmc", "AlteryxBasePluginsGui.DateTimeNow.DateTimeNow"),
+        aliases=("DateTimeNow.yxmc",
+                 "AlteryxBasePluginsGui.DateTimeNow.DateTimeNow"),
         description="Returns the current date and time formatted according to user specifications.",
         visual_category="datetime",
     ),

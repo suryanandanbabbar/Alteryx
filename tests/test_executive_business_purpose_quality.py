@@ -18,27 +18,27 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from awa.analysis.business_area_classifier import (
+from backend.awa.analysis.business_area_classifier import (
     compose_deterministic_business_purpose,
     classify_business_area_deterministic,
     classify_business_function_deterministic,
 )
-from awa.llm.client import FakeLLMClient
-from awa.llm.cache import LLMNarrativeCache
-from awa.llm.generator import (
+from backend.awa.llm.client import FakeLLMClient
+from backend.awa.llm.cache import LLMNarrativeCache
+from backend.awa.llm.generator import (
     LLMNarrativeGenerator,
     _is_clean_business_purpose,
     extract_workflow_facts,
     BANNED_PURPOSE_BUZZWORDS,
     GENERIC_PURPOSE_FILLER_PATTERNS,
 )
-from awa.llm.prompts import (
+from backend.awa.llm.prompts import (
     WORKFLOW_PURPOSE_PROMPT_VERSION,
     build_workflow_purpose_system_prompt,
     build_workflow_purpose_user_prompt,
 )
-from awa.llm.schemas import WorkflowFacts
-from awa.model.business_summary import (
+from backend.awa.llm.schemas import WorkflowFacts
+from backend.awa.model.business_summary import (
     BusinessInput,
     BusinessOutput,
     BusinessRule,
@@ -46,8 +46,8 @@ from awa.model.business_summary import (
     BusinessTransformation,
     WorkflowBusinessSummary,
 )
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, ToolConfiguration, Position
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.tool import Tool, ToolConfiguration, Position
 
 
 def _make_sample_underwriting_workflow() -> tuple[Workflow, WorkflowBusinessSummary]:
@@ -58,7 +58,8 @@ def _make_sample_underwriting_workflow() -> tuple[Workflow, WorkflowBusinessSumm
             tool_type="DbFileInput",
             name="Commercial Applications Input",
             position=Position(0, 0),
-            configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Commercial_Applications.xlsx"}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"file_path": "Commercial_Applications.xlsx"}),
         ),
         2: Tool(
             tool_id=2,
@@ -66,7 +67,8 @@ def _make_sample_underwriting_workflow() -> tuple[Workflow, WorkflowBusinessSumm
             tool_type="DbFileInput",
             name="Historical Claims Loss Input",
             position=Position(100, 0),
-            configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Historical_Claims_Loss.csv"}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"file_path": "Historical_Claims_Loss.csv"}),
         ),
         3: Tool(
             tool_id=3,
@@ -74,7 +76,8 @@ def _make_sample_underwriting_workflow() -> tuple[Workflow, WorkflowBusinessSumm
             tool_type="Join",
             name="Join On Tax ID",
             position=Position(200, 0),
-            configuration=ToolConfiguration(raw_xml="", parsed={"left_keys": ["Tax_ID"], "right_keys": ["Tax_ID"]}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"left_keys": ["Tax_ID"], "right_keys": ["Tax_ID"]}),
         ),
         4: Tool(
             tool_id=4,
@@ -82,7 +85,8 @@ def _make_sample_underwriting_workflow() -> tuple[Workflow, WorkflowBusinessSumm
             tool_type="Filter",
             name="Filter Active Accounts",
             position=Position(300, 0),
-            configuration=ToolConfiguration(raw_xml="", parsed={"expression": "[Active_Status] = 'Y' AND [Loss_Amount] >= 0"}),
+            configuration=ToolConfiguration(raw_xml="", parsed={
+                                            "expression": "[Active_Status] = 'Y' AND [Loss_Amount] >= 0"}),
         ),
         5: Tool(
             tool_id=5,
@@ -91,7 +95,8 @@ def _make_sample_underwriting_workflow() -> tuple[Workflow, WorkflowBusinessSumm
             name="Calculate Risk Score",
             position=Position(400, 0),
             configuration=ToolConfiguration(raw_xml="", parsed={"formula_fields": [
-                {"field": "Risk_Score", "expression": "[Base_Score] * [Loss_Ratio_Factor]"}
+                {"field": "Risk_Score",
+                    "expression": "[Base_Score] * [Loss_Ratio_Factor]"}
             ]}),
         ),
         6: Tool(
@@ -110,7 +115,8 @@ def _make_sample_underwriting_workflow() -> tuple[Workflow, WorkflowBusinessSumm
             tool_type="DbFileOutput",
             name="Risk Schedule Output",
             position=Position(600, 0),
-            configuration=ToolConfiguration(raw_xml="", parsed={"file_path": "Underwriting_Risk_Schedule.xlsx"}),
+            configuration=ToolConfiguration(
+                raw_xml="", parsed={"file_path": "Underwriting_Risk_Schedule.xlsx"}),
         ),
     }
     wf = Workflow(
@@ -128,19 +134,26 @@ def _make_sample_underwriting_workflow() -> tuple[Workflow, WorkflowBusinessSumm
         why_it_matters="Provides binding risk rates for commercial policies",
         business_function="Commercial Underwriting Rating & Risk Evaluation",
         source_inputs=[
-            BusinessInput(tool_id=1, name="Commercial Applications", raw_source="Commercial_Applications.xlsx", source_type="Excel"),
-            BusinessInput(tool_id=2, name="Historical Claims Loss", raw_source="Historical_Claims_Loss.csv", source_type="CSV"),
+            BusinessInput(tool_id=1, name="Commercial Applications",
+                          raw_source="Commercial_Applications.xlsx", source_type="Excel"),
+            BusinessInput(tool_id=2, name="Historical Claims Loss",
+                          raw_source="Historical_Claims_Loss.csv", source_type="CSV"),
         ],
         business_outputs=[
-            BusinessOutput(tool_id=7, name="Underwriting Risk Schedule", raw_destination="Underwriting_Risk_Schedule.xlsx", destination_type="Excel"),
+            BusinessOutput(tool_id=7, name="Underwriting Risk Schedule",
+                           raw_destination="Underwriting_Risk_Schedule.xlsx", destination_type="Excel"),
         ],
         business_rules=[
-            BusinessRule(rule_name="Eligibility Filtering", category="Filtering", description="Excludes inactive policies"),
-            BusinessRule(rule_name="Risk Multiplier", category="Calculation", description="Applies loss ratio factor to calculate final risk score"),
+            BusinessRule(rule_name="Eligibility Filtering",
+                         category="Filtering", description="Excludes inactive policies"),
+            BusinessRule(rule_name="Risk Multiplier", category="Calculation",
+                         description="Applies loss ratio factor to calculate final risk score"),
         ],
         transformations=[
-            BusinessTransformation(category="Join / Enrichment", description="Combines applicant applications with historical claims"),
-            BusinessTransformation(category="Calculation / Derivation", description="Calculates risk score from base score and loss ratio"),
+            BusinessTransformation(
+                category="Join / Enrichment", description="Combines applicant applications with historical claims"),
+            BusinessTransformation(category="Calculation / Derivation",
+                                   description="Calculates risk score from base score and loss ratio"),
         ],
     )
     return wf, bs
@@ -154,12 +167,14 @@ class TestExecutiveBusinessPurposeQuality:
         template = "The workflow supports underwriting by ingesting applicant data and {buzzword} to generate the policy output."
         for bw in BANNED_PURPOSE_BUZZWORDS:
             test_text = template.format(buzzword=bw)
-            assert not _is_clean_business_purpose(test_text), f"Failed to reject banned buzzword: '{bw}'"
+            assert not _is_clean_business_purpose(
+                test_text), f"Failed to reject banned buzzword: '{bw}'"
 
     def test_generic_filler_patterns_rejected(self):
         """Vague generic templates and filler patterns must be rejected."""
         for pattern in GENERIC_PURPOSE_FILLER_PATTERNS:
-            assert not _is_clean_business_purpose(pattern), f"Failed to reject generic filler: '{pattern}'"
+            assert not _is_clean_business_purpose(
+                pattern), f"Failed to reject generic filler: '{pattern}'"
 
     def test_weak_one_liners_rejected(self):
         """Trivial one-liners without explanation must be rejected."""
@@ -171,7 +186,8 @@ class TestExecutiveBusinessPurposeQuality:
             "Automates underwriting data processing to generate business deliverables and decision outputs.",
         ]
         for s in weak_samples:
-            assert not _is_clean_business_purpose(s), f"Failed to reject weak sample: '{s}'"
+            assert not _is_clean_business_purpose(
+                s), f"Failed to reject weak sample: '{s}'"
 
     def test_tool_id_dumping_rejected(self):
         """Raw tool ID dumps without business translation must be rejected."""
@@ -180,7 +196,8 @@ class TestExecutiveBusinessPurposeQuality:
             "Data enters Tool_1 and flows into Tool_2 where calculations occur before writing to Tool_3.",
         ]
         for td in tool_dumps:
-            assert not _is_clean_business_purpose(td), f"Failed to reject tool dumping: '{td}'"
+            assert not _is_clean_business_purpose(
+                td), f"Failed to reject tool dumping: '{td}'"
 
     def test_hallucinated_dollar_figures_rejected(self):
         """Specific ungrounded dollar figures must be rejected when facts have none."""
@@ -256,8 +273,10 @@ class TestExecutiveBusinessPurposeQuality:
 
     def test_sparse_evidence_produces_bounded_factual_summary(self):
         """Workflows with sparse evidence produce a bounded summary without invented context."""
-        wf = Workflow(metadata=WorkflowMetadata(name="Internal_Batch_Job.yxmd", version="2021.1"), tools={}, connections=[])
-        bs = WorkflowBusinessSummary(business_purpose="", one_line_purpose="", why_it_matters="")
+        wf = Workflow(metadata=WorkflowMetadata(
+            name="Internal_Batch_Job.yxmd", version="2021.1"), tools={}, connections=[])
+        bs = WorkflowBusinessSummary(
+            business_purpose="", one_line_purpose="", why_it_matters="")
 
         purpose = compose_deterministic_business_purpose(
             wf,
@@ -291,7 +310,8 @@ class TestExecutiveBusinessPurposeQuality:
         client = FakeLLMClient(response=payload, is_available=True)
         gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
 
-        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_exec_test_01")
+        res = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_exec_test_01")
         assert res.source == "llm"
         assert res.business_purpose == valid_summary
         assert res.business_area_tag == "Underwriting"
@@ -312,7 +332,8 @@ class TestExecutiveBusinessPurposeQuality:
         client = FakeLLMClient(response=payload, is_available=True)
         gen = LLMNarrativeGenerator(client=client, cache=LLMNarrativeCache())
 
-        res = gen.generate_business_purpose(wf, bs, workflow_id="wf_buzzword_reject_test")
+        res = gen.generate_business_purpose(
+            wf, bs, workflow_id="wf_buzzword_reject_test")
         assert res.source == "deterministic_fallback"
         assert "leverages data" not in res.business_purpose
         assert "actionable insights" not in res.business_purpose

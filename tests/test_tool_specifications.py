@@ -6,22 +6,22 @@ import openpyxl
 import pytest
 from fastapi.testclient import TestClient
 
-from awa.analysis.workflow_analyzer import analyze_workflow, analyze_canonical
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, Position, ToolConfiguration
-from awa.model.connection import Connection
-from awa.graph.builder import build_graph, execution_order
-from awa.model.tool_specifications import (
+from backend.awa.analysis.workflow_analyzer import analyze_workflow, analyze_canonical
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.tool import Tool, Position, ToolConfiguration
+from backend.awa.model.connection import Connection
+from backend.awa.graph.builder import build_graph, execution_order
+from backend.awa.model.tool_specifications import (
     ToolSpecificationRow,
     ToolSpecificationsDocument,
     build_tool_specifications_document,
     format_input_tools,
     format_output_tools,
 )
-from awa.generators.tool_specifications_generator import generate_tool_specifications_excel
-from awa.llm.client import FakeLLMClient, set_default_llm_client
-from awa.llm.generator import LLMNarrativeGenerator, set_default_generator
-from awa.llm.cache import LLMNarrativeCache
+from backend.awa.generators.tool_specifications_generator import generate_tool_specifications_excel
+from backend.awa.llm.client import FakeLLMClient, set_default_llm_client
+from backend.awa.llm.generator import LLMNarrativeGenerator, set_default_generator
+from backend.awa.llm.cache import LLMNarrativeCache
 from backend.app.main import app
 
 
@@ -40,7 +40,8 @@ class TestToolSpecifications:
 
     def test_tool_specifications_excel_structure(self, tmp_path: Path):
         """Verify XLSX creation, worksheet title, column headers, ordering, and formatting."""
-        canonical = analyze_canonical(Path("fixtures/basic/simple_filter.yxmd"))
+        canonical = analyze_canonical(
+            Path("fixtures/basic/simple_filter.yxmd"))
         wf = canonical.workflow
         graph = canonical.graph
 
@@ -79,7 +80,8 @@ class TestToolSpecifications:
     def test_tool_specifications_deterministic_topology_facts(self, tmp_path: Path):
         """Verify that Input Tool and Output Tool correctly reflect graph boundaries and multi-connections."""
         wf = Workflow(
-            metadata=WorkflowMetadata(name="Branching Workflow", version="2024.1"),
+            metadata=WorkflowMetadata(
+                name="Branching Workflow", version="2024.1"),
             tools={
                 1: Tool(
                     tool_id=1,
@@ -87,7 +89,8 @@ class TestToolSpecifications:
                     tool_type="DbFileInput",
                     name="Input Orders",
                     position=Position(0, 0),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "orders.csv"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "orders.csv"}),
                 ),
                 2: Tool(
                     tool_id=2,
@@ -95,7 +98,8 @@ class TestToolSpecifications:
                     tool_type="DbFileInput",
                     name="Input Customers",
                     position=Position(0, 100),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "customers.csv"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "customers.csv"}),
                 ),
                 3: Tool(
                     tool_id=3,
@@ -103,7 +107,8 @@ class TestToolSpecifications:
                     tool_type="Join",
                     name="Join Orders Customers",
                     position=Position(100, 50),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"join_fields": ["CustomerID"]}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"join_fields": ["CustomerID"]}),
                 ),
                 4: Tool(
                     tool_id=4,
@@ -111,7 +116,8 @@ class TestToolSpecifications:
                     tool_type="DbFileOutput",
                     name="Output Matched",
                     position=Position(200, 0),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "matched.xlsx"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "matched.xlsx"}),
                 ),
                 5: Tool(
                     tool_id=5,
@@ -119,14 +125,19 @@ class TestToolSpecifications:
                     tool_type="DbFileOutput",
                     name="Output Unmatched",
                     position=Position(200, 100),
-                    configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "unmatched.xlsx"}),
+                    configuration=ToolConfiguration(
+                        raw_xml="<Configuration/>", parsed={"file_path": "unmatched.xlsx"}),
                 ),
             },
             connections=[
-                Connection(origin_tool_id=1, origin_anchor="Output", destination_tool_id=3, destination_anchor="Left"),
-                Connection(origin_tool_id=2, origin_anchor="Output", destination_tool_id=3, destination_anchor="Right"),
-                Connection(origin_tool_id=3, origin_anchor="Join", destination_tool_id=4, destination_anchor="Input"),
-                Connection(origin_tool_id=3, origin_anchor="LeftUnassigned", destination_tool_id=5, destination_anchor="Input"),
+                Connection(origin_tool_id=1, origin_anchor="Output",
+                           destination_tool_id=3, destination_anchor="Left"),
+                Connection(origin_tool_id=2, origin_anchor="Output",
+                           destination_tool_id=3, destination_anchor="Right"),
+                Connection(origin_tool_id=3, origin_anchor="Join",
+                           destination_tool_id=4, destination_anchor="Input"),
+                Connection(origin_tool_id=3, origin_anchor="LeftUnassigned",
+                           destination_tool_id=5, destination_anchor="Input"),
             ],
         )
         graph = build_graph(wf)
@@ -185,14 +196,17 @@ class TestToolSpecifications:
         set_default_generator(gen)
 
         try:
-            canonical = analyze_canonical(Path("fixtures/basic/simple_filter.yxmd"))
+            canonical = analyze_canonical(
+                Path("fixtures/basic/simple_filter.yxmd"))
             wf = canonical.workflow
             graph = canonical.graph
 
-            tool_specs = gen.generate_all_tool_specifications(wf, graph=graph, workflow_id="test_filter")
+            tool_specs = gen.generate_all_tool_specifications(
+                wf, graph=graph, workflow_id="test_filter")
             assert len(tool_specs) == len(wf.tools)
 
-            doc = build_tool_specifications_document(wf, graph, tool_specs=tool_specs)
+            doc = build_tool_specifications_document(
+                wf, graph, tool_specs=tool_specs)
             out_file = tmp_path / "Tool Specifications.xlsx"
             generate_tool_specifications_excel(doc, out_file)
 
@@ -213,8 +227,10 @@ class TestToolSpecifications:
 
     def test_multi_domain_regression_and_no_cross_domain_leakage(self, tmp_path: Path):
         """Verify that a generic filter workflow produces no claims-demo terminology."""
-        canonical = analyze_canonical(Path("fixtures/basic/simple_filter.yxmd"))
-        tool_doc = build_tool_specifications_document(canonical.workflow, canonical.graph)
+        canonical = analyze_canonical(
+            Path("fixtures/basic/simple_filter.yxmd"))
+        tool_doc = build_tool_specifications_document(
+            canonical.workflow, canonical.graph)
         out_file = tmp_path / "Tool_Specifications.xlsx"
         generate_tool_specifications_excel(tool_doc, out_file)
 
@@ -239,15 +255,18 @@ class TestToolSpecifications:
         client = TestClient(app)
         wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
         with open(wf_path, "rb") as f:
-            resp = client.post("/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
+            resp = client.post(
+                "/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
 
         assert resp.status_code == 200
         analysis_id = resp.json()["analysis_id"]
 
         # Download Tool Specifications XLSX
-        resp_tool = client.get(f"/api/download/{analysis_id}/tool-specifications")
+        resp_tool = client.get(
+            f"/api/download/{analysis_id}/tool-specifications")
         assert resp_tool.status_code == 200
-        assert "Tool_Specifications.xlsx" in resp_tool.headers.get("Content-Disposition", "")
+        assert "Tool_Specifications.xlsx" in resp_tool.headers.get(
+            "Content-Disposition", "")
         wb = openpyxl.load_workbook(io.BytesIO(resp_tool.content))
         assert "Tool Specifications" in wb.sheetnames
         ws = wb["Tool Specifications"]

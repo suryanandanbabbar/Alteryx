@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import pytest
 
-from awa.analysis.workflow_criticality import (
+from backend.awa.analysis.workflow_criticality import (
     calculate_workflow_criticality,
     normalize_downstream_outputs_score,
     normalize_upstream_sources_score,
@@ -47,7 +47,8 @@ class TestFiveFactorCriticalityEngine:
             workflow_filename="Customer_Billing.yxmd",
             sources=["Billing_In.xlsx", "Rates.csv"],
             targets=["Invoices.xlsx", "Ledger.yxdb"],
-            operational_metadata={"last_run": "5 months ago", "frequency": "Monthly"},
+            operational_metadata={
+                "last_run": "5 months ago", "frequency": "Monthly"},
         )
         res1 = calculate_workflow_criticality(**kwargs)
         res2 = calculate_workflow_criticality(**kwargs)
@@ -77,7 +78,8 @@ class TestFiveFactorCriticalityEngine:
             sources=["Src1.xlsx", "Src2.csv"],
             targets=["Out1.yxdb", "Out2.yxdb"],
             context=dep_ctx,
-            operational_metadata={"last_run": "5 months ago", "frequency": "Monthly"},
+            operational_metadata={
+                "last_run": "5 months ago", "frequency": "Monthly"},
         )
 
         assert res.breakdown["downstream_outputs"] == 70.0
@@ -104,9 +106,11 @@ class TestFiveFactorCriticalityEngine:
             workflow_id="wf_max",
             workflow_filename="Max.yxmd",
             sources=["s1", "s2", "s3", "s4", "s5", "s6"],
-            targets=["out_0.yxdb", "out_1.yxdb", "out_2.yxdb", "out_3.yxdb", "out_4.yxdb", "out_5.yxdb"],
+            targets=["out_0.yxdb", "out_1.yxdb", "out_2.yxdb",
+                     "out_3.yxdb", "out_4.yxdb", "out_5.yxdb"],
             context=dep_ctx,
-            operational_metadata={"last_run": "today", "frequency": "Real-time"},
+            operational_metadata={
+                "last_run": "today", "frequency": "Real-time"},
         )
         assert res.technical_score == 60.0
         assert res.operational_score == 40.0
@@ -202,7 +206,8 @@ class TestFiveFactorCriticalityEngine:
             workflow_filename="Iso.yxmd",
             sources=["s1.csv"],
             targets=["t1.yxdb"],
-            operational_metadata={"last_run": "5 months ago", "frequency": "Monthly"},
+            operational_metadata={
+                "last_run": "5 months ago", "frequency": "Monthly"},
         )
         res1 = calculate_workflow_criticality(**base_kwargs)
 
@@ -224,7 +229,8 @@ class TestFiveFactorCriticalityEngine:
             workflow_filename="Iso.yxmd",
             sources=["s1.csv"],
             targets=["t1.yxdb"],
-            operational_metadata={"last_run": "5 months ago", "frequency": "Monthly"},
+            operational_metadata={
+                "last_run": "5 months ago", "frequency": "Monthly"},
         )
         res1 = calculate_workflow_criticality(**base_kwargs)
 
@@ -246,7 +252,8 @@ class TestFiveFactorCriticalityEngine:
             workflow_filename="Iso.yxmd",
             sources=["s1.csv"],
             targets=["t1.yxdb"],
-            operational_metadata={"last_run": "5 months ago", "frequency": "Monthly"},
+            operational_metadata={
+                "last_run": "5 months ago", "frequency": "Monthly"},
         )
         res1 = calculate_workflow_criticality(**base_kwargs)
 
@@ -256,7 +263,8 @@ class TestFiveFactorCriticalityEngine:
                 "t1.yxdb": [("wf_other1", "Other1.yxmd"), ("wf_other2", "Other2.yxmd")],
             }
         )
-        res2 = calculate_workflow_criticality(**{**base_kwargs, "context": dep_ctx})
+        res2 = calculate_workflow_criticality(
+            **{**base_kwargs, "context": dep_ctx})
 
         assert res2.breakdown["etl_consumers"] > res1.breakdown["etl_consumers"]
         assert res2.breakdown["downstream_outputs"] == res1.breakdown["downstream_outputs"]
@@ -271,7 +279,8 @@ class TestFiveFactorCriticalityEngine:
             workflow_filename="Audit.yxmd",
             sources=["in.csv"],
             targets=["out.yxdb"],
-            operational_metadata={"last_run": "1 month ago", "frequency": "Daily"},
+            operational_metadata={
+                "last_run": "1 month ago", "frequency": "Daily"},
         )
         d = res.to_dict()
 
@@ -297,7 +306,8 @@ class TestFiveFactorCriticalityEngine:
             workflow_filename="CleanNames.yxmd",
             sources=["in.csv"],
             targets=["out.yxdb"],
-            operational_metadata={"last_run": "5 months ago", "frequency": "Monthly"},
+            operational_metadata={
+                "last_run": "5 months ago", "frequency": "Monthly"},
         )
 
         fb = res.factor_breakdown
@@ -386,7 +396,8 @@ class TestFiveFactorCriticalityEngine:
         assert fb1["weighted_contribution_pct"] == 8.0
 
         # 4 sources
-        sources_4 = ["Customers.csv", "Orders.xlsx", "Products.db", "Returns.csv"]
+        sources_4 = ["Customers.csv", "Orders.xlsx",
+                     "Products.db", "Returns.csv"]
         res4 = calculate_workflow_criticality(
             workflow_id="wf_dyn_src_4",
             workflow_filename="DynSrc4.yxmd",
@@ -470,7 +481,8 @@ class TestFiveFactorCriticalityEngine:
             workflow_filename="OpReal.yxmd",
             sources=["s.csv"],
             targets=["t.yxdb"],
-            operational_metadata={"last_run": "3 days ago", "frequency": "Daily"},
+            operational_metadata={
+                "last_run": "3 days ago", "frequency": "Daily"},
         )
         assert res_real.factor_breakdown["last_run"]["raw_evidence"] == "3 days ago"
         assert res_real.factor_breakdown["last_run"]["factor_score"] == 100.0
@@ -486,14 +498,16 @@ class TestFiveFactorCriticalityEngine:
             workflow_filename="SumCheck.yxmd",
             sources=["s1.csv", "s2.xlsx"],
             targets=["t1.yxdb"],
-            operational_metadata={"last_run": "2 weeks ago", "frequency": "Weekly"},
+            operational_metadata={
+                "last_run": "2 weeks ago", "frequency": "Weekly"},
         )
-        sum_contribs = sum(item["weighted_contribution_pct"] for item in res.factor_breakdown.values())
+        sum_contribs = sum(item["weighted_contribution_pct"]
+                           for item in res.factor_breakdown.values())
         assert abs(sum_contribs - res.score) < 0.15
 
     def test_real_yxmd_parsing_drives_deterministic_criticality(self):
         """Authoritative YXMD parser extracts real sources and targets which populate criticality."""
-        from awa.analysis.workflow_analyzer import analyze_canonical
+        from backend.awa.analysis.workflow_analyzer import analyze_canonical
 
         res = analyze_canonical("fixtures/joins/join_workflow.yxmd")
 
@@ -510,5 +524,3 @@ class TestFiveFactorCriticalityEngine:
         assert fb["etl_consumers"]["name"] == "ETL workflow consumers"
         assert fb["last_run"]["name"] == "Last Run"
         assert fb["frequency"]["name"] == "Frequency"
-
-

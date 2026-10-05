@@ -8,30 +8,30 @@ import networkx as nx
 from dataclasses import dataclass
 from pathlib import Path
 
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult, SupportLevel
-from awa.model.source_info import SourceInfo
-from awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
-from awa.model.python_trace import ToolExplanation
-from awa.parser.xml_parser import parse_workflow
-from awa.graph.builder import build_graph, execution_order, consumed_anchors, build_input_map
-from awa.graph.lineage import compute_lineage_paths
-from awa.graph.dag_layouter import compute_dag_layout
-from awa.translators.registry import get_translator
-from awa.tools.catalog import get_tool_catalog
-import awa.translators  # noqa: F401
-from awa.generators.json_generator import generate_json
-from awa.generators.python_generator import generate_python, generate_python_code
-from awa.generators.diagnostics_generator import generate_diagnostics
-from awa.generators.svg_generator import generate_svg
-from awa.generators.docx_generator import generate_docx
-from awa.generators.doc_builder import build_document_model
-from awa.generators.sttm_generator import generate_sttm_excel
-from awa.generators.tool_specifications_generator import generate_tool_specifications_excel
-from awa.model.tool_specifications import build_tool_specifications_document
-from awa.analysis.business_intelligence import generate_business_summary
-from awa.analysis.sttm_extractor import extract_sttm
-from awa.llm.generator import get_default_generator
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult, SupportLevel
+from backend.awa.model.source_info import SourceInfo
+from backend.awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
+from backend.awa.model.python_trace import ToolExplanation
+from backend.awa.parser.xml_parser import parse_workflow
+from backend.awa.graph.builder import build_graph, execution_order, consumed_anchors, build_input_map
+from backend.awa.graph.lineage import compute_lineage_paths
+from backend.awa.graph.dag_layouter import compute_dag_layout
+from backend.awa.translators.registry import get_translator
+from backend.awa.tools.catalog import get_tool_catalog
+import backend.awa.translators  # noqa: F401
+from backend.awa.generators.json_generator import generate_json
+from backend.awa.generators.python_generator import generate_python, generate_python_code
+from backend.awa.generators.diagnostics_generator import generate_diagnostics
+from backend.awa.generators.svg_generator import generate_svg
+from backend.awa.generators.docx_generator import generate_docx
+from backend.awa.generators.doc_builder import build_document_model
+from backend.awa.generators.sttm_generator import generate_sttm_excel
+from backend.awa.generators.tool_specifications_generator import generate_tool_specifications_excel
+from backend.awa.model.tool_specifications import build_tool_specifications_document
+from backend.awa.analysis.business_intelligence import generate_business_summary
+from backend.awa.analysis.sttm_extractor import extract_sttm
+from backend.awa.llm.generator import get_default_generator
 
 
 @dataclass
@@ -589,7 +589,7 @@ def analyze_canonical(
 
     # 11. Enrich with LLM-authored full Business Report content if configured & available
     try:
-        from awa.llm import get_default_generator
+        from backend.awa.llm import get_default_generator
         import logging as _llm_log
         _llm_logger = _llm_log.getLogger("awa.llm")
         gen = get_default_generator()
@@ -597,8 +597,8 @@ def analyze_canonical(
         # 0. Generate canonical workflow Business Purpose, Function, and Area Tag (Prompt Version 3.0)
         # Always executed regardless of LLM availability (delegates to deterministic fallback when LLM is unavailable)
         try:
-            from awa.analysis.business_area_classifier import extract_output_evidence_for_workflow
-            from awa.analysis.portfolio_analyzer import _extract_workflow_sources
+            from backend.awa.analysis.business_area_classifier import extract_output_evidence_for_workflow
+            from backend.awa.analysis.portfolio_analyzer import _extract_workflow_sources
             temp_res = CanonicalAnalysisResult(
                 analysis_id=aid,
                 source=sinfo,
@@ -648,8 +648,8 @@ def analyze_canonical(
 
         # 0b. Generate canonical workflow Criticality Assessment (Purely Deterministic 5-Factor Engine)
         try:
-            from awa.analysis.workflow_criticality import calculate_workflow_criticality
-            from awa.analysis.portfolio_analyzer import _extract_workflow_targets_and_sinks
+            from backend.awa.analysis.workflow_criticality import calculate_workflow_criticality
+            from backend.awa.analysis.portfolio_analyzer import _extract_workflow_targets_and_sinks
             crit_targets, crit_sinks, _ = _extract_workflow_targets_and_sinks(temp_res)
 
             crit_res = calculate_workflow_criticality(
@@ -738,7 +738,7 @@ def analyze_canonical(
 
                 # Replace business rules entirely with LLM-authored rules
                 if report_content.business_rules:
-                    from awa.model.business_summary import BusinessRule
+                    from backend.awa.model.business_summary import BusinessRule
                     new_rules = []
                     for r in report_content.business_rules:
                         new_rules.append(
@@ -753,7 +753,7 @@ def analyze_canonical(
 
                 # Replace lineage entirely with LLM-authored lineage
                 if report_content.lineage:
-                    from awa.model.business_summary import BusinessLineageEntry
+                    from backend.awa.model.business_summary import BusinessLineageEntry
                     new_lineage = []
                     for l in report_content.lineage:
                         src_str = l.source_datasets if isinstance(l.source_datasets, str) else " + ".join(l.source_datasets)
@@ -787,9 +787,9 @@ def analyze_canonical(
     # Ensure business_summary has a resolved business_area_tag via generator's fallback
     if business_summary and (not getattr(business_summary, "business_area_tag", None) or business_summary.business_area_tag == "UNCLASSIFIED"):
         try:
-            from awa.analysis.business_area_classifier import extract_output_evidence_for_workflow
-            from awa.analysis.portfolio_analyzer import _extract_workflow_sources
-            from awa.llm import get_default_generator
+            from backend.awa.analysis.business_area_classifier import extract_output_evidence_for_workflow
+            from backend.awa.analysis.portfolio_analyzer import _extract_workflow_sources
+            from backend.awa.llm import get_default_generator
             temp_res = CanonicalAnalysisResult(
                 analysis_id=aid,
                 source=sinfo,

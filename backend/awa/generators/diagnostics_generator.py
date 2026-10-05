@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
 
 
 def generate_diagnostics(

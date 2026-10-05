@@ -3,16 +3,16 @@
 import networkx as nx
 import pytest
 
-from awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
-from awa.model.source_info import SourceInfo, PackageMetadata
-from awa.model.visual_category import get_visual_category, get_tool_colors, get_category_colors, CATEGORY_COLORS
-from awa.model.python_trace import PythonTraceEntry, PythonTraceMap, ToolExplanation
-from awa.model.dag_layout import DagNodeLayout, DagEdgeLayout, DagLayout
-from awa.model.doc_model import NodeDocEntry, ExecutionStepDocEntry, DocumentModel
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, ToolConfiguration
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
-from awa.model.translation import TranslationResult
+from backend.awa.model.analysis_result import CanonicalAnalysisResult, WorkflowMetrics
+from backend.awa.model.source_info import SourceInfo, PackageMetadata
+from backend.awa.model.visual_category import get_visual_category, get_tool_colors, get_category_colors, CATEGORY_COLORS
+from backend.awa.model.python_trace import PythonTraceEntry, PythonTraceMap, ToolExplanation
+from backend.awa.model.dag_layout import DagNodeLayout, DagEdgeLayout, DagLayout
+from backend.awa.model.doc_model import NodeDocEntry, ExecutionStepDocEntry, DocumentModel
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.tool import Tool, ToolConfiguration
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.awa.model.translation import TranslationResult
 
 
 def test_visual_categories_and_colors():
@@ -72,7 +72,8 @@ def test_python_trace_and_explanations():
         why_selected="Idiomatic pandas filter",
         libraries=["pandas"],
     )
-    assert exp.to_dict()["what_alteryx_does"] == "Filter records matching condition"
+    assert exp.to_dict()[
+        "what_alteryx_does"] == "Filter records matching condition"
 
 
 def test_dag_layout_model():
@@ -94,7 +95,8 @@ def test_dag_layout_model():
         target_anchor="Input",
         path_points=[(260.0, 80.0), (320.0, 80.0)],
     )
-    layout = DagLayout(nodes=[node], edges=[edge], width=500.0, height=300.0, title="Test DAG")
+    layout = DagLayout(nodes=[node], edges=[edge],
+                       width=500.0, height=300.0, title="Test DAG")
     assert layout.get_node(1) == node
     assert layout.get_node(2) is None
     d = layout.to_dict()
@@ -111,7 +113,8 @@ def test_canonical_analysis_result():
         tool_type="DbFileInput",
         name="Input",
         position=None,
-        configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"file_path": "data.csv"}),
+        configuration=ToolConfiguration(
+            raw_xml="<Configuration/>", parsed={"file_path": "data.csv"}),
     )
     wf = Workflow(metadata=wf_meta, tools={1: tool})
     g = nx.DiGraph()

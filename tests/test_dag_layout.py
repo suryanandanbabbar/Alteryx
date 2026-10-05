@@ -4,10 +4,10 @@ import xml.etree.ElementTree as ET
 import networkx as nx
 import pytest
 
-from awa.parser.xml_parser import parse_workflow
-from awa.graph.builder import build_graph, execution_order
-from awa.graph.dag_layouter import compute_dag_layout
-from awa.generators.svg_generator import generate_svg
+from backend.awa.parser.xml_parser import parse_workflow
+from backend.awa.graph.builder import build_graph, execution_order
+from backend.awa.graph.dag_layouter import compute_dag_layout
+from backend.awa.generators.svg_generator import generate_svg
 
 
 def test_dag_layouter_simple_filter():
@@ -61,8 +61,10 @@ def test_svg_generator_valid_xml():
     assert root.tag.endswith("svg")
 
     # Must contain nodes and paths
-    nodes = root.findall(".//{http://www.w3.org/2000/svg}g[@id='nodes']/{http://www.w3.org/2000/svg}g")
+    nodes = root.findall(
+        ".//{http://www.w3.org/2000/svg}g[@id='nodes']/{http://www.w3.org/2000/svg}g")
     assert len(nodes) == 6
 
-    paths = root.findall(".//{http://www.w3.org/2000/svg}g[@id='edges']/{http://www.w3.org/2000/svg}path")
+    paths = root.findall(
+        ".//{http://www.w3.org/2000/svg}g[@id='edges']/{http://www.w3.org/2000/svg}path")
     assert len(paths) == 5

@@ -20,12 +20,12 @@ from pathlib import Path
 import pytest
 from starlette.testclient import TestClient
 
-from awa.analysis.business_area_classifier import extract_output_evidence_for_workflow
-from awa.analysis.portfolio_analyzer import build_portfolio_analysis
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.llm.cache import LLMNarrativeCache
-from awa.llm.client import FakeLLMClient
-from awa.llm.generator import LLMNarrativeGenerator, set_default_generator
+from backend.awa.analysis.business_area_classifier import extract_output_evidence_for_workflow
+from backend.awa.analysis.portfolio_analyzer import build_portfolio_analysis
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.llm.cache import LLMNarrativeCache
+from backend.awa.llm.client import FakeLLMClient
+from backend.awa.llm.generator import LLMNarrativeGenerator, set_default_generator
 from backend.app.main import app
 
 
@@ -41,7 +41,8 @@ class TestPortfolioNavigationHierarchy:
         """Requirement 21: Single workflow upload routes directly to single-workflow analysis."""
         wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
         with open(wf_path, "rb") as f:
-            resp = client.post("/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
+            resp = client.post(
+                "/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
 
         assert resp.status_code == 200
         data = resp.json()
@@ -53,14 +54,16 @@ class TestPortfolioNavigationHierarchy:
         """Requirement 2-5: Multi-workflow upload creates Level 1 portfolio with dynamic count and business areas."""
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w") as zf:
-            zf.writestr("Claims.yxmd", Path("Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes())
+            zf.writestr("Claims.yxmd", Path(
+                "Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes())
             zf.writestr("FTSE.yxmd", Path("FTSE 100.yxmd").read_bytes())
             zf.writestr("Food.yxmd", Path("BBCFoodAggr.yxmd").read_bytes())
         zip_buf.seek(0)
 
         resp = client.post(
             "/api/portfolio/upload",
-            files=[("files", ("portfolio.zip", zip_buf.getvalue(), "application/zip"))],
+            files=[
+                ("files", ("portfolio.zip", zip_buf.getvalue(), "application/zip"))],
             data={"portfolio_name": "Enterprise ETL Portfolio"},
         )
 
@@ -85,13 +88,15 @@ class TestPortfolioNavigationHierarchy:
         """
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w") as zf:
-            zf.writestr("Demo_Claims.yxmd", Path("Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes())
+            zf.writestr("Demo_Claims.yxmd", Path(
+                "Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes())
             zf.writestr("FTSE.yxmd", Path("FTSE 100.yxmd").read_bytes())
         zip_buf.seek(0)
 
         resp = client.post(
             "/api/portfolio/upload",
-            files=[("files", ("portfolio.zip", zip_buf.getvalue(), "application/zip"))],
+            files=[
+                ("files", ("portfolio.zip", zip_buf.getvalue(), "application/zip"))],
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -124,7 +129,8 @@ class TestPortfolioNavigationHierarchy:
 
     def test_connection_count_matches_canonical_graph(self):
         """Requirement 13 & 23: Connection count accurately reflects canonical workflow graph."""
-        res_claims = analyze_canonical(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        res_claims = analyze_canonical(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         res_ftse = analyze_canonical(Path("FTSE 100.yxmd"))
 
         portfolio = build_portfolio_analysis([
@@ -132,13 +138,16 @@ class TestPortfolioNavigationHierarchy:
             ("FTSE.yxmd", "FTSE.yxmd", res_ftse),
         ])
 
-        summary_claims = next(w for w in portfolio.workflows if w.filename == "Demo_Claims.yxmd")
-        summary_ftse = next(w for w in portfolio.workflows if w.filename == "FTSE.yxmd")
+        summary_claims = next(
+            w for w in portfolio.workflows if w.filename == "Demo_Claims.yxmd")
+        summary_ftse = next(
+            w for w in portfolio.workflows if w.filename == "FTSE.yxmd")
 
         # Must match canonical metrics total_connections
         assert summary_claims.connection_count == res_claims.metrics.total_connections
         assert summary_ftse.connection_count == res_ftse.metrics.total_connections
-        assert summary_claims.connection_count == len(res_claims.workflow.connections)
+        assert summary_claims.connection_count == len(
+            res_claims.workflow.connections)
 
     def test_inspection_sinks_excluded_from_targets(self):
         """Requirement 15: Browse/BrowseV2 inspection sinks are NOT counted as production targets."""
@@ -155,13 +164,15 @@ class TestPortfolioNavigationHierarchy:
         """Requirement 16-20: Retrieving a workflow by ID reuses existing cached analysis."""
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w") as zf:
-            zf.writestr("Claims.yxmd", Path("Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes())
+            zf.writestr("Claims.yxmd", Path(
+                "Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes())
             zf.writestr("FTSE.yxmd", Path("FTSE 100.yxmd").read_bytes())
         zip_buf.seek(0)
 
         resp = client.post(
             "/api/portfolio/upload",
-            files=[("files", ("portfolio.zip", zip_buf.getvalue(), "application/zip"))],
+            files=[
+                ("files", ("portfolio.zip", zip_buf.getvalue(), "application/zip"))],
         )
         data = resp.json()
         wf_id = data["workflows"][0]["workflow_id"]
@@ -176,7 +187,8 @@ class TestPortfolioNavigationHierarchy:
 
     def test_strict_evidence_boundary_on_classifier(self):
         """Requirement 6: Business area classification receives ONLY output dataset names and columns."""
-        res = analyze_canonical(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        res = analyze_canonical(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         evidence = extract_output_evidence_for_workflow(res)
 
         payload_json = json.dumps({"outputs": evidence})
@@ -190,19 +202,22 @@ class TestPortfolioNavigationHierarchy:
 
         # Every output entry only contains allowed keys
         for out in evidence:
-            assert set(out.keys()).issubset({"dataset", "table_or_sheet", "columns"})
+            assert set(out.keys()).issubset(
+                {"dataset", "table_or_sheet", "columns"})
 
     def test_business_area_descriptions_present_and_domain_focused(self, client):
         """Verify business-area descriptions are populated, domain-focused, and stable."""
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w") as zf:
-            zf.writestr("Claims.yxmd", Path("Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes())
+            zf.writestr("Claims.yxmd", Path(
+                "Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes())
             zf.writestr("FTSE.yxmd", Path("FTSE 100.yxmd").read_bytes())
         zip_buf.seek(0)
 
         resp = client.post(
             "/api/portfolio/upload",
-            files=[("files", ("portfolio.zip", zip_buf.getvalue(), "application/zip"))],
+            files=[
+                ("files", ("portfolio.zip", zip_buf.getvalue(), "application/zip"))],
         )
         assert resp.status_code == 200
         data = resp.json()

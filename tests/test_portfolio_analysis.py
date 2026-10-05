@@ -9,18 +9,18 @@ from pathlib import Path
 import pytest
 from starlette.testclient import TestClient
 
-from awa.parser.xml_parser import parse_workflow
-from awa.graph.builder import build_graph
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.model.portfolio import PortfolioAnalysis, WorkflowRelationship
-from awa.analysis.portfolio_analyzer import (
+from backend.awa.parser.xml_parser import parse_workflow
+from backend.awa.graph.builder import build_graph
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.model.portfolio import PortfolioAnalysis, WorkflowRelationship
+from backend.awa.analysis.portfolio_analyzer import (
     build_portfolio_analysis,
     enrich_portfolio_with_llm,
     compute_multi_signal_relationship,
 )
-from awa.llm.client import FakeLLMClient
-from awa.llm.generator import LLMNarrativeGenerator, set_default_generator
-from awa.llm.cache import LLMNarrativeCache
+from backend.awa.llm.client import FakeLLMClient
+from backend.awa.llm.generator import LLMNarrativeGenerator, set_default_generator
+from backend.awa.llm.cache import LLMNarrativeCache
 from backend.app.main import app
 from backend.app.services.portfolio_service import (
     extract_workflows_from_zip,
@@ -41,7 +41,8 @@ class TestPortfolioAnalysis:
         """Single YXMD upload must preserve exact existing single-workflow response."""
         wf_path = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
         with open(wf_path, "rb") as f:
-            resp = client.post("/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
+            resp = client.post(
+                "/api/upload", files={"file": ("Demo_Claims.yxmd", f, "application/xml")})
 
         assert resp.status_code == 200
         data = resp.json()
@@ -78,7 +79,8 @@ class TestPortfolioAnalysis:
         # Single workflow in zip -> returns single-workflow analysis
         resp = client.post(
             "/api/upload",
-            files={"file": ("workflows.zip", zip_buf.getvalue(), "application/zip")},
+            files={"file": ("workflows.zip", zip_buf.getvalue(),
+                            "application/zip")},
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -87,7 +89,8 @@ class TestPortfolioAnalysis:
 
     def test_multi_workflow_zip_portfolio_creation(self, client):
         """ZIP containing multiple workflows creates a portfolio with distinct workflows."""
-        claims_bytes = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes()
+        claims_bytes = Path(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes()
         ftse_bytes = Path("FTSE 100.yxmd").read_bytes()
 
         zip_buf = io.BytesIO()
@@ -141,7 +144,8 @@ class TestPortfolioAnalysis:
 
     def test_actual_filenames_preserved_in_evidence(self):
         """Authoritative source and target filenames are preserved; *Unknown strictly purged."""
-        claims_res = analyze_canonical(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        claims_res = analyze_canonical(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         ftse_res = analyze_canonical(Path("FTSE 100.yxmd"))
 
         portfolio = build_portfolio_analysis([
@@ -150,13 +154,17 @@ class TestPortfolioAnalysis:
         ])
 
         assert portfolio.workflow_count == 2
-        claims_summary = next(w for w in portfolio.workflows if w.filename == "Demo_Claims.yxmd")
-        ftse_summary = next(w for w in portfolio.workflows if w.filename == "FTSE.yxmd")
+        claims_summary = next(
+            w for w in portfolio.workflows if w.filename == "Demo_Claims.yxmd")
+        ftse_summary = next(
+            w for w in portfolio.workflows if w.filename == "FTSE.yxmd")
 
         # Physical source filenames
-        assert any("Claims_Volume_Extract_Demo.xlsx" in s for s in claims_summary.sources)
+        assert any(
+            "Claims_Volume_Extract_Demo.xlsx" in s for s in claims_summary.sources)
         assert any("Policy_Master_Demo.xlsx" in s for s in claims_summary.sources)
-        assert any("Claims_Aging_Risk_Demo_Output.xlsx" in t for t in claims_summary.targets)
+        assert any(
+            "Claims_Aging_Risk_Demo_Output.xlsx" in t for t in claims_summary.targets)
         assert "FTSEData.tde" in ftse_summary.targets
 
         # Zero *Unknown in sources or targets
@@ -181,13 +189,16 @@ class TestPortfolioAnalysis:
         assert any("Browse" in s for s in summary.inspection_sinks)
 
         # Rationalisation candidate generated for review/inspection asset
-        assert any(c.recommendation_type == "REVIEW" for c in portfolio.rationalisation_candidates)
+        assert any(c.recommendation_type ==
+                   "REVIEW" for c in portfolio.rationalisation_candidates)
 
     def test_multi_signal_similarity_constraint1(self):
         """Constraint 1: Similarity combines independent signals and separates evidence from interpretation."""
-        claims_res1 = analyze_canonical(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        claims_res1 = analyze_canonical(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         # Synthetic copy of claims workflow
-        claims_res2 = analyze_canonical(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        claims_res2 = analyze_canonical(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
 
         portfolio = build_portfolio_analysis([
             ("Claims_A.yxmd", "v1/Claims_A.yxmd", claims_res1),
@@ -212,7 +223,8 @@ class TestPortfolioAnalysis:
 
     def test_portfolio_llm_qualification_and_hallucination_resistance(self):
         """Portfolio LLM qualification enhances reasoning while rejecting hallucinated workflows."""
-        claims_res = analyze_canonical(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        claims_res = analyze_canonical(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         ftse_res = analyze_canonical(Path("FTSE 100.yxmd"))
 
         portfolio = build_portfolio_analysis([
@@ -258,12 +270,13 @@ class TestPortfolioAnalysis:
         }
 
         fake_client = FakeLLMClient(default_response=json.dumps(mock_response))
-        generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        generator = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
         set_default_generator(generator)
 
         # Manually add a structural relationship if not present so LLM can qualify it
         if not portfolio.relationships:
-            from awa.model.portfolio import DeterministicSignals
+            from backend.awa.model.portfolio import DeterministicSignals
             portfolio.relationships.append(
                 WorkflowRelationship(
                     workflow_a_id=wid_claims,
@@ -271,7 +284,8 @@ class TestPortfolioAnalysis:
                     workflow_b_id=wid_ftse,
                     workflow_b_name="FTSE.yxmd",
                     relationship_type="STRUCTURAL_SIMILARITY",
-                    deterministic_signals=DeterministicSignals(composite_score=0.5),
+                    deterministic_signals=DeterministicSignals(
+                        composite_score=0.5),
                     evidence=["Structural comparison"],
                 )
             )
@@ -286,12 +300,15 @@ class TestPortfolioAnalysis:
         assert matched_rel.llm_reasoning == "Distinct enterprise domains but share analytical pipeline structure."
 
         # 2. Hallucinated workflow ID was rejected
-        assert not any("fake_nonexistent_workflow_id" in (r.workflow_a_id, r.workflow_b_id) for r in enriched.relationships)
-        assert not any("hallucinated_wid" in c.workflow_ids for c in enriched.rationalisation_candidates)
+        assert not any("fake_nonexistent_workflow_id" in (
+            r.workflow_a_id, r.workflow_b_id) for r in enriched.relationships)
+        assert not any(
+            "hallucinated_wid" in c.workflow_ids for c in enriched.rationalisation_candidates)
 
     def test_state_and_navigation_preservation(self, client):
         """Verify portfolio state is preserved and workflows can be retrieved without re-upload."""
-        claims_bytes = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes()
+        claims_bytes = Path(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes()
         ftse_bytes = Path("FTSE 100.yxmd").read_bytes()
 
         files = [
@@ -326,11 +343,13 @@ class TestPortfolioAnalysis:
             })
 
         fake_client = FakeLLMClient(generator_fn=tracking_generator)
-        gen = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
         set_default_generator(gen)
 
         # Existing individual results
-        claims_res = analyze_canonical(Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
+        claims_res = analyze_canonical(
+            Path("Demo_Claims_Volume_Extract_reconstructed.yxmd"))
         ftse_res = analyze_canonical(Path("FTSE 100.yxmd"))
 
         call_log.clear()
@@ -374,7 +393,8 @@ class TestPortfolioAnalysis:
 
     def test_folder_with_one_workflow_and_unsupported_files(self, client):
         """Folder containing 1 workflow and multiple unsupported files treats input as single workflow."""
-        wf_bytes = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes()
+        wf_bytes = Path(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd").read_bytes()
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w") as zf:
             zf.writestr("ETL/Claims.yxmd", wf_bytes)
@@ -406,7 +426,8 @@ class TestPortfolioAnalysis:
 
         resp = client.post(
             "/api/portfolio/upload",
-            files=[("files", ("Workflows.zip", zip_buf.getvalue(), "application/zip"))],
+            files=[
+                ("files", ("Workflows.zip", zip_buf.getvalue(), "application/zip"))],
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -436,4 +457,3 @@ class TestPortfolioAnalysis:
         assert resp.status_code == 400
         data = resp.json()
         assert data["detail"]["code"] == "NO_WORKFLOWS_FOUND"
-

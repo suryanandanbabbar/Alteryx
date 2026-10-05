@@ -15,7 +15,7 @@ import tempfile
 import pytest
 from pathlib import Path
 
-from awa.analysis.workflow_analyzer import analyze_workflow
+from backend.awa.analysis.workflow_analyzer import analyze_workflow
 
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
@@ -72,7 +72,8 @@ class TestSimpleFilterE2E:
         tools = data["tools"]
         # First tool is DbFileInput
         assert tools[0]["tool_type"] == "DbFileInput"
-        assert "customers.xlsx" in tools[0]["configuration"]["parsed"].get("file_path", "")
+        assert "customers.xlsx" in tools[0]["configuration"]["parsed"].get(
+            "file_path", "")
 
         # Second tool is Filter
         assert tools[1]["tool_type"] == "Filter"

@@ -5,13 +5,14 @@ This ensures the core engine never directly depends on python-docx.
 """
 
 from __future__ import annotations
+from backend.awa.model.business_summary import WorkflowBusinessSummary
 
 from dataclasses import dataclass, field as dc_field
 from typing import Any
 
-from awa.model.dag_layout import DagLayout
-from awa.model.diagnostic import Dependency, Diagnostic
-from awa.graph.lineage import LineagePath
+from backend.awa.model.dag_layout import DagLayout
+from backend.awa.model.diagnostic import Dependency, Diagnostic
+from backend.awa.graph.lineage import LineagePath
 
 
 @dataclass
@@ -76,9 +77,6 @@ class ExecutionStepDocEntry:
         if self.container_name is not None:
             d["container_name"] = self.container_name
         return d
-
-
-from awa.model.business_summary import WorkflowBusinessSummary
 
 
 @dataclass

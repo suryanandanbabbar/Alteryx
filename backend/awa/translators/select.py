@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
-from awa.model.types import alteryx_to_pandas_dtype
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.awa.model.types import alteryx_to_pandas_dtype
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -46,7 +46,8 @@ class SelectTranslator(ToolTranslator):
         type_casts: dict[str, str] = {}
         diagnostics: list[Diagnostic] = []
 
-        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+        upstream_schema = getattr(
+            workflow, "_stream_schemas", {}).get(input_var)
 
         unknown_streams = getattr(workflow, "_unknown_schema_streams", set())
         is_unknown_upstream = input_var in unknown_streams
@@ -102,11 +103,13 @@ class SelectTranslator(ToolTranslator):
 
         if renames:
             renames_repr = repr(renames)
-            lines.append(f"{output_var} = {output_var}.rename(columns={renames_repr})")
+            lines.append(
+                f"{output_var} = {output_var}.rename(columns={renames_repr})")
 
         if type_casts:
             for col, dtype in type_casts.items():
-                lines.append(f'{output_var}["{col}"] = {output_var}["{col}"].astype("{dtype}")')
+                lines.append(
+                    f'{output_var}["{col}"] = {output_var}["{col}"].astype("{dtype}")')
 
         code = "\n".join(lines)
 
@@ -119,7 +122,8 @@ class SelectTranslator(ToolTranslator):
             input_variables=[input_var],
             output_map={"Output": output_var},
             diagnostics=diagnostics,
-            description=f"Select {len(selected_cols)} columns" + (f", rename {len(renames)}" if renames else ""),
+            description=f"Select {len(selected_cols)} columns" +
+            (f", rename {len(renames)}" if renames else ""),
         )
 
 
@@ -227,24 +231,30 @@ class FieldInfoTranslator(ToolTranslator):
 register_type("Select", SelectTranslator)
 register_type("AlteryxSelect", SelectTranslator)
 register_type("SelectTranslator", SelectTranslator)
-register_plugin("AlteryxBasePluginsGui.AlteryxSelect.AlteryxSelect", SelectTranslator)
+register_plugin(
+    "AlteryxBasePluginsGui.AlteryxSelect.AlteryxSelect", SelectTranslator)
 
 register_type("AutoField", AutoFieldTranslator)
 register_type("AutoFieldTranslator", AutoFieldTranslator)
-register_plugin("AlteryxBasePluginsGui.AutoField.AutoField", AutoFieldTranslator)
+register_plugin("AlteryxBasePluginsGui.AutoField.AutoField",
+                AutoFieldTranslator)
 
 register_type("DynamicSelect", DynamicSelectTranslator)
 register_type("DynamicSelectTranslator", DynamicSelectTranslator)
-register_plugin("AlteryxBasePluginsGui.DynamicSelect.DynamicSelect", DynamicSelectTranslator)
+register_plugin(
+    "AlteryxBasePluginsGui.DynamicSelect.DynamicSelect", DynamicSelectTranslator)
 
 register_type("DynamicRename", DynamicRenameTranslator)
 register_type("DynamicRenameTranslator", DynamicRenameTranslator)
-register_plugin("AlteryxBasePluginsGui.DynamicRename.DynamicRename", DynamicRenameTranslator)
+register_plugin(
+    "AlteryxBasePluginsGui.DynamicRename.DynamicRename", DynamicRenameTranslator)
 
 register_type("SelectRecords", SelectRecordsTranslator)
 register_type("SelectRecordsTranslator", SelectRecordsTranslator)
-register_plugin("AlteryxBasePluginsGui.SelectRecords.SelectRecords", SelectRecordsTranslator)
+register_plugin(
+    "AlteryxBasePluginsGui.SelectRecords.SelectRecords", SelectRecordsTranslator)
 
 register_type("FieldInfo", FieldInfoTranslator)
 register_type("FieldInfoTranslator", FieldInfoTranslator)
-register_plugin("AlteryxBasePluginsGui.FieldInfo.FieldInfo", FieldInfoTranslator)
+register_plugin("AlteryxBasePluginsGui.FieldInfo.FieldInfo",
+                FieldInfoTranslator)

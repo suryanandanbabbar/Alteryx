@@ -3,15 +3,15 @@
 import pytest
 from pathlib import Path
 
-from awa.parser.xml_parser import parse_workflow
-from awa.graph.builder import (
+from backend.awa.parser.xml_parser import parse_workflow
+from backend.awa.graph.builder import (
     build_graph,
     execution_order,
     consumed_anchors,
     build_input_map,
     resolve_output_variable,
 )
-from awa.graph.traversal import source_tools, sink_tools
+from backend.awa.graph.traversal import source_tools, sink_tools
 
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
@@ -137,7 +137,8 @@ class TestExecutionOrderAndOutputClassification:
         pos_map = {node: idx for idx, node in enumerate(order)}
 
         for u, v in g.edges():
-            assert pos_map[u] < pos_map[v], f"Dependency violation: {u} (pos {pos_map[u]}) is not before {v} (pos {pos_map[v]})"
+            assert pos_map[u] < pos_map[
+                v], f"Dependency violation: {u} (pos {pos_map[u]}) is not before {v} (pos {pos_map[v]})"
 
         # Explicitly verify required examples: 102 -> 104, 2 -> 111, 101 -> 111
         assert pos_map[102] < pos_map[104]
@@ -147,7 +148,7 @@ class TestExecutionOrderAndOutputClassification:
     def test_cyclic_workflow_error_detection(self):
         """Cycle in workflow graph raises CyclicWorkflowError."""
         import networkx as nx
-        from awa.graph.builder import CyclicWorkflowError
+        from backend.awa.graph.builder import CyclicWorkflowError
 
         cyclic_g = nx.DiGraph()
         cyclic_g.add_edge(1, 2)
@@ -159,9 +160,10 @@ class TestExecutionOrderAndOutputClassification:
 
     def test_terminal_vs_business_outputs_separation(self):
         """Terminal nodes (7) and Business Outputs (5) are explicitly separated on Demo Claims."""
-        from awa.analysis.workflow_analyzer import analyze_canonical
+        from backend.awa.analysis.workflow_analyzer import analyze_canonical
 
-        canonical = analyze_canonical("Demo_Claims_Volume_Extract_reconstructed.yxmd")
+        canonical = analyze_canonical(
+            "Demo_Claims_Volume_Extract_reconstructed.yxmd")
         metrics = canonical.metrics
 
         # 1. Total counts

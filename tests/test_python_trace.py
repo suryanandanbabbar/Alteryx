@@ -1,11 +1,11 @@
 """Tests for Python line-level traceability and library disclosure."""
 
-from awa.parser.xml_parser import parse_workflow
-from awa.graph.builder import build_graph, execution_order, consumed_anchors, build_input_map
-from awa.translators.registry import get_translator
-import awa.translators  # register
-from awa.generators.python_generator import generate_python_code
-from awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.parser.xml_parser import parse_workflow
+from backend.awa.graph.builder import build_graph, execution_order, consumed_anchors, build_input_map
+from backend.awa.translators.registry import get_translator
+import backend.awa.translators  # register
+from backend.awa.generators.python_generator import generate_python_code
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
 
 
 def test_python_trace_line_accuracy():

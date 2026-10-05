@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from awa.model.tool import Tool
-from awa.model.diagnostic import SupportLevel
-from awa.tools.catalog import get_tool_definition
+from backend.awa.model.tool import Tool
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.tools.catalog import get_tool_definition
 from .base import (
     ToolTranslator,
     PassThroughTranslator,
@@ -61,7 +61,8 @@ class TranslatorRegistry:
                 return cls()
 
         # 4. Tool Registry catalog lookup
-        tool_def = get_tool_definition(tool.plugin) or get_tool_definition(tool.tool_type)
+        tool_def = get_tool_definition(
+            tool.plugin) or get_tool_definition(tool.tool_type)
         if tool_def:
             if tool_def.translator_name and tool_def.translator_name in self._type_handlers:
                 return self._type_handlers[tool_def.translator_name]()

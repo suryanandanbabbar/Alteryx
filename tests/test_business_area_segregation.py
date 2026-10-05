@@ -18,19 +18,19 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from awa.analysis.business_area_classifier import (
+from backend.awa.analysis.business_area_classifier import (
     ALLOWED_BUSINESS_AREAS,
     classify_business_area_deterministic,
     classify_portfolio_business_areas,
     classify_workflow_business_area,
 )
-from awa.analysis.portfolio_analyzer import build_portfolio_analysis
-from awa.llm.cache import LLMNarrativeCache
-from awa.llm.client import FakeLLMClient
-from awa.llm.generator import LLMNarrativeGenerator
-from awa.model.analysis_result import CanonicalAnalysisResult
-from awa.model.business_summary import WorkflowBusinessSummary
-from awa.model.tool import Tool, ToolConfiguration
+from backend.awa.analysis.portfolio_analyzer import build_portfolio_analysis
+from backend.awa.llm.cache import LLMNarrativeCache
+from backend.awa.llm.client import FakeLLMClient
+from backend.awa.llm.generator import LLMNarrativeGenerator
+from backend.awa.model.analysis_result import CanonicalAnalysisResult
+from backend.awa.model.business_summary import WorkflowBusinessSummary
+from backend.awa.model.tool import Tool, ToolConfiguration
 
 
 def _make_dummy_canonical_result(
@@ -187,11 +187,13 @@ class TestBusinessAreaSegregation:
         assert portfolio.business_area_counts["Claims & Risk"] == 2
         assert portfolio.business_area_counts["Sales & Distribution"] == 1
 
-        legal_group = next(g for g in portfolio.business_areas if g.business_area == "Legal")
+        legal_group = next(
+            g for g in portfolio.business_areas if g.business_area == "Legal")
         assert legal_group.workflow_count == 0
         assert legal_group.workflows == []
 
-        uw_group = next(g for g in portfolio.business_areas if g.business_area == "Underwriting")
+        uw_group = next(
+            g for g in portfolio.business_areas if g.business_area == "Underwriting")
         assert uw_group.workflow_count == 0
         assert uw_group.workflows == []
 
@@ -234,9 +236,11 @@ class TestBusinessAreaSegregation:
             })
 
         fake_client = FakeLLMClient(generator_fn=mock_llm_generator)
-        gen = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
 
-        classifications = classify_portfolio_business_areas([wf], generator=gen)
+        classifications = classify_portfolio_business_areas(
+            [wf], generator=gen)
 
         # Verify prompt received business purpose
         assert len(prompts_received) == 1
@@ -261,9 +265,11 @@ class TestBusinessAreaSegregation:
             raise RuntimeError("Azure OpenAI rate limit 429")
 
         fake_client = FakeLLMClient(generator_fn=failing_generator)
-        gen = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
 
-        classifications = classify_portfolio_business_areas([wf], generator=gen)
+        classifications = classify_portfolio_business_areas(
+            [wf], generator=gen)
 
         assert "wf_legal" in classifications
         assert classifications["wf_legal"].business_area == "Legal"
@@ -297,9 +303,11 @@ class TestBusinessAreaSegregation:
             })
 
         fake_client = FakeLLMClient(generator_fn=partial_generator)
-        gen = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
 
-        classifications = classify_portfolio_business_areas([wf1, wf2], generator=gen)
+        classifications = classify_portfolio_business_areas(
+            [wf1, wf2], generator=gen)
 
         assert len(classifications) == 2
         # wf_1 from LLM
@@ -331,9 +339,11 @@ class TestBusinessAreaSegregation:
             })
 
         fake_client = FakeLLMClient(generator_fn=invalid_area_generator)
-        gen = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
 
-        classifications = classify_portfolio_business_areas([wf], generator=gen)
+        classifications = classify_portfolio_business_areas(
+            [wf], generator=gen)
 
         assert classifications["wf_1"].business_area != "Finance & Accounting"
         assert classifications["wf_1"].classification_source == "deterministic_fallback"
@@ -365,9 +375,11 @@ class TestBusinessAreaSegregation:
             })
 
         fake_client = FakeLLMClient(generator_fn=unknown_id_generator)
-        gen = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
 
-        classifications = classify_portfolio_business_areas([wf], generator=gen)
+        classifications = classify_portfolio_business_areas(
+            [wf], generator=gen)
 
         # Must NOT contain phantom_wf_999
         assert "phantom_wf_999" not in classifications
@@ -399,25 +411,37 @@ class TestBusinessAreaSegregation:
             })
 
         fake_client = FakeLLMClient(generator_fn=smart_llm)
-        gen = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+        gen = LLMNarrativeGenerator(
+            client=fake_client, cache=LLMNarrativeCache())
 
-        classifications = classify_portfolio_business_areas([wf], generator=gen)
+        classifications = classify_portfolio_business_areas(
+            [wf], generator=gen)
         assert classifications["wf_disputed_data"].business_area == "Claims & Risk"
         assert classifications["wf_disputed_data"].classification_source == "llm"
 
     def test_case_10_count_invariant(self):
         """Case 10: Sum of card workflow counts strictly equals total classified workflows."""
         workflows = [
-            _make_dummy_canonical_result("wf_0", "Claims1.yxmd", "Processes insurance claim losses and claimant exposure.", ["Claims_Loss.xlsx"], ["Claim_ID", "Loss_Amount"]),
-            _make_dummy_canonical_result("wf_1", "Claims2.yxmd", "Reports fraud claim volume and payments.", ["Fraud_Claims.xlsx"], ["Claim_ID", "Fraud_Score"]),
-            _make_dummy_canonical_result("wf_2", "Legal1.yxmd", "Tracks litigation matters, contracts, and legal arbitration proceedings.", ["Litigation.xlsx"], ["Matter_ID", "Litigation_Status"]),
-            _make_dummy_canonical_result("wf_3", "Legal2.yxmd", "Audits regulatory compliance filings and legal disclosures.", ["Compliance.xlsx"], ["Compliance_ID", "Audit_Status"]),
-            _make_dummy_canonical_result("wf_4", "UW1.yxmd", "Evaluates policy underwriting eligibility, coverage limits, and premium calculations.", ["Policy_Underwriting.xlsx"], ["Policy_ID", "Premium"]),
-            _make_dummy_canonical_result("wf_5", "UW2.yxmd", "Assesses risk tier rating and policy underwriting acceptance.", ["Underwriting_Risk.xlsx"], ["Policy_ID", "Risk_Tier"]),
-            _make_dummy_canonical_result("wf_6", "Sales1.yxmd", "Monitors product sales revenue, customer order pipelines, and distributor channels.", ["Sales_Revenue.xlsx"], ["Sales_Amount", "Commission"]),
-            _make_dummy_canonical_result("wf_7", "Sales2.yxmd", "Calculates sales agent commission quotas and distribution volume.", ["Sales_Commissions.xlsx"], ["Agent_ID", "Quota"]),
-            _make_dummy_canonical_result("wf_8", "Actuarial1.yxmd", "Performs actuarial valuation, loss development triangulation, and IBNR reserve estimation.", ["Actuarial_IBNR.xlsx"], ["Accident_Year", "IBNR_Reserve"]),
-            _make_dummy_canonical_result("wf_9", "Actuarial2.yxmd", "Calculates actuarial rate indications and solvency capital modeling.", ["Rate_Indications.xlsx"], ["Experience_Year", "Rate_Indication"]),
+            _make_dummy_canonical_result("wf_0", "Claims1.yxmd", "Processes insurance claim losses and claimant exposure.", [
+                                         "Claims_Loss.xlsx"], ["Claim_ID", "Loss_Amount"]),
+            _make_dummy_canonical_result("wf_1", "Claims2.yxmd", "Reports fraud claim volume and payments.", [
+                                         "Fraud_Claims.xlsx"], ["Claim_ID", "Fraud_Score"]),
+            _make_dummy_canonical_result("wf_2", "Legal1.yxmd", "Tracks litigation matters, contracts, and legal arbitration proceedings.", [
+                                         "Litigation.xlsx"], ["Matter_ID", "Litigation_Status"]),
+            _make_dummy_canonical_result("wf_3", "Legal2.yxmd", "Audits regulatory compliance filings and legal disclosures.", [
+                                         "Compliance.xlsx"], ["Compliance_ID", "Audit_Status"]),
+            _make_dummy_canonical_result("wf_4", "UW1.yxmd", "Evaluates policy underwriting eligibility, coverage limits, and premium calculations.", [
+                                         "Policy_Underwriting.xlsx"], ["Policy_ID", "Premium"]),
+            _make_dummy_canonical_result("wf_5", "UW2.yxmd", "Assesses risk tier rating and policy underwriting acceptance.", [
+                                         "Underwriting_Risk.xlsx"], ["Policy_ID", "Risk_Tier"]),
+            _make_dummy_canonical_result("wf_6", "Sales1.yxmd", "Monitors product sales revenue, customer order pipelines, and distributor channels.", [
+                                         "Sales_Revenue.xlsx"], ["Sales_Amount", "Commission"]),
+            _make_dummy_canonical_result("wf_7", "Sales2.yxmd", "Calculates sales agent commission quotas and distribution volume.", [
+                                         "Sales_Commissions.xlsx"], ["Agent_ID", "Quota"]),
+            _make_dummy_canonical_result("wf_8", "Actuarial1.yxmd", "Performs actuarial valuation, loss development triangulation, and IBNR reserve estimation.", [
+                                         "Actuarial_IBNR.xlsx"], ["Accident_Year", "IBNR_Reserve"]),
+            _make_dummy_canonical_result("wf_9", "Actuarial2.yxmd", "Calculates actuarial rate indications and solvency capital modeling.", [
+                                         "Rate_Indications.xlsx"], ["Experience_Year", "Rate_Indication"]),
         ]
 
         portfolio = build_portfolio_analysis([
@@ -429,7 +453,8 @@ class TestBusinessAreaSegregation:
         assert total_counts == 10
 
         # Invariant 2: Sum of group workflow_counts equals total workflows
-        total_group_counts = sum(g.workflow_count for g in portfolio.business_areas)
+        total_group_counts = sum(
+            g.workflow_count for g in portfolio.business_areas)
         assert total_group_counts == 10
 
         # Invariant 3: All 10 workflows appear exactly once across all business areas

@@ -1,9 +1,9 @@
 """Tests for individual ToolDefinition structure and serialization."""
 
 import pytest
-from awa.tools import get_tool_catalog, ToolDefinition
-from awa.model.diagnostic import SupportLevel
-from awa.tools.categories import ToolCategory
+from backend.awa.tools import get_tool_catalog, ToolDefinition
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.tools.categories import ToolCategory
 
 
 class TestToolDefinitions:

@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.python_trace import PythonTraceEntry, PythonTraceMap
-from awa.tools.catalog import get_tool_catalog
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.python_trace import PythonTraceEntry, PythonTraceMap
+from backend.awa.tools.catalog import get_tool_catalog
 
 
 def append_multiline_comment(lines: list[str], message: object, prefix: str = "#") -> None:
@@ -57,9 +57,11 @@ def generate_python_code(
     catalog = get_tool_catalog()
 
     # File Header
-    clean_wf_name = (workflow.metadata.name or "Workflow").replace("\n", " ").replace("\r", " ")
+    clean_wf_name = (workflow.metadata.name or "Workflow").replace(
+        "\n", " ").replace("\r", " ")
     lines.append('"""')
-    lines.append(f"Auto-generated Python translation of Alteryx workflow '{clean_wf_name}'.")
+    lines.append(
+        f"Auto-generated Python translation of Alteryx workflow '{clean_wf_name}'.")
     lines.append('"""')
     lines.append("")
 
@@ -102,17 +104,22 @@ def generate_python_code(
 
         # Traceability header
         lines.append("")
-        start_line = len(lines) + 1  # 1-indexed, starts at the tool comment header
+        # 1-indexed, starts at the tool comment header
+        start_line = len(lines) + 1
         name_part = f" ({tool.name})" if tool.name and tool.name != tool.tool_type else ""
-        append_multiline_comment(lines, f"Alteryx Tool #{tool.tool_id}: {tool.tool_type}{name_part}")
-        append_multiline_comment(lines, f"Plugin: {tool.plugin or tool_def.xml_name}")
-        append_multiline_comment(lines, f"Translation: {tr.support_level.name}")
+        append_multiline_comment(
+            lines, f"Alteryx Tool #{tool.tool_id}: {tool.tool_type}{name_part}")
+        append_multiline_comment(
+            lines, f"Plugin: {tool.plugin or tool_def.xml_name}")
+        append_multiline_comment(
+            lines, f"Translation: {tr.support_level.name}")
         if tr.description:
             append_multiline_comment(lines, tr.description)
 
         # Add diagnostic notes safely line-by-line
         for diag in tr.diagnostics:
-            append_multiline_comment(lines, f"{diag.level.value.upper()}: {diag.message}")
+            append_multiline_comment(
+                lines, f"{diag.level.value.upper()}: {diag.message}")
 
         # Code block
         code = tr.python_code

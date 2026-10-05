@@ -37,13 +37,14 @@ Alteryx/
 
 - **Engine Package Name**: `awa`
 - **Application Module**: `backend.app.main:app`
-- **Import convention**: Code imports `awa` directly (e.g., `from awa.parser.format_handler import ...`).
+- **Import convention**: Code imports `awa` directly (e.g., `from backend.awa.parser.format_handler import ...`).
 
 ---
 
 ## 2. Python Version Support
 
 AWA has been rigorously validated on:
+
 - **Python 3.11** (Local & CI baseline)
 - **Python 3.12** (Azure default runtime — 100% test pass rate across all 204 tests)
 
@@ -125,13 +126,13 @@ python -m uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}
 
 Configure these settings in Azure App Service **Application Settings**:
 
-| Variable | Default Value | Purpose |
-|---|---|---|
-| `PORT` | `8000` | Port assigned dynamically by Azure App Service. |
-| `AWA_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Allowed frontend URLs (e.g., `https://your-frontend.azurewebsites.net`). |
-| `AWA_MAX_UPLOAD_BYTES` | `52428800` (50 MB) | Max workflow upload size limit in bytes. |
-| `AWA_STORAGE_TTL_SECONDS`| `3600` (1 hour) | Session in-memory cache TTL. |
-| `AWA_LOG_LEVEL` | `INFO` | Logging verbosity (`INFO`, `WARNING`, `ERROR`, `DEBUG`). |
+| Variable                  | Default Value                                 | Purpose                                                                  |
+| ------------------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
+| `PORT`                    | `8000`                                        | Port assigned dynamically by Azure App Service.                          |
+| `AWA_CORS_ORIGINS`        | `http://localhost:5173,http://127.0.0.1:5173` | Allowed frontend URLs (e.g., `https://your-frontend.azurewebsites.net`). |
+| `AWA_MAX_UPLOAD_BYTES`    | `52428800` (50 MB)                            | Max workflow upload size limit in bytes.                                 |
+| `AWA_STORAGE_TTL_SECONDS` | `3600` (1 hour)                               | Session in-memory cache TTL.                                             |
+| `AWA_LOG_LEVEL`           | `INFO`                                        | Logging verbosity (`INFO`, `WARNING`, `ERROR`, `DEBUG`).                 |
 
 ---
 
@@ -141,13 +142,13 @@ Execute these commands in a clean virtual environment to confirm package discove
 
 ```bash
 # 1. Verify core awa package discovery
-python -c "import awa; print('awa:', awa.__file__)"
+python -c "import backend.awa; print('awa:', awa.__file__)"
 
 # 2. Verify parser import
-python -c "from awa.parser.format_handler import FormatValidationError; print('FormatValidationError:', FormatValidationError)"
+python -c "from backend.awa.parser.format_handler import FormatValidationError; print('FormatValidationError:', FormatValidationError)"
 
 # 3. Verify workflow analyzer import
-python -c "from awa.analysis.workflow_analyzer import analyze_canonical; print('analyze_canonical:', analyze_canonical)"
+python -c "from backend.awa.analysis.workflow_analyzer import analyze_canonical; print('analyze_canonical:', analyze_canonical)"
 
 # 4. Verify FastAPI application import
 python -c "from backend.app.main import app; print('FastAPI app:', app)"

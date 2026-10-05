@@ -17,14 +17,14 @@ import urllib.request
 import pytest
 import networkx as nx
 
-from awa.llm.config import LLMConfig
-from awa.llm.client import FakeLLMClient, AzureLlamaClient
-from awa.llm.cache import LLMNarrativeCache
-from awa.llm.generator import LLMNarrativeGenerator
-from awa.llm.json_extractor import extract_and_parse_json
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, ToolConfiguration
-from awa.model.business_summary import (
+from backend.awa.llm.config import LLMConfig
+from backend.awa.llm.client import FakeLLMClient, AzureLlamaClient
+from backend.awa.llm.cache import LLMNarrativeCache
+from backend.awa.llm.generator import LLMNarrativeGenerator
+from backend.awa.llm.json_extractor import extract_and_parse_json
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.tool import Tool, ToolConfiguration
+from backend.awa.model.business_summary import (
     WorkflowBusinessSummary,
     BusinessInput,
     BusinessOutput,
@@ -56,7 +56,8 @@ def create_sample_workflow() -> tuple[Workflow, nx.DiGraph, WorkflowBusinessSumm
         name="Input Customers",
         position=None,
         annotation="Read customer profile records",
-        configuration=ToolConfiguration(raw_xml="<Configuration />", parsed={"file_name": "customers.csv"}),
+        configuration=ToolConfiguration(
+            raw_xml="<Configuration />", parsed={"file_name": "customers.csv"}),
     )
     t2 = Tool(
         tool_id=2,
@@ -65,7 +66,8 @@ def create_sample_workflow() -> tuple[Workflow, nx.DiGraph, WorkflowBusinessSumm
         name="Compute Risk",
         position=None,
         annotation="Calculate churn risk score",
-        configuration=ToolConfiguration(raw_xml="<Configuration />", parsed={"formula_fields": [{"field": "RiskScore", "expression": "Tenure * 0.5"}]}),
+        configuration=ToolConfiguration(raw_xml="<Configuration />", parsed={
+                                        "formula_fields": [{"field": "RiskScore", "expression": "Tenure * 0.5"}]}),
     )
     t3 = Tool(
         tool_id=3,
@@ -74,7 +76,8 @@ def create_sample_workflow() -> tuple[Workflow, nx.DiGraph, WorkflowBusinessSumm
         name="Output Deliverable",
         position=None,
         annotation="Write high risk customers",
-        configuration=ToolConfiguration(raw_xml="<Configuration />", parsed={"file_name": "high_risk.csv"}),
+        configuration=ToolConfiguration(
+            raw_xml="<Configuration />", parsed={"file_name": "high_risk.csv"}),
     )
 
     workflow.tools = {1: t1, 2: t2, 3: t3}
@@ -245,7 +248,8 @@ class TestJSONExtractor:
             "Let me know if you need changes."
         )
         data, mode, err = extract_and_parse_json(raw, expected_type=dict)
-        assert data == {"stages": [{"stage_name": "Step 1", "tool_ids": [1]}], "version": 1}
+        assert data == {"stages": [
+            {"stage_name": "Step 1", "tool_ids": [1]}], "version": 1}
         assert mode == "success"
 
     def test_trailing_comma_normalization(self):
@@ -279,7 +283,8 @@ class TestJSONExtractor:
 
     def test_empty_and_whitespace_inputs(self):
         for empty_val in [None, "", "   ", "\n\t\n"]:
-            data, mode, err = extract_and_parse_json(empty_val, expected_type=dict)
+            data, mode, err = extract_and_parse_json(
+                empty_val, expected_type=dict)
             assert data is None
             assert mode == "empty_response"
             assert "empty" in err.lower() or "none" in err.lower()
@@ -345,7 +350,8 @@ class TestProcessStagesRobustness:
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=client, cache=cache)
 
-        stages = gen.generate_process_stages(workflow, graph, summary, workflow_id="test_wf")
+        stages = gen.generate_process_stages(
+            workflow, graph, summary, workflow_id="test_wf")
         assert len(stages) == 3
         assert stages[0].name == "Customer Profile Ingestion"
         assert stages[0].tool_ids == [1]
@@ -353,7 +359,8 @@ class TestProcessStagesRobustness:
         assert stages[2].tool_ids == [3]
 
         # Verify cache HIT on second call
-        cached_stages = gen.generate_process_stages(workflow, graph, summary, workflow_id="test_wf")
+        cached_stages = gen.generate_process_stages(
+            workflow, graph, summary, workflow_id="test_wf")
         assert len(cached_stages) == 3
         assert len(client.calls) == 1  # No additional LLM call
 
@@ -390,7 +397,8 @@ class TestProcessStagesRobustness:
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=client, cache=cache)
 
-        stages = gen.generate_process_stages(workflow, graph, summary, workflow_id="test_wf_syntax_err")
+        stages = gen.generate_process_stages(
+            workflow, graph, summary, workflow_id="test_wf_syntax_err")
         assert len(stages) == 2
         assert stages[0].name == "Customer Data Ingestion"
         assert stages[0].tool_ids == [1]
@@ -458,7 +466,8 @@ class TestProcessStagesRobustness:
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=client, cache=cache)
 
-        stages = gen.generate_process_stages(workflow, graph, summary, workflow_id="empty_wf")
+        stages = gen.generate_process_stages(
+            workflow, graph, summary, workflow_id="empty_wf")
         assert len(stages) >= 1
         # Confirm fallback is NOT cached
         assert cache.count() == 0
@@ -469,7 +478,8 @@ class TestProcessStagesRobustness:
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=client, cache=cache)
 
-        stages = gen.generate_process_stages(workflow, graph, summary, workflow_id="prose_wf")
+        stages = gen.generate_process_stages(
+            workflow, graph, summary, workflow_id="prose_wf")
         assert len(stages) >= 1
         # Fallback should not be cached
         assert cache.count() == 0
@@ -484,11 +494,13 @@ class TestBusinessReportRobustness:
 
     def test_business_report_clean_json(self):
         workflow, graph, summary = create_sample_workflow()
-        client = FakeLLMClient(response=json.dumps(SAMPLE_BUSINESS_REPORT_DICT))
+        client = FakeLLMClient(
+            response=json.dumps(SAMPLE_BUSINESS_REPORT_DICT))
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=client, cache=cache)
 
-        report = gen.generate_business_report(workflow, summary, graph, workflow_id="br_clean")
+        report = gen.generate_business_report(
+            workflow, summary, graph, workflow_id="br_clean")
         assert report is not None
         assert report.workflow_title == "Customer Churn Pipeline"
         assert len(report.findings) == 3
@@ -497,7 +509,8 @@ class TestBusinessReportRobustness:
         assert len(report.sequential_stages) == 3
 
         # Verify cache HIT on second invocation
-        report2 = gen.generate_business_report(workflow, summary, graph, workflow_id="br_clean")
+        report2 = gen.generate_business_report(
+            workflow, summary, graph, workflow_id="br_clean")
         assert report2 is not None
         assert len(client.calls) == 1
 
@@ -515,7 +528,8 @@ class TestBusinessReportRobustness:
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=client, cache=cache)
 
-        report = gen.generate_business_report(workflow, summary, graph, workflow_id="br_preamble")
+        report = gen.generate_business_report(
+            workflow, summary, graph, workflow_id="br_preamble")
         assert report is not None
         assert report.workflow_title == "Customer Churn Pipeline"
         assert len(report.findings) == 3
@@ -526,7 +540,8 @@ class TestBusinessReportRobustness:
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=client, cache=cache)
 
-        report = gen.generate_business_report(workflow, summary, graph, workflow_id="br_empty")
+        report = gen.generate_business_report(
+            workflow, summary, graph, workflow_id="br_empty")
         assert report is None
         assert cache.count() == 0
 
@@ -538,7 +553,8 @@ class TestBusinessReportRobustness:
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=client, cache=cache)
 
-        report = gen.generate_business_report(workflow, summary, graph, workflow_id="br_short_exec")
+        report = gen.generate_business_report(
+            workflow, summary, graph, workflow_id="br_short_exec")
         assert report is None
         assert cache.count() == 0
 
@@ -550,18 +566,21 @@ class TestBusinessReportRobustness:
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=client, cache=cache)
 
-        report = gen.generate_business_report(workflow, summary, graph, workflow_id="br_no_findings")
+        report = gen.generate_business_report(
+            workflow, summary, graph, workflow_id="br_no_findings")
         assert report is None
         assert cache.count() == 0
 
     def test_business_report_timeout_passed_to_client(self):
         """Verify that business_report_timeout (60.0s) is passed to LLM client."""
         workflow, graph, summary = create_sample_workflow()
-        client = FakeLLMClient(response=json.dumps(SAMPLE_BUSINESS_REPORT_DICT))
+        client = FakeLLMClient(
+            response=json.dumps(SAMPLE_BUSINESS_REPORT_DICT))
         cache = LLMNarrativeCache()
         gen = LLMNarrativeGenerator(client=client, cache=cache)
 
-        gen.generate_business_report(workflow, summary, graph, workflow_id="br_timeout_test")
+        gen.generate_business_report(
+            workflow, summary, graph, workflow_id="br_timeout_test")
         assert len(client.calls) == 1
         assert client.calls[0]["timeout"] == 60.0
 
@@ -650,7 +669,8 @@ class TestLLMClientRetryMechanics:
         mock_resp_success.__enter__.return_value = mock_resp_success
 
         with patch("urllib.request.urlopen", side_effect=[TimeoutError("Request timed out"), mock_resp_success]):
-            response = client.generate("system prompt", "user prompt", timeout=60.0)
+            response = client.generate(
+                "system prompt", "user prompt", timeout=60.0)
             assert response == '{"report": "generated"}'
 
     def test_client_exhausts_retries_and_returns_none(self):

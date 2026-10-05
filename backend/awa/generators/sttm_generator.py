@@ -11,7 +11,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from awa.model.sttm import STTMDocument, STTMMapping
+from backend.awa.model.sttm import STTMDocument, STTMMapping
 
 # Styling Constants
 FONT_FAMILY = "Calibri"
@@ -22,9 +22,12 @@ COLOR_BORDER = "CBD5E1"     # Light Slate Border
 COLOR_MUTED = "64748B"      # Slate Gray text
 COLOR_ACCENT = "0284C7"     # Accent Blue
 
-HEADER_FILL = PatternFill(start_color=COLOR_NAVY, end_color=COLOR_NAVY, fill_type="solid")
-ZEBRA_FILL = PatternFill(start_color=COLOR_ZEBRA, end_color=COLOR_ZEBRA, fill_type="solid")
-WHITE_FILL = PatternFill(start_color=COLOR_WHITE, end_color=COLOR_WHITE, fill_type="solid")
+HEADER_FILL = PatternFill(start_color=COLOR_NAVY,
+                          end_color=COLOR_NAVY, fill_type="solid")
+ZEBRA_FILL = PatternFill(start_color=COLOR_ZEBRA,
+                         end_color=COLOR_ZEBRA, fill_type="solid")
+WHITE_FILL = PatternFill(start_color=COLOR_WHITE,
+                         end_color=COLOR_WHITE, fill_type="solid")
 
 HEADER_FONT = Font(name=FONT_FAMILY, size=10, bold=True, color=COLOR_WHITE)
 BODY_FONT = Font(name=FONT_FAMILY, size=9.5, bold=False, color="1E293B")
@@ -145,12 +148,16 @@ def generate_sttm_excel(
     ws_summary.views.sheetView[0].showGridLines = True
 
     # Title Banner
-    ws_summary.cell(row=2, column=2, value="Source-to-Target Mapping Summary").font = TITLE_FONT
-    ws_summary.cell(row=3, column=2, value=f"Workflow: {sttm_doc.workflow_name}").font = SUBTITLE_FONT
+    ws_summary.cell(row=2, column=2,
+                    value="Source-to-Target Mapping Summary").font = TITLE_FONT
+    ws_summary.cell(
+        row=3, column=2, value=f"Workflow: {sttm_doc.workflow_name}").font = SUBTITLE_FONT
 
     # Metadata Table
-    source_tables = sorted(list(set(m.source_table for m in sttm_doc.mappings)))
-    target_tables = sorted(list(set(m.target_table for m in sttm_doc.mappings)))
+    source_tables = sorted(
+        list(set(m.source_table for m in sttm_doc.mappings)))
+    target_tables = sorted(
+        list(set(m.target_table for m in sttm_doc.mappings)))
 
     summary_metadata = [
         ("Workflow Name", sttm_doc.workflow_name),
@@ -181,18 +188,22 @@ def generate_sttm_excel(
     # Transformation Category Breakdown Table
     trans_counts: dict[str, int] = {}
     for m in sttm_doc.mappings:
-        trans_counts[m.transformation] = trans_counts.get(m.transformation, 0) + 1
+        trans_counts[m.transformation] = trans_counts.get(
+            m.transformation, 0) + 1
 
     start_breakdown_row = 12
-    ws_summary.cell(row=start_breakdown_row, column=2, value="Transformation Category").font = HEADER_FONT
+    ws_summary.cell(row=start_breakdown_row, column=2,
+                    value="Transformation Category").font = HEADER_FONT
     ws_summary.cell(row=start_breakdown_row, column=2).fill = HEADER_FILL
     ws_summary.cell(row=start_breakdown_row, column=2).border = CELL_BORDER
 
-    ws_summary.cell(row=start_breakdown_row, column=3, value="Mappings Count").font = HEADER_FONT
+    ws_summary.cell(row=start_breakdown_row, column=3,
+                    value="Mappings Count").font = HEADER_FONT
     ws_summary.cell(row=start_breakdown_row, column=3).fill = HEADER_FILL
     ws_summary.cell(row=start_breakdown_row, column=3).border = CELL_BORDER
 
-    ws_summary.cell(row=start_breakdown_row, column=4, value="Share (%)").font = HEADER_FONT
+    ws_summary.cell(row=start_breakdown_row, column=4,
+                    value="Share (%)").font = HEADER_FONT
     ws_summary.cell(row=start_breakdown_row, column=4).fill = HEADER_FILL
     ws_summary.cell(row=start_breakdown_row, column=4).border = CELL_BORDER
 

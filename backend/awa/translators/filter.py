@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
-from awa.expressions.pandas_emitter import emit_pandas
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.awa.expressions.pandas_emitter import emit_pandas
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -30,7 +30,8 @@ class FilterTranslator(ToolTranslator):
 
         diagnostics: list[Diagnostic] = []
         imports: set[str] = {"import pandas as pd"}
-        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+        upstream_schema = getattr(
+            workflow, "_stream_schemas", {}).get(input_var)
 
         if not expression:
             code = (
@@ -70,7 +71,8 @@ class FilterTranslator(ToolTranslator):
                     f"{false_var} = {input_var}[~_filter_mask_{tool.tool_id}].copy()"
                 )
             except Exception as e:
-                clean_expr = (expression or "").replace("\n", " ").replace("\r", " ")
+                clean_expr = (expression or "").replace(
+                    "\n", " ").replace("\r", " ")
                 clean_err = str(e).replace("\n", " ").replace("\r", " ")
                 code = (
                     f"# ERROR: Could not translate filter expression: {clean_expr}\n"

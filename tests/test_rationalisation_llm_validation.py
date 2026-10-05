@@ -6,11 +6,11 @@ import json
 from unittest.mock import MagicMock
 import pytest
 
-from awa.analysis.rationalisation_analyzer import (
+from backend.awa.analysis.rationalisation_analyzer import (
     enrich_candidate_with_llm,
     validate_llm_rationalisation_response,
 )
-from awa.model.portfolio import (
+from backend.awa.model.portfolio import (
     DeterministicMetrics,
     RationalisationCandidate,
 )
@@ -27,10 +27,12 @@ def _build_test_candidate(rec: str, admissible: list[str]) -> RationalisationCan
         reasoning="Deterministic baseline reasoning.",
         evidence=["Evidence item 1", "Evidence item 2"],
         shared_logic=["Filter: active=true", "Join on id"],
-        unique_functionality={"Workflow_A.yxmd": [], "Workflow_B.yxmd": ["Unique step"]},
+        unique_functionality={"Workflow_A.yxmd": [],
+                              "Workflow_B.yxmd": ["Unique step"]},
         proposed_strategy="Deterministic proposed strategy.",
         validation_requirements=["Requirement 1"],
-        deterministic_metrics=DeterministicMetrics(source_overlap=0.8, transformation_similarity=0.7),
+        deterministic_metrics=DeterministicMetrics(
+            source_overlap=0.8, transformation_similarity=0.7),
         admissible_recommendations=admissible,
         llm_enrichment_status="DETERMINISTIC_BASELINE",
     )
@@ -41,7 +43,8 @@ class TestRationalisationLLMValidation:
 
     def test_valid_llm_response_enriched(self):
         """Valid LLM response within admissible bounds is accepted and applied."""
-        cand = _build_test_candidate("CONSOLIDATE", ["CONSOLIDATE", "SHARED_LOGIC", "REVIEW"])
+        cand = _build_test_candidate(
+            "CONSOLIDATE", ["CONSOLIDATE", "SHARED_LOGIC", "REVIEW"])
         valid_wf_ids = {"wf_a", "wf_b"}
         valid_datasets = {"customer.xlsx", "sales.yxdb"}
 
@@ -55,7 +58,8 @@ class TestRationalisationLLMValidation:
         })
         mock_generator = MagicMock(client=mock_client)
 
-        result = enrich_candidate_with_llm(cand, mock_generator, valid_wf_ids, valid_datasets)
+        result = enrich_candidate_with_llm(
+            cand, mock_generator, valid_wf_ids, valid_datasets)
 
         assert result.llm_enrichment_status == "ENRICHED"
         assert result.recommendation_type == "CONSOLIDATE"
@@ -67,7 +71,8 @@ class TestRationalisationLLMValidation:
     def test_inadmissible_recommendation_rejected(self):
         """If LLM returns a recommendation outside admissible boundary (e.g. RETIRE_CANDIDATE), reject it."""
         # Candidate only allows SHARED_LOGIC or REVIEW
-        cand = _build_test_candidate("SHARED_LOGIC", ["SHARED_LOGIC", "REVIEW"])
+        cand = _build_test_candidate(
+            "SHARED_LOGIC", ["SHARED_LOGIC", "REVIEW"])
         valid_wf_ids = {"wf_a", "wf_b"}
         valid_datasets = {"data.csv"}
 
@@ -80,11 +85,13 @@ class TestRationalisationLLMValidation:
         })
         mock_generator = MagicMock(client=mock_client)
 
-        result = enrich_candidate_with_llm(cand, mock_generator, valid_wf_ids, valid_datasets)
+        result = enrich_candidate_with_llm(
+            cand, mock_generator, valid_wf_ids, valid_datasets)
 
         # Must fail validation and preserve deterministic recommendation!
         assert result.llm_enrichment_status == "VALIDATION_FAILED"
-        assert result.recommendation_type == "SHARED_LOGIC"  # Retains deterministic recommendation!
+        # Retains deterministic recommendation!
+        assert result.recommendation_type == "SHARED_LOGIC"
 
     def test_hallucinated_workflow_ids_rejected(self):
         """If LLM invents a non-existent workflow ID, reject it and fall back."""
@@ -100,7 +107,8 @@ class TestRationalisationLLMValidation:
         })
         mock_generator = MagicMock(client=mock_client)
 
-        result = enrich_candidate_with_llm(cand, mock_generator, valid_wf_ids, valid_datasets)
+        result = enrich_candidate_with_llm(
+            cand, mock_generator, valid_wf_ids, valid_datasets)
 
         assert result.llm_enrichment_status == "VALIDATION_FAILED"
         assert result.recommendation_type == "CONSOLIDATE"
@@ -114,7 +122,8 @@ class TestRationalisationLLMValidation:
         mock_client.generate.return_value = "This is not valid JSON at all!"
         mock_generator = MagicMock(client=mock_client)
 
-        result = enrich_candidate_with_llm(cand, mock_generator, valid_wf_ids, set())
+        result = enrich_candidate_with_llm(
+            cand, mock_generator, valid_wf_ids, set())
 
         assert result.llm_enrichment_status == "DETERMINISTIC_FALLBACK"
         assert result.reasoning == "Deterministic baseline reasoning."
@@ -125,10 +134,12 @@ class TestRationalisationLLMValidation:
         valid_wf_ids = {"wf_a", "wf_b"}
 
         mock_client = MagicMock()
-        mock_client.generate.side_effect = RuntimeError("OpenAI API rate limit exceeded")
+        mock_client.generate.side_effect = RuntimeError(
+            "OpenAI API rate limit exceeded")
         mock_generator = MagicMock(client=mock_client)
 
-        result = enrich_candidate_with_llm(cand, mock_generator, valid_wf_ids, set())
+        result = enrich_candidate_with_llm(
+            cand, mock_generator, valid_wf_ids, set())
 
         assert result.llm_enrichment_status == "DETERMINISTIC_FALLBACK"
         assert result.reasoning == "Deterministic baseline reasoning."

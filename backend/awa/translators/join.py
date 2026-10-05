@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -24,8 +24,10 @@ class JoinTranslator(ToolTranslator):
         join_fields = config.get("join_fields", [])
         join_by_pos = config.get("join_by_position", False)
 
-        left_var = input_variables[0] if len(input_variables) > 0 else "df_left"
-        right_var = input_variables[1] if len(input_variables) > 1 else "df_right"
+        left_var = input_variables[0] if len(
+            input_variables) > 0 else "df_left"
+        right_var = input_variables[1] if len(
+            input_variables) > 1 else "df_right"
 
         joined_var = f"df_{tool.tool_id}_joined"
         left_only_var = f"df_{tool.tool_id}_left_only"
@@ -154,8 +156,10 @@ class AppendFieldsTranslator(ToolTranslator):
     """Translates AppendFields to cross join."""
 
     def translate(self, tool: Tool, input_variables: list[str], workflow: Workflow) -> TranslationResult:
-        target_var = input_variables[0] if len(input_variables) > 0 else "df_target"
-        source_var = input_variables[1] if len(input_variables) > 1 else "df_source"
+        target_var = input_variables[0] if len(
+            input_variables) > 0 else "df_target"
+        source_var = input_variables[1] if len(
+            input_variables) > 1 else "df_source"
         out_var = f"df_{tool.tool_id}"
         code = f"{out_var} = pd.merge({target_var}, {source_var}, how='cross')"
         return TranslationResult(
@@ -175,8 +179,10 @@ class FindReplaceTranslator(ToolTranslator):
     """Translates FindReplace to pandas replace/merge."""
 
     def translate(self, tool: Tool, input_variables: list[str], workflow: Workflow) -> TranslationResult:
-        target_var = input_variables[0] if len(input_variables) > 0 else "df_target"
-        source_var = input_variables[1] if len(input_variables) > 1 else "df_source"
+        target_var = input_variables[0] if len(
+            input_variables) > 0 else "df_target"
+        source_var = input_variables[1] if len(
+            input_variables) > 1 else "df_source"
         out_var = f"df_{tool.tool_id}"
         code = f"{out_var} = {target_var}.copy()\n# Find and replace values from reference dataset"
         return TranslationResult(
@@ -199,12 +205,15 @@ register_plugin("AlteryxBasePluginsGui.Join.Join", JoinTranslator)
 
 register_type("JoinMultiple", JoinMultipleTranslator)
 register_type("JoinMultipleTranslator", JoinMultipleTranslator)
-register_plugin("AlteryxBasePluginsGui.JoinMultiple.JoinMultiple", JoinMultipleTranslator)
+register_plugin("AlteryxBasePluginsGui.JoinMultiple.JoinMultiple",
+                JoinMultipleTranslator)
 
 register_type("AppendFields", AppendFieldsTranslator)
 register_type("AppendFieldsTranslator", AppendFieldsTranslator)
-register_plugin("AlteryxBasePluginsGui.AppendFields.AppendFields", AppendFieldsTranslator)
+register_plugin("AlteryxBasePluginsGui.AppendFields.AppendFields",
+                AppendFieldsTranslator)
 
 register_type("FindReplace", FindReplaceTranslator)
 register_type("FindReplaceTranslator", FindReplaceTranslator)
-register_plugin("AlteryxBasePluginsGui.FindReplace.FindReplace", FindReplaceTranslator)
+register_plugin("AlteryxBasePluginsGui.FindReplace.FindReplace",
+                FindReplaceTranslator)

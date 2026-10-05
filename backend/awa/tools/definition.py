@@ -5,15 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from awa.model.diagnostic import SupportLevel
-from awa.tools.categories import ToolCategory, CATEGORY_TO_VISUAL
-from awa.tools.capabilities import ToolCapabilities
+from backend.awa.model.diagnostic import SupportLevel
+from backend.awa.tools.categories import ToolCategory, CATEGORY_TO_VISUAL
+from backend.awa.tools.capabilities import ToolCapabilities
 
 
 @dataclass(frozen=True)
 class ToolDefinition:
     """Canonical definition of an Alteryx Designer tool.
-    
+
     Attributes:
         xml_name: Primary canonical XML plugin identifier (e.g. 'AlteryxBasePluginsGui.Filter.Filter').
         display_name: Human-readable official display name (e.g. 'Filter').
@@ -57,7 +57,8 @@ class ToolDefinition:
         """Return the visual category string for styling and graph rendering."""
         if self.visual_category:
             return self.visual_category
-        cat_enum = self.category if isinstance(self.category, ToolCategory) else None
+        cat_enum = self.category if isinstance(
+            self.category, ToolCategory) else None
         if cat_enum and cat_enum in CATEGORY_TO_VISUAL:
             return CATEGORY_TO_VISUAL[cat_enum]
         return "transform"
@@ -76,7 +77,8 @@ class ToolDefinition:
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize tool definition to dictionary."""
-        cat_str = self.category.value if isinstance(self.category, ToolCategory) else str(self.category)
+        cat_str = self.category.value if isinstance(
+            self.category, ToolCategory) else str(self.category)
         return {
             "xml_name": self.xml_name,
             "display_name": self.display_name,

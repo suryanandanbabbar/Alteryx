@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from awa.model.tool import Tool
-from awa.model.workflow import Workflow
-from awa.model.translation import TranslationResult
-from awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
+from backend.awa.model.tool import Tool
+from backend.awa.model.workflow import Workflow
+from backend.awa.model.translation import TranslationResult
+from backend.awa.model.diagnostic import Diagnostic, DiagnosticLevel, SupportLevel
 
 from .base import ToolTranslator
 from .registry import register_type, register_plugin
@@ -219,7 +219,8 @@ class CrossTabTranslator(ToolTranslator):
         index_code = repr(group_fields) if group_fields else "None"
         diagnostics: list[Diagnostic] = []
 
-        upstream_schema = getattr(workflow, "_stream_schemas", {}).get(input_var)
+        upstream_schema = getattr(
+            workflow, "_stream_schemas", {}).get(input_var)
         if upstream_schema is not None:
             for gf in group_fields:
                 if gf not in upstream_schema:
@@ -336,7 +337,8 @@ register_plugin("AlteryxBasePluginsGui.RecordID.RecordID", RecordIdTranslator)
 
 register_type("Transpose", TransposeTranslator)
 register_type("TransposeTranslator", TransposeTranslator)
-register_plugin("AlteryxBasePluginsGui.Transpose.Transpose", TransposeTranslator)
+register_plugin("AlteryxBasePluginsGui.Transpose.Transpose",
+                TransposeTranslator)
 
 register_type("CrossTab", CrossTabTranslator)
 register_type("CrossTabTranslator", CrossTabTranslator)
@@ -348,4 +350,5 @@ register_plugin("AlteryxBasePluginsGui.Arrange.Arrange", ArrangeTranslator)
 
 register_type("MakeColumns", MakeColumnsTranslator)
 register_type("MakeColumnsTranslator", MakeColumnsTranslator)
-register_plugin("AlteryxBasePluginsGui.MakeColumns.MakeColumns", MakeColumnsTranslator)
+register_plugin("AlteryxBasePluginsGui.MakeColumns.MakeColumns",
+                MakeColumnsTranslator)

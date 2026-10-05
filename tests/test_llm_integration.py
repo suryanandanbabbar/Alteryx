@@ -8,10 +8,10 @@ import os
 from pathlib import Path
 import pytest
 
-from awa.model.workflow import Workflow, WorkflowMetadata
-from awa.model.tool import Tool, ToolConfiguration, Position
-from awa.model.field import Field
-from awa.model.business_summary import (
+from backend.awa.model.workflow import Workflow, WorkflowMetadata
+from backend.awa.model.tool import Tool, ToolConfiguration, Position
+from backend.awa.model.field import Field
+from backend.awa.model.business_summary import (
     WorkflowBusinessSummary,
     BusinessInput,
     BusinessOutput,
@@ -20,12 +20,12 @@ from awa.model.business_summary import (
     BusinessRule,
     ExecutiveSummaryContent,
 )
-from awa.analysis.workflow_analyzer import analyze_canonical
-from awa.llm.config import LLMConfig
-from awa.llm.client import AzureLlamaClient, FakeLLMClient, set_default_llm_client, get_default_llm_client
-from awa.llm.schemas import ToolFacts, WorkflowFacts, NarrativeResult
-from awa.llm.cache import LLMNarrativeCache, compute_cache_key
-from awa.llm.prompts import (
+from backend.awa.analysis.workflow_analyzer import analyze_canonical
+from backend.awa.llm.config import LLMConfig
+from backend.awa.llm.client import AzureLlamaClient, FakeLLMClient, set_default_llm_client, get_default_llm_client
+from backend.awa.llm.schemas import ToolFacts, WorkflowFacts, NarrativeResult
+from backend.awa.llm.cache import LLMNarrativeCache, compute_cache_key
+from backend.awa.llm.prompts import (
     TOOL_PROMPT_VERSION,
     TOOL_SYSTEM_PROMPT,
     WORKFLOW_PURPOSE_SYSTEM_PROMPT,
@@ -34,15 +34,15 @@ from awa.llm.prompts import (
     build_workflow_purpose_user_prompt,
     build_executive_summary_user_prompt,
 )
-from awa.llm.generator import (
+from backend.awa.llm.generator import (
     LLMNarrativeGenerator,
     extract_tool_facts,
     extract_workflow_facts,
     set_default_generator,
     get_default_generator,
 )
-from awa.generators.docx_generator import generate_docx
-from awa.generators.doc_builder import build_document_model
+from backend.awa.generators.docx_generator import generate_docx
+from backend.awa.generators.doc_builder import build_document_model
 from backend.app.services.analyzer import to_diagram_dto, to_overview_dto
 
 
@@ -52,7 +52,8 @@ def reset_llm_defaults():
     fake_client = FakeLLMClient(
         default_response="Aggregates and transforms claim record metrics for quarterly business reporting."
     )
-    generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+    generator = LLMNarrativeGenerator(
+        client=fake_client, cache=LLMNarrativeCache())
     set_default_llm_client(fake_client)
     set_default_generator(generator)
     yield
@@ -65,7 +66,8 @@ def reset_llm_defaults():
 # ---------------------------------------------------------------------------
 
 def test_llm_config_from_env(monkeypatch):
-    monkeypatch.setenv("AZURE_ENDPOINT", "https://my-resource.services.ai.azure.com/models")
+    monkeypatch.setenv(
+        "AZURE_ENDPOINT", "https://my-resource.services.ai.azure.com/models")
     monkeypatch.setenv("AZURE_LLAMAKEY", "super-secret-key-12345")
     monkeypatch.setenv("AZURE_DEPLOYMENT", "Llama-3.3-70B-Instruct")
     monkeypatch.setenv("AZURE_DEPLOYMENT_NAME", "Llama-3.3-70B-Instruct")
@@ -95,7 +97,8 @@ def test_llm_config_missing_credentials(monkeypatch):
 
 def test_missing_one_required_credential(monkeypatch):
     # Has endpoint and deployment, but missing key
-    monkeypatch.setenv("AZURE_ENDPOINT", "https://my-resource.services.ai.azure.com/models")
+    monkeypatch.setenv(
+        "AZURE_ENDPOINT", "https://my-resource.services.ai.azure.com/models")
     monkeypatch.delenv("AZURE_LLAMAKEY", raising=False)
     monkeypatch.setenv("AZURE_DEPLOYMENT", "Llama-3.3-70B-Instruct")
 
@@ -116,7 +119,8 @@ def test_azure_client_url_resolution():
         deployment="Llama",
     )
     client_maas = AzureLlamaClient(cfg_maas)
-    assert client_maas._resolve_url() == "https://my-resource.services.ai.azure.com/models/chat/completions"
+    assert client_maas._resolve_url(
+    ) == "https://my-resource.services.ai.azure.com/models/chat/completions"
 
     cfg_oai = LLMConfig(
         endpoint="https://my-resource.openai.azure.com",
@@ -142,7 +146,8 @@ def test_azure_client_graceful_failure_on_network_error():
 
 def test_api_key_never_appears_in_logs(monkeypatch, caplog):
     secret_key = "sk-super-secret-production-key-99999"
-    monkeypatch.setenv("AZURE_ENDPOINT", "https://my-resource.services.ai.azure.com/models")
+    monkeypatch.setenv(
+        "AZURE_ENDPOINT", "https://my-resource.services.ai.azure.com/models")
     monkeypatch.setenv("AZURE_LLAMAKEY", secret_key)
     monkeypatch.setenv("AZURE_DEPLOYMENT", "Llama")
 
@@ -176,17 +181,20 @@ def test_api_key_never_appears_in_api_responses():
 # ---------------------------------------------------------------------------
 
 def test_extract_tool_facts():
-    wf = Workflow(metadata=WorkflowMetadata(name="Test Claims Workflow", version="2024.1"))
+    wf = Workflow(metadata=WorkflowMetadata(
+        name="Test Claims Workflow", version="2024.1"))
     tool = Tool(
         tool_id=16,
         plugin="AlteryxBasePluginsGui.Sort.Sort",
         tool_type="Sort",
         name="Sort Claims Descending",
         position=Position(100, 100),
-        configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"fields": [{"field": "Quarter_End_Date", "order": "Desc"}]}),
+        configuration=ToolConfiguration(
+            raw_xml="<Configuration/>", parsed={"fields": [{"field": "Quarter_End_Date", "order": "Desc"}]}),
         annotation="Sorts claims by Quarter End Date descending",
         container_name="Processing Container",
-        output_fields=[Field(name="Claim_ID", type="Int64"), Field(name="Quarter_End_Date", type="Date")],
+        output_fields=[Field(name="Claim_ID", type="Int64"), Field(
+            name="Quarter_End_Date", type="Date")],
     )
     wf.tools[16] = tool
 
@@ -207,14 +215,16 @@ def test_extract_tool_facts():
 
 
 def test_different_tool_instances_get_different_llm_context():
-    wf = Workflow(metadata=WorkflowMetadata(name="Test Workflow", version="2024.1"))
+    wf = Workflow(metadata=WorkflowMetadata(
+        name="Test Workflow", version="2024.1"))
     tool8 = Tool(
         tool_id=8,
         plugin="AlteryxBasePluginsGui.Summarize.Summarize",
         tool_type="Summarize",
         name="Summarize by Department",
         position=Position(100, 100),
-        configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"summarize_fields": [{"field": "Department", "action": "GroupBy"}]}),
+        configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={
+                                        "summarize_fields": [{"field": "Department", "action": "GroupBy"}]}),
         annotation="Groups claims by department",
     )
     tool9 = Tool(
@@ -223,7 +233,8 @@ def test_different_tool_instances_get_different_llm_context():
         tool_type="Summarize",
         name="Summarize by Max Date",
         position=Position(200, 100),
-        configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={"summarize_fields": [{"field": "Claim_Date", "action": "Max"}]}),
+        configuration=ToolConfiguration(raw_xml="<Configuration/>", parsed={
+                                        "summarize_fields": [{"field": "Claim_Date", "action": "Max"}]}),
         annotation="Computes latest claim date",
     )
     wf.tools[8] = tool8
@@ -244,7 +255,8 @@ def test_different_tool_instances_get_different_llm_context():
 
 
 def test_extract_workflow_facts():
-    wf = Workflow(metadata=WorkflowMetadata(name="Claims Volume Workflow", version="2024.1", description="ETL Pipeline"))
+    wf = Workflow(metadata=WorkflowMetadata(
+        name="Claims Volume Workflow", version="2024.1", description="ETL Pipeline"))
     bs = WorkflowBusinessSummary(
         business_purpose="Processes claim records to generate quarterly financial summaries.",
         one_line_purpose="Quarterly claims volume extract",
@@ -301,12 +313,15 @@ def test_extract_workflow_facts():
 def test_cache_workflow_isolation():
     cache = LLMNarrativeCache()
 
-    key_wf1 = compute_cache_key("wf_claims_1", "tool_8", "2.0", "llama-70b", {"f": 1})
-    key_wf2 = compute_cache_key("wf_claims_2", "tool_8", "2.0", "llama-70b", {"f": 2})
+    key_wf1 = compute_cache_key(
+        "wf_claims_1", "tool_8", "2.0", "llama-70b", {"f": 1})
+    key_wf2 = compute_cache_key(
+        "wf_claims_2", "tool_8", "2.0", "llama-70b", {"f": 2})
 
     assert key_wf1 != key_wf2
 
-    res1 = NarrativeResult(text="Workflow 1 tool description", source="llm", model="llama-70b")
+    res1 = NarrativeResult(text="Workflow 1 tool description",
+                           source="llm", model="llama-70b")
     cache.set(key_wf1, res1)
 
     assert cache.get(key_wf1).text == "Workflow 1 tool description"
@@ -325,7 +340,8 @@ def test_llm_is_not_called_again_when_cached():
     cache = LLMNarrativeCache()
     generator = LLMNarrativeGenerator(client=fake_client, cache=cache)
 
-    wf = Workflow(metadata=WorkflowMetadata(name="Test Workflow", version="2024.1"))
+    wf = Workflow(metadata=WorkflowMetadata(
+        name="Test Workflow", version="2024.1"))
     tool = Tool(
         tool_id=1,
         plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
@@ -359,10 +375,12 @@ def test_llm_tool_summary_reaches_diagram_dto():
             "tool id:\n16": "Sorts claim records chronologically by Quarter End Date descending for reporting."
         }
     )
-    generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+    generator = LLMNarrativeGenerator(
+        client=fake_client, cache=LLMNarrativeCache())
     set_default_generator(generator)
 
-    sample_file = Path("tests/fixtures/sample_workflows/Demo_Claims_Volume_Extract.yxmd")
+    sample_file = Path(
+        "tests/fixtures/sample_workflows/Demo_Claims_Volume_Extract.yxmd")
     if not sample_file.exists():
         sample_file = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
 
@@ -370,7 +388,7 @@ def test_llm_tool_summary_reaches_diagram_dto():
         pytest.skip("Demo workflow fixture not found")
 
     res = analyze_canonical(sample_file)
-    
+
     # 1. Before tool selection: initial diagram DTO has fallback summary
     initial_dto = to_diagram_dto(res)
     nodes_map = {n.tool_id: n for n in initial_dto.nodes}
@@ -378,7 +396,8 @@ def test_llm_tool_summary_reaches_diagram_dto():
 
     # 2. User selects tool 16 -> on-demand generation occurs
     t16 = res.workflow.tools[16]
-    narrative = generator.generate_tool_summary(res.workflow, t16, res.graph, workflow_id=res.analysis_id)
+    narrative = generator.generate_tool_summary(
+        res.workflow, t16, res.graph, workflow_id=res.analysis_id)
     assert "Sorts claim records" in narrative.text
 
     # 3. Subsequent diagram DTO accesses return the cached narrative
@@ -397,10 +416,12 @@ def test_llm_business_purpose_reaches_overview_dto():
             })
         }
     )
-    generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+    generator = LLMNarrativeGenerator(
+        client=fake_client, cache=LLMNarrativeCache())
     set_default_generator(generator)
 
-    sample_file = Path("tests/fixtures/sample_workflows/Demo_Claims_Volume_Extract.yxmd")
+    sample_file = Path(
+        "tests/fixtures/sample_workflows/Demo_Claims_Volume_Extract.yxmd")
     if not sample_file.exists():
         sample_file = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
 
@@ -430,10 +451,12 @@ def test_llm_executive_summary_reaches_docx(tmp_path):
             "conclusions": conclusions_text,
         }
     )
-    generator = LLMNarrativeGenerator(client=fake_client, cache=LLMNarrativeCache())
+    generator = LLMNarrativeGenerator(
+        client=fake_client, cache=LLMNarrativeCache())
     set_default_generator(generator)
 
-    wf = Workflow(metadata=WorkflowMetadata(name="Demo Claims Volume Extract", version="2024.1"))
+    wf = Workflow(metadata=WorkflowMetadata(
+        name="Demo Claims Volume Extract", version="2024.1"))
     bs = WorkflowBusinessSummary(
         business_purpose="Automated claims reporting",
         one_line_purpose="Quarterly claims processing",
@@ -465,9 +488,11 @@ def test_llm_executive_summary_reaches_docx(tmp_path):
 
 def test_llm_failure_uses_deterministic_fallback():
     failing_client = FakeLLMClient(generator_fn=lambda s, u: None)
-    generator = LLMNarrativeGenerator(client=failing_client, cache=LLMNarrativeCache())
+    generator = LLMNarrativeGenerator(
+        client=failing_client, cache=LLMNarrativeCache())
 
-    wf = Workflow(metadata=WorkflowMetadata(name="Test Workflow", version="2024.1"))
+    wf = Workflow(metadata=WorkflowMetadata(
+        name="Test Workflow", version="2024.1"))
     tool = Tool(
         tool_id=1,
         plugin="AlteryxBasePluginsGui.DbFileInput.DbFileInput",
@@ -507,7 +532,8 @@ def test_azure_authentication_failure_is_logged_safely(monkeypatch, caplog):
 # ---------------------------------------------------------------------------
 
 def test_full_pipeline_with_demo_workflow():
-    sample_file = Path("tests/fixtures/sample_workflows/Demo_Claims_Volume_Extract.yxmd")
+    sample_file = Path(
+        "tests/fixtures/sample_workflows/Demo_Claims_Volume_Extract.yxmd")
     if not sample_file.exists():
         sample_file = Path("Demo_Claims_Volume_Extract_reconstructed.yxmd")
 
@@ -631,8 +657,10 @@ def test_full_pipeline_with_demo_workflow():
     # 2. Demand-driven Tool "What It Does" generation
     tool8 = res.workflow.tools[8]
     tool9 = res.workflow.tools[9]
-    t8_narrative = gen.generate_tool_summary(res.workflow, tool8, res.graph, workflow_id=res.analysis_id)
-    t9_narrative = gen.generate_tool_summary(res.workflow, tool9, res.graph, workflow_id=res.analysis_id)
+    t8_narrative = gen.generate_tool_summary(
+        res.workflow, tool8, res.graph, workflow_id=res.analysis_id)
+    t9_narrative = gen.generate_tool_summary(
+        res.workflow, tool9, res.graph, workflow_id=res.analysis_id)
 
     # Verify tool #8 and #9 received distinct summaries
     assert t8_narrative.text != t9_narrative.text
@@ -640,7 +668,8 @@ def test_full_pipeline_with_demo_workflow():
     assert "most recent quarter-end date" in t9_narrative.text.lower()
 
     # Second call should be cached (HIT)
-    t8_cached = gen.generate_tool_summary(res.workflow, tool8, res.graph, workflow_id=res.analysis_id)
+    t8_cached = gen.generate_tool_summary(
+        res.workflow, tool8, res.graph, workflow_id=res.analysis_id)
     assert t8_cached.is_cached is True
     assert t8_cached.text == t8_narrative.text
 
@@ -652,5 +681,6 @@ def test_full_pipeline_with_demo_workflow():
 
     # Verify tool #16 sort summary
     if 16 in res.workflow.tools:
-        t16_narrative = gen.generate_tool_summary(res.workflow, res.workflow.tools[16], res.graph, workflow_id=res.analysis_id)
+        t16_narrative = gen.generate_tool_summary(
+            res.workflow, res.workflow.tools[16], res.graph, workflow_id=res.analysis_id)
         assert "Sorts quarterly claim metrics" in t16_narrative.text
