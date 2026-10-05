@@ -27,7 +27,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # ── License enforcement (before any other initialisation) ────────
+    from backend.app.licensing import LicenseManager
+
+    license_mgr = LicenseManager()
+    license_mgr.validate_or_raise()          # blocks startup if invalid
+    await license_mgr.start_renewal_loop()   # background lease heartbeat
+
+    # ── Existing startup ─────────────────────────────────────────────
     logger.info("Starting AWA application service.")
     storage = get_storage()
     # Initialize LLM subsystem — reads runtime environment for Azure credentials
@@ -37,7 +44,8 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("LLM initialization skipped: %s — %s", type(e).__name__, str(e)[:200])
     yield
-    # Shutdown
+    # ── Shutdown ─────────────────────────────────────────────────────
+    await license_mgr.stop_renewal_loop()
     logger.info("Shutting down AWA application service.")
     storage.cleanup()
 

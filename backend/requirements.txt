@@ -23,3 +23,6 @@ openpyxl>=3.0
 # Data Processing & Translation Runtime
 pandas>=2.0
 numpy>=1.24
+
+# License Enforcement (Ed25519 signature verification)
+PyNaCl>=1.5.0
