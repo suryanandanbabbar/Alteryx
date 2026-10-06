@@ -18,7 +18,7 @@ class LicenseArtifact(BaseModel):
     """Schema for the signed license document stored in Databricks secret scope.
 
     Secret: alteryx-license
-    Scope: alteryx-license-artifacts
+    Scope: alteryx-licenseArtifacts
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -42,7 +42,8 @@ class LicenseArtifact(BaseModel):
         except Exception as exc:
             raise ValueError(f"Invalid ISO datetime string: {exc}") from exc
         if dt.tzinfo is None:
-            raise ValueError("Timestamp must be a timezone-aware UTC timestamp.")
+            raise ValueError(
+                "Timestamp must be a timezone-aware UTC timestamp.")
         if dt.utcoffset() != timedelta(0):
             raise ValueError(
                 f"Timestamp must be in UTC (+00:00 or Z); non-UTC offset {dt.utcoffset()} is not permitted."
@@ -54,9 +55,11 @@ class LicenseArtifact(BaseModel):
         """Validate required feature set."""
         for req_feat in EXPECTED_FEATURE_NAMES:
             if req_feat not in self.features:
-                raise ValueError(f"Missing required feature '{req_feat}' in license features.")
+                raise ValueError(
+                    f"Missing required feature '{req_feat}' in license features.")
             if not isinstance(self.features[req_feat], bool):
-                raise ValueError(f"Feature '{req_feat}' must be a strict boolean.")
+                raise ValueError(
+                    f"Feature '{req_feat}' must be a strict boolean.")
 
         return self
 
@@ -103,4 +106,3 @@ class LicenseState:
         if not self.is_valid:
             return False
         return self.features.get(feature_name, False)
-

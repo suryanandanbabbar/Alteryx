@@ -118,10 +118,11 @@ def make_signed_artifact(
 
 def test_1_valid_signed_license(test_keypair):
     """1. Valid signed license artifact validates successfully and enables features."""
-    artifact_dict, artifact_json = make_signed_artifact(test_keypair["signing_key"])
+    artifact_dict, artifact_json = make_signed_artifact(
+        test_keypair["signing_key"])
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): artifact_json
+        ("alteryx-licenseArtifacts", "alteryx-license"): artifact_json
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -152,7 +153,7 @@ def test_2_invalid_signature(test_keypair):
     artifact_dict["signature"] = base64.b64encode(sig_bytes).decode("ascii")
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -172,7 +173,7 @@ def test_3_modified_license_id(test_keypair):
     artifact_dict["license_id"] = "TAMPERED-ID"
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -192,7 +193,7 @@ def test_4_modified_product(test_keypair):
     artifact_dict["product"] = "alteryx-other"
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -212,7 +213,7 @@ def test_5_modified_environment(test_keypair):
     artifact_dict["environment"] = "development"
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -232,7 +233,7 @@ def test_6_modified_expires_at(test_keypair):
     artifact_dict["expires_at"] = "2099-12-31T23:59:59Z"
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -256,7 +257,7 @@ def test_7_expired_license(test_keypair):
     )
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): artifact_json
+        ("alteryx-licenseArtifacts", "alteryx-license"): artifact_json
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -273,7 +274,7 @@ def test_7_expired_license(test_keypair):
 def test_8_malformed_json(test_keypair):
     """8. Malformed JSON raises LicenseInvalidError."""
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): "{invalid json: true,"
+        ("alteryx-licenseArtifacts", "alteryx-license"): "{invalid json: true,"
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -293,7 +294,7 @@ def test_9_missing_signature(test_keypair):
     del artifact_dict["signature"]
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -313,7 +314,7 @@ def test_10_invalid_base64_signature(test_keypair):
     artifact_dict["signature"] = "NOT_VALID_BASE64!!!"
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -334,7 +335,7 @@ def test_11_missing_required_field(test_keypair):
         del artifact_dict[field]
 
         provider = InMemorySecretProvider({
-            ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+            ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
         })
         config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
         manager = LicenseManager(config=config, secret_provider=provider)
@@ -352,7 +353,7 @@ def test_12_wrong_field_type(test_keypair):
     artifact_dict["product"] = 12345
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -367,10 +368,11 @@ def test_12_wrong_field_type(test_keypair):
 def test_13_invalid_feature_type(test_keypair):
     """13. Non-boolean feature value raises LicenseInvalidError."""
     artifact_dict, _ = make_signed_artifact(test_keypair["signing_key"])
-    artifact_dict["features"]["workflow_analysis"] = "true"  # String, not StrictBool
+    # String, not StrictBool
+    artifact_dict["features"]["workflow_analysis"] = "true"
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -385,7 +387,7 @@ def test_13_invalid_feature_type(test_keypair):
 def test_14_empty_secret(test_keypair):
     """14. Empty secret string raises LicenseSecretError."""
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): "   "
+        ("alteryx-licenseArtifacts", "alteryx-license"): "   "
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -412,13 +414,14 @@ def test_15_secret_provider_failure(test_keypair):
 
 def test_16_wrong_public_key(test_keypair):
     """16. Verification with a different public key raises LicenseSignatureError."""
-    artifact_dict, artifact_json = make_signed_artifact(test_keypair["signing_key"])
+    artifact_dict, artifact_json = make_signed_artifact(
+        test_keypair["signing_key"])
 
     attacker_key = SigningKey.generate().verify_key
     attacker_pub_b64 = base64.b64encode(attacker_key.encode()).decode("ascii")
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): artifact_json
+        ("alteryx-licenseArtifacts", "alteryx-license"): artifact_json
     })
     config = LicenseConfig(public_key_b64=attacker_pub_b64)
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -441,7 +444,7 @@ def test_17_exact_expiration_boundary(test_keypair):
     )
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): artifact_json
+        ("alteryx-licenseArtifacts", "alteryx-license"): artifact_json
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -469,7 +472,7 @@ def test_18_future_valid_expiration(test_keypair):
     )
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): artifact_json
+        ("alteryx-licenseArtifacts", "alteryx-license"): artifact_json
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -525,7 +528,7 @@ def test_21_identity_mismatches_fail_closed(test_keypair):
         license_id="DIFFERENT-TENANT-999",
     )
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): artifact_json
+        ("alteryx-licenseArtifacts", "alteryx-license"): artifact_json
     })
     config = LicenseConfig(
         license_id="CLIENT-ALTERYX-001",
@@ -541,7 +544,8 @@ def test_21_identity_mismatches_fail_closed(test_keypair):
         test_keypair["signing_key"],
         product="unauthorized-product",
     )
-    provider.set_secret("alteryx-license-artifacts", "alteryx-license", artifact_json)
+    provider.set_secret("alteryx-licenseArtifacts",
+                        "alteryx-license", artifact_json)
     with pytest.raises(LicenseInvalidError, match="Product mismatch"):
         manager.validate_or_raise()
 
@@ -550,7 +554,8 @@ def test_21_identity_mismatches_fail_closed(test_keypair):
         test_keypair["signing_key"],
         environment="staging",
     )
-    provider.set_secret("alteryx-license-artifacts", "alteryx-license", artifact_json)
+    provider.set_secret("alteryx-licenseArtifacts",
+                        "alteryx-license", artifact_json)
     with pytest.raises(LicenseInvalidError, match="Environment mismatch"):
         manager.validate_or_raise()
 
@@ -565,7 +570,8 @@ def test_22_databricks_provider_resolution_and_error_handling():
         provider_no_dbutils.get_secret("scope", "key")
 
     mock_dbutils = MagicMock()
-    mock_dbutils.secrets.get.side_effect = RuntimeError("KeyVault access denied")
+    mock_dbutils.secrets.get.side_effect = RuntimeError(
+        "KeyVault access denied")
     provider_mock = DatabricksSecretProvider(dbutils=mock_dbutils)
 
     with pytest.raises(LicenseSecretError, match="Failed to retrieve secret"):
@@ -588,7 +594,7 @@ def test_23_timezone_naive_issued_at_rejected(test_keypair):
     )
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -610,7 +616,7 @@ def test_24_timezone_naive_expires_at_rejected(test_keypair):
     )
 
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -632,7 +638,7 @@ def test_25_non_utc_timezone_offsets_rejected(test_keypair):
         issued_at="2026-10-06T05:30:00+05:30",
     )
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): json.dumps(artifact_dict)
+        ("alteryx-licenseArtifacts", "alteryx-license"): json.dumps(artifact_dict)
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -645,7 +651,8 @@ def test_25_non_utc_timezone_offsets_rejected(test_keypair):
         test_keypair["signing_key"],
         expires_at="2026-10-07T04:00:00-04:00",
     )
-    provider.set_secret("alteryx-license-artifacts", "alteryx-license", json.dumps(artifact_dict_exp))
+    provider.set_secret("alteryx-licenseArtifacts",
+                        "alteryx-license", json.dumps(artifact_dict_exp))
     with pytest.raises(LicenseInvalidError, match="non-UTC offset"):
         manager.validate_or_raise()
 
@@ -666,7 +673,7 @@ def test_26_canonical_utc_z_accepted(test_keypair):
         expires_at="2026-10-07T00:00:00Z",
     )
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): artifact_json
+        ("alteryx-licenseArtifacts", "alteryx-license"): artifact_json
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -683,7 +690,8 @@ def test_26_canonical_utc_z_accepted(test_keypair):
         issued_at="2026-10-06T00:00:00+00:00",
         expires_at="2026-10-07T00:00:00+00:00",
     )
-    provider.set_secret("alteryx-license-artifacts", "alteryx-license", artifact_json_plus0)
+    provider.set_secret("alteryx-licenseArtifacts",
+                        "alteryx-license", artifact_json_plus0)
     with patch("backend.app.licensing.verifier.datetime") as mock_dt:
         mock_dt.now.return_value = fixed_now
         manager.validate_or_raise()
@@ -703,7 +711,7 @@ def test_27_expiration_boundary_triad(test_keypair):
         expires_at="2026-10-07T00:00:00Z",
     )
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): artifact_json
+        ("alteryx-licenseArtifacts", "alteryx-license"): artifact_json
     })
     config = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     manager = LicenseManager(config=config, secret_provider=provider)
@@ -759,7 +767,8 @@ def test_29_validate_expiry_rejects_non_utc_datetime_directly():
 
     # 2. Non-UTC current_time (-04:00)
     aware_exp = datetime(2026, 10, 7, 0, 0, 0, tzinfo=timezone.utc)
-    non_utc_now = datetime(2026, 10, 6, 0, 0, 0, tzinfo=timezone(timedelta(hours=-4)))
+    non_utc_now = datetime(2026, 10, 6, 0, 0, 0,
+                           tzinfo=timezone(timedelta(hours=-4)))
     with pytest.raises(LicenseInvalidError, match="non-UTC offset"):
         validate_expiry(aware_exp, current_time=non_utc_now)
 
@@ -795,7 +804,7 @@ def test_31_environment_variable_identity_override_attempt_fails(monkeypatch, te
         license_id="UNAUTHORIZED-TENANT",
     )
     provider = InMemorySecretProvider({
-        ("alteryx-license-artifacts", "alteryx-license"): artifact_json
+        ("alteryx-licenseArtifacts", "alteryx-license"): artifact_json
     })
     manager = LicenseManager(
         config=LicenseConfig(public_key_b64=test_keypair["public_b64"]),
@@ -835,6 +844,5 @@ def test_33_secret_scope_and_name_override_attempt_fails(monkeypatch):
     monkeypatch.setenv("ALTERYX_LICENSE_SECRET_NAME", "attacker-custom-secret")
 
     config = LicenseConfig.from_env()
-    assert config.secret_scope == "alteryx-license-artifacts"
+    assert config.secret_scope == "alteryx-licenseArtifacts"
     assert config.secret_name == "alteryx-license"
-

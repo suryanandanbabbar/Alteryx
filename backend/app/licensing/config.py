@@ -24,7 +24,7 @@ logger = logging.getLogger("awa.licensing.config")
 # Key Vault (alteryx-licensing) and is NEVER included in client builds.
 _EMBEDDED_PUBLIC_KEY: str = "aykIwjC0U0mxmTXUDhQdwBCiogj8YRNWy/8EieAfx9s="
 
-_PRODUCTION_SECRET_SCOPE: str = "alteryx-license-artifacts"
+_PRODUCTION_SECRET_SCOPE: str = "alteryx-licenseArtifacts"
 _PRODUCTION_SECRET_NAME: str = "alteryx-license"
 _PRODUCTION_LICENSE_ID: str = "CLIENT-ALTERYX-001"
 _PRODUCTION_PRODUCT: str = "alteryx-etl"
@@ -64,7 +64,7 @@ class LicenseConfig:
           (ALTERYX_LICENSE_ID, ALTERYX_LICENSE_PRODUCT, ALTERYX_LICENSE_ENVIRONMENT)
           are strictly ignored to prevent customer identity tampering.
         - Secret scope and secret key are bound to the production Databricks scope
-          (alteryx-license-artifacts / alteryx-license) and cannot be redirected
+          (alteryx-licenseArtifacts / alteryx-license) and cannot be redirected
           via ALTERYX_LICENSE_SECRET_SCOPE or ALTERYX_LICENSE_SECRET_NAME.
         - Public verification key is strictly the embedded _EMBEDDED_PUBLIC_KEY.
           ALTERYX_LICENSE_PUBLIC_KEY is ignored.

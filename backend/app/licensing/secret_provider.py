@@ -18,7 +18,7 @@ class SecretProvider(Protocol):
         """Retrieve secret string from the given scope and key.
 
         Args:
-            scope: Secret scope name (e.g. alteryx-license-artifacts).
+            scope: Secret scope name (e.g. alteryx-licenseArtifacts).
             key: Secret name within the scope (e.g. alteryx-license).
 
         Returns:
@@ -81,7 +81,8 @@ class DatabricksSecretProvider:
 
     def get_secret(self, scope: str, key: str) -> str:
         """Retrieve secret from Databricks secret scope."""
-        logger.info("Retrieving license secret from Databricks scope: scope=%s key=%s", scope, key)
+        logger.info(
+            "Retrieving license secret from Databricks scope: scope=%s key=%s", scope, key)
         try:
             dbutils = self._resolve_dbutils()
             secret_value = dbutils.secrets.get(scope=scope, key=key)
