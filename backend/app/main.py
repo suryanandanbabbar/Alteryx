@@ -31,8 +31,7 @@ async def lifespan(app: FastAPI):
     from backend.app.licensing import LicenseManager
 
     license_mgr = LicenseManager()
-    license_mgr.validate_or_raise()          # blocks startup if invalid
-    await license_mgr.start_renewal_loop()   # background lease heartbeat
+    license_mgr.validate_or_raise()  # blocks startup if invalid
 
     # ── Existing startup ─────────────────────────────────────────────
     logger.info("Starting AWA application service.")
@@ -46,7 +45,6 @@ async def lifespan(app: FastAPI):
                        type(e).__name__, str(e)[:200])
     yield
     # ── Shutdown ─────────────────────────────────────────────────────
-    await license_mgr.stop_renewal_loop()
     logger.info("Shutting down AWA application service.")
     storage.cleanup()
 

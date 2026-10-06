@@ -4,6 +4,8 @@ All license-related exceptions inherit from LicenseError,
 enabling catch-all handling at the application boundary.
 """
 
+from __future__ import annotations
+
 
 class LicenseError(Exception):
     """Base exception for all license-related errors."""
@@ -15,13 +17,8 @@ class LicenseConfigurationError(LicenseError):
     pass
 
 
-class LicenseNetworkError(LicenseError):
-    """Raised when the Azure License API is unreachable."""
-    pass
-
-
-class LicenseAuthenticationError(LicenseError):
-    """Raised when API client authentication fails (HTTP 401/403)."""
+class LicenseSecretError(LicenseError):
+    """Raised when the Databricks license secret cannot be retrieved or is empty."""
     pass
 
 
@@ -41,5 +38,10 @@ class LicenseRevokedError(LicenseError):
 
 
 class LicenseInvalidError(LicenseError):
-    """Raised when the license response is malformed or status is unrecognised."""
+    """Raised when the license artifact is malformed, has invalid types, or mismatches identity."""
     pass
+
+
+# Backward compatibility aliases
+LicenseNetworkError = LicenseSecretError
+LicenseAuthenticationError = LicenseInvalidError

@@ -1,8 +1,8 @@
 """License configuration loaded from environment variables.
 
-The production Ed25519 public key can be embedded directly into this module
-before Nuitka compilation, or overridden via ALTERYX_LICENSE_PUBLIC_KEY for
-development/testing.
+In production, licensing validates a signed artifact retrieved from
+a Databricks Azure Key Vault-backed secret scope.
+The Ed25519 public verification key is embedded directly into this module.
 """
 
 from __future__ import annotations
@@ -11,20 +11,24 @@ import logging
 import os
 from dataclasses import dataclass
 
+from .errors import LicenseConfigurationError
+
 logger = logging.getLogger("awa.licensing.config")
 
 # ---------------------------------------------------------------------------
-# Production Ed25519 public key (base64-encoded, 32 bytes).
-#
-# Extracted from license_server/alteryx-license-public.pem.
-# The corresponding private key resides exclusively in Azure Key Vault and is
-# NEVER included in client builds or repositories.
+# Canonical Production License Constants (Immutable Build-Time Values)
 # ---------------------------------------------------------------------------
+# Production Ed25519 public key (base64-encoded, 32 bytes).
+# Extracted from alteryx-license-public.pem.
+# The corresponding private key resides exclusively in the private Azure
+# Key Vault (alteryx-licensing) and is NEVER included in client builds.
 _EMBEDDED_PUBLIC_KEY: str = "aykIwjC0U0mxmTXUDhQdwBCiogj8YRNWy/8EieAfx9s="
 
-# Default timing constants (seconds)
-_DEFAULT_GRACE_SECONDS = 259_200      # 72 hours
-_DEFAULT_HEARTBEAT_SECONDS = 3_600    # 1 hour
+_PRODUCTION_SECRET_SCOPE: str = "alteryx-license-artifacts"
+_PRODUCTION_SECRET_NAME: str = "alteryx-license"
+_PRODUCTION_LICENSE_ID: str = "CLIENT-ALTERYX-001"
+_PRODUCTION_PRODUCT: str = "alteryx-etl"
+_PRODUCTION_ENVIRONMENT: str = "production"
 
 
 @dataclass(frozen=True)
@@ -32,74 +36,63 @@ class LicenseConfig:
     """Immutable license configuration.
 
     In production, licensing is permanently enabled and cannot be disabled
-    via client environment variables. The production verification key is
-    embedded directly into the application and cannot be overridden by
-    ALTERYX_LICENSE_PUBLIC_KEY.
+    via client environment variables. The production verification key, identity
+    (license_id, product, environment), and secret scope/key are immutable
+    constants embedded directly into the application and cannot be overridden
+    by environment variables.
     """
 
-    enabled: bool = True
-    api_url: str = ""
-    license_id: str = ""
-    product: str = "alteryx-etl"
-    environment: str = "production"
+    secret_scope: str = _PRODUCTION_SECRET_SCOPE
+    secret_name: str = _PRODUCTION_SECRET_NAME
+    license_id: str = _PRODUCTION_LICENSE_ID
+    product: str = _PRODUCTION_PRODUCT
+    environment: str = _PRODUCTION_ENVIRONMENT
     public_key_b64: str = _EMBEDDED_PUBLIC_KEY
-    grace_seconds: int = _DEFAULT_GRACE_SECONDS
-    heartbeat_seconds: int = _DEFAULT_HEARTBEAT_SECONDS
-    api_client_secret: str = ""
 
-    # ── Factory ──────────────────────────────────────────────────────
+    @property
+    def enabled(self) -> bool:
+        """Licensing is permanently enabled in production."""
+        return True
 
     @classmethod
     def from_env(cls) -> LicenseConfig:
-        """Build a :class:`LicenseConfig` from environment variables.
+        """Build the immutable production :class:`LicenseConfig`.
 
         Security Enforcement:
-        - Licensing is permanently enabled in production builds.
-          ALTERYX_LICENSE_ENABLED is NOT checked and cannot disable licensing.
-        - The production public key is strictly the embedded _EMBEDDED_PUBLIC_KEY.
-          ALTERYX_LICENSE_PUBLIC_KEY is NOT accepted in production to prevent
-          clients from supplying their own keypairs.
-        - Lease duration is authoritative on the Azure server side, so
-          ALTERYX_LICENSE_LEASE_SECONDS is not configurable by the client.
+        - Production identity (license_id, product, environment) is bound
+          immutably to canonical build-time constants. Environment variables
+          (ALTERYX_LICENSE_ID, ALTERYX_LICENSE_PRODUCT, ALTERYX_LICENSE_ENVIRONMENT)
+          are strictly ignored to prevent customer identity tampering.
+        - Secret scope and secret key are bound to the production Databricks scope
+          (alteryx-license-artifacts / alteryx-license) and cannot be redirected
+          via ALTERYX_LICENSE_SECRET_SCOPE or ALTERYX_LICENSE_SECRET_NAME.
+        - Public verification key is strictly the embedded _EMBEDDED_PUBLIC_KEY.
+          ALTERYX_LICENSE_PUBLIC_KEY is ignored.
+        - Disable attempts (ALTERYX_LICENSE_ENABLED=false, LICENSE_ENABLED=false,
+          ALTERYX_DISABLE_LICENSE=true) are completely ineffective.
         """
-        # Production public key must be the embedded key, never an env override
-        public_key = _EMBEDDED_PUBLIC_KEY
-
         return cls(
-            enabled=True,
-            api_url=os.getenv("ALTERYX_LICENSE_API_URL", "").strip(),
-            license_id=os.getenv("ALTERYX_LICENSE_ID", "").strip(),
-            product=os.getenv("ALTERYX_LICENSE_PRODUCT", "alteryx-etl").strip(),
-            environment=os.getenv("ALTERYX_LICENSE_ENVIRONMENT", "production").strip(),
-            public_key_b64=public_key if public_key else None,
-            grace_seconds=int(
-                os.getenv("ALTERYX_LICENSE_GRACE_SECONDS", str(_DEFAULT_GRACE_SECONDS))
-            ),
-            heartbeat_seconds=int(
-                os.getenv("ALTERYX_LICENSE_HEARTBEAT_SECONDS", str(_DEFAULT_HEARTBEAT_SECONDS))
-            ),
-            api_client_secret=os.getenv("ALTERYX_LICENSE_API_CLIENT_SECRET", "").strip(),
+            secret_scope=_PRODUCTION_SECRET_SCOPE,
+            secret_name=_PRODUCTION_SECRET_NAME,
+            license_id=_PRODUCTION_LICENSE_ID,
+            product=_PRODUCTION_PRODUCT,
+            environment=_PRODUCTION_ENVIRONMENT,
+            public_key_b64=_EMBEDDED_PUBLIC_KEY,
         )
-
-    # ── Validation ───────────────────────────────────────────────────
 
     def validate(self) -> None:
         """Raise :class:`LicenseConfigurationError` if required fields are missing."""
-        from .errors import LicenseConfigurationError
-
-        if not self.enabled:
-            return
-
-        if not self.api_url:
-            raise LicenseConfigurationError(
-                "ALTERYX_LICENSE_API_URL is required when licensing is enabled."
-            )
+        if not self.secret_scope:
+            raise LicenseConfigurationError("Secret scope is required.")
+        if not self.secret_name:
+            raise LicenseConfigurationError("Secret name is required.")
         if not self.license_id:
-            raise LicenseConfigurationError(
-                "ALTERYX_LICENSE_ID is required when licensing is enabled."
-            )
+            raise LicenseConfigurationError("License ID is required.")
+        if not self.product:
+            raise LicenseConfigurationError("Product is required.")
+        if not self.environment:
+            raise LicenseConfigurationError("Environment is required.")
         if not self.public_key_b64:
             raise LicenseConfigurationError(
-                "Ed25519 public key is required. "
-                "Embed the production public key in the build."
+                "Ed25519 public key is required. Embed the production public key in the build."
             )
