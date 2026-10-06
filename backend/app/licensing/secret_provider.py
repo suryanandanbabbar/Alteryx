@@ -93,8 +93,6 @@ class DatabricksSecretProvider:
         """
 
         # Databricks Apps production path.
-        # The scope/key are hard-bound by LicenseConfig, so only the
-        # production license artifact is allowed through this path.
         if scope == "alteryx-licenseArtifacts" and key == "alteryx-license":
             secret_value = os.getenv("ALTERYX_LICENSE_ARTIFACT")
 
@@ -113,10 +111,15 @@ class DatabricksSecretProvider:
         # Existing Databricks notebook/testing path.
         dbutils = self._resolve_dbutils()
 
-        secret_value = dbutils.secrets.get(
-            scope=scope,
-            key=key,
-        )
+        try:
+            secret_value = dbutils.secrets.get(
+                scope=scope,
+                key=key,
+            )
+        except Exception as exc:
+            raise LicenseSecretError(
+                f"Failed to retrieve secret '{key}' from scope '{scope}': {exc}"
+            ) from exc
 
         if secret_value is None or not str(secret_value).strip():
             raise LicenseSecretError(
