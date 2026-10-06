@@ -80,29 +80,49 @@ class DatabricksSecretProvider:
         )
 
     def get_secret(self, scope: str, key: str) -> str:
-        """Retrieve secret from Databricks secret scope."""
-        logger.info(
-            "Retrieving license secret from Databricks scope: scope=%s key=%s", scope, key)
-        try:
-            dbutils = self._resolve_dbutils()
-            secret_value = dbutils.secrets.get(scope=scope, key=key)
-            if secret_value is None or not str(secret_value).strip():
+        """
+        Retrieve a secret.
+
+        Databricks Apps:
+            The production license artifact is injected by the App Secret
+            Resource as the ALTERYX_LICENSE_ARTIFACT environment variable.
+
+        Databricks notebooks:
+            Fall back to dbutils for controlled notebook-based testing.
+        """
+
+        # Databricks Apps production path.
+        # The scope/key are hard-bound by LicenseConfig, so only the
+        # production license artifact is allowed through this path.
+        if scope == "alteryx-licenseArtifacts" and key == "alteryx-license":
+            secret_value = os.getenv("ALTERYX_LICENSE_ARTIFACT")
+
+            if secret_value is None:
                 raise LicenseSecretError(
-                    f"Secret '{key}' in scope '{scope}' is empty."
+                    "Databricks App license artifact is not available."
                 )
-            return str(secret_value)
-        except LicenseSecretError:
-            raise
-        except Exception as exc:
-            logger.error(
-                "License secret retrieval failed for scope=%s key=%s (%s)",
-                scope,
-                key,
-                type(exc).__name__,
-            )
+
+            if not secret_value.strip():
+                raise LicenseSecretError(
+                    "Databricks App license artifact is empty."
+                )
+
+            return secret_value
+
+        # Existing Databricks notebook/testing path.
+        dbutils = self._resolve_dbutils()
+
+        secret_value = dbutils.secrets.get(
+            scope=scope,
+            key=key,
+        )
+
+        if secret_value is None or not str(secret_value).strip():
             raise LicenseSecretError(
-                f"Failed to retrieve secret '{key}' from Databricks scope '{scope}'."
-            ) from exc
+                f"Secret '{key}' in scope '{scope}' is empty."
+            )
+
+        return str(secret_value)
 
 
 class InMemorySecretProvider:
