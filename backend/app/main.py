@@ -6,7 +6,8 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from pathlib import Path
 
 from backend.app.config import settings
 from backend.app.api.health import router as health_router
@@ -74,6 +75,25 @@ app.include_router(analysis_router, prefix="/api")
 app.include_router(download_router, prefix="/api")
 app.include_router(portfolio_router, prefix="/api")
 
+PROJECT_ROOT = Path(__file__).parents[2]
+FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+
+if not FRONTEND_DIST.exists():
+    logger.warning("Frontend distribution directory not found: %s", FRONTEND_DIST)
+
+@app.get("/", include_in_schema=False)
+async def serve_frontend():
+    index_file = FRONTEND_DIST / "index.html"
+
+    if not index_file.exists():
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": "Frontend build not found.",
+                "expected_path": str(index_file),
+            },
+        )
+    return FileResponse(index_file)
 
 @app.get("/")
 def root():
