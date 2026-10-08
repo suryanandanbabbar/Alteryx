@@ -75,14 +75,67 @@ app.include_router(analysis_router, prefix="/api")
 app.include_router(download_router, prefix="/api")
 app.include_router(portfolio_router, prefix="/api")
 
-PROJECT_ROOT = Path(__file__).parents[2]
-FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+# ─────────────────────────────────────────────────────────────────────
+# Frontend serving
+# ─────────────────────────────────────────────────────────────────────
+
+# Source deployment:
+#   project/
+#   ├── backend/app/main.py
+#   └── frontend/dist/
+#
+# Protected Nuitka deployment:
+#   app-root/
+#   ├── backend/app.cpython-311-...so
+#   └── frontend/dist/
+#
+# Resolve both layouts without hard-coding an absolute path.
+
+_THIS_FILE = Path(__file__).resolve()
+
+_FRONTEND_CANDIDATES = [
+    # Source layout:
+    _THIS_FILE.parents[2] / "frontend" / "dist",
+
+    # Protected Nuitka layout:
+    _THIS_FILE.parents[1] / "frontend" / "dist",
+
+    # Databricks application working directory fallback:
+    Path.cwd() / "frontend" / "dist",
+]
+
+FRONTEND_DIST = next(
+    (path for path in _FRONTEND_CANDIDATES if path.is_dir()),
+    _FRONTEND_CANDIDATES[0],
+)
+
+FRONTEND_ASSETS = FRONTEND_DIST / "assets"
+
+logger.info("Frontend distribution directory: %s", FRONTEND_DIST)
+logger.info("Frontend assets directory: %s", FRONTEND_ASSETS)
 
 if not FRONTEND_DIST.exists():
-    logger.warning("Frontend distribution directory not found: %s", FRONTEND_DIST)
+    logger.warning(
+        "Frontend distribution directory not found: %s",
+        FRONTEND_DIST,
+    )
+
+if not (FRONTEND_DIST / "index.html").exists():
+    logger.warning(
+        "Frontend index.html not found: %s",
+        FRONTEND_DIST / "index.html",
+    )
+
+if not FRONTEND_ASSETS.exists():
+    logger.warning(
+        "Frontend assets directory not found: %s",
+        FRONTEND_ASSETS,
+    )
+
 
 @app.get("/", include_in_schema=False)
 async def serve_frontend():
+    """Serve the React application entry point."""
     index_file = FRONTEND_DIST / "index.html"
 
     if not index_file.exists():
@@ -93,13 +146,23 @@ async def serve_frontend():
                 "expected_path": str(index_file),
             },
         )
+
     return FileResponse(index_file)
 
-@app.get("/")
-def root():
-    return {
-        "service": "AWA Alteryx Converter API",
-        "status": "running",
-        "docs": "/docs",
-        "health": "/api/health",
-    }
+
+# Serve React/Vite static assets.
+#
+# This must be registered after the /api routers above.
+# It handles requests such as:
+#
+#   /assets/index-CnBeFMZH.js
+#   /assets/index-Cg9EKLLw.css
+#
+if FRONTEND_ASSETS.exists():
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount(
+        "/assets",
+        StaticFiles(directory=str(FRONTEND_ASSETS)),
+        name="frontend-assets",
+    )
