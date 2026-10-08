@@ -574,24 +574,30 @@ def test_21_identity_mismatches_fail_closed(test_keypair):
 # ── 22. Databricks Provider Error Handling ────────────────────────────
 
 
-def test_22_databricks_provider_resolution_and_error_handling():
-    """22. DatabricksSecretProvider raises LicenseSecretError when dbutils is missing or fails."""
-    provider_no_dbutils = DatabricksSecretProvider(dbutils=None)
-    with pytest.raises(LicenseSecretError, match="dbutils is not available"):
-        provider_no_dbutils.get_secret("scope", "key")
+def test_22_databricks_provider_resolution_and_error_handling(monkeypatch):
+    """22. DatabricksSecretProvider retrieves secret from ALTERYX_LICENSE_ARTIFACT and fails closed."""
+    from backend.app.licensing.adapters.databricks import DatabricksSecretProvider
 
-    mock_dbutils = MagicMock()
-    mock_dbutils.secrets.get.side_effect = RuntimeError(
-        "KeyVault access denied")
-    provider_mock = DatabricksSecretProvider(dbutils=mock_dbutils)
+    # Test 1: Secret is read from App environment
+    monkeypatch.setenv("ALTERYX_LICENSE_ARTIFACT", '{"mock": "artifact"}')
+    provider = DatabricksSecretProvider()
+    secret = provider.get_secret("alteryx-licenseArtifacts", "alteryx-license")
+    assert secret == '{"mock": "artifact"}'
 
-    with pytest.raises(LicenseSecretError, match="Failed to retrieve secret"):
-        provider_mock.get_secret("scope", "key")
+    # Test 2: Missing environment variable fails closed
+    monkeypatch.delenv("ALTERYX_LICENSE_ARTIFACT", raising=False)
+    with pytest.raises(LicenseSecretError, match="missing or empty"):
+        provider.get_secret("alteryx-licenseArtifacts", "alteryx-license")
 
-    mock_dbutils.secrets.get.side_effect = None
-    mock_dbutils.secrets.get.return_value = "   "
-    with pytest.raises(LicenseSecretError, match="empty"):
-        provider_mock.get_secret("scope", "key")
+    # Test 3: Empty environment variable fails closed
+    monkeypatch.setenv("ALTERYX_LICENSE_ARTIFACT", "")
+    with pytest.raises(LicenseSecretError, match="missing or empty"):
+        provider.get_secret("alteryx-licenseArtifacts", "alteryx-license")
+
+    # Test 4: Whitespace-only environment variable fails closed
+    monkeypatch.setenv("ALTERYX_LICENSE_ARTIFACT", "   \t\n  ")
+    with pytest.raises(LicenseSecretError, match="missing or empty"):
+        provider.get_secret("alteryx-licenseArtifacts", "alteryx-license")
 
 
 # ── 23. Timezone-naive issued_at Rejected ─────────────────────────────
@@ -1283,21 +1289,16 @@ def test_43_signed_artifact_policy_is_sole_authority(test_keypair):
 # ── 44. Databricks Adapter Dynamic Scope and Key ──────────────────────
 
 
-def test_44_databricks_adapter_dynamic_scope_and_key():
-    """44. Databricks adapter dynamically retrieves arbitrary scope and key without hardcoding."""
+def test_44_databricks_adapter_dynamic_scope_and_key(monkeypatch):
+    """44. Databricks adapter preserves get_secret(scope, key) signature without dbutils."""
     from backend.app.licensing.adapters.databricks import DatabricksSecretProvider
 
-    mock_dbutils = MagicMock()
-    mock_dbutils.secrets.get.return_value = '{"some": "secret"}'
+    monkeypatch.setenv("ALTERYX_LICENSE_ARTIFACT", '{"some": "secret"}')
 
-    provider = DatabricksSecretProvider(dbutils=mock_dbutils)
+    provider = DatabricksSecretProvider()
     secret = provider.get_secret("custom-tenant-scope", "custom-secret-key")
 
     assert secret == '{"some": "secret"}'
-    mock_dbutils.secrets.get.assert_called_once_with(
-        scope="custom-tenant-scope",
-        key="custom-secret-key",
-    )
 
 
 # ── 45. Universal Import Without Databricks ───────────────────────────
@@ -1349,22 +1350,20 @@ def test_46_explicit_secret_provider_injection_required():
 # ── 47. Explicit Databricks Adapter Injection (Correction 1) ──────────
 
 
-def test_47_explicit_databricks_adapter_injection(test_keypair):
-    """47. LicenseManager works when DatabricksSecretProvider is explicitly injected."""
+def test_47_explicit_databricks_adapter_injection(test_keypair, monkeypatch):
+    """47. LicenseManager works when DatabricksSecretProvider is explicitly injected via environment."""
     from backend.app.licensing.adapters.databricks import DatabricksSecretProvider
 
     artifact_dict, artifact_json = make_signed_artifact(test_keypair["signing_key"])
 
-    mock_dbutils = MagicMock()
-    mock_dbutils.secrets.get.return_value = artifact_json
+    monkeypatch.setenv("ALTERYX_LICENSE_ARTIFACT", artifact_json)
 
-    prov = DatabricksSecretProvider(dbutils=mock_dbutils)
+    prov = DatabricksSecretProvider()
     cfg = LicenseConfig(public_key_b64=test_keypair["public_b64"])
     mgr = LicenseManager(config=cfg, secret_provider=prov)
 
     mgr.validate_or_raise()
     assert mgr.is_licensed is True
-    mock_dbutils.secrets.get.assert_called_once()
 
 
 # ── 48. TEST 1 — Signed Artifact Disables Volume ──────────────────────
@@ -1882,6 +1881,85 @@ def test_60_test_e_artifact_policy_still_controls_enforcement(test_keypair):
         mgr_tok.validate_or_raise()
     assert exc_info_tok.value.limit == 500000
     assert exc_info_tok.value.current == 500000
+
+
+# ── Databricks App Secret Provider Tests (Tests 1 - 6) ───────────────
+
+
+def test_61_databricks_app_secret_test_1_read_from_environment(test_keypair, monkeypatch):
+    """Test 1: Secret is read from App environment variable ALTERYX_LICENSE_ARTIFACT."""
+    from backend.app.licensing.adapters.databricks import DatabricksSecretProvider
+
+    _, artifact_json = make_signed_artifact(test_keypair["signing_key"])
+    monkeypatch.setenv("ALTERYX_LICENSE_ARTIFACT", artifact_json)
+
+    provider = DatabricksSecretProvider()
+    secret = provider.get_secret("alteryx-licenseArtifacts", "alteryx-license")
+
+    assert secret == artifact_json
+
+
+def test_62_databricks_app_secret_test_2_missing_env_fails_closed(monkeypatch):
+    """Test 2: Missing ALTERYX_LICENSE_ARTIFACT fails closed with LicenseSecretError."""
+    from backend.app.licensing.adapters.databricks import DatabricksSecretProvider
+
+    monkeypatch.delenv("ALTERYX_LICENSE_ARTIFACT", raising=False)
+
+    provider = DatabricksSecretProvider()
+    with pytest.raises(LicenseSecretError, match="missing or empty") as exc_info:
+        provider.get_secret("alteryx-licenseArtifacts", "alteryx-license")
+
+    assert "ALTERYX_LICENSE_ARTIFACT" in str(exc_info.value)
+
+
+def test_63_databricks_app_secret_test_3_empty_env_fails_closed(monkeypatch):
+    """Test 3: Empty ALTERYX_LICENSE_ARTIFACT fails closed with LicenseSecretError."""
+    from backend.app.licensing.adapters.databricks import DatabricksSecretProvider
+
+    monkeypatch.setenv("ALTERYX_LICENSE_ARTIFACT", "")
+
+    provider = DatabricksSecretProvider()
+    with pytest.raises(LicenseSecretError, match="missing or empty"):
+        provider.get_secret("alteryx-licenseArtifacts", "alteryx-license")
+
+
+def test_64_databricks_app_secret_test_4_whitespace_env_fails_closed(monkeypatch):
+    """Test 4: Whitespace-only ALTERYX_LICENSE_ARTIFACT fails closed with LicenseSecretError."""
+    from backend.app.licensing.adapters.databricks import DatabricksSecretProvider
+
+    monkeypatch.setenv("ALTERYX_LICENSE_ARTIFACT", "   \t\n  ")
+
+    provider = DatabricksSecretProvider()
+    with pytest.raises(LicenseSecretError, match="missing or empty"):
+        provider.get_secret("alteryx-licenseArtifacts", "alteryx-license")
+
+
+def test_65_databricks_app_secret_test_5_scope_key_interface_intact(monkeypatch):
+    """Test 5: Scope and key arguments remain supported in get_secret(scope, key)."""
+    from backend.app.licensing.adapters.databricks import DatabricksSecretProvider
+
+    monkeypatch.setenv("ALTERYX_LICENSE_ARTIFACT", '{"valid": "secret"}')
+
+    provider = DatabricksSecretProvider()
+    # Contract get_secret(scope: str, key: str) -> str
+    secret = provider.get_secret("custom-scope-123", "custom-key-456")
+    assert secret == '{"valid": "secret"}'
+
+
+def test_66_databricks_app_secret_test_6_no_dbutils_dependency(monkeypatch):
+    """Test 6: Provider operates with zero dependency on dbutils."""
+    import sys
+    from backend.app.licensing.adapters.databricks import DatabricksSecretProvider
+
+    # Ensure dbutils is completely absent from the runtime
+    monkeypatch.delattr(sys.modules["builtins"], "dbutils", raising=False)
+
+    monkeypatch.setenv("ALTERYX_LICENSE_ARTIFACT", '{"no_dbutils": true}')
+    provider = DatabricksSecretProvider()
+
+    # Secret retrieval succeeds without any dbutils object
+    secret = provider.get_secret("alteryx-licenseArtifacts", "alteryx-license")
+    assert secret == '{"no_dbutils": true}'
 
 
 
