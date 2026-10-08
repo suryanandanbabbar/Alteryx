@@ -18,8 +18,8 @@ class SecretProvider(Protocol):
         """Retrieve secret string from the given scope and key.
 
         Args:
-            scope: Secret scope name (e.g. alteryx-licenseArtifacts).
-            key: Secret name within the scope (e.g. alteryx-license).
+            scope: Secret scope name.
+            key: Secret name within the scope.
 
         Returns:
             The raw secret string content.

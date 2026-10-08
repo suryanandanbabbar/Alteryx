@@ -74,9 +74,6 @@ class LicensePolicy(BaseModel):
 
 class LicenseArtifact(BaseModel):
     """Schema for the signed license document stored in Databricks secret scope.
-
-    Secret: alteryx-license
-    Scope: alteryx-licenseArtifacts
     """
 
     model_config = ConfigDict(extra="forbid")

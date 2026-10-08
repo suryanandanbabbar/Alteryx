@@ -27,8 +27,8 @@ class DatabricksSecretProvider:
         """Retrieve secret string from the Databricks App environment.
 
         Args:
-            scope: Secret scope name configured by the application (e.g. alteryx-licenseArtifacts).
-            key: Secret name configured by the application (e.g. alteryx-license).
+            scope: Secret scope name configured by the application.
+            key: Secret name configured by the application.
 
         Returns:
             The raw secret string content.
