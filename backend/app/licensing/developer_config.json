@@ -1,0 +1,40 @@
+{
+  "identity": {
+    "license_id": "CLIENT-ALTERYX-001",
+    "product": "alteryx-etl",
+    "environment": "production"
+  },
+  "artifact_secret": {
+    "secret_scope": "alteryx-licenseArtifacts",
+    "secret_name": "alteryx-license"
+  },
+  "enforcement": {
+    "date_enabled": 1,
+    "volume_enabled": 0,
+    "token_usage_enabled": 0
+  },
+  "date": {
+    "issued_date": "2026-10-06T00:00:00Z",
+    "expiry_date": "2026-11-06T00:00:00Z"
+  },
+  "volume": {
+    "volume_limit": 9999,
+    "usage_source": {
+      "type": "custom",
+      "identifier": "volume_usage"
+    }
+  },
+  "token_usage": {
+    "token_usage_limit": 500000,
+    "usage_source": {
+      "type": "custom",
+      "identifier": "token_usage"
+    }
+  },
+  "features": {
+    "workflow_analysis": true,
+    "portfolio_rationalisation": true,
+    "python_translation": true,
+    "export_reports": true
+  }
+}

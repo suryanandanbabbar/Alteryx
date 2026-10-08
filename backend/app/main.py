@@ -29,8 +29,9 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # ── License enforcement (before any other initialisation) ────────
     from backend.app.licensing import LicenseManager
+    from backend.app.licensing.adapters import DatabricksSecretProvider
 
-    license_mgr = LicenseManager()
+    license_mgr = LicenseManager(secret_provider=DatabricksSecretProvider())
     license_mgr.validate_or_raise()  # blocks startup if invalid
 
     # ── Existing startup ─────────────────────────────────────────────

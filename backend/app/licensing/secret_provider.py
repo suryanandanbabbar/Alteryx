@@ -1,10 +1,9 @@
-"""Secret provider abstraction for Databricks Key Vault-backed secret scope."""
+"""Secret provider abstraction for license artifact retrieval."""
 
 from __future__ import annotations
 
 import logging
-import os
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from .errors import LicenseSecretError
 
@@ -31,104 +30,6 @@ class SecretProvider(Protocol):
         ...
 
 
-class DatabricksSecretProvider:
-    """Production provider retrieving secrets via Databricks dbutils.secrets.
-
-    Isolates the Databricks runtime dependency so the rest of the application
-    does not depend on globally imported dbutils.
-    """
-
-    def __init__(self, dbutils: Any = None) -> None:
-        self._dbutils = dbutils
-
-    def _resolve_dbutils(self) -> Any:
-        if self._dbutils is not None:
-            return self._dbutils
-
-        # 1. Builtins (standard interactive Databricks notebooks / environments)
-        import builtins
-
-        if hasattr(builtins, "dbutils"):
-            return getattr(builtins, "dbutils")
-
-        # 2. Global namespace of entry module (__main__)
-        import sys
-
-        main_mod = sys.modules.get("__main__")
-        if main_mod and hasattr(main_mod, "dbutils"):
-            return getattr(main_mod, "dbutils")
-
-        # 3. PySpark DBUtils factory
-        try:
-            from pyspark.dbutils import DBUtils
-            from pyspark.sql import SparkSession
-
-            spark = SparkSession.builder.getOrCreate()
-            return DBUtils(spark)
-        except Exception:
-            pass
-
-        # 4. Databricks Runtime DBUtils module
-        try:
-            import dbruntime.dbutils
-
-            return dbruntime.dbutils.DBUtils()
-        except Exception:
-            pass
-
-        raise LicenseSecretError(
-            "Databricks dbutils is not available in the current runtime environment."
-        )
-
-    def get_secret(self, scope: str, key: str) -> str:
-        """
-        Retrieve a secret.
-
-        Databricks Apps:
-            The production license artifact is injected by the App Secret
-            Resource as the ALTERYX_LICENSE_ARTIFACT environment variable.
-
-        Databricks notebooks:
-            Fall back to dbutils for controlled notebook-based testing.
-        """
-
-        # Databricks Apps production path.
-        if scope == "alteryx-licenseArtifacts" and key == "alteryx-license":
-            secret_value = os.getenv("ALTERYX_LICENSE_ARTIFACT")
-
-            if secret_value is None:
-                raise LicenseSecretError(
-                    "Databricks App license artifact is not available."
-                )
-
-            if not secret_value.strip():
-                raise LicenseSecretError(
-                    "Databricks App license artifact is empty."
-                )
-
-            return secret_value
-
-        # Existing Databricks notebook/testing path.
-        dbutils = self._resolve_dbutils()
-
-        try:
-            secret_value = dbutils.secrets.get(
-                scope=scope,
-                key=key,
-            )
-        except Exception as exc:
-            raise LicenseSecretError(
-                f"Failed to retrieve secret '{key}' from scope '{scope}': {exc}"
-            ) from exc
-
-        if secret_value is None or not str(secret_value).strip():
-            raise LicenseSecretError(
-                f"Secret '{key}' in scope '{scope}' is empty."
-            )
-
-        return str(secret_value)
-
-
 class InMemorySecretProvider:
     """In-memory SecretProvider for testing and local development injection."""
 
@@ -151,3 +52,11 @@ class InMemorySecretProvider:
                 f"Secret '{key}' in scope '{scope}' is empty."
             )
         return str(val)
+
+
+# Lazy alias for backward compatibility without importing Databricks at module level
+def __getattr__(name: str):
+    if name == "DatabricksSecretProvider":
+        from .adapters.databricks import DatabricksSecretProvider
+        return DatabricksSecretProvider
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

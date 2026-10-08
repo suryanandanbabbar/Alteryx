@@ -42,6 +42,30 @@ class LicenseInvalidError(LicenseError):
     pass
 
 
+class LicenseLimitExceededError(LicenseError):
+    """Raised when a configurable license limit (volume, token usage, etc.) has been reached or exceeded."""
+
+    def __init__(
+        self,
+        criterion: str,
+        current: int | None = None,
+        limit: int | None = None,
+        license_id: str = "",
+        message: str = "",
+    ) -> None:
+        self.criterion = criterion
+        self.current = current
+        self.limit = limit
+        self.license_id = license_id
+        if not message:
+            criterion_label = criterion.replace("_", " ").capitalize()
+            if current is not None and limit is not None:
+                message = f"{criterion_label} license limit reached: {current}/{limit}."
+            else:
+                message = f"{criterion_label} license limit reached."
+        super().__init__(message)
+
+
 # Backward compatibility aliases
 LicenseNetworkError = LicenseSecretError
 LicenseAuthenticationError = LicenseInvalidError

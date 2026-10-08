@@ -1,53 +1,98 @@
-"""License configuration loaded from environment variables.
+"""License configuration loaded from package-local developer_config.json.
 
 In production, licensing validates a signed artifact retrieved from
-a Databricks Azure Key Vault-backed secret scope.
-The Ed25519 public verification key is embedded directly into this module.
+a configured secret scope using the embedded Ed25519 public verification key.
+All application-specific settings are loaded from:
+    backend/app/licensing/developer_config.json
 """
 
 from __future__ import annotations
 
 import logging
-import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .errors import LicenseConfigurationError
+
+if TYPE_CHECKING:
+    from .usage_source import UsageDataSource
+    from .developer_config import DeveloperLicenseConfig
 
 logger = logging.getLogger("awa.licensing.config")
 
 # ---------------------------------------------------------------------------
-# Canonical Production License Constants (Immutable Build-Time Values)
+# Canonical Embedded Verification Key (Cryptographic Trust Anchor)
 # ---------------------------------------------------------------------------
 # Production Ed25519 public key (base64-encoded, 32 bytes).
-# Extracted from alteryx-license-public.pem.
-# The corresponding private key resides exclusively in the private Azure
-# Key Vault (alteryx-licensing) and is NEVER included in client builds.
+# The corresponding private key resides exclusively in the private signing
+# Azure Key Vault and is NEVER included in client or runtime builds.
 _EMBEDDED_PUBLIC_KEY: str = "aykIwjC0U0mxmTXUDhQdwBCiogj8YRNWy/8EieAfx9s="
 
-_PRODUCTION_SECRET_SCOPE: str = "alteryx-licenseArtifacts"
-_PRODUCTION_SECRET_NAME: str = "alteryx-license"
-_PRODUCTION_LICENSE_ID: str = "CLIENT-ALTERYX-001"
-_PRODUCTION_PRODUCT: str = "alteryx-etl"
-_PRODUCTION_ENVIRONMENT: str = "production"
+
+def _get_dev_config(config_path: Path | None = None) -> DeveloperLicenseConfig | None:
+    try:
+        from .developer_config import DeveloperLicenseConfig
+        return DeveloperLicenseConfig.load_from_file(config_path)
+    except Exception as exc:
+        logger.debug("Could not load developer_config.json: %s", exc)
+        return None
 
 
 @dataclass(frozen=True)
 class LicenseConfig:
     """Immutable license configuration.
 
-    In production, licensing is permanently enabled and cannot be disabled
-    via client environment variables. The production verification key, identity
-    (license_id, product, environment), and secret scope/key are immutable
-    constants embedded directly into the application and cannot be overridden
-    by environment variables.
+    Application coordinates and enforcement policies default to the
+    package-local `developer_config.json`. EXL developers can also configure
+    or inject custom parameters programmatically.
     """
 
-    secret_scope: str = _PRODUCTION_SECRET_SCOPE
-    secret_name: str = _PRODUCTION_SECRET_NAME
-    license_id: str = _PRODUCTION_LICENSE_ID
-    product: str = _PRODUCTION_PRODUCT
-    environment: str = _PRODUCTION_ENVIRONMENT
+    secret_scope: str | None = None
+    secret_name: str | None = None
+    license_id: str | None = None
+    product: str | None = None
+    environment: str | None = None
     public_key_b64: str = _EMBEDDED_PUBLIC_KEY
+
+    # Criteria flags: strictly int 0 or 1
+    date_enabled: int | None = None
+    volume_enabled: int | None = None
+    token_usage_enabled: int | None = None
+
+    # Limits
+    volume_limit: int | None = None
+    token_usage_limit: int | None = None
+
+    # Optional usage sources
+    volume_usage_source: UsageDataSource | None = None
+    token_usage_source: UsageDataSource | None = None
+
+    def __post_init__(self) -> None:
+        dev_cfg = _get_dev_config()
+
+        if self.secret_scope is None:
+            object.__setattr__(self, "secret_scope", dev_cfg.artifact_secret.secret_scope if dev_cfg else "")
+        if self.secret_name is None:
+            object.__setattr__(self, "secret_name", dev_cfg.artifact_secret.secret_name if dev_cfg else "")
+        if self.license_id is None:
+            object.__setattr__(self, "license_id", dev_cfg.identity.license_id if dev_cfg else "")
+        if self.product is None:
+            object.__setattr__(self, "product", dev_cfg.identity.product if dev_cfg else "")
+        if self.environment is None:
+            object.__setattr__(self, "environment", dev_cfg.identity.environment if dev_cfg else "")
+
+        if self.date_enabled is None:
+            object.__setattr__(self, "date_enabled", dev_cfg.enforcement.date_enabled if dev_cfg else 1)
+        if self.volume_enabled is None:
+            object.__setattr__(self, "volume_enabled", dev_cfg.enforcement.volume_enabled if dev_cfg else 0)
+        if self.token_usage_enabled is None:
+            object.__setattr__(self, "token_usage_enabled", dev_cfg.enforcement.token_usage_enabled if dev_cfg else 0)
+
+        if self.volume_limit is None:
+            object.__setattr__(self, "volume_limit", dev_cfg.volume.volume_limit if dev_cfg else 0)
+        if self.token_usage_limit is None:
+            object.__setattr__(self, "token_usage_limit", dev_cfg.token_usage.token_usage_limit if dev_cfg else 0)
 
     @property
     def enabled(self) -> bool:
@@ -55,33 +100,31 @@ class LicenseConfig:
         return True
 
     @classmethod
-    def from_env(cls) -> LicenseConfig:
-        """Build the immutable production :class:`LicenseConfig`.
-
-        Security Enforcement:
-        - Production identity (license_id, product, environment) is bound
-          immutably to canonical build-time constants. Environment variables
-          (ALTERYX_LICENSE_ID, ALTERYX_LICENSE_PRODUCT, ALTERYX_LICENSE_ENVIRONMENT)
-          are strictly ignored to prevent customer identity tampering.
-        - Secret scope and secret key are bound to the production Databricks scope
-          (alteryx-licenseArtifacts / alteryx-license) and cannot be redirected
-          via ALTERYX_LICENSE_SECRET_SCOPE or ALTERYX_LICENSE_SECRET_NAME.
-        - Public verification key is strictly the embedded _EMBEDDED_PUBLIC_KEY.
-          ALTERYX_LICENSE_PUBLIC_KEY is ignored.
-        - Disable attempts (ALTERYX_LICENSE_ENABLED=false, LICENSE_ENABLED=false,
-          ALTERYX_DISABLE_LICENSE=true) are completely ineffective.
-        """
+    def load(cls, config_path: Path | None = None) -> LicenseConfig:
+        """Load configuration explicitly from package-local or custom developer_config.json."""
+        from .developer_config import DeveloperLicenseConfig
+        dev_cfg = DeveloperLicenseConfig.load_from_file(config_path)
         return cls(
-            secret_scope=_PRODUCTION_SECRET_SCOPE,
-            secret_name=_PRODUCTION_SECRET_NAME,
-            license_id=_PRODUCTION_LICENSE_ID,
-            product=_PRODUCTION_PRODUCT,
-            environment=_PRODUCTION_ENVIRONMENT,
+            secret_scope=dev_cfg.artifact_secret.secret_scope,
+            secret_name=dev_cfg.artifact_secret.secret_name,
+            license_id=dev_cfg.identity.license_id,
+            product=dev_cfg.identity.product,
+            environment=dev_cfg.identity.environment,
             public_key_b64=_EMBEDDED_PUBLIC_KEY,
+            date_enabled=dev_cfg.enforcement.date_enabled,
+            volume_enabled=dev_cfg.enforcement.volume_enabled,
+            token_usage_enabled=dev_cfg.enforcement.token_usage_enabled,
+            volume_limit=dev_cfg.volume.volume_limit,
+            token_usage_limit=dev_cfg.token_usage.token_usage_limit,
         )
 
+    @classmethod
+    def from_env(cls) -> LicenseConfig:
+        """Backward-compatible entry point delegating to package-local configuration."""
+        return cls.load()
+
     def validate(self) -> None:
-        """Raise :class:`LicenseConfigurationError` if required fields are missing."""
+        """Raise :class:`LicenseConfigurationError` if required fields are missing or invalid."""
         if not self.secret_scope:
             raise LicenseConfigurationError("Secret scope is required.")
         if not self.secret_name:
@@ -95,4 +138,25 @@ class LicenseConfig:
         if not self.public_key_b64:
             raise LicenseConfigurationError(
                 "Ed25519 public key is required. Embed the production public key in the build."
+            )
+
+        # Flag type validation: strictly int 0 or 1 if provided
+        for flag_name, flag_val in (
+            ("date_enabled", self.date_enabled),
+            ("volume_enabled", self.volume_enabled),
+            ("token_usage_enabled", self.token_usage_enabled),
+        ):
+            if flag_val is not None and (type(flag_val) is not int or flag_val not in (0, 1)):
+                raise LicenseConfigurationError(
+                    f"Configuration criteria flag '{flag_name}' must be strictly 0 or 1 (got {flag_val!r})."
+                )
+
+        # Limit validation if provided: must be non-negative integer
+        if self.volume_limit is not None and (type(self.volume_limit) is not int or self.volume_limit < 0):
+            raise LicenseConfigurationError(
+                f"Volume limit must be a non-negative integer, got {self.volume_limit!r}."
+            )
+        if self.token_usage_limit is not None and (type(self.token_usage_limit) is not int or self.token_usage_limit < 0):
+            raise LicenseConfigurationError(
+                f"Token usage limit must be a non-negative integer, got {self.token_usage_limit!r}."
             )
